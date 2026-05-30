@@ -1,0 +1,75 @@
+{
+  "name": "secure-interview",
+  "version": "1.0.0",
+  "description": "LetsHyre Secure Interview Application",
+  "main": "main.js",
+  "author": "LetsHyre",
+  "private": true,
+
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "dist": "electron-builder --win"
+  },
+
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.0.0"
+  },
+
+  "dependencies": {
+    "axios": "^1.15.2",
+    "node-fetch": "^2.6.7"
+  },
+
+  "build": {
+    "appId": "com.letshyre.secure",
+    "productName": "LetsHyre Secure Interview",
+
+    "asar": true,
+    "compression": "maximum",
+
+    "directories": {
+      "output": "dist"
+    },
+
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "assets/**/*",
+      "package.json",
+      "!node_modules/.cache"
+    ],
+
+    "extraMetadata": {
+      "main": "main.js"
+    },
+
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "LetsHyre Secure Interview"
+    },
+
+    "protocols": [
+      {
+        "name": "LetsHyre Protocol",
+        "schemes": ["letshyre"]
+      }
+    ]
+  }
+}

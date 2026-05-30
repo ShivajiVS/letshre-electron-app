@@ -1,17 +1,25 @@
-window.addEventListener("DOMContentLoaded", () => {
+const { contextBridge, ipcRenderer } = require("electron");
 
-  document.addEventListener("contextmenu", e => e.preventDefault());
-
-  document.addEventListener("keydown", (e) => {
-
-    if (e.ctrlKey && ["c", "v", "u"].includes(e.key.toLowerCase())) {
-      e.preventDefault();
-    }
-
-    if (e.key === "PrintScreen") {
-      e.preventDefault();
-    }
-
-  });
-
+contextBridge.exposeInMainWorld("electronAPI", {
+  quitApp: () => ipcRenderer.send("quit-app"),
+  recheckSystem: () => ipcRenderer.send("recheck-system"),
 });
+
+// 🔥 Use capture phase (true) to intercept events BEFORE the webpage can stop them
+document.addEventListener("contextmenu", (e) => {
+  e.preventDefault();
+}, true);
+
+document.addEventListener("keydown", (e) => {
+  // Block Copy (C), Paste (V), View Source (U) on both Windows (Ctrl) and Mac (Cmd)
+  if ((e.ctrlKey || e.metaKey) && ["c", "v", "u"].includes(e.key.toLowerCase())) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  // Block PrintScreen key
+  if (e.key === "PrintScreen") {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+}, true);

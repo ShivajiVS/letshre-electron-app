@@ -11,7 +11,7 @@ function getMonitors() {
         const lines = stdout
           .split("\n")
           .map(l => l.trim())
-          .filter(l => l && !l.includes("Name"));
+          .filter(l => l && !l.includes("Name") && !l.startsWith("---"));
 
         resolve(lines);
       }
@@ -31,7 +31,7 @@ function getVideoControllers() {
         const lines = stdout
           .split("\n")
           .map(l => l.trim())
-          .filter(l => l && !l.includes("Name"));
+          .filter(l => l && !l.includes("Name") && !l.startsWith("---"));
 
         resolve(lines);
       }

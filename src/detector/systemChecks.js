@@ -1,12 +1,13 @@
 const { detectHDMIWindows } = require('./hdmiDetector');
 const detectMirroring = require('./mirrorDetector');
 const axios = require('axios');
+const path = require('path');
 
 const SERVER_URL = "http://localhost:8000";
 
 let violationCache = new Map();
 const COOLDOWN = 15000;
-
+let isViolationActive = false;
 
 // =====================
 // START DETECTION
@@ -14,6 +15,8 @@ const COOLDOWN = 15000;
 function start(win){
 
   setInterval(async () => {
+    
+    if (isViolationActive) return;
 
     try {
 
@@ -66,11 +69,10 @@ async function sendViolation(win, event, severity){
 
   console.log("🚨", event);
 
-  // 🔥 Show in UI
-  if (win) {
-    win.webContents.executeJavaScript(`
-      console.log("🚨 ${event}");
-    `);
+  // 🔥 Show in UI (Block access)
+  if (win && !isViolationActive) {
+    isViolationActive = true;
+    win.loadFile(path.join(__dirname, '../../assets/violation.html'), { query: { reason: event } });
   }
 
   // 🔥 Send to backend (violation endpoint)
@@ -86,9 +88,14 @@ async function sendViolation(win, event, severity){
   }
 }
 
+function resetState() {
+  isViolationActive = false;
+  violationCache.clear();
+}
 
 
 module.exports = {
   start,
-  sendViolation
+  sendViolation,
+  resetState
 };

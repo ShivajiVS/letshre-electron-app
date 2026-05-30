@@ -1,9 +1,28 @@
-const { app, BrowserWindow, session, desktopCapturer } = require("electron");
+const { app, BrowserWindow, session, desktopCapturer, ipcMain, globalShortcut } = require("electron");
 const path = require("path");
 const startDetection = require("./src/detector/systemChecks");
 
 let win;
 let deepLinkUrl = null;
+let currentInterviewUrl = "https://interview.letshyre.com";
+
+// =====================
+// IPC HANDLERS FOR VIOLATION SCREEN
+// =====================
+ipcMain.on("quit-app", () => {
+  app.isQuiting = true;
+  app.quit();
+});
+
+ipcMain.on("recheck-system", () => {
+  if (win) {
+    // Reset detection state
+    if (startDetection.resetState) startDetection.resetState();
+    
+    // Reload interview
+    win.loadURL(currentInterviewUrl);
+  }
+});
 
 // =====================
 // SINGLE INSTANCE LOCK (IMPORTANT)
@@ -11,6 +30,7 @@ let deepLinkUrl = null;
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
+  app.isQuiting = true;
   app.quit();
 }
 
@@ -38,9 +58,9 @@ app.on("second-instance", (event, argv) => {
     if (win) {
       const params = getParams(url);
 
-      let newUrl = buildInterviewUrl(params);
+      currentInterviewUrl = buildInterviewUrl(params);
 
-      win.loadURL(newUrl);
+      win.loadURL(currentInterviewUrl);
       win.focus();
     }
   }
@@ -50,6 +70,12 @@ app.on("second-instance", (event, argv) => {
 // APP READY
 // =====================
 app.whenReady().then(async () => {
+
+  // 🔥 AGGRESSIVELY BLOCK ALT+F4 AT OS LEVEL
+  globalShortcut.register("Alt+F4", () => {
+    safeViolation("Attempted to close with ALT+F4", "high");
+  });
+
   // 🔥 Enable screen capture
   session.defaultSession.setDisplayMediaRequestHandler(
     async (request, callback) => {
@@ -105,12 +131,12 @@ function buildInterviewUrl(params) {
 // CREATE WINDOW
 // =====================
 function createWindow() {
-  let finalUrl = "https://interview.letshyre.com";
+  currentInterviewUrl = "https://interview.letshyre.com";
 
   // 🔥 Apply deep link if available
   if (deepLinkUrl) {
     const params = getParams(deepLinkUrl);
-    finalUrl = buildInterviewUrl(params);
+    currentInterviewUrl = buildInterviewUrl(params);
   }
 
   win = new BrowserWindow({
@@ -118,7 +144,10 @@ function createWindow() {
     height: 900,
     fullscreen: true,
     kiosk: true,
+    alwaysOnTop: true, // 🔥 Prevents Win+D / Show Desktop
+    type: "screen-saver", // 🔥 Highest priority window type
     autoHideMenuBar: true,
+    minimizable: false, // 🔥 Completely disable minimization at OS level
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
 
@@ -129,23 +158,24 @@ function createWindow() {
     },
   });
 
-  win.loadURL(finalUrl);
+  win.loadURL(currentInterviewUrl);
 
   win.setMenuBarVisibility(false);
 
-  // 🔥 Block DevTools
+  // 🔥 Block DevTools and Alt+F4
   win.webContents.on("before-input-event", (event, input) => {
     if (
       input.key === "F12" ||
-      (input.control && input.shift && input.key === "I")
+      (input.control && input.shift && input.key === "I") ||
+      (input.alt && input.key === "F4")
     ) {
       event.preventDefault();
     }
   });
 
-  // 🔥 Restrict navigation
+  // 🔥 Restrict navigation (allow local file load for violation screen)
   win.webContents.on("will-navigate", (event, url) => {
-    if (!url.startsWith("https://interview.letshyre.com")) {
+    if (!url.startsWith("https://interview.letshyre.com") && !url.startsWith("file://")) {
       event.preventDefault();
     }
   });
@@ -160,11 +190,19 @@ function createWindow() {
   // =====================
 
   win.on("blur", () => {
+    if (win) {
+      win.show();
+      win.focus(); // 🔥 Aggressively steal focus back
+    }
     safeViolation("Window lost focus (ALT+TAB)", "high");
   });
 
   win.on("minimize", (e) => {
     e.preventDefault();
+    if (win) {
+      win.restore(); // Force it to stay open
+      win.focus();
+    }
     safeViolation("Window minimize attempt", "high");
   });
 
@@ -199,8 +237,15 @@ function safeViolation(event, severity) {
 // =====================
 // CLEAN EXIT
 // =====================
+app.on("will-quit", () => {
+  globalShortcut.unregisterAll();
+});
+
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
+  if (process.platform !== "darwin") {
+    app.isQuiting = true;
+    app.quit();
+  }
 });
 
 app.on("activate", () => {

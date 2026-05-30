@@ -49,13 +49,19 @@ function checkProcesses() {
         "zoom.exe",
         "teams.exe",
         "obs64.exe",
+        "obs32.exe",
         "anydesk.exe",
         "teamviewer.exe",
         "chrome.exe",       // casting
         "msedge.exe",       // casting
         "firefox.exe",
         "scrcpy.exe",       // mobile mirroring
-        "miracast.exe"
+        "miracast.exe",
+        "webex.exe",
+        "slack.exe",
+        "discord.exe",
+        "skype.exe",
+        "gotomeeting.exe"
       ];
 
       const found = suspicious.filter(app => list.includes(app));

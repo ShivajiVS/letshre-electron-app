@@ -1,17 +1,17 @@
 const { exec } = require('child_process');
 
-// 🔥 Detect connected monitors using WMI
+// 🔥 Detect PHYSICAL connected monitors (bypasses "Duplicate Screen" loophole)
 function getMonitors() {
   return new Promise((resolve) => {
     exec(
-      'powershell "Get-CimInstance Win32_DesktopMonitor | Select-Object Name,PNPDeviceID"',
+      'powershell "(Get-CimInstance -Namespace root\\wmi -ClassName WmiMonitorID).InstanceName"',
       (err, stdout) => {
         if (err) return resolve([]);
 
         const lines = stdout
           .split("\n")
           .map(l => l.trim())
-          .filter(l => l && !l.includes("Name") && !l.startsWith("---"));
+          .filter(l => l.length > 0);
 
         resolve(lines);
       }
@@ -51,7 +51,7 @@ async function detectHDMIWindows() {
   // 🔥 Heuristic 1: Multiple monitors
   if (monitors.length > 1) {
     isExternal = true;
-    reason = "Multiple monitors detected via WMI";
+    reason = `Multiple monitors detected (${monitors.length} active displays)`;
   }
 
   // 🔥 Heuristic 2: High resolution modes (4K etc.)

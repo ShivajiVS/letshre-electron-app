@@ -24,6 +24,11 @@ ipcMain.on("recheck-system", () => {
   }
 });
 
+ipcMain.handle("run-preflight-scans", async () => {
+  return await startDetection.runChecksOnce();
+});
+
+
 // =====================
 // SINGLE INSTANCE LOCK (IMPORTANT)
 // =====================
@@ -142,12 +147,7 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1400,
     height: 900,
-    fullscreen: true,
-    kiosk: true,
-    alwaysOnTop: true, // 🔥 Prevents Win+D / Show Desktop
-    type: "screen-saver", // 🔥 Highest priority window type
     autoHideMenuBar: true,
-    minimizable: false, // 🔥 Completely disable minimization at OS level
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
 
@@ -158,7 +158,10 @@ function createWindow() {
     },
   });
 
-  win.loadURL(currentInterviewUrl);
+  win.maximize(); // Just maximize it nicely for the preflight
+
+
+  win.loadFile(path.join(__dirname, "assets/preflight.html"));
 
   win.setMenuBarVisibility(false);
 
@@ -185,19 +188,25 @@ function createWindow() {
     return { action: "deny" };
   });
 
+  let isInterviewActive = false;
+
   // =====================
-  // SECURITY EVENTS
+  // SECURITY EVENTS (Only active during interview)
   // =====================
 
-  win.on("blur", () => {
-    if (win) {
-      win.show();
-      win.focus(); // 🔥 Aggressively steal focus back
-    }
-    safeViolation("Window lost focus (ALT+TAB)", "high");
-  });
+  // win.on("blur", () => {
+  //   if (!isInterviewActive) return; // Ignore during preflight
+  //
+  //   if (win) {
+  //     win.show();
+  //     win.focus(); // 🔥 Aggressively steal focus back
+  //   }
+  //   safeViolation("Window lost focus (ALT+TAB)", "high");
+  // });
 
   win.on("minimize", (e) => {
+    if (!isInterviewActive) return; // Ignore during preflight
+
     e.preventDefault();
     if (win) {
       win.restore(); // Force it to stay open
@@ -208,17 +217,38 @@ function createWindow() {
 
   win.on("close", (e) => {
     if (!app.isQuiting) {
-      e.preventDefault();
-      safeViolation("Attempt to close interview", "high");
+      if (isInterviewActive) {
+        e.preventDefault();
+        safeViolation("Attempt to close interview", "high");
+      }
     }
   });
 
-  // 🔥 Start detection
-  try {
-    startDetection.start(win);
-  } catch (e) {
-    console.log("Detection start failed:", e);
-  }
+  // Intercept the proceed event to enable strict mode
+  ipcMain.removeAllListeners("proceed-to-interview"); // Clean up old listeners just in case
+  ipcMain.on("proceed-to-interview", () => {
+    if (win) {
+      isInterviewActive = true; // 🔥 Enable strict focus rules
+      
+      // 🔥 Lock down the window completely now that the interview is starting
+      win.setAlwaysOnTop(true, "screen-saver");
+      win.setKiosk(true);
+      win.setFullScreen(true);
+      win.setMinimizable(false);
+
+      win.loadURL(currentInterviewUrl);
+      
+      // 🔥 Start continuous background scanning only after preflight passes
+      try {
+        startDetection.start(win);
+      } catch (e) {
+        console.log("Detection start failed:", e);
+      }
+    }
+  });
+
+  // 🔥 Start detection only AFTER preflight is complete
+  // (Moved to proceed-to-interview handler)
 }
 
 // =====================

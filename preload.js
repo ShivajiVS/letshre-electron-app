@@ -3,6 +3,8 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("electronAPI", {
   quitApp: () => ipcRenderer.send("quit-app"),
   recheckSystem: () => ipcRenderer.send("recheck-system"),
+  runPreflight: () => ipcRenderer.invoke("run-preflight-scans"),
+  proceedToInterview: () => ipcRenderer.send("proceed-to-interview"),
 });
 
 // 🔥 Use capture phase (true) to intercept events BEFORE the webpage can stop them

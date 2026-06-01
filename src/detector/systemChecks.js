@@ -9,9 +9,7 @@ let violationCache = new Map();
 const COOLDOWN = 15000;
 let isViolationActive = false;
 
-// =====================
-// START DETECTION
-// =====================
+
 function start(win){
 
   setInterval(async () => {
@@ -52,9 +50,7 @@ function start(win){
 }
 
 
-// =====================
-// SEND VIOLATION
-// =====================
+
 async function sendViolation(win, event, severity){
 
   const now = Date.now();
@@ -94,8 +90,15 @@ function resetState() {
 }
 
 
+async function runChecksOnce() {
+  const hdmi = await detectHDMIWindows();
+  const mirror = await detectMirroring();
+  return { hdmi, mirror };
+}
+
 module.exports = {
   start,
   sendViolation,
-  resetState
+  resetState,
+  runChecksOnce
 };

@@ -3,13 +3,13 @@ const detectMirroring = require("./mirrorDetector");
 const axios = require("axios");
 const path = require("path");
 
-const SERVER_URL = "http://localhost:8000";
+const SERVER_URL = "https://api.letshyre.com";
 
 let violationCache = new Map();
 const COOLDOWN = 15000;
 let isViolationActive = false;
 
-function start(win) {
+function start(win, accessToken) {
   setInterval(async () => {
     if (isViolationActive) return;
     try {
@@ -18,17 +18,18 @@ function start(win) {
 
       // 🔥 Handle HDMI
       if (hdmi.detected) {
-        sendViolation(win, hdmi.reason || "External display detected", "high");
+        sendViolation(win, hdmi.reason || "External display detected", "high", accessToken);
       }
 
       // 🔥 Handle Mirroring
       if (mirror.detected) {
-        sendViolation(win, mirror.reason || "Mirroring suspected", "medium");
+        sendViolation(win, mirror.reason || "Mirroring suspected", "medium", accessToken);
       }
 
       // 🔥 Send full payload (optional logging)
       const payload = {
         timestamp: new Date(),
+        accessToken: accessToken,
         hdmi: hdmi,
         mirror: mirror,
       };
@@ -42,7 +43,7 @@ function start(win) {
   }, 5000);
 }
 
-async function sendViolation(win, event, severity) {
+async function sendViolation(win, event, severity, accessToken = null) {
   const now = Date.now();
 
   // 🔥 cooldown (avoid spam)
@@ -69,6 +70,7 @@ async function sendViolation(win, event, severity) {
       event,
       severity,
       source: "electron",
+      accessToken: accessToken,
       timestamp: new Date(),
     });
   } catch {

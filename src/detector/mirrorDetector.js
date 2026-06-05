@@ -39,7 +39,8 @@ async function detectMirroring() {
 function checkProcesses() {
   return new Promise((resolve) => {
 
-    exec('tasklist', (err, stdout) => {
+    const cmd = process.platform === 'darwin' ? 'ps aux' : 'tasklist';
+    exec(cmd, (err, stdout) => {
 
       if (err) return resolve({ found: [] });
 
@@ -61,7 +62,11 @@ function checkProcesses() {
         "slack.exe",
         "discord.exe",
         "skype.exe",
-        "gotomeeting.exe"
+        "gotomeeting.exe",
+        // Mac app paths
+        "zoom.app", "teams.app", "obs.app", "anydesk.app",
+        "teamviewer.app", "webex.app", "slack.app",
+        "discord.app", "skype.app", "gotomeeting.app"
       ];
 
       const found = suspicious.filter(app => list.includes(app));
@@ -78,6 +83,23 @@ function checkProcesses() {
 // =====================
 function checkResolution() {
   return new Promise((resolve) => {
+
+    if (process.platform === 'darwin') {
+      exec('system_profiler SPDisplaysDataType', (err, stdout) => {
+        if (err) return resolve({ isSuspicious: false });
+        const text = stdout.toLowerCase();
+        const is4K = text.includes("3840") || text.includes("2560");
+        if (is4K) {
+          return resolve({
+            isSuspicious: true,
+            reason: "High resolution detected (possible mirroring)",
+            value: text
+          });
+        }
+        resolve({ isSuspicious: false, value: text });
+      });
+      return;
+    }
 
     exec(
       'powershell "Get-CimInstance Win32_VideoController | Select-Object CurrentHorizontalResolution,CurrentVerticalResolution"',

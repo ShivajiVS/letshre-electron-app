@@ -12,7 +12,9 @@ const startDetection = require("./src/detector/systemChecks");
 let win;
 let deepLinkUrl = null;
 let currentInterviewUrl = "https://interview.letshyre.com";
+let currentAccessToken = null;
 let isInterviewActive = false;
+const { autoUpdater } = require("electron-updater");
 
 // SINGLE INSTANCE LOCK (Must run first)
 const gotTheLock = app.requestSingleInstanceLock();
@@ -43,6 +45,7 @@ app.setAsDefaultProtocolClient("letshyre");
 function handleIncomingProtocol(url) {
   deepLinkUrl = url;
   const params = getParams(url);
+  currentAccessToken = params.accessToken || null;
   currentInterviewUrl = buildInterviewUrl(params);
 
   if (win) {
@@ -95,7 +98,7 @@ ipcMain.on("proceed-to-interview", () => {
     win.loadURL(currentInterviewUrl);
 
     try {
-      startDetection.start(win);
+      startDetection.start(win, currentAccessToken);
     } catch (e) {
       console.log("Detection start failed:", e);
     }
@@ -112,6 +115,7 @@ function createWindow() {
 
   if (deepLinkUrl) {
     const params = getParams(deepLinkUrl);
+    currentAccessToken = params.accessToken || null;
     currentInterviewUrl = buildInterviewUrl(params);
   }
 
@@ -177,6 +181,8 @@ function createWindow() {
 
 // LIFECYCLE INITIALIZATION
 app.whenReady().then(async () => {
+  autoUpdater.checkForUpdatesAndNotify();
+
   // Register OS level block for Alt+F4
   globalShortcut.register("Alt+F4", () => {
     if (isInterviewActive) {
@@ -227,7 +233,7 @@ function buildInterviewUrl(params) {
 function safeViolation(event, severity) {
   try {
     if (startDetection.sendViolation && win) {
-      startDetection.sendViolation(win, event, severity);
+      startDetection.sendViolation(win, event, severity, currentAccessToken);
     }
   } catch (e) {
     console.log("Violation telemetry generation failure:", e);

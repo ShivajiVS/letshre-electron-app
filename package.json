@@ -17,12 +17,20 @@
   },
   "dependencies": {
     "axios": "^1.15.2",
-    "node-fetch": "^2.6.7"
+    "node-fetch": "^2.6.7",
+    "electron-updater": "^6.1.8"
   },
   "build": {
     "appId": "com.letshyre.secure",
     "productName": "LetsHyre Secure Interview",
     "asar": true,
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "letshyre",
+        "repo": "secure-interview-releases"
+      }
+    ],
     "compression": "maximum",
     "directories": {
       "output": "dist"

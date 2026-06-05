@@ -8,7 +8,7 @@
   "scripts": {
     "start": "nodemon --watch . --exec electron .",
     "build": "electron-builder",
-    "dist": "electron-builder --win"
+    "dist": "electron-builder --win --mac"
   },
   "devDependencies": {
     "electron": "^30.0.0",
@@ -38,6 +38,14 @@
     "extraMetadata": {
       "main": "main.js"
     },
+    "protocols": [
+      {
+        "name": "LetsHyre Protocol",
+        "schemes": [
+          "letshyre"
+        ]
+      }
+    ],
     "win": {
       "target": [
         {
@@ -57,13 +65,16 @@
       "createStartMenuShortcut": true,
       "shortcutName": "LetsHyre Secure Interview"
     },
-    "protocols": [
-      {
-        "name": "LetsHyre Protocol",
-        "schemes": [
-          "letshyre"
-        ]
-      }
-    ]
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.education",
+      "icon": "assets/icon.icns",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "assets/entitlements.mac.plist",
+      "entitlementsInherit": "assets/entitlements.mac.plist"
+    }
   }
 }

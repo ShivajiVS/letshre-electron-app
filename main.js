@@ -1,14 +1,70 @@
-const { app, BrowserWindow, session, desktopCapturer, ipcMain, globalShortcut } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  session,
+  desktopCapturer,
+  ipcMain,
+  globalShortcut,
+} = require("electron");
 const path = require("path");
 const startDetection = require("./src/detector/systemChecks");
 
 let win;
 let deepLinkUrl = null;
 let currentInterviewUrl = "https://interview.letshyre.com";
+let isInterviewActive = false;
 
-// =====================
-// IPC HANDLERS FOR VIOLATION SCREEN
-// =====================
+// SINGLE INSTANCE LOCK (Must run first)
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  app.isQuiting = true;
+  app.quit();
+} else {
+  // Handle second instance (Windows/Linux)
+  app.on("second-instance", (event, argv) => {
+    const url = argv.find((arg) => arg.startsWith("letshyre://"));
+    if (url) {
+      handleIncomingProtocol(url);
+    }
+  });
+}
+
+// Handle macOS Protocol launching
+app.on("open-url", (event, url) => {
+  event.preventDefault();
+  handleIncomingProtocol(url);
+});
+
+// Register custom protocol
+app.setAsDefaultProtocolClient("letshyre");
+
+// GLOBAL PROTOCOL ROUTER
+function handleIncomingProtocol(url) {
+  deepLinkUrl = url;
+  const params = getParams(url);
+  currentInterviewUrl = buildInterviewUrl(params);
+
+  if (win) {
+    if (win.isMinimized()) win.restore();
+    win.focus();
+
+    // ⚠️ Security Rule: If they are already mid-interview, dynamically
+    // re-routing them away could be an exploit or crash state.
+    if (isInterviewActive) {
+      safeViolation("Attempted protocol swap during active interview", "high");
+      win.loadURL(currentInterviewUrl);
+    } else {
+      // If they are still in preflight, just update the target URL state silently.
+      console.log(
+        "Updated target interview destination to:",
+        currentInterviewUrl,
+      );
+    }
+  }
+}
+
+// IPC HANDLERS (Moved to Global Scope)
 ipcMain.on("quit-app", () => {
   app.isQuiting = true;
   app.quit();
@@ -16,11 +72,9 @@ ipcMain.on("quit-app", () => {
 
 ipcMain.on("recheck-system", () => {
   if (win) {
-    // Reset detection state
     if (startDetection.resetState) startDetection.resetState();
-    
-    // Reload interview
-    win.loadURL(currentInterviewUrl);
+    // Re-load the local preflight instead of jumping straight to the web URL
+    win.loadFile(path.join(__dirname, "assets/preflight.html"));
   }
 });
 
@@ -28,117 +82,34 @@ ipcMain.handle("run-preflight-scans", async () => {
   return await startDetection.runChecksOnce();
 });
 
+ipcMain.on("proceed-to-interview", () => {
+  if (win) {
+    isInterviewActive = true;
 
-// =====================
-// SINGLE INSTANCE LOCK (IMPORTANT)
-// =====================
-const gotTheLock = app.requestSingleInstanceLock();
+    // 🔥 Absolute Lock down configuration
+    win.setAlwaysOnTop(true, "screen-saver");
+    win.setKiosk(true);
+    win.setFullScreen(true);
+    win.setMinimizable(false);
 
-if (!gotTheLock) {
-  app.isQuiting = true;
-  app.quit();
-}
+    win.loadURL(currentInterviewUrl);
 
-// =====================
-// HANDLE DEEP LINK (Windows - First Launch)
-// =====================
-if (process.platform === "win32") {
-  deepLinkUrl = process.argv.find((arg) => arg.startsWith("letshyre://"));
-}
-
-// =====================
-// REGISTER PROTOCOL
-// =====================
-app.setAsDefaultProtocolClient("letshyre");
-
-// =====================
-// HANDLE SECOND INSTANCE (WHEN APP ALREADY OPEN)
-// =====================
-app.on("second-instance", (event, argv) => {
-  const url = argv.find((arg) => arg.startsWith("letshyre://"));
-
-  if (url) {
-    deepLinkUrl = url;
-
-    if (win) {
-      const params = getParams(url);
-
-      currentInterviewUrl = buildInterviewUrl(params);
-
-      win.loadURL(currentInterviewUrl);
-      win.focus();
+    try {
+      startDetection.start(win);
+    } catch (e) {
+      console.log("Detection start failed:", e);
     }
   }
 });
 
-// =====================
-// APP READY
-// =====================
-app.whenReady().then(async () => {
-
-  // 🔥 AGGRESSIVELY BLOCK ALT+F4 AT OS LEVEL
-  globalShortcut.register("Alt+F4", () => {
-    safeViolation("Attempted to close with ALT+F4", "high");
-  });
-
-  // 🔥 Enable screen capture
-  session.defaultSession.setDisplayMediaRequestHandler(
-    async (request, callback) => {
-      try {
-        const sources = await desktopCapturer.getSources({ types: ["screen"] });
-
-        callback({ video: sources.length ? sources[0] : null });
-      } catch (e) {
-        console.log("Screen capture error:", e);
-        callback({ video: null });
-      }
-    },
-  );
-
-  createWindow();
-});
-
-// =====================
-// EXTRACT PARAMS FROM DEEP LINK
-// =====================
-function getParams(url) {
-  try {
-    const parsed = new URL(url);
-
-    return {
-      accessToken: parsed.searchParams.get("ac"),
-      refreshToken: parsed.searchParams.get("rc"),
-    };
-  } catch (e) {
-    console.log("URL parse error:", e);
-    return {};
-  }
-}
-
-// =====================
-// BUILD FINAL INTERVIEW URL
-// =====================
-function buildInterviewUrl(params) {
-  let url = "https://interview.letshyre.com";
-
-  if (params.accessToken) {
-    url += `?ac=${encodeURIComponent(params.accessToken)}`;
-
-    if (params.refreshToken) {
-      url += `&rc=${encodeURIComponent(params.refreshToken)}`;
-    }
-  }
-
-  return url;
-}
-
-// =====================
-// CREATE WINDOW
-// =====================
+// WINDOW MANAGEMENT
 function createWindow() {
-  currentInterviewUrl = "https://interview.letshyre.com";
+  // Handle Windows CLI deep-link arguments on initial boot
+  if (process.platform === "win32" && !deepLinkUrl) {
+    const url = process.argv.find((arg) => arg.startsWith("letshyre://"));
+    if (url) deepLinkUrl = url;
+  }
 
-  // 🔥 Apply deep link if available
   if (deepLinkUrl) {
     const params = getParams(deepLinkUrl);
     currentInterviewUrl = buildInterviewUrl(params);
@@ -150,123 +121,119 @@ function createWindow() {
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
-
-      // 🔐 Security
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
     },
   });
 
-  win.maximize(); // Just maximize it nicely for the preflight
-
-
+  win.maximize();
   win.loadFile(path.join(__dirname, "assets/preflight.html"));
-
   win.setMenuBarVisibility(false);
 
-  // 🔥 Block DevTools and Alt+F4
+  // Keyboard Lockdown (F12, DevTools, Alt+F4)
   win.webContents.on("before-input-event", (event, input) => {
-    if (
+    const isDevTools =
       input.key === "F12" ||
       (input.control && input.shift && input.key === "I") ||
-      (input.alt && input.key === "F4")
+      (input.meta && input.alt && input.key === "I");
+    const isAltF4 = input.alt && input.key === "F4";
+
+    if (isDevTools || isAltF4) {
+      event.preventDefault();
+    }
+  });
+
+  // Navigation Guardrails
+  win.webContents.on("will-navigate", (event, url) => {
+    if (
+      !url.startsWith("https://interview.letshyre.com") &&
+      !url.startsWith("file://")
     ) {
       event.preventDefault();
     }
   });
 
-  // 🔥 Restrict navigation (allow local file load for violation screen)
-  win.webContents.on("will-navigate", (event, url) => {
-    if (!url.startsWith("https://interview.letshyre.com") && !url.startsWith("file://")) {
-      event.preventDefault();
-    }
-  });
-
-  // 🔥 Block new windows
   win.webContents.setWindowOpenHandler(() => {
     return { action: "deny" };
   });
 
-  let isInterviewActive = false;
-
-  // =====================
-  // SECURITY EVENTS (Only active during interview)
-  // =====================
-
-  // win.on("blur", () => {
-  //   if (!isInterviewActive) return; // Ignore during preflight
-  //
-  //   if (win) {
-  //     win.show();
-  //     win.focus(); // 🔥 Aggressively steal focus back
-  //   }
-  //   safeViolation("Window lost focus (ALT+TAB)", "high");
-  // });
-
+  // Window Event Protections
   win.on("minimize", (e) => {
-    if (!isInterviewActive) return; // Ignore during preflight
-
+    if (!isInterviewActive) return;
     e.preventDefault();
-    if (win) {
-      win.restore(); // Force it to stay open
-      win.focus();
-    }
+    win.restore();
+    win.focus();
     safeViolation("Window minimize attempt", "high");
   });
 
   win.on("close", (e) => {
-    if (!app.isQuiting) {
-      if (isInterviewActive) {
-        e.preventDefault();
-        safeViolation("Attempt to close interview", "high");
-      }
+    if (!app.isQuiting && isInterviewActive) {
+      e.preventDefault();
+      safeViolation("Attempt to close interview window", "high");
     }
   });
-
-  // Intercept the proceed event to enable strict mode
-  ipcMain.removeAllListeners("proceed-to-interview"); // Clean up old listeners just in case
-  ipcMain.on("proceed-to-interview", () => {
-    if (win) {
-      isInterviewActive = true; // 🔥 Enable strict focus rules
-      
-      // 🔥 Lock down the window completely now that the interview is starting
-      win.setAlwaysOnTop(true, "screen-saver");
-      win.setKiosk(true);
-      win.setFullScreen(true);
-      win.setMinimizable(false);
-
-      win.loadURL(currentInterviewUrl);
-      
-      // 🔥 Start continuous background scanning only after preflight passes
-      try {
-        startDetection.start(win);
-      } catch (e) {
-        console.log("Detection start failed:", e);
-      }
-    }
-  });
-
-  // 🔥 Start detection only AFTER preflight is complete
-  // (Moved to proceed-to-interview handler)
 }
 
-// =====================
-// SAFE VIOLATION WRAPPER
-// =====================
-function safeViolation(event, severity) {
-  try {
-    if (startDetection.sendViolation) {
-      startDetection.sendViolation(win, event, severity);
+// LIFECYCLE INITIALIZATION
+app.whenReady().then(async () => {
+  // Register OS level block for Alt+F4
+  globalShortcut.register("Alt+F4", () => {
+    if (isInterviewActive) {
+      safeViolation("Attempted OS level Alt+F4 kill string", "high");
     }
+  });
+
+  // Screen Capture Core Config
+  session.defaultSession.setDisplayMediaRequestHandler(
+    async (request, callback) => {
+      try {
+        const sources = await desktopCapturer.getSources({ types: ["screen"] });
+        callback({ video: sources.length ? sources[0] : null });
+      } catch (e) {
+        console.log("Screen capture handling error:", e);
+        callback({ video: null });
+      }
+    },
+  );
+
+  createWindow();
+});
+
+function getParams(url) {
+  try {
+    const parsed = new URL(url);
+    return {
+      accessToken: parsed.searchParams.get("ac"),
+      refreshToken: parsed.searchParams.get("rc"),
+    };
   } catch (e) {
-    console.log("Violation error:", e);
+    console.log("URL parse error:", e);
+    return {};
   }
 }
 
-// =====================
-// CLEAN EXIT
-// =====================
+function buildInterviewUrl(params) {
+  let url = "https://interview.letshyre.com";
+  if (params.accessToken) {
+    url += `?ac=${encodeURIComponent(params.accessToken)}`;
+    if (params.refreshToken) {
+      url += `&rc=${encodeURIComponent(params.refreshToken)}`;
+    }
+  }
+  return url;
+}
+
+function safeViolation(event, severity) {
+  try {
+    if (startDetection.sendViolation && win) {
+      startDetection.sendViolation(win, event, severity);
+    }
+  } catch (e) {
+    console.log("Violation telemetry generation failure:", e);
+  }
+}
+
 app.on("will-quit", () => {
   globalShortcut.unregisterAll();
 });

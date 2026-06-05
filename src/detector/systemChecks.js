@@ -1,7 +1,7 @@
-const { detectHDMIWindows } = require('./hdmiDetector');
-const detectMirroring = require('./mirrorDetector');
-const axios = require('axios');
-const path = require('path');
+const { detectHDMIWindows } = require("./hdmiDetector");
+const detectMirroring = require("./mirrorDetector");
+const axios = require("axios");
+const path = require("path");
 
 const SERVER_URL = "http://localhost:8000";
 
@@ -9,15 +9,10 @@ let violationCache = new Map();
 const COOLDOWN = 15000;
 let isViolationActive = false;
 
-
-function start(win){
-
+function start(win) {
   setInterval(async () => {
-    
     if (isViolationActive) return;
-
     try {
-
       const hdmi = await detectHDMIWindows();
       const mirror = await detectMirroring();
 
@@ -35,24 +30,19 @@ function start(win){
       const payload = {
         timestamp: new Date(),
         hdmi: hdmi,
-        mirror: mirror
+        mirror: mirror,
       };
 
       console.log("Detection:", payload);
 
       await axios.post(`${SERVER_URL}/report`, payload);
-
     } catch (e) {
       console.log("Detection error:", e.message);
     }
-
   }, 5000);
 }
 
-
-
-async function sendViolation(win, event, severity){
-
+async function sendViolation(win, event, severity) {
   const now = Date.now();
 
   // 🔥 cooldown (avoid spam)
@@ -68,7 +58,9 @@ async function sendViolation(win, event, severity){
   // 🔥 Show in UI (Block access)
   if (win && !isViolationActive) {
     isViolationActive = true;
-    win.loadFile(path.join(__dirname, '../../assets/violation.html'), { query: { reason: event } });
+    win.loadFile(path.join(__dirname, "../../assets/violation.html"), {
+      query: { reason: event },
+    });
   }
 
   // 🔥 Send to backend (violation endpoint)
@@ -77,7 +69,7 @@ async function sendViolation(win, event, severity){
       event,
       severity,
       source: "electron",
-      timestamp: new Date()
+      timestamp: new Date(),
     });
   } catch {
     console.log("Violation API failed");
@@ -89,7 +81,6 @@ function resetState() {
   violationCache.clear();
 }
 
-
 async function runChecksOnce() {
   const hdmi = await detectHDMIWindows();
   const mirror = await detectMirroring();
@@ -100,5 +91,5 @@ module.exports = {
   start,
   sendViolation,
   resetState,
-  runChecksOnce
+  runChecksOnce,
 };

@@ -33,7 +33,7 @@
     ],
     "compression": "maximum",
     "directories": {
-      "output": "dist"
+      "output": "release"
     },
     "files": [
       "main.js",

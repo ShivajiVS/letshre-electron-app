@@ -39,7 +39,13 @@ app.on("open-url", (event, url) => {
 });
 
 // Register custom protocol
-app.setAsDefaultProtocolClient("letshyre");
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('letshyre', process.execPath, [path.resolve(process.argv[1])]);
+  }
+} else {
+  app.setAsDefaultProtocolClient('letshyre');
+}
 
 // GLOBAL PROTOCOL ROUTER
 function handleIncomingProtocol(url) {
@@ -173,7 +179,6 @@ function createWindow() {
 
   win.on("close", (e) => {
     if (!app.isQuiting && isInterviewActive) {
-      e.preventDefault();
       safeViolation("Attempt to close interview window", "high");
     }
   });
@@ -187,6 +192,9 @@ app.whenReady().then(async () => {
   globalShortcut.register("Alt+F4", () => {
     if (isInterviewActive) {
       safeViolation("Attempted OS level Alt+F4 kill string", "high");
+      setTimeout(() => app.quit(), 500); // Give it a moment to send the violation
+    } else {
+      app.quit();
     }
   });
 

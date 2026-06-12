@@ -2,6 +2,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnRescan = document.getElementById("btn-rescan");
   const btnProceed = document.getElementById("btn-proceed");
   const finalStatus = document.getElementById("final-status");
+  let remainingBlockedApps = 0;
 
   const icons = {
     loading: '<svg class="w-5 h-5 spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>',
@@ -112,6 +113,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Process array
     const procs = results.mirror.details.processes || [];
+    remainingBlockedApps = procs.length;
     
     // 2. Meeting Apps
     const foundMeeting = procs.filter(p => meetingApps.includes(p));
@@ -231,7 +233,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Kill a single app, show feedback, then auto re-scan
+  // Kill a single app, show feedback, then auto re-scan only if it was the last active app
   async function handleKillApp(btn, processName) {
     btn.disabled = true;
     btn.className = "bg-amber-50 text-amber-600 font-semibold text-xs py-2 px-3.5 rounded-xl border border-amber-200/60 flex items-center gap-1.5 whitespace-nowrap cursor-wait shadow-sm";
@@ -241,8 +243,28 @@ document.addEventListener("DOMContentLoaded", () => {
       const result = await window.electronAPI.killProcess(processName);
 
       if (result.success) {
-        btn.className = "bg-emerald-50 text-emerald-700 font-semibold text-xs py-2 px-3.5 rounded-xl border border-emerald-200/60 flex items-center gap-1.5 whitespace-nowrap shadow-sm";
-        btn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg> ${getDisplayName(processName)} closed`;
+        btn.className = "bg-emerald-50 text-emerald-700 font-semibold text-xs py-1.5 px-3.5 rounded-xl border border-emerald-200/60 flex items-center gap-1.5 whitespace-nowrap shadow-sm";
+        btn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg> Closed`;
+        
+        // Gray out the process row and neutralize the status indicator dot
+        const row = btn.parentElement;
+        if (row) {
+          row.classList.add("opacity-50", "pointer-events-none");
+          const pulsingDot = row.querySelector(".animate-ping");
+          if (pulsingDot) pulsingDot.remove();
+          const coreDot = row.querySelector(".bg-rose-500");
+          if (coreDot) {
+            coreDot.className = "relative inline-flex rounded-full h-2 w-2 bg-slate-400";
+          }
+        }
+
+        // Decrement remaining active processes count
+        remainingBlockedApps = Math.max(0, remainingBlockedApps - 1);
+
+        // Auto re-scan after 2 seconds only if the last app was closed
+        if (remainingBlockedApps === 0) {
+          setTimeout(() => runScans(), 2000);
+        }
       } else {
         btn.className = "bg-rose-50 text-rose-600 font-semibold text-xs py-2 px-3.5 rounded-xl border border-rose-200/60 flex items-center gap-1.5 whitespace-nowrap shadow-sm";
         btn.innerHTML = `❌ Failed — close ${getDisplayName(processName)} manually`;
@@ -253,9 +275,6 @@ document.addEventListener("DOMContentLoaded", () => {
       btn.innerHTML = `❌ Error — close ${getDisplayName(processName)} manually`;
       btn.disabled = false;
     }
-
-    // Auto re-scan after 2 seconds to verify
-    setTimeout(() => runScans(), 2000);
   }
 
   // Kill ALL blocked apps, then re-scan

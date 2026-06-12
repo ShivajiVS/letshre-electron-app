@@ -45,8 +45,11 @@ function checkProcesses() {
       const suspicious = [
         "zoom.exe",
         "teams.exe",
+        "ms-teams.exe",
+        "msteams.exe",
         "obs64.exe",
         "obs32.exe",
+        "obs-studio.exe",
         "anydesk.exe",
         "teamviewer.exe",
         "chrome.exe",       // casting
@@ -72,7 +75,11 @@ function checkProcesses() {
         "gotomeeting.app",
       ];
 
-      const found = suspicious.filter((app) => list.includes(app));
+      const found = suspicious.filter((app) => {
+        // Use regex to avoid partial suffix/prefix matches (e.g. matching "teams.exe" when only "ms-teams.exe" is running)
+        const regex = new RegExp(`(^|\\s|[\\\\/])${app.replace('.', '\\.')}(\\s|[\\\\/]|$)`, 'i');
+        return regex.test(stdout);
+      });
 
       resolve({ found });
     });

@@ -5,6 +5,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   recheckSystem: () => ipcRenderer.send("recheck-system"),
   runPreflight: () => ipcRenderer.invoke("run-preflight-scans"),
   proceedToInterview: () => ipcRenderer.send("proceed-to-interview"),
+  // Force-close blocked background apps
+  killProcess: (processName) => ipcRenderer.invoke("kill-blocked-app", processName),
+  killAllProcesses: (processNames) => ipcRenderer.invoke("kill-all-blocked-apps", processNames),
 });
 
 // 🔥 Use capture phase (true) to intercept events BEFORE the webpage can stop them

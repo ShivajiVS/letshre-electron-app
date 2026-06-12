@@ -7,6 +7,7 @@ const {
   globalShortcut,
 } = require("electron");
 const path = require("path");
+const { exec } = require("child_process");
 const startDetection = require("./src/detector/systemChecks");
 
 let win;
@@ -89,6 +90,58 @@ ipcMain.on("recheck-system", () => {
 
 ipcMain.handle("run-preflight-scans", async () => {
   return await startDetection.runChecksOnce();
+});
+
+// 🔥 KILLABLE APPS WHITELIST — Only these can be force-closed from the UI
+const KILLABLE_APPS = [
+  "zoom.exe", "teams.exe", "ms-teams.exe", "msteams.exe", "webex.exe", "gotomeeting.exe", "skype.exe",
+  "obs64.exe", "obs32.exe", "discord.exe", "slack.exe", "obs-studio.exe",
+  "anydesk.exe", "teamviewer.exe", "scrcpy.exe", "miracast.exe",
+  "chrome.exe", "msedge.exe", "firefox.exe",
+  // Mac equivalents
+  "zoom.app", "teams.app", "obs.app", "anydesk.app", "teamviewer.app",
+  "webex.app", "slack.app", "discord.app", "skype.app", "gotomeeting.app",
+];
+
+function killSingleProcess(processName) {
+  return new Promise((resolve) => {
+    if (!KILLABLE_APPS.includes(processName.toLowerCase())) {
+      return resolve({ success: false, error: "Process not in blocked list", processName });
+    }
+
+    let cmd;
+    if (process.platform === "darwin") {
+      const appName = processName.replace(".app", "");
+      cmd = `pkill -f "${appName}"`;
+    } else {
+      cmd = `taskkill /IM "${processName}" /F /T`;
+    }
+
+    exec(cmd, (err) => {
+      if (err) {
+        console.log(`Failed to kill ${processName}:`, err.message);
+        resolve({ success: false, error: err.message, processName });
+      } else {
+        console.log(`Successfully killed ${processName}`);
+        resolve({ success: true, processName });
+      }
+    });
+  });
+}
+
+// Kill a single blocked background app
+ipcMain.handle("kill-blocked-app", async (event, processName) => {
+  return await killSingleProcess(processName);
+});
+
+// Kill ALL blocked background apps at once
+ipcMain.handle("kill-all-blocked-apps", async (event, processNames) => {
+  const results = [];
+  for (const name of processNames) {
+    const result = await killSingleProcess(name);
+    results.push(result);
+  }
+  return results;
 });
 
 ipcMain.on("proceed-to-interview", () => {

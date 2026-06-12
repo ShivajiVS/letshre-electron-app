@@ -11,22 +11,38 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Friendly display names for process executables
   const APP_DISPLAY_NAMES = {
-    "zoom.exe": "Zoom", "zoom.app": "Zoom",
-    "teams.exe": "Microsoft Teams", "teams.app": "Microsoft Teams",
+    // Meeting Apps
+    "zoom.exe": "Zoom", "zoom.app": "Zoom", "zoom.us.app": "Zoom",
+    "teams.exe": "Microsoft Teams", "teams.app": "Microsoft Teams", "microsoft teams.app": "Microsoft Teams",
     "ms-teams.exe": "Microsoft Teams", "msteams.exe": "Microsoft Teams",
-    "discord.exe": "Discord", "discord.app": "Discord",
-    "slack.exe": "Slack", "slack.app": "Slack",
-    "obs64.exe": "OBS Studio", "obs32.exe": "OBS Studio", "obs.app": "OBS Studio", "obs-studio.exe": "OBS Studio",
-    "anydesk.exe": "AnyDesk", "anydesk.app": "AnyDesk",
-    "teamviewer.exe": "TeamViewer", "teamviewer.app": "TeamViewer",
-    "webex.exe": "Webex", "webex.app": "Webex",
+    "webex.exe": "Webex", "webex.app": "Webex", "webex meetings.app": "Webex",
     "skype.exe": "Skype", "skype.app": "Skype",
     "gotomeeting.exe": "GoToMeeting", "gotomeeting.app": "GoToMeeting",
-    "scrcpy.exe": "Scrcpy (Screen Mirror)",
+
+    // Screen Sharing / Recording
+    "obs64.exe": "OBS Studio", "obs32.exe": "OBS Studio", "obs-studio.exe": "OBS Studio", "obs.app": "OBS Studio", "obs studio.app": "OBS Studio",
+    "discord.exe": "Discord", "discord.app": "Discord",
+    "slack.exe": "Slack", "slack.app": "Slack",
+    "anydesk.exe": "AnyDesk", "anydesk.app": "AnyDesk",
+    "teamviewer.exe": "TeamViewer", "teamviewer.app": "TeamViewer",
+    "bandicam.exe": "Bandicam",
+    "camtasia.exe": "Camtasia", "camtasia.app": "Camtasia",
+    "snagit.exe": "Snagit", "snagit.app": "Snagit",
+
+    // Casting / Mirroring
+    "scrcpy.exe": "Scrcpy (Screen Mirror)", "scrcpy": "Scrcpy (Screen Mirror)",
     "miracast.exe": "Miracast",
-    "chrome.exe": "Google Chrome",
-    "msedge.exe": "Microsoft Edge",
-    "firefox.exe": "Firefox",
+    "apowermirror.exe": "ApowerMirror", "apowermirror.app": "ApowerMirror",
+    "letsview.exe": "LetsView", "letsview.app": "LetsView",
+
+    // Browsers
+    "chrome.exe": "Google Chrome", "google chrome.app": "Google Chrome",
+    "msedge.exe": "Microsoft Edge", "microsoft edge.app": "Microsoft Edge",
+    "firefox.exe": "Firefox", "firefox.app": "Firefox",
+    "safari.app": "Safari",
+    "opera.exe": "Opera", "opera.app": "Opera",
+    "brave.exe": "Brave", "brave.app": "Brave",
+    "vivaldi.exe": "Vivaldi", "vivaldi.app": "Vivaldi",
   };
 
   function getDisplayName(processName) {
@@ -35,11 +51,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const meetingApps = [
     "zoom.exe", "teams.exe", "ms-teams.exe", "msteams.exe", "webex.exe", "gotomeeting.exe", "skype.exe",
-    "zoom.app", "teams.app", "webex.app", "gotomeeting.app", "skype.app"
+    "zoom.app", "zoom.us.app", "teams.app", "microsoft teams.app", "webex.app", "webex meetings.app", "gotomeeting.app", "skype.app"
   ];
   const screenSharingApps = [
-    "obs64.exe", "obs32.exe", "discord.exe", "slack.exe", "obs-studio.exe",
-    "obs.app", "discord.app", "slack.app"
+    "obs64.exe", "obs32.exe", "obs-studio.exe", "discord.exe", "slack.exe", "bandicam.exe", "camtasia.exe", "snagit.exe",
+    "obs.app", "obs studio.app", "discord.app", "slack.app", "camtasia.app", "snagit.app"
   ];
   
   async function runScans() {

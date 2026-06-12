@@ -94,13 +94,21 @@ ipcMain.handle("run-preflight-scans", async () => {
 
 // 🔥 KILLABLE APPS WHITELIST — Only these can be force-closed from the UI
 const KILLABLE_APPS = [
+  // Meeting Apps
   "zoom.exe", "teams.exe", "ms-teams.exe", "msteams.exe", "webex.exe", "gotomeeting.exe", "skype.exe",
-  "obs64.exe", "obs32.exe", "discord.exe", "slack.exe", "obs-studio.exe",
-  "anydesk.exe", "teamviewer.exe", "scrcpy.exe", "miracast.exe",
-  "chrome.exe", "msedge.exe", "firefox.exe",
-  // Mac equivalents
-  "zoom.app", "teams.app", "obs.app", "anydesk.app", "teamviewer.app",
-  "webex.app", "slack.app", "discord.app", "skype.app", "gotomeeting.app",
+  "zoom.app", "zoom.us.app", "teams.app", "microsoft teams.app", "webex.app", "webex meetings.app", "gotomeeting.app", "skype.app",
+
+  // Screen Sharing / Recording
+  "obs64.exe", "obs32.exe", "obs-studio.exe", "discord.exe", "slack.exe", "anydesk.exe", "teamviewer.exe", "bandicam.exe", "camtasia.exe", "snagit.exe",
+  "obs.app", "obs studio.app", "discord.app", "slack.app", "anydesk.app", "teamviewer.app", "camtasia.app", "snagit.app",
+
+  // Casting / Mirroring
+  "scrcpy.exe", "miracast.exe", "apowermirror.exe", "letsview.exe",
+  "scrcpy", "apowermirror.app", "letsview.app",
+
+  // Browsers
+  "chrome.exe", "msedge.exe", "firefox.exe", "opera.exe", "brave.exe", "vivaldi.exe",
+  "google chrome.app", "microsoft edge.app", "firefox.app", "safari.app", "opera.app", "brave.app", "vivaldi.app",
 ];
 
 function killSingleProcess(processName) {

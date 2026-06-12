@@ -43,36 +43,74 @@ function checkProcesses() {
       const list = stdout.toLowerCase();
 
       const suspicious = [
+        // Meeting Apps - Windows
         "zoom.exe",
         "teams.exe",
         "ms-teams.exe",
         "msteams.exe",
+        "webex.exe",
+        "gotomeeting.exe",
+        "skype.exe",
+
+        // Meeting Apps - macOS
+        "zoom.app",
+        "zoom.us.app",
+        "teams.app",
+        "microsoft teams.app",
+        "webex.app",
+        "webex meetings.app",
+        "gotomeeting.app",
+        "skype.app",
+
+        // Screen Sharing / Recording - Windows
         "obs64.exe",
         "obs32.exe",
         "obs-studio.exe",
+        "discord.exe",
+        "slack.exe",
         "anydesk.exe",
         "teamviewer.exe",
-        "chrome.exe",       // casting
-        "msedge.exe", // casting
-        "firefox.exe",
-        "scrcpy.exe", // mobile mirroring
-        "miracast.exe",
-        "webex.exe",
-        "slack.exe",
-        "discord.exe",
-        "skype.exe",
-        "gotomeeting.exe",
-        // Mac app paths
-        "zoom.app",
-        "teams.app",
+        "bandicam.exe",
+        "camtasia.exe",
+        "snagit.exe",
+
+        // Screen Sharing / Recording - macOS
         "obs.app",
+        "obs studio.app",
+        "discord.app",
+        "slack.app",
         "anydesk.app",
         "teamviewer.app",
-        "webex.app",
-        "slack.app",
-        "discord.app",
-        "skype.app",
-        "gotomeeting.app",
+        "camtasia.app",
+        "snagit.app",
+
+        // Casting / Mirroring - Windows
+        "scrcpy.exe",
+        "miracast.exe",
+        "apowermirror.exe",
+        "letsview.exe",
+
+        // Casting / Mirroring - macOS
+        "scrcpy",
+        "apowermirror.app",
+        "letsview.app",
+
+        // Browsers - Windows
+        "chrome.exe",
+        "msedge.exe",
+        "firefox.exe",
+        "opera.exe",
+        "brave.exe",
+        "vivaldi.exe",
+
+        // Browsers - macOS
+        "google chrome.app",
+        "microsoft edge.app",
+        "firefox.app",
+        "safari.app",
+        "opera.app",
+        "brave.app",
+        "vivaldi.app",
       ];
 
       const found = suspicious.filter((app) => {

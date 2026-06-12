@@ -5,8 +5,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const icons = {
     loading: '<svg class="w-5 h-5 spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>',
-    success: '<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>',
-    error: '<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>'
+    success: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>',
+    error: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>'
   };
 
   // Friendly display names for process executables
@@ -78,14 +78,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function setLoadingState() {
     btnProceed.disabled = true;
-    btnProceed.className = "bg-slate-100 text-slate-400 font-bold py-3.5 px-8 rounded-xl border border-slate-200 transition-all flex items-center justify-center gap-3 cursor-not-allowed whitespace-nowrap";
+    btnProceed.className = "w-64 bg-slate-100 text-slate-400 font-semibold py-3 rounded-xl border border-slate-200 transition-all flex items-center justify-center gap-3 cursor-not-allowed whitespace-nowrap";
     btnRescan.disabled = true;
     finalStatus.textContent = "Running security diagnostics...";
     finalStatus.className = "text-slate-500 font-medium";
 
     ["hdmi", "meeting", "screen", "wireless"].forEach(id => {
       document.getElementById(`icon-${id}`).innerHTML = icons.loading;
-      document.getElementById(`icon-${id}`).className = "w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400";
+      document.getElementById(`icon-${id}`).className = "w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200/40 flex-shrink-0 transition-all duration-300";
+      
+      const badgeEl = document.getElementById(`badge-${id}`);
+      if (badgeEl) {
+        badgeEl.className = "text-[12px] font-semibold px-3 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200/30";
+        badgeEl.textContent = "Scanning";
+      }
+
       // Clear previous action buttons
       const actionsEl = document.getElementById(`actions-${id}`);
       if (actionsEl) actionsEl.innerHTML = "";
@@ -140,49 +147,70 @@ document.addEventListener("DOMContentLoaded", () => {
     btnRescan.disabled = false;
 
     if (allPassed) {
-      finalStatus.textContent = "All checks passed. You may proceed.";
-      finalStatus.className = "text-green-600 font-semibold";
+      finalStatus.textContent = "All security checks passed. You are ready to start.";
+      finalStatus.className = "text-emerald-600 font-semibold text-[15px] flex items-center gap-2";
       btnProceed.disabled = false;
-      btnProceed.className = "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-3.5 px-8 rounded-xl shadow-lg shadow-indigo-500/40 active:scale-[0.97] transition-all flex items-center justify-center gap-3 cursor-pointer whitespace-nowrap border border-indigo-500/20";
+      btnProceed.className = "w-64 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-semibold py-3 rounded-xl shadow-lg shadow-indigo-600/35 hover:shadow-xl hover:shadow-indigo-600/40 hover:-translate-y-[1px] active:translate-y-0 transition-all duration-200 flex items-center justify-center gap-2.5 cursor-pointer whitespace-nowrap border border-indigo-500/20";
     } else {
-      finalStatus.textContent = "All issues must be resolved before proceeding.";
-      finalStatus.className = "text-red-500 font-semibold";
+      finalStatus.textContent = "Please resolve the security alerts above to proceed.";
+      finalStatus.className = "text-rose-500 font-semibold text-[15px]";
+      btnProceed.disabled = true;
+      btnProceed.className = "w-64 bg-slate-200 text-slate-400 font-semibold py-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-2.5 cursor-not-allowed whitespace-nowrap";
     }
   }
 
   function updateCard(id, passed, msg, blockedApps = []) {
+    const cardEl = document.getElementById(`card-${id}`);
     const iconEl = document.getElementById(`icon-${id}`);
     const descEl = document.getElementById(`desc-${id}`);
     const actionsEl = document.getElementById(`actions-${id}`);
+    const badgeEl = document.getElementById(`badge-${id}`);
 
     // Clear previous action buttons
     if (actionsEl) actionsEl.innerHTML = "";
 
     if (passed) {
+      cardEl.className = "glass-card rounded-2xl p-5 flex flex-col border border-slate-200/50 hover:shadow-md hover:border-slate-300/60 transition-all-custom gap-3";
       iconEl.innerHTML = icons.success;
-      iconEl.className = "w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white shadow-sm shadow-green-500/30";
+      iconEl.className = "w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200/40 shadow-sm flex-shrink-0 transition-all duration-300";
       descEl.textContent = msg;
-      descEl.className = "text-slate-500 text-sm font-medium";
+      descEl.className = "text-slate-500 text-[13px] font-medium mt-1";
+      if (badgeEl) {
+        badgeEl.className = "text-[12px] font-semibold px-3 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/30";
+        badgeEl.textContent = "Ready";
+      }
     } else {
+      cardEl.className = "glass-card rounded-2xl p-5 flex flex-col border border-rose-200/50 shadow-sm hover:shadow-md hover:border-rose-300/60 transition-all-custom gap-3 glow-red";
       iconEl.innerHTML = icons.error;
-      iconEl.className = "w-10 h-10 rounded-full bg-red-500 flex items-center justify-center text-white shadow-sm shadow-red-500/30";
-      descEl.className = "text-red-600 text-sm font-semibold";
+      iconEl.className = "w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-200/40 shadow-sm flex-shrink-0 transition-all duration-300";
+      descEl.textContent = msg;
+      descEl.className = "text-rose-700 text-[13px] font-semibold mt-1";
+      if (badgeEl) {
+        badgeEl.className = "text-[12px] font-semibold px-3 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200/30 pulse-soft animate-pulse";
+        badgeEl.textContent = "Action Required";
+      }
 
       if (blockedApps.length > 0) {
-        // Show explanation that apps are running in background
-        descEl.innerHTML = `<span class="block mb-1">⚠️ ${msg}</span><span class="text-slate-500 text-xs font-normal">You may have closed the window, but the app is still running in the background. Use the buttons below to force close them.</span>`;
-
         // Render per-app kill buttons
         blockedApps.forEach(app => {
           const row = document.createElement("div");
-          row.className = "flex items-center justify-between bg-white rounded-lg px-3 py-2.5 border border-red-100 shadow-sm";
+          row.className = "flex items-center justify-between bg-slate-50/50 rounded-xl px-4 py-2.5 border border-slate-200/30 mt-1.5 transition-all-custom hover:bg-slate-50";
 
           const label = document.createElement("div");
-          label.className = "flex items-center gap-2";
-          label.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-400 inline-block"></span><span class="text-slate-700 text-sm font-medium">${getDisplayName(app)}</span><span class="text-slate-400 text-xs">(${app})</span>`;
+          label.className = "flex items-center gap-3";
+          label.innerHTML = `
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+            </span>
+            <div class="flex flex-col">
+              <span class="text-slate-800 text-sm font-semibold leading-none">${getDisplayName(app)}</span>
+              <span class="text-slate-400 text-[10px] font-medium mt-1.5">${app}</span>
+            </div>
+          `;
 
           const btn = document.createElement("button");
-          btn.className = "bg-red-50 hover:bg-red-100 text-red-600 font-semibold text-xs py-1.5 px-3 rounded-lg border border-red-200 transition-all active:scale-95 flex items-center gap-1.5 whitespace-nowrap";
+          btn.className = "bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 font-semibold text-xs py-1.5 px-3.5 rounded-xl border border-rose-200/50 transition-all-custom active:scale-95 flex items-center gap-1.5 whitespace-nowrap shadow-sm";
           btn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Close ${getDisplayName(app)}`;
           btn.addEventListener("click", () => handleKillApp(btn, app));
 
@@ -194,14 +222,11 @@ document.addEventListener("DOMContentLoaded", () => {
         // "Close All & Re-scan" button if multiple apps
         if (blockedApps.length > 1) {
           const closeAllBtn = document.createElement("button");
-          closeAllBtn.className = "w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold text-sm py-2.5 px-4 rounded-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 mt-1 shadow-sm";
+          closeAllBtn.className = "w-full bg-gradient-to-r from-slate-800 to-slate-900 hover:from-indigo-600 hover:to-indigo-700 text-white font-semibold text-xs py-2.5 px-4 rounded-xl transition-all-custom active:scale-[0.98] flex items-center justify-center gap-2 mt-2 shadow-sm";
           closeAllBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Close All & Re-scan`;
           closeAllBtn.addEventListener("click", () => handleKillAll(closeAllBtn, blockedApps));
           actionsEl.appendChild(closeAllBtn);
         }
-      } else {
-        // No killable apps (e.g. resolution issue) — just show the message
-        descEl.textContent = msg;
       }
     }
   }
@@ -209,22 +234,22 @@ document.addEventListener("DOMContentLoaded", () => {
   // Kill a single app, show feedback, then auto re-scan
   async function handleKillApp(btn, processName) {
     btn.disabled = true;
-    btn.className = "bg-amber-50 text-amber-600 font-semibold text-xs py-1.5 px-3 rounded-lg border border-amber-200 flex items-center gap-1.5 whitespace-nowrap cursor-wait";
+    btn.className = "bg-amber-50 text-amber-600 font-semibold text-xs py-2 px-3.5 rounded-xl border border-amber-200/60 flex items-center gap-1.5 whitespace-nowrap cursor-wait shadow-sm";
     btn.innerHTML = `<svg class="w-3.5 h-3.5 spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Closing...`;
 
     try {
       const result = await window.electronAPI.killProcess(processName);
 
       if (result.success) {
-        btn.className = "bg-green-50 text-green-700 font-semibold text-xs py-1.5 px-3 rounded-lg border border-green-200 flex items-center gap-1.5 whitespace-nowrap";
+        btn.className = "bg-emerald-50 text-emerald-700 font-semibold text-xs py-2 px-3.5 rounded-xl border border-emerald-200/60 flex items-center gap-1.5 whitespace-nowrap shadow-sm";
         btn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg> ${getDisplayName(processName)} closed`;
       } else {
-        btn.className = "bg-red-50 text-red-600 font-semibold text-xs py-1.5 px-3 rounded-lg border border-red-200 flex items-center gap-1.5 whitespace-nowrap";
+        btn.className = "bg-rose-50 text-rose-600 font-semibold text-xs py-2 px-3.5 rounded-xl border border-rose-200/60 flex items-center gap-1.5 whitespace-nowrap shadow-sm";
         btn.innerHTML = `❌ Failed — close ${getDisplayName(processName)} manually`;
         btn.disabled = false;
       }
     } catch (e) {
-      btn.className = "bg-red-50 text-red-600 font-semibold text-xs py-1.5 px-3 rounded-lg border border-red-200 flex items-center gap-1.5 whitespace-nowrap";
+      btn.className = "bg-rose-50 text-rose-600 font-semibold text-xs py-2 px-3.5 rounded-xl border border-rose-200/60 flex items-center gap-1.5 whitespace-nowrap shadow-sm";
       btn.innerHTML = `❌ Error — close ${getDisplayName(processName)} manually`;
       btn.disabled = false;
     }
@@ -236,15 +261,15 @@ document.addEventListener("DOMContentLoaded", () => {
   // Kill ALL blocked apps, then re-scan
   async function handleKillAll(btn, processNames) {
     btn.disabled = true;
-    btn.className = "w-full bg-amber-500 text-white font-semibold text-sm py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 mt-1 shadow-sm cursor-wait";
+    btn.className = "w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white font-semibold text-sm py-3 px-4 rounded-xl flex items-center justify-center gap-2 mt-3 shadow-md cursor-wait";
     btn.innerHTML = `<svg class="w-4 h-4 spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Closing all apps...`;
 
     try {
       await window.electronAPI.killAllProcesses(processNames);
-      btn.className = "w-full bg-green-600 text-white font-semibold text-sm py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 mt-1 shadow-sm";
+      btn.className = "w-full bg-gradient-to-r from-emerald-600 to-emerald-700 text-white font-semibold text-sm py-3 px-4 rounded-xl flex items-center justify-center gap-2 mt-3 shadow-md";
       btn.innerHTML = `✅ All apps closed — re-scanning...`;
     } catch (e) {
-      btn.className = "w-full bg-red-500 text-white font-semibold text-sm py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 mt-1 shadow-sm";
+      btn.className = "w-full bg-gradient-to-r from-rose-500 to-rose-600 text-white font-semibold text-sm py-3 px-4 rounded-xl flex items-center justify-center gap-2 mt-3 shadow-md";
       btn.innerHTML = `❌ Some apps failed to close`;
     }
 

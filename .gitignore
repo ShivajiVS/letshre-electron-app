@@ -11,6 +11,17 @@ node_modules
 dist
 release
 dist-ssr
+
+# PyInstaller build artefacts
+build_tmp/
+*.spec
+
+# Compiled agent binaries (built by scripts/build_agent.py)
+resources/agent.exe
+resources/agent
+
+# Agent runtime log
+agent_log.json
 *.local
 .env
 .env.uat

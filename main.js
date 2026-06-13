@@ -7,7 +7,8 @@ const {
   globalShortcut,
 } = require("electron");
 const path = require("path");
-const { exec } = require("child_process");
+const { exec, spawn } = require("child_process");
+const http = require("http");
 const startDetection = require("./src/detector/systemChecks");
 
 let win;
@@ -15,7 +16,79 @@ let deepLinkUrl = null;
 let currentInterviewUrl = "https://interview.letshyre.com";
 let currentAccessToken = null;
 let isInterviewActive = false;
+let agentProcess = null;          // reference to the spawned agent binary
 const { autoUpdater } = require("electron-updater");
+
+// ─────────────────────────────────────────────────────────
+//  AGENT BINARY — resolve path for packaged vs. dev
+// ─────────────────────────────────────────────────────────
+function getAgentPath() {
+  const binName = process.platform === "win32" ? "agent.exe" : "agent";
+  if (app.isPackaged) {
+    // In production the binary lives in the app's resources folder
+    return path.join(process.resourcesPath, binName);
+  }
+  // During development use the local resources/ folder
+  return path.join(__dirname, "resources", binName);
+}
+
+/** Spawn the Python security agent and keep a reference to it. */
+function spawnAgent() {
+  const agentPath = getAgentPath();
+  try {
+    agentProcess = spawn(agentPath, [], {
+      detached: false,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    agentProcess.stdout.on("data", (d) =>
+      console.log("[agent]", d.toString().trim())
+    );
+    agentProcess.stderr.on("data", (d) =>
+      console.error("[agent:err]", d.toString().trim())
+    );
+    agentProcess.on("exit", (code) => {
+      console.warn(`[agent] exited with code ${code}`);
+      agentProcess = null;
+    });
+
+    console.log(`[agent] spawned from ${agentPath}`);
+  } catch (e) {
+    console.error("[agent] failed to spawn:", e.message);
+  }
+}
+
+/**
+ * Poll /ping every 500 ms for up to `maxMs` ms.
+ * Resolves true if the agent responds, false on timeout.
+ */
+function waitForAgent(maxMs = 5000) {
+  return new Promise((resolve) => {
+    const started = Date.now();
+    function attempt() {
+      const req = http.get("http://127.0.0.1:9999/ping", (res) => {
+        resolve(res.statusCode === 200);
+      });
+      req.setTimeout(400, () => {
+        req.destroy();
+        if (Date.now() - started < maxMs) {
+          setTimeout(attempt, 500);
+        } else {
+          console.warn("[agent] did not respond within", maxMs, "ms");
+          resolve(false);
+        }
+      });
+      req.on("error", () => {
+        if (Date.now() - started < maxMs) {
+          setTimeout(attempt, 500);
+        } else {
+          resolve(false);
+        }
+      });
+    }
+    attempt();
+  });
+}
 
 // SINGLE INSTANCE LOCK (Must run first)
 const gotTheLock = app.requestSingleInstanceLock();
@@ -249,6 +322,15 @@ function createWindow() {
 app.whenReady().then(async () => {
   autoUpdater.checkForUpdatesAndNotify();
 
+  // ── Spawn the security agent binary ──────────────────────
+  spawnAgent();
+  const agentReady = await waitForAgent(6000);
+  if (agentReady) {
+    console.log("[agent] ready ✅");
+  } else {
+    console.warn("[agent] not responding — continuing without deep detection");
+  }
+
   // Register OS level block for Alt+F4
   globalShortcut.register("Alt+F4", () => {
     if (isInterviewActive) {
@@ -311,6 +393,14 @@ function safeViolation(event, severity) {
 
 app.on("will-quit", () => {
   globalShortcut.unregisterAll();
+  // Cleanly terminate the agent process
+  if (agentProcess) {
+    try {
+      agentProcess.kill();
+    } catch (e) {
+      console.warn("[agent] kill failed:", e.message);
+    }
+  }
 });
 
 app.on("window-all-closed", () => {

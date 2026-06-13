@@ -7,7 +7,9 @@
   "private": true,
   "scripts": {
     "start": "nodemon --watch . --exec electron .",
+    "build:agent": "python scripts/build_agent.py",
     "build": "electron-builder",
+    "build:full": "npm run build:agent && electron-builder",
     "dist": "electron-builder --win --mac"
   },
   "devDependencies": {
@@ -35,6 +37,13 @@
     "directories": {
       "output": "release"
     },
+    "extraResources": [
+      {
+        "from": "resources/agent.exe",
+        "to": "agent.exe",
+        "filter": ["**/*"]
+      }
+    ],
     "files": [
       "main.js",
       "preload.js",
@@ -82,7 +91,14 @@
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "assets/entitlements.mac.plist",
-      "entitlementsInherit": "assets/entitlements.mac.plist"
+      "entitlementsInherit": "assets/entitlements.mac.plist",
+      "extraResources": [
+        {
+          "from": "resources/agent",
+          "to": "agent",
+          "filter": ["**/*"]
+        }
+      ]
     }
   }
 }

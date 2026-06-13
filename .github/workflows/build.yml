@@ -1,0 +1,126 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*" # trigger on version tags, e.g. v1.2.0
+  workflow_dispatch: # allow manual trigger from GitHub UI
+
+jobs:
+  # ──────────────────────────────────────────────────────────────
+  # 1. Build agent.exe on Windows
+  # ──────────────────────────────────────────────────────────────
+  build-agent-windows:
+    name: Build agent.exe (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install pyinstaller psutil
+
+      - name: Build agent.exe
+        run: python scripts/build_agent.py
+
+      - name: Upload agent.exe as artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: agent-windows
+          path: resources/agent.exe
+
+  # ──────────────────────────────────────────────────────────────
+  # 2. Build agent (Unix binary) on macOS
+  # ──────────────────────────────────────────────────────────────
+  build-agent-macos:
+    name: Build agent (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install pyinstaller psutil
+
+      - name: Build agent binary
+        run: python scripts/build_agent.py
+
+      - name: Upload agent as artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: agent-macos
+          path: resources/agent
+
+  # ──────────────────────────────────────────────────────────────
+  # 3. Package Electron app for Windows (needs agent.exe)
+  # ──────────────────────────────────────────────────────────────
+  build-electron-windows:
+    name: Package Electron (Windows)
+    runs-on: windows-latest
+    needs: build-agent-windows
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Download agent.exe
+        uses: actions/download-artifact@v5
+        with:
+          name: agent-windows
+          path: resources/
+
+      - name: Package (Windows)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win --publish always
+
+  # ──────────────────────────────────────────────────────────────
+  # 4. Package Electron app for macOS (needs agent binary)
+  # ──────────────────────────────────────────────────────────────
+  build-electron-macos:
+    name: Package Electron (macOS)
+    runs-on: macos-latest
+    needs: build-agent-macos
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Download agent binary
+        uses: actions/download-artifact@v5
+        with:
+          name: agent-macos
+          path: resources/
+
+      - name: Make agent executable
+        run: chmod +x resources/agent
+
+      - name: Package (macOS)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Add your Apple signing certs here when ready:
+          # CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
+          # CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          # APPLE_ID: ${{ secrets.APPLE_ID }}
+          # APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: npx electron-builder --mac --publish always

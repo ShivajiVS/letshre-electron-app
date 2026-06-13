@@ -98,6 +98,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const actionsEl = document.getElementById(`actions-${id}`);
       if (actionsEl) actionsEl.innerHTML = "";
     });
+
+    // Remove previous agent card if it exists
+    const existingAgentCard = document.getElementById("card-agent");
+    if (existingAgentCard) existingAgentCard.remove();
   }
 
   function processResults(results) {
@@ -133,7 +137,7 @@ document.addEventListener("DOMContentLoaded", () => {
       updateCard("screen", true, "No screen sharing detected.");
     }
 
-    // 4. Wireless/Remote (Anything else in the array or high res)
+    // 4. Wireless/Remote
     const foundOther = procs.filter(p => !meetingApps.includes(p) && !screenSharingApps.includes(p));
     if (foundOther.length > 0 || (results.mirror.detected && foundMeeting.length === 0 && foundScreen.length === 0)) {
       allPassed = false;
@@ -145,6 +149,10 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       updateCard("wireless", true, "No casting/mirroring detected.");
     }
+
+    // 5. Agent deep-scan results
+    const agentPassed = renderAgentCard(results.agent);
+    if (!agentPassed) allPassed = false;
 
     btnRescan.disabled = false;
 
@@ -159,6 +167,112 @@ document.addEventListener("DOMContentLoaded", () => {
       btnProceed.disabled = true;
       btnProceed.className = "w-64 bg-slate-200 text-slate-400 font-semibold py-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-2.5 cursor-not-allowed whitespace-nowrap";
     }
+  }
+
+  /**
+   * Dynamically renders the agent deep-scan card below the 4 static cards.
+   * Returns true if all clear, false if any threat or agent offline.
+   */
+  function renderAgentCard(agent) {
+    // Remove previous agent card
+    const existing = document.getElementById("card-agent");
+    if (existing) existing.remove();
+
+    // Container where static cards live
+    const container = document.querySelector(".flex.flex-col.gap-4");
+    if (!container) return true;
+
+    const card = document.createElement("div");
+    card.id = "card-agent";
+
+    // ── Agent not running ───────────────────────────────────
+    if (!agent || !agent.alive) {
+      card.className = "glass-card rounded-2xl p-5 flex flex-col border border-amber-200/50 hover:shadow-md transition-all-custom gap-3";
+      card.innerHTML = `
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-4">
+            <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center border border-amber-200/40 flex-shrink-0">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+              </svg>
+            </div>
+            <div>
+              <h3 class="font-bold text-slate-900 text-[15.5px] leading-tight">Deep Scan Agent</h3>
+              <p class="text-amber-600 text-[13px] font-semibold mt-1">Security agent not running — deep behavioral scan unavailable.</p>
+            </div>
+          </div>
+          <div class="text-[12px] font-semibold px-3 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/30">
+            Warning
+          </div>
+        </div>`;
+      container.appendChild(card);
+      return false; // block proceed if agent is down
+    }
+
+    // ── Agent alive, no threats ──────────────────────────────
+    const threats = (agent.status && agent.status.threats) || [];
+    if (threats.length === 0) {
+      card.className = "glass-card rounded-2xl p-5 flex flex-col border border-slate-200/50 hover:shadow-md transition-all-custom gap-3";
+      card.innerHTML = `
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-4">
+            <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200/40 flex-shrink-0">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+              </svg>
+            </div>
+            <div>
+              <h3 class="font-bold text-slate-900 text-[15.5px] leading-tight">Deep Scan Agent</h3>
+              <p class="text-slate-500 text-[13px] font-medium mt-1">No AI tools, network anomalies, or automation frameworks detected.</p>
+            </div>
+          </div>
+          <div class="text-[12px] font-semibold px-3 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/30">Ready</div>
+        </div>`;
+      container.appendChild(card);
+      return true;
+    }
+
+    // ── Agent alive, threats found ───────────────────────────
+    card.className = "glass-card rounded-2xl p-5 flex flex-col border border-rose-200/50 shadow-sm hover:shadow-md transition-all-custom gap-3";
+
+    const threatRows = threats.map(t => `
+      <div class="flex items-start gap-3 bg-slate-50/50 rounded-xl px-4 py-2.5 border border-slate-200/30 mt-1.5">
+        <span class="relative flex h-2 w-2 mt-1.5 flex-shrink-0">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+        </span>
+        <div>
+          <span class="text-slate-800 text-sm font-semibold">${t.type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</span>
+          <p class="text-slate-500 text-[12px] mt-0.5">${t.detail}</p>
+        </div>
+        <span class="ml-auto text-[11px] font-bold px-2 py-0.5 rounded-full ${
+          t.severity === "HIGH"
+            ? "bg-rose-50 text-rose-700 border border-rose-200/40"
+            : "bg-amber-50 text-amber-700 border border-amber-200/40"
+        }">${t.severity}</span>
+      </div>
+    `).join("");
+
+    card.innerHTML = `
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-200/40 flex-shrink-0">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="font-bold text-slate-900 text-[15.5px] leading-tight">Deep Scan Agent</h3>
+            <p class="text-rose-700 text-[13px] font-semibold mt-1">${threats.length} behavioral threat${threats.length > 1 ? "s" : ""} detected. Close the applications below and rescan.</p>
+          </div>
+        </div>
+        <div class="text-[12px] font-semibold px-3 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200/30 pulse-soft animate-pulse">Action Required</div>
+      </div>
+      <div class="flex flex-col gap-1 mt-1">${threatRows}</div>`;
+
+    container.appendChild(card);
+    return false;
   }
 
   function updateCard(id, passed, msg, blockedApps = []) {

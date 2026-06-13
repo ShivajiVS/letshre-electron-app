@@ -1,0 +1,74 @@
+/* assets/css/preflight.css
+ * ─────────────────────────
+ * Styles for the preflight security check screen.
+ * Extracted from the inline <style> block in preflight.html.
+ */
+
+body {
+  font-family: "Inter", sans-serif;
+  background: radial-gradient(circle at 50% 50%, #fcfdfe 0%, #f1f5f9 100%);
+  user-select: none;
+}
+
+/* Premium Glassmorphic Cards */
+.glass-card {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow:
+    0 4px 24px 0 rgba(31, 38, 135, 0.02),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+/* Smooth custom transitions */
+.transition-all-custom {
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Shimmer effect for scanning state */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.shimmer-bg {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Soft drifts for background blobs */
+@keyframes drift {
+  0%,  100% { transform: translate(0, 0) scale(1); }
+  33%        { transform: translate(25px, -40px) scale(1.08); }
+  66%        { transform: translate(-15px, 15px) scale(0.97); }
+}
+.animate-blob {
+  animation: drift 14s ease-in-out infinite;
+}
+
+/* Pulsing animations for active indicators */
+@keyframes pulseSoft {
+  0%,  100% { opacity: 1; transform: scale(1); }
+  50%        { opacity: 0.75; transform: scale(1.02); }
+}
+.pulse-soft {
+  animation: pulseSoft 2.2s infinite ease-in-out;
+}
+
+/* Smooth fade-in animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Rotating spinner */
+.spinning {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  100% { transform: rotate(360deg); }
+}

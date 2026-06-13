@@ -3,11 +3,15 @@ const detectMirroring = require("./mirrorDetector");
 const { pingAgent, fetchAgentStatus, triggerAgentScan } = require("./agentClient");
 const axios = require("axios");
 const path = require("path");
+const logger = require("../main/logger");
+const {
+  API_BASE_URL,
+  VIOLATION_COOLDOWN_MS,
+  DETECTION_INTERVAL_MS,
+  TAMPER_CHECK_INTERVAL_MS,
+} = require("../shared/constants");
 
-const SERVER_URL = "https://api.letshyre.com";
-
-let violationCache = new Map();
-const COOLDOWN = 15000; // ms between repeated reports of the same event
+const violationCache = new Map();
 let isViolationActive = false;
 
 // Anti-tamper: track whether the agent was alive at interview start
@@ -20,7 +24,7 @@ let agentTamperInterval = null;
 function start(win, accessToken) {
   // --- 1. Standard hardware checks (HDMI + mirroring) ---
   setInterval(async () => {
-    if (isViolationActive) return;
+    if (isViolationActive) {return;}
     try {
       const hdmi   = await detectHDMIWindows();
       const mirror = await detectMirroring();
@@ -34,7 +38,7 @@ function start(win, accessToken) {
 
       // Report hardware state to backend
       await axios
-        .post(`${SERVER_URL}/report`, {
+        .post(`${API_BASE_URL}/report`, {
           timestamp: new Date(),
           accessToken,
           hdmi,
@@ -43,16 +47,16 @@ function start(win, accessToken) {
         .catch(() => {}); // never let a report failure crash the loop
 
     } catch (e) {
-      console.log("Detection error:", e.message);
+      logger.warn("[systemChecks] detection error:", e.message);
     }
-  }, 5000);
+  }, DETECTION_INTERVAL_MS);
 
   // --- 2. Agent deep-scan poll (runs every 5 s) ---
   setInterval(async () => {
-    if (isViolationActive) return;
+    if (isViolationActive) {return;}
     try {
       const status = await fetchAgentStatus();
-      if (!status) return; // agent offline — handled by anti-tamper below
+      if (!status) {return;} // agent offline — handled by anti-tamper below
 
       if (!status.safe_to_proceed && status.threats && status.threats.length > 0) {
         // Send the first unhandled threat as a violation
@@ -65,16 +69,16 @@ function start(win, accessToken) {
         );
       }
     } catch (e) {
-      console.log("Agent poll error:", e.message);
+      logger.warn("[systemChecks] agent poll error:", e.message);
     }
-  }, 5000);
+  }, DETECTION_INTERVAL_MS);
 
   // --- 3. Anti-tamper: ping agent every 10 s ---
   //  If the agent goes silent mid-interview, treat it as a HIGH violation.
   //  (Cheater could kill agent.exe via Task Manager after preflight passes)
   agentWasAlive = true; // main.js already confirmed it was alive before start()
   agentTamperInterval = setInterval(async () => {
-    if (isViolationActive) return;
+    if (isViolationActive) {return;}
     try {
       const alive = await pingAgent();
       if (!alive && agentWasAlive) {
@@ -89,9 +93,9 @@ function start(win, accessToken) {
         agentWasAlive = true;
       }
     } catch (e) {
-      console.log("Anti-tamper ping error:", e.message);
+      logger.warn("[systemChecks] anti-tamper ping error:", e.message);
     }
-  }, 10000);
+  }, TAMPER_CHECK_INTERVAL_MS);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -100,13 +104,12 @@ function start(win, accessToken) {
 async function sendViolation(win, event, severity, accessToken = null) {
   const now = Date.now();
 
-  // Cooldown — avoid spamming the same event
   if (violationCache.has(event)) {
-    if (now - violationCache.get(event) < COOLDOWN) return;
+    if (now - violationCache.get(event) < VIOLATION_COOLDOWN_MS) {return;}
   }
   violationCache.set(event, now);
 
-  console.log("VIOLATION:", event);
+  logger.warn("[systemChecks] VIOLATION:", event);
 
   // Show violation screen in Electron window
   if (win && !isViolationActive) {
@@ -118,7 +121,7 @@ async function sendViolation(win, event, severity, accessToken = null) {
 
   // Report to backend
   try {
-    await axios.post(`${SERVER_URL}/violation`, {
+    await axios.post(`${API_BASE_URL}/violation`, {
       event,
       severity,
       source: "electron",
@@ -126,7 +129,7 @@ async function sendViolation(win, event, severity, accessToken = null) {
       timestamp: new Date(),
     });
   } catch {
-    console.log("Violation API failed");
+    logger.error("[systemChecks] violation API failed");
   }
 }
 

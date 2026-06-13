@@ -1,4 +1,5 @@
 const { exec } = require("child_process");
+const { ALL_BLOCKED_APPS } = require("../shared/appList");
 
 async function detectMirroring() {
   const [processes, resolution] = await Promise.all([
@@ -12,7 +13,7 @@ async function detectMirroring() {
   // 🔥 Signal 1: Casting / remote apps
   if (processes.found.length > 0) {
     detected = true;
-    reason = "Casting/remote apps: " + processes.found.join(", ");
+    reason = `Casting/remote apps: ${  processes.found.join(", ")}`;
   }
 
   // 🔥 Signal 2: Abnormal resolution (mirror hint)
@@ -38,84 +39,17 @@ function checkProcesses() {
   return new Promise((resolve) => {
     const cmd = process.platform === "darwin" ? "ps aux" : "tasklist";
     exec(cmd, (err, stdout) => {
-      if (err) return resolve({ found: [] });
+      if (err) {return resolve({ found: [] });}
 
-      const list = stdout.toLowerCase();
-
-      const suspicious = [
-        // Meeting Apps - Windows
-        "zoom.exe",
-        "teams.exe",
-        "ms-teams.exe",
-        "msteams.exe",
-        "webex.exe",
-        "gotomeeting.exe",
-        "skype.exe",
-
-        // Meeting Apps - macOS
-        "zoom.app",
-        "zoom.us.app",
-        "teams.app",
-        "microsoft teams.app",
-        "webex.app",
-        "webex meetings.app",
-        "gotomeeting.app",
-        "skype.app",
-
-        // Screen Sharing / Recording - Windows
-        "obs64.exe",
-        "obs32.exe",
-        "obs-studio.exe",
-        "discord.exe",
-        "slack.exe",
-        "anydesk.exe",
-        "teamviewer.exe",
-        "bandicam.exe",
-        "camtasia.exe",
-        "snagit.exe",
-
-        // Screen Sharing / Recording - macOS
-        "obs.app",
-        "obs studio.app",
-        "discord.app",
-        "slack.app",
-        "anydesk.app",
-        "teamviewer.app",
-        "camtasia.app",
-        "snagit.app",
-
-        // Casting / Mirroring - Windows
-        "scrcpy.exe",
-        "miracast.exe",
-        "apowermirror.exe",
-        "letsview.exe",
-
-        // Casting / Mirroring - macOS
-        "scrcpy",
-        "apowermirror.app",
-        "letsview.app",
-
-        // Browsers - Windows
-        "chrome.exe",
-        "msedge.exe",
-        "firefox.exe",
-        "opera.exe",
-        "brave.exe",
-        "vivaldi.exe",
-
-        // Browsers - macOS
-        "google chrome.app",
-        "microsoft edge.app",
-        "firefox.app",
-        "safari.app",
-        "opera.app",
-        "brave.app",
-        "vivaldi.app",
-      ];
+      // Source of truth: src/shared/appList.js
+      const suspicious = ALL_BLOCKED_APPS;
 
       const found = suspicious.filter((app) => {
-        // Use regex to avoid partial suffix/prefix matches (e.g. matching "teams.exe" when only "ms-teams.exe" is running)
-        const regex = new RegExp(`(^|\\s|[\\\\/])${app.replace('.', '\\.')}(\\s|[\\\\/]|$)`, 'i');
+        // Use regex to avoid partial matches (e.g. "teams.exe" vs "ms-teams.exe")
+        const regex = new RegExp(
+          `(^|\\s|[\\\\/])${app.replace(".", "\\.")}(\\s|[\\\\/]|$)`,
+          "i"
+        );
         return regex.test(stdout);
       });
 
@@ -131,7 +65,7 @@ function checkResolution() {
   return new Promise((resolve) => {
     if (process.platform === "darwin") {
       exec("system_profiler SPDisplaysDataType", (err, stdout) => {
-        if (err) return resolve({ isSuspicious: false });
+        if (err) {return resolve({ isSuspicious: false });}
         const text = stdout.toLowerCase();
         const is4K = text.includes("3840") || text.includes("2560");
         if (is4K) {
@@ -149,7 +83,7 @@ function checkResolution() {
     exec(
       'powershell "Get-CimInstance Win32_VideoController | Select-Object CurrentHorizontalResolution,CurrentVerticalResolution"',
       (err, stdout) => {
-        if (err) return resolve({ isSuspicious: false });
+        if (err) {return resolve({ isSuspicious: false });}
 
         const text = stdout.toLowerCase();
 

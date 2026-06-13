@@ -1,0 +1,51 @@
+{
+  "env": {
+    "node": true,
+    "browser": true,
+    "es2022": true
+  },
+  "parserOptions": {
+    "ecmaVersion": 2022
+  },
+  "extends": ["eslint:recommended"],
+  "rules": {
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "no-console": "warn",
+    "prefer-const": "error",
+    "eqeqeq": ["error", "always"],
+    "curly": ["error", "all"],
+    "no-var": "error",
+    "no-undef": "error",
+    "no-shadow": "warn",
+    "no-throw-literal": "error",
+    "prefer-template": "warn"
+  },
+  "overrides": [
+    {
+      "files": ["src/renderer/**/*.js", "assets/**/*.js"],
+      "env": {
+        "browser": true,
+        "node": false
+      }
+    },
+    {
+      "files": ["src/main/**/*.js", "preload.js", "main.js"],
+      "env": {
+        "node": true,
+        "browser": false
+      }
+    },
+    {
+      "files": ["src/main/logger.js"],
+      "rules": {
+        "no-console": "off"
+      }
+    }
+  ],
+  "ignorePatterns": [
+    "node_modules/",
+    "dist/",
+    "release/",
+    "build_tmp/"
+  ]
+}

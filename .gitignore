@@ -29,6 +29,9 @@ agent_log.json
 .env.local
 .env.development
 
+# Tooling caches
+.eslintcache
+.prettier-cache
 
 # Editor directories and files
 .vscode/*

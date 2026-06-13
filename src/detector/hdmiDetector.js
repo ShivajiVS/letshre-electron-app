@@ -5,7 +5,7 @@ function getMonitors() {
   return new Promise((resolve) => {
     if (process.platform === 'darwin') {
       exec('system_profiler SPDisplaysDataType', (err, stdout) => {
-        if (err) return resolve([]);
+        if (err) {return resolve([]);}
         const displays = stdout.split('\n').filter(l => l.includes('Resolution:')).length;
         resolve(Array.from({length: displays}, (_, i) => `Mac_Display_${i+1}`));
       });
@@ -15,7 +15,7 @@ function getMonitors() {
     exec(
       'powershell "(Get-CimInstance -Namespace root\\wmi -ClassName WmiMonitorID).InstanceName"',
       (err, stdout) => {
-        if (err) return resolve([]);
+        if (err) {return resolve([]);}
 
         const lines = stdout
           .split("\n")
@@ -34,7 +34,7 @@ function getVideoControllers() {
   return new Promise((resolve) => {
     if (process.platform === 'darwin') {
       exec('system_profiler SPDisplaysDataType', (err, stdout) => {
-        if (err) return resolve([]);
+        if (err) {return resolve([]);}
         const lines = stdout
           .split("\n")
           .map(l => l.trim())
@@ -47,7 +47,7 @@ function getVideoControllers() {
     exec(
       'powershell "Get-CimInstance Win32_VideoController | Select-Object Name,VideoModeDescription"',
       (err, stdout) => {
-        if (err) return resolve([]);
+        if (err) {return resolve([]);}
 
         const lines = stdout
           .split("\n")

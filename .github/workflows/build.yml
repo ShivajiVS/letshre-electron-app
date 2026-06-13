@@ -8,18 +8,56 @@ on:
 
 jobs:
   # ──────────────────────────────────────────────────────────────
+  # 0. Lint & Format check (fast gate — runs before any builds)
+  # ──────────────────────────────────────────────────────────────
+  lint:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+          restore-keys: ${{ runner.os }}-node-
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Check Prettier formatting
+        run: npm run format:check
+
+  # ──────────────────────────────────────────────────────────────
   # 1. Build agent.exe on Windows
   # ──────────────────────────────────────────────────────────────
   build-agent-windows:
     name: Build agent.exe (Windows)
     runs-on: windows-latest
+    needs: lint
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\pip\Cache
+          key: ${{ runner.os }}-pip-pyinstaller-psutil
+          restore-keys: ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: pip install pyinstaller psutil
@@ -28,7 +66,7 @@ jobs:
         run: python scripts/build_agent.py
 
       - name: Upload agent.exe as artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v4
         with:
           name: agent-windows
           path: resources/agent.exe
@@ -39,13 +77,21 @@ jobs:
   build-agent-macos:
     name: Build agent (macOS)
     runs-on: macos-latest
+    needs: lint
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/pip
+          key: ${{ runner.os }}-pip-pyinstaller-psutil
+          restore-keys: ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: pip install pyinstaller psutil
@@ -54,7 +100,7 @@ jobs:
         run: python scripts/build_agent.py
 
       - name: Upload agent as artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v4
         with:
           name: agent-macos
           path: resources/agent
@@ -67,18 +113,25 @@ jobs:
     runs-on: windows-latest
     needs: build-agent-windows
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+          restore-keys: ${{ runner.os }}-node-
 
       - name: Install Node dependencies
         run: npm ci
 
       - name: Download agent.exe
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v4
         with:
           name: agent-windows
           path: resources/
@@ -96,18 +149,25 @@ jobs:
     runs-on: macos-latest
     needs: build-agent-macos
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+          restore-keys: ${{ runner.os }}-node-
 
       - name: Install Node dependencies
         run: npm ci
 
       - name: Download agent binary
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v4
         with:
           name: agent-macos
           path: resources/
@@ -118,7 +178,7 @@ jobs:
       - name: Package (macOS)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Add your Apple signing certs here when ready:
+          # Uncomment and add secrets for Apple signing:
           # CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
           # CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
           # APPLE_ID: ${{ secrets.APPLE_ID }}

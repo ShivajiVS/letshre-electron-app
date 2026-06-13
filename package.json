@@ -6,21 +6,28 @@
   "author": "LetsHyre",
   "private": true,
   "scripts": {
-    "start": "nodemon --watch . --exec electron .",
+    "start": "electron .",
+    "dev": "nodemon --watch src --watch assets --watch preload.js --ext js,html,css --exec \"electron .\"",
     "build:agent": "python scripts/build_agent.py",
     "build": "electron-builder",
     "build:full": "npm run build:agent && electron-builder",
-    "dist": "electron-builder --win --mac"
+    "dist": "electron-builder --win --mac",
+    "lint": "eslint src preload.js main.js --ext .js",
+    "lint:fix": "eslint src preload.js main.js --ext .js --fix",
+    "format": "prettier --write \"src/**/*.js\" \"assets/**/*.{html,css}\" \"preload.js\" \"main.js\"",
+    "format:check": "prettier --check \"src/**/*.js\" \"assets/**/*.{html,css}\" \"preload.js\" \"main.js\""
   },
   "devDependencies": {
     "electron": "^30.0.0",
     "electron-builder": "^24.0.0",
-    "nodemon": "^3.1.14"
+    "eslint": "^8.57.1",
+    "nodemon": "^3.1.14",
+    "prettier": "^3.8.4"
   },
   "dependencies": {
     "axios": "^1.15.2",
-    "node-fetch": "^2.6.7",
-    "electron-updater": "^6.1.8"
+    "electron-updater": "^6.1.8",
+    "node-fetch": "^2.6.7"
   },
   "build": {
     "appId": "com.letshyre.secure",
@@ -41,7 +48,9 @@
       {
         "from": "resources/agent.exe",
         "to": "agent.exe",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "files": [
@@ -96,7 +105,9 @@
         {
           "from": "resources/agent",
           "to": "agent",
-          "filter": ["**/*"]
+          "filter": [
+            "**/*"
+          ]
         }
       ]
     }

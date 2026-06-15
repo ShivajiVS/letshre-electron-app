@@ -1,5 +1,5 @@
 {
-  "name": "secure-interview",
+  "name": "secure interview",
   "version": "1.0.0",
   "description": "LetsHyre Secure Interview Application",
   "main": "main.js",
@@ -36,8 +36,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "letshyre",
-        "repo": "secure-interview-releases"
+        "owner": "ShivajiVS",
+        "repo": "letshre-electron-app"
       }
     ],
     "compression": "maximum",

@@ -138,7 +138,7 @@ jobs:
 
       - name: Package (Windows)
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: npx electron-builder --win --publish always
 
   # ──────────────────────────────────────────────────────────────
@@ -177,7 +177,7 @@ jobs:
 
       - name: Package (macOS)
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
           # Uncomment and add secrets for Apple signing:
           # CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
           # CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}

@@ -74,36 +74,36 @@ jobs:
   # ──────────────────────────────────────────────────────────────
   # 2. Build agent (Unix binary) on macOS
   # ──────────────────────────────────────────────────────────────
-  build-agent-macos:
-    name: Build agent (macOS)
-    runs-on: macos-latest
-    needs: lint
-    steps:
-      - uses: actions/checkout@v4
+  # build-agent-macos:
+    # name: Build agent (macOS)
+    # runs-on: macos-latest
+    # needs: lint
+    # steps:
+    #   - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+    #   - name: Set up Python
+    #     uses: actions/setup-python@v5
+    #     with:
+    #       python-version: "3.12"
 
-      - name: Cache pip packages
-        uses: actions/cache@v4
-        with:
-          path: ~/Library/Caches/pip
-          key: ${{ runner.os }}-pip-pyinstaller-psutil
-          restore-keys: ${{ runner.os }}-pip-
+    #   - name: Cache pip packages
+    #     uses: actions/cache@v4
+    #     with:
+    #       path: ~/Library/Caches/pip
+    #       key: ${{ runner.os }}-pip-pyinstaller-psutil
+    #       restore-keys: ${{ runner.os }}-pip-
 
-      - name: Install dependencies
-        run: pip install pyinstaller psutil
+    #   - name: Install dependencies
+    #     run: pip install pyinstaller psutil
 
-      - name: Build agent binary
-        run: python scripts/build_agent.py
+    #   - name: Build agent binary
+    #     run: python scripts/build_agent.py
 
-      - name: Upload agent as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: agent-macos
-          path: resources/agent
+    #   - name: Upload agent as artifact
+    #     uses: actions/upload-artifact@v4
+    #     with:
+    #       name: agent-macos
+    #       path: resources/agent
 
   # ──────────────────────────────────────────────────────────────
   # 3. Package Electron app for Windows (needs agent.exe)
@@ -144,43 +144,44 @@ jobs:
   # ──────────────────────────────────────────────────────────────
   # 4. Package Electron app for macOS (needs agent binary)
   # ──────────────────────────────────────────────────────────────
-  build-electron-macos:
-    name: Package Electron (macOS)
-    runs-on: macos-latest
-    needs: build-agent-macos
-    steps:
-      - uses: actions/checkout@v4
+  
+  # build-electron-macos:
+  #   name: Package Electron (macOS)
+  #   runs-on: macos-latest
+  #   needs: build-agent-macos
+  #   steps:
+  #     - uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
+  #     - name: Set up Node.js
+  #       uses: actions/setup-node@v4
+  #       with:
+  #         node-version: "20"
 
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-          restore-keys: ${{ runner.os }}-node-
+  #     - name: Cache node_modules
+  #       uses: actions/cache@v4
+  #       with:
+  #         path: node_modules
+  #         key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+  #         restore-keys: ${{ runner.os }}-node-
 
-      - name: Install Node dependencies
-        run: npm ci
+  #     - name: Install Node dependencies
+  #       run: npm ci
 
-      - name: Download agent binary
-        uses: actions/download-artifact@v4
-        with:
-          name: agent-macos
-          path: resources/
+  #     - name: Download agent binary
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: agent-macos
+  #         path: resources/
 
-      - name: Make agent executable
-        run: chmod +x resources/agent
+  #     - name: Make agent executable
+  #       run: chmod +x resources/agent
 
-      - name: Package (macOS)
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          # Uncomment and add secrets for Apple signing:
-          # CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
-          # CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
-          # APPLE_ID: ${{ secrets.APPLE_ID }}
-          # APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-        run: npx electron-builder --mac --publish always
+  #     - name: Package (macOS)
+  #       env:
+  #         GH_TOKEN: ${{ secrets.GH_TOKEN }}
+  #         # Uncomment and add secrets for Apple signing:
+  #         # CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
+  #         # CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+  #         # APPLE_ID: ${{ secrets.APPLE_ID }}
+  #         # APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+  #       run: npx electron-builder --mac --publish always

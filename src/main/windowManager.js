@@ -11,7 +11,7 @@
 "use strict";
 
 const path = require("path");
-const { app, BrowserWindow, session } = require("electron");
+const { app, BrowserWindow, session, dialog } = require("electron");
 const logger = require("./logger");
 const { INTERVIEW_BASE_URL } = require("../shared/constants");
 
@@ -137,8 +137,33 @@ function _applyWindowProtections(onViolation) {
   });
 
   win.on("close", (e) => {
-    if (isInterviewActive) {
-      e.preventDefault(); // block the close — window must stay open during interview
+    if (!isInterviewActive) {return;} // preflight — allow close freely
+
+    // Interview is active: show a native confirmation dialog instead of hard-blocking.
+    // This allows the user to close the app if they genuinely need to,
+    // while still logging a violation if they cancel.
+    e.preventDefault();
+
+    const choice = dialog.showMessageBoxSync(win, {
+      type: "warning",
+      buttons: ["Exit Interview", "Cancel"],
+      defaultId: 1,   // default highlight: Cancel (safer)
+      cancelId: 1,
+      title: "Exit Interview?",
+      message: "Are you sure you want to exit?",
+      detail:
+        "Closing the app during an active interview session will be recorded and may be flagged to the interviewer.",
+      noLink: true,
+    });
+
+    if (choice === 0) {
+      // User confirmed — quit cleanly
+      logger.warn("[window] user confirmed interview exit via close dialog");
+      isInterviewActive = false;
+      app.quit();
+    } else {
+      // User cancelled — log the attempt
+      logger.warn("[window] user dismissed close dialog during interview");
       onViolation("Attempt to close interview window", "high");
     }
   });

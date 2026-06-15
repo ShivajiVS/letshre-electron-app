@@ -43,16 +43,43 @@ const DETECTION_INTERVAL_MS = 5000;
 /** How often (ms) to ping the agent for anti-tamper checks. */
 const TAMPER_CHECK_INTERVAL_MS = 10000;
 
+/** How often (ms) the Electron app sends a heartbeat to the backend during interview. */
+const HEARTBEAT_INTERVAL_MS = 30000;
+
 // ─── IPC Channel Names ───────────────────────────────────────────────────────
 // Keep these in sync with preload.js exposures and ipcHandlers.js registrations.
+//
+// Convention:
+//   - Plain names  → renderer invokes main (ipcRenderer.send / invoke)
+//   - PUSH_ prefix → main pushes to renderer (webContents.send)
 
 const IPC = {
+  // App control
   QUIT_APP: "quit-app",
   RECHECK_SYSTEM: "recheck-system",
+
+  // Preflight
   RUN_PREFLIGHT: "run-preflight-scans",
+
+  // Interview flow
   PROCEED_TO_INTERVIEW: "proceed-to-interview",
+
+  // Process management
   KILL_BLOCKED_APP: "kill-blocked-app",
   KILL_ALL_BLOCKED_APPS: "kill-all-blocked-apps",
+
+  // Auto-updater (main → renderer push)
+  PUSH_UPDATE_AVAILABLE: "push-update-available",
+  PUSH_UPDATE_DOWNLOADED: "push-update-downloaded",
+
+  // Auto-updater (renderer → main)
+  INSTALL_UPDATE: "install-update",
+
+  // Audit trail
+  GET_AUDIT_LOG: "get-audit-log",
+
+  // Soft-violation warning push (main → renderer)
+  PUSH_WARNING: "push-warning",
 };
 
 // ─── Custom Protocol ─────────────────────────────────────────────────────────
@@ -71,6 +98,7 @@ module.exports = {
   VIOLATION_COOLDOWN_MS,
   DETECTION_INTERVAL_MS,
   TAMPER_CHECK_INTERVAL_MS,
+  HEARTBEAT_INTERVAL_MS,
   IPC,
   PROTOCOL_SCHEME,
 };

@@ -9,25 +9,57 @@ const {
   VIOLATION_COOLDOWN_MS,
   DETECTION_INTERVAL_MS,
   TAMPER_CHECK_INTERVAL_MS,
+  HEARTBEAT_INTERVAL_MS,
 } = require("../shared/constants");
 
-const violationCache = new Map();
+// ─── State ────────────────────────────────────────────────────────────────────
+
+const violationCache      = new Map(); // event key → last-fired timestamp
+const violationEscalation = new Map(); // event key → total fire count (ADD-06)
 let isViolationActive = false;
 
 // Anti-tamper: track whether the agent was alive at interview start
 let agentWasAlive = false;
+
+// Detection loop interval refs — ALL stored so resetState() clears every one (IMP-06)
+let hdmiInterval        = null;
+let agentPollInterval   = null;
 let agentTamperInterval = null;
+let heartbeatInterval   = null; // ADD-05
+
+// ─── Audit Trail (ADD-07) ─────────────────────────────────────────────────────
+
+/** In-memory audit log — tamper-evident record of all session events. */
+const auditLog = [];
+
+/**
+ * Appends an event to the in-memory audit log.
+ * Keeps the last 500 entries to cap memory usage.
+ * @param {"scan"|"violation"|"heartbeat"|"agent"} type
+ * @param {object} data
+ */
+function appendAuditEvent(type, data) {
+  auditLog.push({ timestamp: new Date().toISOString(), type, data });
+  if (auditLog.length > 500) { auditLog.shift(); }
+}
+
+/** Returns a copy of the audit log. Exposed via IPC GET_AUDIT_LOG. */
+function getAuditLog() {
+  return [...auditLog];
+}
 
 // ─────────────────────────────────────────────────────────────
 //  INTERVIEW MONITOR (runs every 5 s during active interview)
 // ─────────────────────────────────────────────────────────────
 function start(win, accessToken) {
   // --- 1. Standard hardware checks (HDMI + mirroring) ---
-  setInterval(async () => {
-    if (isViolationActive) {return;}
+  hdmiInterval = setInterval(async () => {
+    if (isViolationActive) { return; }
     try {
       const hdmi   = await detectHDMIWindows();
       const mirror = await detectMirroring();
+
+      appendAuditEvent("scan", { hdmi: hdmi.detected, mirror: mirror.detected });
 
       if (hdmi.detected) {
         sendViolation(win, hdmi.reason || "External display detected", "high", accessToken);
@@ -52,11 +84,13 @@ function start(win, accessToken) {
   }, DETECTION_INTERVAL_MS);
 
   // --- 2. Agent deep-scan poll (runs every 5 s) ---
-  setInterval(async () => {
-    if (isViolationActive) {return;}
+  agentPollInterval = setInterval(async () => {
+    if (isViolationActive) { return; }
     try {
       const status = await fetchAgentStatus();
-      if (!status) {return;} // agent offline — handled by anti-tamper below
+      if (!status) { return; } // agent offline — handled by anti-tamper below
+
+      appendAuditEvent("agent", { safeToproceed: status.safe_to_proceed, threatCount: status.threats?.length ?? 0 });
 
       if (!status.safe_to_proceed && status.threats && status.threats.length > 0) {
         // Send the first unhandled threat as a violation
@@ -78,7 +112,7 @@ function start(win, accessToken) {
   //  (Cheater could kill agent.exe via Task Manager after preflight passes)
   agentWasAlive = true; // main.js already confirmed it was alive before start()
   agentTamperInterval = setInterval(async () => {
-    if (isViolationActive) {return;}
+    if (isViolationActive) { return; }
     try {
       const alive = await pingAgent();
       if (!alive && agentWasAlive) {
@@ -96,37 +130,82 @@ function start(win, accessToken) {
       logger.warn("[systemChecks] anti-tamper ping error:", e.message);
     }
   }, TAMPER_CHECK_INTERVAL_MS);
+
+  // --- 4. Session heartbeat (ADD-05) ---
+  //  Sends a 30 s heartbeat to the backend.
+  //  If the backend stops receiving it, the session can be flagged as suspicious.
+  heartbeatInterval = setInterval(async () => {
+    try {
+      const alive = await pingAgent();
+      appendAuditEvent("heartbeat", { agentAlive: alive });
+      await axios
+        .post(`${API_BASE_URL}/heartbeat`, {
+          accessToken,
+          timestamp: new Date().toISOString(),
+          agentAlive: alive,
+        })
+        .catch(() => {}); // never let a heartbeat failure disrupt detection
+    } catch (e) {
+      logger.warn("[systemChecks] heartbeat error:", e.message);
+    }
+  }, HEARTBEAT_INTERVAL_MS);
 }
 
 // ─────────────────────────────────────────────────────────────
 //  VIOLATION HANDLER
 // ─────────────────────────────────────────────────────────────
+
+/**
+ * Records, escalates, and reports a security violation.
+ *
+ * ADD-06 — Escalation logic:
+ *   - HIGH severity → always show violation screen immediately.
+ *   - MEDIUM severity, 1st occurrence → log to backend only (soft block).
+ *     Candidate gets one chance to self-correct before the session is blocked.
+ *   - MEDIUM severity, 2nd+ occurrence → show violation screen (hard block).
+ *
+ * @param {Electron.BrowserWindow | null} win
+ * @param {string} event
+ * @param {"high"|"medium"} severity
+ * @param {string|null} accessToken
+ */
 async function sendViolation(win, event, severity, accessToken = null) {
   const now = Date.now();
 
+  // ── Cooldown gate ─────────────────────────────────────────
   if (violationCache.has(event)) {
-    if (now - violationCache.get(event) < VIOLATION_COOLDOWN_MS) {return;}
+    if (now - violationCache.get(event) < VIOLATION_COOLDOWN_MS) { return; }
   }
   violationCache.set(event, now);
 
-  logger.warn("[systemChecks] VIOLATION:", event);
+  // ── Escalation tracking (ADD-06) ─────────────────────────
+  const prevCount = violationEscalation.get(event) || 0;
+  const count     = prevCount + 1;
+  violationEscalation.set(event, count);
 
-  // Show violation screen in Electron window
-  if (win && !isViolationActive) {
+  const isHardBlock = severity === "high" || count >= 2;
+
+  appendAuditEvent("violation", { event, severity, count, isHardBlock });
+  logger.warn("[systemChecks] VIOLATION:", event, `| severity: ${severity} | count: ${count} | hardBlock: ${isHardBlock}`);
+
+  // ── Show violation screen (hard blocks only) ─────────────
+  if (win && !isViolationActive && isHardBlock) {
     isViolationActive = true;
     win.loadFile(path.join(__dirname, "../../assets/violation.html"), {
       query: { reason: event },
     });
   }
 
-  // Report to backend
+  // ── Report to backend (always, including soft blocks) ─────
   try {
     await axios.post(`${API_BASE_URL}/violation`, {
       event,
       severity,
+      escalationCount: count,
+      isHardBlock,
       source: "electron",
       accessToken,
-      timestamp: new Date(),
+      timestamp: new Date().toISOString(),
     });
   } catch {
     logger.error("[systemChecks] violation API failed");
@@ -143,6 +222,13 @@ async function runChecksOnce() {
   // Also get agent deep-scan result for the preflight UI
   const agentAlive  = await pingAgent();
   const agentStatus = agentAlive ? await triggerAgentScan() : null;
+
+  appendAuditEvent("scan", {
+    phase: "preflight",
+    hdmi: hdmi.detected,
+    mirror: mirror.detected,
+    agentAlive,
+  });
 
   return {
     hdmi,
@@ -161,11 +247,17 @@ function resetState() {
   isViolationActive = false;
   agentWasAlive     = false;
   violationCache.clear();
+  violationEscalation.clear();
 
-  if (agentTamperInterval) {
-    clearInterval(agentTamperInterval);
-    agentTamperInterval = null;
-  }
+  // IMP-06: Clear ALL interval refs (previously only agentTamperInterval was cleared)
+  clearInterval(hdmiInterval);
+  clearInterval(agentPollInterval);
+  clearInterval(agentTamperInterval);
+  clearInterval(heartbeatInterval);
+  hdmiInterval        = null;
+  agentPollInterval   = null;
+  agentTamperInterval = null;
+  heartbeatInterval   = null;
 }
 
 module.exports = {
@@ -173,4 +265,5 @@ module.exports = {
   sendViolation,
   resetState,
   runChecksOnce,
+  getAuditLog,
 };

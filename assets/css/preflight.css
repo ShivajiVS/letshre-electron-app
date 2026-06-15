@@ -68,3 +68,64 @@ body {
 @keyframes spin {
   100% { transform: rotate(360deg); }
 }
+
+/* ─── Auto-Updater Banner (ADD-01) ─────────────────────────────────────────── */
+.update-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: "Inter", sans-serif;
+  animation: fadeIn 0.3s ease forwards;
+}
+
+.update-banner--available {
+  background: linear-gradient(90deg, #eff6ff, #dbeafe);
+  color: #1d4ed8;
+  border-bottom: 1px solid #bfdbfe;
+}
+
+.update-banner--ready {
+  background: linear-gradient(90deg, #ecfdf5, #d1fae5);
+  color: #065f46;
+  border-bottom: 1px solid #6ee7b7;
+}
+
+.update-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.update-banner__btn {
+  padding: 4px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: opacity 0.15s;
+}
+.update-banner__btn:hover { opacity: 0.85; }
+
+.update-banner__btn--install {
+  background: #065f46;
+  color: #fff;
+}
+
+.update-banner__btn--dismiss {
+  background: transparent;
+  color: inherit;
+  opacity: 0.6;
+  font-size: 14px;
+  padding: 2px 6px;
+}

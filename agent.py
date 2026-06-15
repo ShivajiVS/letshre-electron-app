@@ -25,15 +25,26 @@ import os
 import sys
 import logging
 import hashlib
+import tempfile
 from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # ─────────────────────────────────────────────
 #  CONFIGURATION
 # ─────────────────────────────────────────────
-PORT = 9999
+PORT          = 9999
 SCAN_INTERVAL = 3  # seconds between scans
-LOG_FILE = "agent_log.json"
+
+# IMP-12: Single version source — passed via APP_VERSION env by agentManager.js.
+# Previously there were 3 different version strings in the codebase.
+AGENT_VERSION = os.environ.get("APP_VERSION", "1.0.0")
+
+# IMP-08: Write logs to AGENT_LOG_DIR env var (set to userData by Electron).
+# Falls back to the OS temp directory so packaged builds never hit a read-only CWD.
+LOG_FILE = os.path.join(
+    os.environ.get("AGENT_LOG_DIR") or tempfile.gettempdir(),
+    "letshyre_agent.log"
+)
 
 # NOTE: Process-name bans, display counting, and screen-sharing
 # detection are already handled by the Electron preflight
@@ -96,7 +107,7 @@ scan_results = {
     "threats": [],
     "safe_to_proceed": False,
     "scan_count": 0,
-    "agent_version": "2.0.0"
+    "agent_version": AGENT_VERSION  # IMP-12: uses single constant
 }
 scan_lock = threading.Lock()
 event_log = []
@@ -454,7 +465,7 @@ def run_full_scan():
         "threats": threats,
         "safe_to_proceed": safe,
         "scan_count": scan_results.get("scan_count", 0) + 1,
-        "agent_version": "2.0.0"
+        "agent_version": AGENT_VERSION  # IMP-12
     }
 
     # ── Persist event log ────────────────────────────────────
@@ -528,7 +539,8 @@ class AgentHandler(BaseHTTPRequestHandler):
             # Simple health check
             self.wfile.write(json.dumps({
                 "alive": True,
-                "agent": "Interview Security Agent v1.0.0",
+                "agent": f"Interview Security Agent v{AGENT_VERSION}",  # IMP-12
+                "version": AGENT_VERSION,
                 "os": OS_NAME,
                 "port": PORT
             }).encode())
@@ -568,8 +580,9 @@ def start_http_server():
 # ─────────────────────────────────────────────
 def main():
     logger.info("=" * 55)
-    logger.info("  INTERVIEW SECURITY DESKTOP AGENT  v1.0.0")
+    logger.info(f"  INTERVIEW SECURITY DESKTOP AGENT  v{AGENT_VERSION}")
     logger.info(f"  OS: {OS_NAME}  |  Port: {PORT}")
+    logger.info(f"  Log file: {LOG_FILE}")
     logger.info("=" * 55)
     logger.info("Checking dependencies...")
 

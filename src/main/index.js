@@ -19,6 +19,7 @@ const { registerAppEvents, safeViolation } = require("./app");
 const { handleIncomingProtocol } = require("./protocolHandler");
 const { getWindow, getIsInterviewActive } = require("./windowManager");
 const { PROTOCOL_SCHEME } = require("../shared/constants");
+const appState = require("./appState");
 
 // ─── Single Instance Lock ────────────────────────────────────────────────────
 
@@ -26,7 +27,7 @@ const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
   // A second instance was launched — quit immediately.
-  app.isQuiting = true;
+  appState.setQuitting();
   app.quit();
 } else {
   // Handle second instance activation (Windows / Linux deep-link).

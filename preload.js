@@ -5,7 +5,7 @@
  *
  * NOTE: With sandbox:true, Node's require() is NOT available for local files.
  * Only require('electron') works. IPC channel names are therefore inlined here
- * directly (they mirror src/shared/constants.js — keep them in sync).
+ * directly (they mirror src/shared/constants.js IPC — keep them in sync).
  *
  * Security hardening (capture phase):
  *   - Blocks right-click context menu
@@ -21,29 +21,53 @@ const { contextBridge, ipcRenderer } = require("electron");
 // ─── IPC Channel Names (mirrors src/shared/constants.js IPC object) ───────────
 // Cannot require() the shared file here due to sandbox:true restriction.
 const IPC = {
+  // App control
   QUIT_APP: "quit-app",
   RECHECK_SYSTEM: "recheck-system",
+
+  // Preflight
   RUN_PREFLIGHT: "run-preflight-scans",
+
+  // Interview flow
   PROCEED_TO_INTERVIEW: "proceed-to-interview",
+
+  // Process management
   KILL_BLOCKED_APP: "kill-blocked-app",
   KILL_ALL_BLOCKED_APPS: "kill-all-blocked-apps",
+
+  // Auto-updater — push events (main → renderer)
+  PUSH_UPDATE_AVAILABLE: "push-update-available",
+  PUSH_UPDATE_DOWNLOADED: "push-update-downloaded",
+
+  // Auto-updater — invoke (renderer → main)
+  INSTALL_UPDATE: "install-update",
+
+  // Audit trail
+  GET_AUDIT_LOG: "get-audit-log",
+
+  // Soft-violation warning push (main → renderer)
+  PUSH_WARNING: "push-warning",
 };
 
 // ─── Exposed API ─────────────────────────────────────────────────────────────
 
 contextBridge.exposeInMainWorld("electronAPI", {
+  // ── App control ────────────────────────────────────────────────────────────
   /** Quit the application. */
   quitApp: () => ipcRenderer.send(IPC.QUIT_APP),
 
   /** Reload the preflight screen and reset detection state. */
   recheckSystem: () => ipcRenderer.send(IPC.RECHECK_SYSTEM),
 
+  // ── Preflight ──────────────────────────────────────────────────────────────
   /** Run all preflight security scans and return combined results. */
   runPreflight: () => ipcRenderer.invoke(IPC.RUN_PREFLIGHT),
 
+  // ── Interview flow ─────────────────────────────────────────────────────────
   /** Activate interview lockdown mode and navigate to the interview URL. */
   proceedToInterview: () => ipcRenderer.send(IPC.PROCEED_TO_INTERVIEW),
 
+  // ── Process management ─────────────────────────────────────────────────────
   /**
    * Force-terminate a single blocked process.
    * @param {string} processName
@@ -57,6 +81,36 @@ contextBridge.exposeInMainWorld("electronAPI", {
    */
   killAllProcesses: (processNames) =>
     ipcRenderer.invoke(IPC.KILL_ALL_BLOCKED_APPS, processNames),
+
+  // ── Auto-updater (ADD-01) ──────────────────────────────────────────────────
+  /**
+   * Subscribe to update-available events from the main process.
+   * @param {(data: { version: string }) => void} callback
+   */
+  onUpdateAvailable: (callback) =>
+    ipcRenderer.on(IPC.PUSH_UPDATE_AVAILABLE, (_event, data) => callback(data)),
+
+  /**
+   * Subscribe to update-downloaded events (update ready to install).
+   * @param {(data: { version: string }) => void} callback
+   */
+  onUpdateDownloaded: (callback) =>
+    ipcRenderer.on(IPC.PUSH_UPDATE_DOWNLOADED, (_event, data) => callback(data)),
+
+  /** Quit the app and install the downloaded update. */
+  installUpdate: () => ipcRenderer.send(IPC.INSTALL_UPDATE),
+
+  // ── Audit trail (ADD-07) ───────────────────────────────────────────────────
+  /** Fetch the full in-memory session audit log. */
+  getAuditLog: () => ipcRenderer.invoke(IPC.GET_AUDIT_LOG),
+
+  // ── Warning push (ADD-06) ─────────────────────────────────────────────────
+  /**
+   * Subscribe to soft-violation warning pushes from the main process.
+   * @param {(data: { message: string, severity: string }) => void} callback
+   */
+  onWarning: (callback) =>
+    ipcRenderer.on(IPC.PUSH_WARNING, (_event, data) => callback(data)),
 });
 
 // ─── Input Security (capture phase) ─────────────────────────────────────────

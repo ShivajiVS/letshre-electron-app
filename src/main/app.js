@@ -4,7 +4,7 @@
  * Electron app lifecycle manager.
  *
  * Handles:
- *   - app.whenReady()  → auto-updater, agent spawn, IPC registration, window
+ *   - app.whenReady()  → logger init, auto-updater, agent spawn, IPC, window
  *   - window-all-closed
  *   - activate (macOS re-open)
  *   - will-quit         → cleanup (shortcuts, agent)
@@ -15,11 +15,13 @@
 const { app, globalShortcut, desktopCapturer, session } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const logger = require("./logger");
+const appState = require("./appState");
 const { spawnAgent, waitForAgent, killAgent } = require("./agentManager");
 const { createWindow, getWindow, getIsInterviewActive } = require("./windowManager");
 const { registerIpcHandlers } = require("./ipcHandlers");
 const { applyArgvDeepLink } = require("./protocolHandler");
 const { getCurrentAccessToken } = require("./protocolHandler");
+const { IPC } = require("../shared/constants");
 const startDetection = require("../detector/systemChecks");
 
 /**
@@ -27,7 +29,7 @@ const startDetection = require("../detector/systemChecks");
  */
 function safeViolation(event, severity) {
   try {
-    const win = getWindow();
+    const win   = getWindow();
     const token = getCurrentAccessToken();
     if (startDetection.sendViolation && win) {
       startDetection.sendViolation(win, event, severity, token);
@@ -38,16 +40,41 @@ function safeViolation(event, severity) {
 }
 
 /**
+ * Wires up auto-updater events so the renderer can show an in-app banner.
+ * ADD-01: Replaces the silent `checkForUpdatesAndNotify()` system notification.
+ */
+function setupAutoUpdater() {
+  try {
+    autoUpdater.on("update-available", (info) => {
+      logger.info("[updater] update available:", info.version);
+      getWindow()?.webContents.send(IPC.PUSH_UPDATE_AVAILABLE, { version: info.version });
+    });
+
+    autoUpdater.on("update-downloaded", (info) => {
+      logger.info("[updater] update downloaded, ready to install:", info.version);
+      getWindow()?.webContents.send(IPC.PUSH_UPDATE_DOWNLOADED, { version: info.version });
+    });
+
+    autoUpdater.on("error", (err) => {
+      logger.warn("[updater] error:", err.message);
+    });
+
+    autoUpdater.checkForUpdates();
+  } catch (err) {
+    logger.warn("[app] auto-updater setup failed:", err.message);
+  }
+}
+
+/**
  * Initialises the application once Electron is ready.
- * Order: updater → agent → IPC → window → shortcuts → screen capture.
+ * Order: logger → updater → agent → IPC → window → shortcuts → screen capture.
  */
 async function onReady() {
-  // 1. Auto-updater
-  try {
-    autoUpdater.checkForUpdatesAndNotify();
-  } catch (err) {
-    logger.warn("[app] auto-updater check failed:", err.message);
-  }
+  // 0. Initialise file logger now that userData path is available
+  logger.init(app.getPath("userData"));
+
+  // 1. Auto-updater with in-app notification events
+  setupAutoUpdater();
 
   // 2. Spawn security agent
   spawnAgent();
@@ -101,7 +128,7 @@ function registerAppEvents() {
 
   app.on("window-all-closed", () => {
     if (process.platform !== "darwin") {
-      app.isQuiting = true;
+      appState.setQuitting();
       app.quit();
     }
   });

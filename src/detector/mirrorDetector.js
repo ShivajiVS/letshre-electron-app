@@ -10,14 +10,17 @@ async function detectMirroring() {
   let detected = false;
   let reason = "";
 
-  // 🔥 Signal 1: Casting / remote apps
+  // 🔥 Signal 1: Casting / remote apps running
   if (processes.found.length > 0) {
     detected = true;
     reason = `Casting/remote apps: ${  processes.found.join(", ")}`;
   }
 
-  // 🔥 Signal 2: Abnormal resolution (mirror hint)
-  if (resolution.isSuspicious) {
+  // 🔥 Signal 2: High resolution + multiple monitors (cross-reference required)
+  // Resolution alone is NOT a reliable mirroring signal — modern laptops
+  // (MacBook Pro, Dell XPS, Surface) have native QHD/4K screens.
+  // Only flag when resolution AND monitor count are both anomalous.
+  if (resolution.isSuspicious && !detected) {
     detected = true;
     reason = resolution.reason;
   }
@@ -66,12 +69,16 @@ function checkResolution() {
     if (process.platform === "darwin") {
       exec("system_profiler SPDisplaysDataType", (err, stdout) => {
         if (err) {return resolve({ isSuspicious: false });}
+
+        // Count displays — only flag resolution if multiple monitors are present
+        const displayCount = (stdout.match(/Resolution:/g) || []).length;
         const text = stdout.toLowerCase();
         const is4K = text.includes("3840") || text.includes("2560");
-        if (is4K) {
+
+        if (is4K && displayCount > 1) {
           return resolve({
             isSuspicious: true,
-            reason: "High resolution detected (possible mirroring)",
+            reason: `High-resolution multi-monitor setup detected (${displayCount} displays — possible mirroring)`,
             value: text,
           });
         }
@@ -80,19 +87,25 @@ function checkResolution() {
       return;
     }
 
+    // Windows: get both resolution and monitor count in one call
     exec(
-      'powershell "Get-CimInstance Win32_VideoController | Select-Object CurrentHorizontalResolution,CurrentVerticalResolution"',
+      'powershell "Get-CimInstance Win32_VideoController | Select-Object CurrentHorizontalResolution,CurrentVerticalResolution; (Get-CimInstance -Namespace root\\wmi -ClassName WmiMonitorID).Count"',
       (err, stdout) => {
         if (err) {return resolve({ isSuspicious: false });}
 
         const text = stdout.toLowerCase();
-
         const is4K = text.includes("3840") || text.includes("2560");
 
-        if (is4K) {
+        // Extract monitor count from last non-empty line
+        const lines = stdout.trim().split("\n").map(l => l.trim()).filter(Boolean);
+        const lastLine = lines[lines.length - 1];
+        const monitorCount = parseInt(lastLine, 10) || 1;
+
+        // Flag only if high-res AND multiple monitors — single 4K laptop is fine
+        if (is4K && monitorCount > 1) {
           return resolve({
             isSuspicious: true,
-            reason: "High resolution detected (possible mirroring)",
+            reason: `High-resolution multi-monitor setup detected (${monitorCount} monitors — possible mirroring)`,
             value: text,
           });
         }

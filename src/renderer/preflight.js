@@ -79,9 +79,19 @@ let remainingBlockedApps = 0;
 // ─── DOM References ───────────────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", () => {
-  const btnRescan = document.getElementById("btn-rescan");
+  const btnRescan  = document.getElementById("btn-rescan");
   const btnProceed = document.getElementById("btn-proceed");
   const finalStatus = document.getElementById("final-status");
+
+  // ── Auto-updater banner (ADD-01) ──────────────────────────────────────────
+  if (window.electronAPI?.onUpdateAvailable) {
+    window.electronAPI.onUpdateAvailable(({ version }) => {
+      showUpdateBanner(`Update v${version} available — downloading in the background…`, false);
+    });
+    window.electronAPI.onUpdateDownloaded(({ version }) => {
+      showUpdateBanner(`v${version} downloaded and ready. Restart to apply.`, true);
+    });
+  }
 
   // ── Scan Lifecycle ────────────────────────────────────────────────────────
 
@@ -99,9 +109,8 @@ document.addEventListener("DOMContentLoaded", () => {
       processResults(results, btnProceed, btnRescan, finalStatus);
     } catch (err) {
       console.error("[preflight] scan error:", err);
-      finalStatus.textContent = "Error running diagnostics.";
-      finalStatus.classList.add("text-red-500");
-      btnRescan.disabled = false;
+      // IMP-15: Structured error boundary with auto-retry countdown
+      showScanError(finalStatus, btnRescan, err?.message || "Unknown error");
     }
   }
 
@@ -489,3 +498,64 @@ function setMockPassedState(finalStatus, btnProceed) {
   finalStatus.textContent = "Preview mode — all checks simulated as passed.";
   btnProceed.disabled = false;
 }
+
+// ─── Error Boundary (IMP-15) ─────────────────────────────────────────────────
+
+/**
+ * Displays a structured scan-failure message with an auto-retry countdown.
+ * Replaces the silent "Error running diagnostics." grey text.
+ * @param {HTMLElement} finalStatus
+ * @param {HTMLButtonElement} btnRescan
+ * @param {string} message
+ */
+function showScanError(finalStatus, btnRescan, message) {
+  btnRescan.disabled = false;
+  let seconds = 5;
+
+  finalStatus.className = "text-amber-600 font-semibold text-[14.5px]";
+  finalStatus.textContent = `Diagnostics failed: ${message} — retrying in ${seconds}s…`;
+
+  const timer = setInterval(() => {
+    seconds -= 1;
+    if (seconds <= 0) {
+      clearInterval(timer);
+      btnRescan.click();
+    } else {
+      finalStatus.textContent = `Diagnostics failed: ${message} — retrying in ${seconds}s…`;
+    }
+  }, 1000);
+}
+
+// ─── Auto-Updater Banner (ADD-01) ─────────────────────────────────────────────
+
+/**
+ * Shows or updates the in-app update notification banner.
+ * @param {string} message
+ * @param {boolean} readyToInstall - If true, shows the "Restart & Update" button.
+ */
+function showUpdateBanner(message, readyToInstall) {
+  let banner = document.getElementById("update-banner");
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "update-banner";
+    document.body.prepend(banner);
+  }
+
+  banner.className = readyToInstall
+    ? "update-banner update-banner--ready"
+    : "update-banner update-banner--available";
+
+  banner.innerHTML = `
+    <span class="update-banner__msg">${message}</span>
+    <div class="update-banner__actions">
+      ${readyToInstall
+        ? `<button class="update-banner__btn update-banner__btn--install"
+              onclick="window.electronAPI?.installUpdate()">
+            Restart &amp; Update
+           </button>`
+        : ""}
+      <button class="update-banner__btn update-banner__btn--dismiss"
+              onclick="document.getElementById('update-banner').remove()">✕</button>
+    </div>`;
+}
+

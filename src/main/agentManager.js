@@ -48,6 +48,13 @@ function spawnAgent() {
     agentProcess = spawn(agentPath, [], {
       detached: false,
       stdio: ["ignore", "pipe", "pipe"],
+      // IMP-08: Direct the agent to write its log to userData (writable in all modes).
+      // IMP-12: Pass the canonical app version so agent doesn't need its own version string.
+      env: {
+        ...process.env,
+        AGENT_LOG_DIR: app.getPath("userData"),
+        APP_VERSION:   app.getVersion(),
+      },
     });
 
     agentProcess.stdout.on("data", (d) =>

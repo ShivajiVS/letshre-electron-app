@@ -11,7 +11,7 @@
 "use strict";
 
 const path = require("path");
-const { BrowserWindow, session } = require("electron");
+const { app, BrowserWindow, session } = require("electron");
 const logger = require("./logger");
 const { INTERVIEW_BASE_URL } = require("../shared/constants");
 
@@ -38,12 +38,26 @@ function createWindow(onViolation) {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
+      // ADD-10: Explicit Electron security checklist hardening
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      experimentalFeatures: false,
+      safeDialogs: true,
+      navigateOnDragDrop: false,
     },
   });
 
   win.maximize();
   win.loadFile(path.join(__dirname, "../../assets/preflight.html"));
   win.setMenuBarVisibility(false);
+
+  // ADD-10: Block DevTools in production builds
+  if (app.isPackaged) {
+    win.webContents.on("devtools-opened", () => {
+      win.webContents.closeDevTools();
+      logger.warn("[window] DevTools open attempt blocked (packaged build)");
+    });
+  }
 
   _applyInputLockdown();
   _applyNavigationGuardrails();
@@ -118,8 +132,9 @@ function _applyWindowProtections(onViolation) {
     onViolation("Window minimize attempt", "high");
   });
 
-  win.on("close", () => {
+  win.on("close", (e) => {
     if (isInterviewActive) {
+      e.preventDefault(); // block the close — window must stay open during interview
       onViolation("Attempt to close interview window", "high");
     }
   });

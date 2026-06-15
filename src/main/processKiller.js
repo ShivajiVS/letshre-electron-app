@@ -10,7 +10,7 @@
 
 "use strict";
 
-const { exec } = require("child_process");
+const { exec, spawn } = require("child_process");
 const logger = require("./logger");
 const { ALL_BLOCKED_APPS } = require("../shared/appList");
 
@@ -35,22 +35,19 @@ function killSingleProcess(processName) {
       });
     }
 
-    let cmd;
+    // Use spawn() instead of exec() — no shell invocation, no injection risk.
+    let killProc;
     if (process.platform === "darwin") {
       const appName = processName.replace(".app", "");
-      cmd = `pkill -f "${appName}"`;
+      killProc = spawn("pkill", ["-f", appName], { shell: false });
     } else {
-      // Note: Do NOT quote the process name — taskkill doesn't need it
-      // and quotes can cause matching failures on some Windows versions.
-      // Use /T to kill child processes too (important for Chrome/Edge).
-      cmd = `taskkill /IM ${processName} /F /T`;
+      // /IM <name> /F /T — args passed directly, no shell parsing
+      killProc = spawn("taskkill", ["/IM", processName, "/F", "/T"], { shell: false });
     }
 
-    exec(cmd, () => {
-      // Do NOT rely on taskkill's exit code — it returns non-zero even on
-      // partial success (e.g. Chrome/Edge have many sub-processes; some may
-      // be at SYSTEM level and fail to kill, but the user-facing windows close).
-      // Instead, verify the process is actually gone by checking the task list.
+    killProc.on("close", () => {
+      // Verify the process is actually gone after the kill attempt.
+      // Do NOT rely on taskkill exit code — it can be non-zero even on partial success.
       const checkCmd =
         process.platform === "darwin"
           ? `pgrep -f "${processName.replace(".app", "")}"`
@@ -70,20 +67,22 @@ function killSingleProcess(processName) {
         }
       });
     });
+
+    killProc.on("error", (err) => {
+      logger.warn(`[processKiller] spawn error for ${processName}:`, err.message);
+      resolve({ success: false, error: err.message, processName });
+    });
   });
 }
 
 /**
- * Force-terminates all provided processes sequentially.
+ * Force-terminates all provided processes in parallel.
+ * Uses Promise.all() so 5 apps are killed simultaneously, not sequentially.
  * @param {string[]} processNames
  * @returns {Promise<KillResult[]>}
  */
 async function killAllProcesses(processNames) {
-  const results = [];
-  for (const name of processNames) {
-    results.push(await killSingleProcess(name));
-  }
-  return results;
+  return await Promise.all(processNames.map((name) => killSingleProcess(name)));
 }
 
 module.exports = { killSingleProcess, killAllProcesses };

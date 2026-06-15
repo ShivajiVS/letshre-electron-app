@@ -22,6 +22,9 @@ resources/agent
 
 # Agent runtime log
 agent_log.json
+
+# Generated CSS (built by `npm run build:css` — do not commit)
+assets/css/tailwind.css
 *.local
 .env
 .env.uat

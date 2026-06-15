@@ -1,0 +1,7 @@
+/* Tailwind CSS — source input file.
+ * Built by: npx tailwindcss -i ./assets/css/tailwind-input.css -o ./assets/css/tailwind.css --minify
+ * Output (tailwind.css) is generated — do NOT edit it manually.
+ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

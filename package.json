@@ -11,10 +11,13 @@
   },
   "scripts": {
     "start": "electron .",
+    "predev": "npm run build:css",
     "dev": "nodemon --watch src --watch assets --watch preload.js --ext js,html,css --exec \"electron .\"",
+    "build:css": "tailwindcss -i ./assets/css/tailwind-input.css -o ./assets/css/tailwind.css --minify",
+    "watch:css": "tailwindcss -i ./assets/css/tailwind-input.css -o ./assets/css/tailwind.css --watch",
     "build:agent": "python scripts/build_agent.py",
-    "build": "electron-builder",
-    "build:full": "npm run build:agent && electron-builder",
+    "build": "npm run build:css && electron-builder",
+    "build:full": "npm run build:css && npm run build:agent && electron-builder",
     "dist": "electron-builder --win --mac",
     "lint": "eslint src preload.js main.js --ext .js",
     "lint:fix": "eslint src preload.js main.js --ext .js --fix",
@@ -26,7 +29,8 @@
     "electron-builder": "^24.0.0",
     "eslint": "^8.57.1",
     "nodemon": "^3.1.14",
-    "prettier": "^3.8.4"
+    "prettier": "^3.8.4",
+    "tailwindcss": "^3.4.19"
   },
   "dependencies": {
     "axios": "^1.15.2",

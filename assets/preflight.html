@@ -16,31 +16,22 @@
     <!-- Preflight styles (extracted from inline) -->
     <link rel="stylesheet" href="./css/preflight.css" />
   </head>
-  <body
-    class="h-screen w-screen overflow-hidden text-slate-900 flex flex-col relative z-0"
-  >
+  <body class="min-h-screen w-screen overflow-y-auto text-slate-900 flex flex-col relative z-0">
     <!-- Ambient Gradient Background Blobs -->
     <div
-      class="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-400/10 blur-[130px] pointer-events-none -z-10 animate-blob"
+      class="fixed top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-400/10 blur-[130px] pointer-events-none -z-10 animate-blob"
     ></div>
     <div
-      class="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-blue-400/10 blur-[140px] pointer-events-none -z-10 animate-blob"
+      class="fixed bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-blue-400/10 blur-[140px] pointer-events-none -z-10 animate-blob"
       style="animation-delay: 3s"
     ></div>
 
     <!-- Header -->
-    <header
-      class="px-8 py-8 pb-4 w-full max-w-4xl mx-auto flex items-center gap-5 animate-fade-in"
-    >
+    <header class="px-8 py-8 pb-4 w-full max-w-5xl mx-auto flex items-center gap-5 animate-fade-in">
       <div
         class="w-12 h-12 bg-gradient-to-tr from-indigo-500 to-violet-600 rounded-2xl flex items-center justify-center shadow-md shadow-indigo-600/20 border border-indigo-400/20 flex-shrink-0"
       >
-        <svg
-          class="w-6 h-6 text-white"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
+        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
             stroke-linecap="round"
             stroke-linejoin="round"
@@ -50,9 +41,7 @@
         </svg>
       </div>
       <div>
-        <h1
-          class="text-2xl font-extrabold text-slate-950 tracking-tight flex items-center gap-2"
-        >
+        <h1 class="text-2xl font-extrabold text-slate-950 tracking-tight flex items-center gap-2">
           Security Checks
           <span
             class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/40"
@@ -60,46 +49,17 @@
           >
         </h1>
         <p class="text-slate-500 font-medium text-sm mt-0.5">
-          Verify your local environment is secure and compliant before starting
-          the interview.
+          Environment Compliance Required:Close all unauthorized screens, apps, or browsers to
+          proceed
         </p>
       </div>
     </header>
 
     <!-- Main Content -->
     <main
-      class="w-full max-w-4xl mx-auto px-8 flex flex-col gap-6 animate-fade-in"
+      class="w-full max-w-5xl mx-auto mt-10 px-8 pb-10 flex flex-col gap-6 animate-fade-in"
       style="animation-delay: 0.1s; opacity: 0"
     >
-      <!-- Warning Banner -->
-      <div
-        class="bg-amber-50/70 border border-amber-200/50 backdrop-blur-sm text-amber-900 px-5 py-3.5 rounded-2xl flex items-center gap-3.5 shadow-sm"
-      >
-        <div
-          class="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0 border border-amber-500/15 text-amber-600"
-        >
-          <svg
-            class="w-3.5 h-3.5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2.5"
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-            ></path>
-          </svg>
-        </div>
-        <span class="font-semibold text-[13.5px]"
-          >Environment Compliance Required:
-          <span class="font-normal text-amber-800"
-            >Close all unauthorized screens, apps, or browsers to proceed.</span
-          ></span
-        >
-      </div>
-
       <!-- Cards Stack (Vertical List Layout) -->
       <div class="flex flex-col gap-4">
         <!-- Card 1: HDMI Display -->
@@ -113,12 +73,7 @@
                 id="icon-hdmi"
                 class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200/40 flex-shrink-0 transition-all duration-300"
               >
-                <svg
-                  class="w-5 h-5 spinning"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
+                <svg class="w-5 h-5 spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     stroke-linecap="round"
                     stroke-linejoin="round"
@@ -128,15 +83,10 @@
                 </svg>
               </div>
               <div>
-                <h3
-                  class="font-bold text-slate-900 text-[15.5px] leading-tight"
-                >
+                <h3 class="font-bold text-slate-900 text-[15.5px] leading-tight">
                   HDMI Connection
                 </h3>
-                <p
-                  id="desc-hdmi"
-                  class="text-slate-500 text-[13px] font-medium mt-1"
-                >
+                <p id="desc-hdmi" class="text-slate-500 text-[13px] font-medium mt-1">
                   Scanning for external display connections...
                 </p>
               </div>
@@ -148,10 +98,7 @@
               Scanning
             </div>
           </div>
-          <div
-            id="actions-hdmi"
-            class="flex flex-col gap-2 empty:hidden mt-1"
-          ></div>
+          <div id="actions-hdmi" class="flex flex-col gap-2 empty:hidden mt-1"></div>
         </div>
 
         <!-- Card 2: Meeting Apps -->
@@ -165,12 +112,7 @@
                 id="icon-meeting"
                 class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200/40 flex-shrink-0 transition-all duration-300"
               >
-                <svg
-                  class="w-5 h-5 spinning"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
+                <svg class="w-5 h-5 spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     stroke-linecap="round"
                     stroke-linejoin="round"
@@ -180,15 +122,10 @@
                 </svg>
               </div>
               <div>
-                <h3
-                  class="font-bold text-slate-900 text-[15.5px] leading-tight"
-                >
+                <h3 class="font-bold text-slate-900 text-[15.5px] leading-tight">
                   Active Meetings
                 </h3>
-                <p
-                  id="desc-meeting"
-                  class="text-slate-500 text-[13px] font-medium mt-1"
-                >
+                <p id="desc-meeting" class="text-slate-500 text-[13px] font-medium mt-1">
                   Scanning for active communication software...
                 </p>
               </div>
@@ -200,10 +137,7 @@
               Scanning
             </div>
           </div>
-          <div
-            id="actions-meeting"
-            class="flex flex-col gap-2 empty:hidden mt-1"
-          ></div>
+          <div id="actions-meeting" class="flex flex-col gap-2 empty:hidden mt-1"></div>
         </div>
 
         <!-- Card 3: Screen Sharing / Capturing -->
@@ -217,12 +151,7 @@
                 id="icon-screen"
                 class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200/40 flex-shrink-0 transition-all duration-300"
               >
-                <svg
-                  class="w-5 h-5 spinning"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
+                <svg class="w-5 h-5 spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     stroke-linecap="round"
                     stroke-linejoin="round"
@@ -232,15 +161,10 @@
                 </svg>
               </div>
               <div>
-                <h3
-                  class="font-bold text-slate-900 text-[15.5px] leading-tight"
-                >
+                <h3 class="font-bold text-slate-900 text-[15.5px] leading-tight">
                   Screen Capture & Recording
                 </h3>
-                <p
-                  id="desc-screen"
-                  class="text-slate-500 text-[13px] font-medium mt-1"
-                >
+                <p id="desc-screen" class="text-slate-500 text-[13px] font-medium mt-1">
                   Scanning for recording or streaming applications...
                 </p>
               </div>
@@ -252,10 +176,7 @@
               Scanning
             </div>
           </div>
-          <div
-            id="actions-screen"
-            class="flex flex-col gap-2 empty:hidden mt-1"
-          ></div>
+          <div id="actions-screen" class="flex flex-col gap-2 empty:hidden mt-1"></div>
         </div>
 
         <!-- Card 4: Casting / Mirroring -->
@@ -269,12 +190,7 @@
                 id="icon-wireless"
                 class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200/40 flex-shrink-0 transition-all duration-300"
               >
-                <svg
-                  class="w-5 h-5 spinning"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
+                <svg class="w-5 h-5 spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     stroke-linecap="round"
                     stroke-linejoin="round"
@@ -284,15 +200,10 @@
                 </svg>
               </div>
               <div>
-                <h3
-                  class="font-bold text-slate-900 text-[15.5px] leading-tight"
-                >
+                <h3 class="font-bold text-slate-900 text-[15.5px] leading-tight">
                   Wireless Mirroring & Browsers
                 </h3>
-                <p
-                  id="desc-wireless"
-                  class="text-slate-500 text-[13px] font-medium mt-1"
-                >
+                <p id="desc-wireless" class="text-slate-500 text-[13px] font-medium mt-1">
                   Scanning for wireless casting or browser activity...
                 </p>
               </div>
@@ -304,17 +215,12 @@
               Scanning
             </div>
           </div>
-          <div
-            id="actions-wireless"
-            class="flex flex-col gap-2 empty:hidden mt-1"
-          ></div>
+          <div id="actions-wireless" class="flex flex-col gap-2 empty:hidden mt-1"></div>
         </div>
       </div>
 
       <!-- Footer Actions -->
-      <div
-        class="flex flex-col items-center mt-6 gap-3 border-t border-slate-200/60 pt-5"
-      >
+      <div class="flex flex-col items-center mt-6 gap-3 border-t border-slate-200/60 pt-5">
         <p id="final-status" class="text-slate-500 font-medium text-[14.5px]">
           Running security diagnostics...
         </p>
@@ -344,12 +250,7 @@
             class="w-64 bg-slate-200 text-slate-400 font-semibold py-3 rounded-xl transition-all flex items-center justify-center gap-2.5 cursor-not-allowed whitespace-nowrap"
           >
             Proceed to Interview
-            <svg
-              class="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"

@@ -96,7 +96,11 @@ function _applyInputLockdown() {
       input.key === "F12" ||
       (input.control && input.shift && input.key === "I") ||
       (input.meta && input.alt && input.key === "I");
-    const isAltF4 = input.alt && input.key === "F4";
+
+    // Alt+F4 is only blocked during an active interview session.
+    // During requirements/preflight the user may need to Alt+F4 out of this
+    // app temporarily to manually close other windows before rescanning.
+    const isAltF4 = input.alt && input.key === "F4" && isInterviewActive;
 
     if (isDevTools || isAltF4) {
       event.preventDefault();
@@ -174,9 +178,21 @@ function getIsInterviewActive() {
   return isInterviewActive;
 }
 
+/**
+ * Minimizes the window — safe to call during requirements/preflight phase.
+ * During active interview the window lock prevents minimize via the close handler,
+ * so this function is effectively a no-op if somehow invoked then.
+ */
+function minimizeWindow() {
+  if (win && !isInterviewActive) {
+    win.minimize();
+  }
+}
+
 module.exports = {
   createWindow,
   lockdownForInterview,
   getWindow,
+  minimizeWindow,
   getIsInterviewActive,
 };

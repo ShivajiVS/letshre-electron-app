@@ -50,6 +50,9 @@ const IPC = {
 
   // ADD-02: Per-step preflight progress push (main → renderer)
   PREFLIGHT_PROGRESS: "preflight-progress",
+
+  // Preflight UX: allow user to minimize to manage other apps manually
+  MINIMIZE_WINDOW: "minimize-window",
 };
 
 // ADD-02: Tracked handler reference so we can remove it on rescan without removeAllListeners.
@@ -65,6 +68,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   /** Reload the preflight screen and reset detection state. */
   recheckSystem: () => ipcRenderer.send(IPC.RECHECK_SYSTEM),
+
+  /**
+   * Minimize the window so the user can manually close apps flagged by the
+   * preflight scan. Only works during requirements/preflight — ignored during
+   * active interview (window lock takes precedence).
+   */
+  minimizeWindow: () => ipcRenderer.send(IPC.MINIMIZE_WINDOW),
 
   // ── Preflight ──────────────────────────────────────────────────────────────
   /** Run all preflight security scans and return combined results. */

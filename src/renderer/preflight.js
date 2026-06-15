@@ -140,6 +140,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // Minimize button — lets the user minimize the window to close flagged apps manually
+  document.getElementById("btn-minimize")?.addEventListener("click", () => {
+    window.electronAPI?.minimizeWindow();
+  });
+
   // ── Initial Scan ──────────────────────────────────────────────────────────
   runScans();
 });

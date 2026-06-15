@@ -83,6 +83,9 @@ const IPC = {
 
   // ADD-02: Streaming preflight — main pushes per-step results as they complete
   PREFLIGHT_PROGRESS: "preflight-progress",
+
+  // Preflight UX: allow user to minimize to manage other apps manually
+  MINIMIZE_WINDOW: "minimize-window",
 };
 
 // ─── Custom Protocol ─────────────────────────────────────────────────────────

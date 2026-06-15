@@ -46,26 +46,35 @@ function killSingleProcess(processName) {
     }
 
     killProc.on("close", () => {
-      // Verify the process is actually gone after the kill attempt.
-      // Do NOT rely on taskkill exit code — it can be non-zero even on partial success.
+      // Multi-process apps (Chrome, Teams, Zoom) spawn many child processes.
+      // After taskkill /F /T, children take ~300–700ms to fully exit.
+      // Checking immediately causes false "Failed" results — add delay + retry.
       const checkCmd =
         process.platform === "darwin"
           ? `pgrep -f "${processName.replace(".app", "")}"`
           : `tasklist /FI "IMAGENAME eq ${processName}" /NH`;
 
-      exec(checkCmd, (_err, stdout) => {
-        const stillRunning = stdout
-          .toLowerCase()
-          .includes(processName.toLowerCase());
+      const verify = (attempt, delay) =>
+        setTimeout(() => {
+          exec(checkCmd, (_err, stdout) => {
+            const stillRunning = stdout.toLowerCase().includes(processName.toLowerCase());
 
-        if (!stillRunning) {
-          logger.info(`[processKiller] confirmed ${processName} is gone`);
-          resolve({ success: true, processName });
-        } else {
-          logger.warn(`[processKiller] ${processName} still running after kill attempt`);
-          resolve({ success: false, error: "Process still running — may require admin rights", processName });
-        }
-      });
+            if (!stillRunning) {
+              logger.info(`[processKiller] confirmed ${processName} is gone (attempt ${attempt})`);
+              resolve({ success: true, processName });
+            } else if (attempt < 2) {
+              // One retry after a further 600ms — handles slow-dying child processes
+              logger.info(`[processKiller] ${processName} still visible, retrying…`);
+              verify(attempt + 1, 600);
+            } else {
+              logger.warn(`[processKiller] ${processName} still running after kill — may need admin rights`);
+              resolve({ success: false, error: "Process still running — may require admin rights", processName });
+            }
+          });
+        }, delay);
+
+      // First check after 700ms — gives OS time to reap all child processes
+      verify(1, 700);
     });
 
     killProc.on("error", (err) => {

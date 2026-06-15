@@ -18,7 +18,7 @@ const logger = require("./logger");
 const appState = require("./appState");
 const { IPC } = require("../shared/constants");
 const { killSingleProcess, killAllProcesses } = require("./processKiller");
-const { lockdownForInterview, getWindow } = require("./windowManager");
+const { lockdownForInterview, getWindow, minimizeWindow } = require("./windowManager");
 const { getCurrentInterviewUrl, getCurrentAccessToken } = require("./protocolHandler");
 const startDetection = require("../detector/systemChecks");
 
@@ -54,6 +54,11 @@ function registerIpcHandlers() {
     logger.info("[ipc] quit-app received");
     appState.setQuitting();
     app.quit();
+  });
+
+  // Preflight UX: user can minimize to close other apps manually before rescanning
+  ipcMain.on(IPC.MINIMIZE_WINDOW, () => {
+    minimizeWindow();
   });
 
   ipcMain.on(IPC.RECHECK_SYSTEM, () => {

@@ -3,8 +3,9 @@
  * ──────────
  * Renderer context bridge — runs in a sandboxed context before the page loads.
  *
- * Exposes ONLY the minimal set of APIs the renderer needs, via contextBridge.
- * IPC channel names are imported from shared/constants.js to avoid string drift.
+ * NOTE: With sandbox:true, Node's require() is NOT available for local files.
+ * Only require('electron') works. IPC channel names are therefore inlined here
+ * directly (they mirror src/shared/constants.js — keep them in sync).
  *
  * Security hardening (capture phase):
  *   - Blocks right-click context menu
@@ -16,7 +17,17 @@
 "use strict";
 
 const { contextBridge, ipcRenderer } = require("electron");
-const { IPC } = require("./src/shared/constants");
+
+// ─── IPC Channel Names (mirrors src/shared/constants.js IPC object) ───────────
+// Cannot require() the shared file here due to sandbox:true restriction.
+const IPC = {
+  QUIT_APP: "quit-app",
+  RECHECK_SYSTEM: "recheck-system",
+  RUN_PREFLIGHT: "run-preflight-scans",
+  PROCEED_TO_INTERVIEW: "proceed-to-interview",
+  KILL_BLOCKED_APP: "kill-blocked-app",
+  KILL_ALL_BLOCKED_APPS: "kill-all-blocked-apps",
+};
 
 // ─── Exposed API ─────────────────────────────────────────────────────────────
 

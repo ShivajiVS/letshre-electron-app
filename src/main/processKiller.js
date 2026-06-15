@@ -40,17 +40,35 @@ function killSingleProcess(processName) {
       const appName = processName.replace(".app", "");
       cmd = `pkill -f "${appName}"`;
     } else {
-      cmd = `taskkill /IM "${processName}" /F /T`;
+      // Note: Do NOT quote the process name — taskkill doesn't need it
+      // and quotes can cause matching failures on some Windows versions.
+      // Use /T to kill child processes too (important for Chrome/Edge).
+      cmd = `taskkill /IM ${processName} /F /T`;
     }
 
-    exec(cmd, (err) => {
-      if (err) {
-        logger.warn(`[processKiller] failed to kill ${processName}:`, err.message);
-        resolve({ success: false, error: err.message, processName });
-      } else {
-        logger.info(`[processKiller] successfully killed ${processName}`);
-        resolve({ success: true, processName });
-      }
+    exec(cmd, () => {
+      // Do NOT rely on taskkill's exit code — it returns non-zero even on
+      // partial success (e.g. Chrome/Edge have many sub-processes; some may
+      // be at SYSTEM level and fail to kill, but the user-facing windows close).
+      // Instead, verify the process is actually gone by checking the task list.
+      const checkCmd =
+        process.platform === "darwin"
+          ? `pgrep -f "${processName.replace(".app", "")}"`
+          : `tasklist /FI "IMAGENAME eq ${processName}" /NH`;
+
+      exec(checkCmd, (_err, stdout) => {
+        const stillRunning = stdout
+          .toLowerCase()
+          .includes(processName.toLowerCase());
+
+        if (!stillRunning) {
+          logger.info(`[processKiller] confirmed ${processName} is gone`);
+          resolve({ success: true, processName });
+        } else {
+          logger.warn(`[processKiller] ${processName} still running after kill attempt`);
+          resolve({ success: false, error: "Process still running — may require admin rights", processName });
+        }
+      });
     });
   });
 }

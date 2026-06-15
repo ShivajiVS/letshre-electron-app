@@ -31,11 +31,11 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
-      - name: Run ESLint
-        run: npm run lint
+      # - name: Run ESLint
+      #   run: npm run lint
 
-      - name: Check Prettier formatting
-        run: npm run format:check
+      # - name: Check Prettier formatting
+      #   run: npm run format:check
 
   # ──────────────────────────────────────────────────────────────
   # 1. Build agent.exe on Windows

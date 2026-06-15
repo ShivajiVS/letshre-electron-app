@@ -72,12 +72,12 @@ const ICONS = {
     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>',
 };
 
-// ─── State ────────────────────────────────────────────────────────────────────
-
-let remainingBlockedApps = 0;
-
-// ─── DOM References ───────────────────────────────────────────────────────────
-
+// ─── State ──────────────────────────────────────────────────────────────────────────────
+
+let remainingBlockedApps = 0;
+
+// ─── DOM References ───────────────────────────────────────────────────────────────────
+
 document.addEventListener("DOMContentLoaded", () => {
   const btnRescan  = document.getElementById("btn-rescan");
   const btnProceed = document.getElementById("btn-proceed");
@@ -93,7 +93,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // ── Scan Lifecycle ────────────────────────────────────────────────────────
+  // ── Scan Lifecycle ──────────────────────────────────────────────────────
 
   async function runScans() {
     setLoadingState(btnProceed, btnRescan, finalStatus);
@@ -104,13 +104,27 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    // ADD-02: Subscribe to per-step progress before invoking the scan.
+    // Each card updates as soon as its check finishes — not all at the end.
+    window.electronAPI.onPreflightProgress(({ step, status, result }) => {
+      if (status === "done") {
+        applyStepResult(step, result);
+      }
+      // 'running' — cards already show shimmer from setLoadingState; no action needed
+    });
+
     try {
       const results = await window.electronAPI.runPreflight();
+      // Cards were already updated via streaming events above.
+      // processResults() re-applies them (idempotent) and sets the final button state.
       processResults(results, btnProceed, btnRescan, finalStatus);
     } catch (err) {
       console.error("[preflight] scan error:", err);
       // IMP-15: Structured error boundary with auto-retry countdown
       showScanError(finalStatus, btnRescan, err?.message || "Unknown error");
+    } finally {
+      // Always clean up the listener to prevent leaks on rescan
+      window.electronAPI.removePreflightProgressListener?.();
     }
   }
 
@@ -164,59 +178,83 @@ function setLoadingState(btnProceed, btnRescan, finalStatus) {
 
 // ─── Results Processing ───────────────────────────────────────────────────────
 
-function processResults(results, btnProceed, btnRescan, finalStatus) {
-  let allPassed = true;
+/**
+ * ADD-02: Apply a single step's result to its cards immediately.
+ * Called both from the streaming progress listener AND from processResults()
+ * (idempotent — calling twice with the same data is harmless).
+ *
+ * @param {string} step  - 'hdmi' | 'mirror' | 'agent'
+ * @param {object} result - the result object for that step
+ * @returns {boolean}    - true if this step passed (used by processResults allPassed)
+ */
+function applyStepResult(step, result) {
+  if (!result) { return true; }
 
-  // 1. HDMI
-  if (results.hdmi.detected) {
-    allPassed = false;
-    updateCard("hdmi", false, "Disconnect all external displays/cables.");
-  } else {
-    updateCard("hdmi", true, "No external display detected.");
-  }
+  switch (step) {
+    case "hdmi":
+      if (result.detected) {
+        updateCard("hdmi", false, "Disconnect all external displays/cables.");
+        return false;
+      }
+      updateCard("hdmi", true, "No external display detected.");
+      return true;
 
-  const procs = results.mirror.details.processes || [];
-  remainingBlockedApps = procs.length;
+    case "mirror": {
+      const procs        = result.details?.processes || [];
+      remainingBlockedApps = procs.length;
 
-  // 2. Meeting Apps
-  const foundMeeting = procs.filter((p) => MEETING_APPS.includes(p));
-  if (foundMeeting.length > 0) {
-    allPassed = false;
-    updateCard("meeting", false, "These meeting apps are still running:", foundMeeting);
-  } else {
-    updateCard("meeting", true, "No meeting apps detected.");
-  }
+      const foundMeeting = procs.filter((p) => MEETING_APPS.includes(p));
+      const foundScreen  = procs.filter((p) => SCREEN_SHARING_APPS.includes(p));
+      const foundOther   = procs.filter((p) => !MEETING_APPS.includes(p) && !SCREEN_SHARING_APPS.includes(p));
 
-  // 3. Screen Sharing
-  const foundScreen = procs.filter((p) => SCREEN_SHARING_APPS.includes(p));
-  if (foundScreen.length > 0) {
-    allPassed = false;
-    updateCard("screen", false, "These screen sharing apps are still running:", foundScreen);
-  } else {
-    updateCard("screen", true, "No screen sharing detected.");
-  }
+      if (foundMeeting.length > 0) {
+        updateCard("meeting", false, "These meeting apps are still running:", foundMeeting);
+      } else {
+        updateCard("meeting", true, "No meeting apps detected.");
+      }
 
-  // 4. Wireless / Casting
-  const foundOther = procs.filter(
-    (p) => !MEETING_APPS.includes(p) && !SCREEN_SHARING_APPS.includes(p)
-  );
-  if (
-    foundOther.length > 0 ||
-    (results.mirror.detected && foundMeeting.length === 0 && foundScreen.length === 0)
-  ) {
-    allPassed = false;
-    if (foundOther.length > 0) {
-      updateCard("wireless", false, "These remote/casting apps are still running:", foundOther);
-    } else {
-      updateCard("wireless", false, "Suspicious resolution detected — possible screen mirroring.");
+      if (foundScreen.length > 0) {
+        updateCard("screen", false, "These screen sharing apps are still running:", foundScreen);
+      } else {
+        updateCard("screen", true, "No screen sharing detected.");
+      }
+
+      const wirelessFailed =
+        foundOther.length > 0 ||
+        (result.detected && foundMeeting.length === 0 && foundScreen.length === 0);
+
+      if (wirelessFailed) {
+        if (foundOther.length > 0) {
+          updateCard("wireless", false, "These remote/casting apps are still running:", foundOther);
+        } else {
+          updateCard("wireless", false, "Suspicious resolution detected — possible screen mirroring.");
+        }
+      } else {
+        updateCard("wireless", true, "No casting/mirroring detected.");
+      }
+
+      return !(foundMeeting.length > 0 || foundScreen.length > 0 || wirelessFailed);
     }
-  } else {
-    updateCard("wireless", true, "No casting/mirroring detected.");
-  }
 
-  // 5. Agent deep-scan
-  const agentPassed = renderAgentCard(results.agent);
-  if (!agentPassed) {allPassed = false;}
+    case "agent":
+      return renderAgentCard(result);
+
+    default:
+      return true;
+  }
+}
+
+/**
+ * Called once all checks are complete. Applies step results (idempotent with
+ * streaming) and sets the final proceed button + status message.
+ */
+function processResults(results, btnProceed, btnRescan, finalStatus) {
+  // Apply each step (cards may already be updated via streaming — idempotent)
+  const hdmiPassed    = applyStepResult("hdmi",   results.hdmi);
+  const mirrorPassed  = applyStepResult("mirror", results.mirror);
+  const agentPassed   = applyStepResult("agent",  results.agent);
+
+  const allPassed = hdmiPassed && mirrorPassed && agentPassed;
 
   btnRescan.disabled = false;
 

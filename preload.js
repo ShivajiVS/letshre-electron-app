@@ -47,7 +47,14 @@ const IPC = {
 
   // Soft-violation warning push (main → renderer)
   PUSH_WARNING: "push-warning",
+
+  // ADD-02: Per-step preflight progress push (main → renderer)
+  PREFLIGHT_PROGRESS: "preflight-progress",
 };
+
+// ADD-02: Tracked handler reference so we can remove it on rescan without removeAllListeners.
+// Module-level variable — one active preflight listener at a time.
+let _preflightProgressHandler = null;
 
 // ─── Exposed API ─────────────────────────────────────────────────────────────
 
@@ -103,6 +110,33 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // ── Audit trail (ADD-07) ───────────────────────────────────────────────────
   /** Fetch the full in-memory session audit log. */
   getAuditLog: () => ipcRenderer.invoke(IPC.GET_AUDIT_LOG),
+
+  // ── Streaming Preflight (ADD-02) ───────────────────────────────────────────
+  /**
+   * Subscribe to per-step preflight progress events.
+   * Replaces the previous single-response approach — cards update as each
+   * check completes instead of all at once at the end.
+   * Automatically removes any previously registered listener before adding.
+   * @param {(data: { step: string, status: 'running'|'done', result: any }) => void} callback
+   */
+  onPreflightProgress: (callback) => {
+    if (_preflightProgressHandler) {
+      ipcRenderer.removeListener(IPC.PREFLIGHT_PROGRESS, _preflightProgressHandler);
+    }
+    _preflightProgressHandler = (_event, data) => callback(data);
+    ipcRenderer.on(IPC.PREFLIGHT_PROGRESS, _preflightProgressHandler);
+  },
+
+  /**
+   * Remove the active preflight progress listener.
+   * Always call this in the finally block of runScans().
+   */
+  removePreflightProgressListener: () => {
+    if (_preflightProgressHandler) {
+      ipcRenderer.removeListener(IPC.PREFLIGHT_PROGRESS, _preflightProgressHandler);
+      _preflightProgressHandler = null;
+    }
+  },
 
   // ── Warning push (ADD-06) ─────────────────────────────────────────────────
   /**

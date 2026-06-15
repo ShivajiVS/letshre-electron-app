@@ -66,9 +66,20 @@ function registerIpcHandlers() {
 
   // ── Preflight ────────────────────────────────────────────────────────────
 
-  ipcMain.handle(IPC.RUN_PREFLIGHT, async () => {
+  ipcMain.handle(IPC.RUN_PREFLIGHT, async (event) => {
     logger.info("[ipc] run-preflight-scans invoked");
-    return await startDetection.runChecksOnce();
+
+    // ADD-02: Streaming preflight — push progress for each step as it completes.
+    // event.sender.send() is safe to call from within an ipcMain.handle() handler.
+    const onProgress = (step, status, result) => {
+      try {
+        event.sender.send(IPC.PREFLIGHT_PROGRESS, { step, status, result });
+      } catch {
+        // Renderer was destroyed before the scan finished — ignore
+      }
+    };
+
+    return await startDetection.runChecksOnce(onProgress);
   });
 
   // ── Interview Flow ───────────────────────────────────────────────────────

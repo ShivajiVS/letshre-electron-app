@@ -80,6 +80,9 @@ const IPC = {
 
   // Soft-violation warning push (main → renderer)
   PUSH_WARNING: "push-warning",
+
+  // ADD-02: Streaming preflight — main pushes per-step results as they complete
+  PREFLIGHT_PROGRESS: "preflight-progress",
 };
 
 // ─── Custom Protocol ─────────────────────────────────────────────────────────

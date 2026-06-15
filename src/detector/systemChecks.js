@@ -213,15 +213,39 @@ async function sendViolation(win, event, severity, accessToken = null) {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  PREFLIGHT: run all checks once and return combined result
+//  PREFLIGHT: run all checks once and stream per-step progress
 // ─────────────────────────────────────────────────────────────
-async function runChecksOnce() {
-  const hdmi   = await detectHDMIWindows();
-  const mirror = await detectMirroring();
 
-  // Also get agent deep-scan result for the preflight UI
+/**
+ * Runs all preflight security checks and returns a combined result.
+ *
+ * ADD-02 — Streaming: if `onProgress` is provided, it is called twice per step:
+ *   1. { step, status: 'running' } — check is starting
+ *   2. { step, status: 'done', result } — check is complete with its result
+ *
+ * Steps run sequentially so each card in the UI can update as soon as its
+ * check finishes, creating a left-to-right waterfall feel.
+ *
+ * @param {((step: string, status: string, result: any) => void) | null} onProgress
+ */
+async function runChecksOnce(onProgress = null) {
+  const emit = (step, status, result = null) => onProgress?.(step, status, result);
+
+  // ── Step 1: HDMI / external display check ────────────────────────────────
+  emit("hdmi", "running");
+  const hdmi = await detectHDMIWindows();
+  emit("hdmi", "done", hdmi);
+
+  // ── Step 2: Mirror / blocked-process scan ───────────────────────────────
+  emit("mirror", "running");
+  const mirror = await detectMirroring();
+  emit("mirror", "done", mirror);
+
+  // ── Step 3: Security agent deep scan ────────────────────────────────────
+  emit("agent", "running");
   const agentAlive  = await pingAgent();
   const agentStatus = agentAlive ? await triggerAgentScan() : null;
+  emit("agent", "done", { alive: agentAlive, status: agentStatus });
 
   appendAuditEvent("scan", {
     phase: "preflight",
@@ -233,10 +257,7 @@ async function runChecksOnce() {
   return {
     hdmi,
     mirror,
-    agent: {
-      alive: agentAlive,
-      status: agentStatus, // null if agent is not running
-    },
+    agent: { alive: agentAlive, status: agentStatus },
   };
 }
 

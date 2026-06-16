@@ -53,11 +53,17 @@ const IPC = {
 
   // Preflight UX: allow user to minimize to manage other apps manually
   MINIMIZE_WINDOW: "minimize-window",
+
+  // Violation bridge: main → renderer push during active interview
+  PUSH_VIOLATION: "push-violation",
 };
 
 // ADD-02: Tracked handler reference so we can remove it on rescan without removeAllListeners.
 // Module-level variable — one active preflight listener at a time.
 let _preflightProgressHandler = null;
+
+// Violation bridge: tracked handler so we can deregister cleanly on unmount.
+let _violationHandler = null;
 
 // ─── Exposed API ─────────────────────────────────────────────────────────────
 
@@ -155,6 +161,41 @@ contextBridge.exposeInMainWorld("electronAPI", {
    */
   onWarning: (callback) =>
     ipcRenderer.on(IPC.PUSH_WARNING, (_event, data) => callback(data)),
+
+  // ── Violation bridge (interview active phase) ───────────────────────────────
+  /**
+   * Register a callback to receive ALL violation events pushed from the
+   * Electron main process during an active interview session.
+   *
+   * The payload shape:
+   *   { event, severity, count, isHardBlock, source, timestamp }
+   *
+   * isHardBlock: true  → terminate session (website decides UI)
+   * isHardBlock: false → show warning toast (interview continues)
+   *
+   * Safe to call multiple times (e.g. React re-render) — previous listener
+   * is removed before the new one is registered to prevent duplicates.
+   *
+   * @param {(payload: object) => void} callback
+   */
+  onViolation: (callback) => {
+    if (_violationHandler) {
+      ipcRenderer.removeListener(IPC.PUSH_VIOLATION, _violationHandler);
+    }
+    _violationHandler = (_, payload) => callback(payload);
+    ipcRenderer.on(IPC.PUSH_VIOLATION, _violationHandler);
+  },
+
+  /**
+   * Unregister the violation listener.
+   * Call this on component unmount or session end to avoid memory leaks.
+   */
+  removeViolationListener: () => {
+    if (_violationHandler) {
+      ipcRenderer.removeListener(IPC.PUSH_VIOLATION, _violationHandler);
+      _violationHandler = null;
+    }
+  },
 });
 
 // ─── Input Security (capture phase) ─────────────────────────────────────────

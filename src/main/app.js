@@ -29,13 +29,12 @@ const startDetection = require("../detector/systemChecks");
  */
 function safeViolation(event, severity) {
   try {
-    const win   = getWindow();
-    const token = getCurrentAccessToken();
+    const win = getWindow();
     if (startDetection.sendViolation && win) {
-      startDetection.sendViolation(win, event, severity, token);
+      startDetection.sendViolation(win, event, severity);
     }
   } catch (err) {
-    logger.error("[app] violation telemetry failed:", err.message);
+    logger.error("[app] violation push failed:", err.message);
   }
 }
 

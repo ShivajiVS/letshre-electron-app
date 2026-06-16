@@ -86,6 +86,9 @@ const IPC = {
 
   // Preflight UX: allow user to minimize to manage other apps manually
   MINIMIZE_WINDOW: "minimize-window",
+
+  // Violation bridge: main → renderer push (forwarded to interview.letshyre.com website)
+  PUSH_VIOLATION: "push-violation",
 };
 
 // ─── Custom Protocol ─────────────────────────────────────────────────────────

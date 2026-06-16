@@ -92,13 +92,12 @@ function registerIpcHandlers() {
   ipcMain.on(IPC.PROCEED_TO_INTERVIEW, () => {
     logger.info("[ipc] proceed-to-interview received");
     const interviewUrl = getCurrentInterviewUrl();
-    const accessToken  = getCurrentAccessToken();
 
     lockdownForInterview(interviewUrl);
 
     try {
       const win = getWindow();
-      startDetection.start(win, accessToken);
+      startDetection.start(win);
     } catch (err) {
       logger.error("[ipc] detection start failed:", err.message);
     }

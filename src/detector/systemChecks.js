@@ -1,22 +1,19 @@
 const { detectHDMIWindows } = require("./hdmiDetector");
 const detectMirroring = require("./mirrorDetector");
 const { pingAgent, fetchAgentStatus, triggerAgentScan } = require("./agentClient");
-const axios = require("axios");
-const path = require("path");
 const logger = require("../main/logger");
 const {
-  API_BASE_URL,
+  IPC,
   VIOLATION_COOLDOWN_MS,
   DETECTION_INTERVAL_MS,
   TAMPER_CHECK_INTERVAL_MS,
-  HEARTBEAT_INTERVAL_MS,
 } = require("../shared/constants");
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
 const violationCache      = new Map(); // event key → last-fired timestamp
 const violationEscalation = new Map(); // event key → total fire count (ADD-06)
-let isViolationActive = false;
+// NOTE: isViolationActive removed — website now owns violation state via PUSH_VIOLATION bridge
 
 // Anti-tamper: track whether the agent was alive at interview start
 let agentWasAlive = false;
@@ -25,7 +22,6 @@ let agentWasAlive = false;
 let hdmiInterval        = null;
 let agentPollInterval   = null;
 let agentTamperInterval = null;
-let heartbeatInterval   = null; // ADD-05
 
 // ─── Audit Trail (ADD-07) ─────────────────────────────────────────────────────
 
@@ -51,10 +47,9 @@ function getAuditLog() {
 // ─────────────────────────────────────────────────────────────
 //  INTERVIEW MONITOR (runs every 5 s during active interview)
 // ─────────────────────────────────────────────────────────────
-function start(win, accessToken) {
+function start(win) {
   // --- 1. Standard hardware checks (HDMI + mirroring) ---
   hdmiInterval = setInterval(async () => {
-    if (isViolationActive) { return; }
     try {
       const hdmi   = await detectHDMIWindows();
       const mirror = await detectMirroring();
@@ -62,21 +57,11 @@ function start(win, accessToken) {
       appendAuditEvent("scan", { hdmi: hdmi.detected, mirror: mirror.detected });
 
       if (hdmi.detected) {
-        sendViolation(win, hdmi.reason || "External display detected", "high", accessToken);
+        sendViolation(win, hdmi.reason || "External display detected", "high");
       }
       if (mirror.detected) {
-        sendViolation(win, mirror.reason || "Mirroring suspected", "medium", accessToken);
+        sendViolation(win, mirror.reason || "Mirroring suspected", "medium");
       }
-
-      // Report hardware state to backend
-      await axios
-        .post(`${API_BASE_URL}/report`, {
-          timestamp: new Date(),
-          accessToken,
-          hdmi,
-          mirror,
-        })
-        .catch(() => {}); // never let a report failure crash the loop
 
     } catch (e) {
       logger.warn("[systemChecks] detection error:", e.message);
@@ -85,7 +70,6 @@ function start(win, accessToken) {
 
   // --- 2. Agent deep-scan poll (runs every 5 s) ---
   agentPollInterval = setInterval(async () => {
-    if (isViolationActive) { return; }
     try {
       const status = await fetchAgentStatus();
       if (!status) { return; } // agent offline — handled by anti-tamper below
@@ -93,13 +77,11 @@ function start(win, accessToken) {
       appendAuditEvent("agent", { safeToproceed: status.safe_to_proceed, threatCount: status.threats?.length ?? 0 });
 
       if (!status.safe_to_proceed && status.threats && status.threats.length > 0) {
-        // Send the first unhandled threat as a violation
         const threat = status.threats[0];
         sendViolation(
           win,
           threat.detail || "Behavioral threat detected",
-          threat.severity === "HIGH" ? "high" : "medium",
-          accessToken
+          threat.severity === "HIGH" ? "high" : "medium"
         );
       }
     } catch (e) {
@@ -108,21 +90,13 @@ function start(win, accessToken) {
   }, DETECTION_INTERVAL_MS);
 
   // --- 3. Anti-tamper: ping agent every 10 s ---
-  //  If the agent goes silent mid-interview, treat it as a HIGH violation.
-  //  (Cheater could kill agent.exe via Task Manager after preflight passes)
-  agentWasAlive = true; // main.js already confirmed it was alive before start()
+  agentWasAlive = true;
   agentTamperInterval = setInterval(async () => {
-    if (isViolationActive) { return; }
     try {
       const alive = await pingAgent();
       if (!alive && agentWasAlive) {
         agentWasAlive = false;
-        sendViolation(
-          win,
-          "Security agent was terminated — possible tamper attempt",
-          "high",
-          accessToken
-        );
+        sendViolation(win, "Security agent was terminated — possible tamper attempt", "high");
       } else if (alive) {
         agentWasAlive = true;
       }
@@ -130,25 +104,6 @@ function start(win, accessToken) {
       logger.warn("[systemChecks] anti-tamper ping error:", e.message);
     }
   }, TAMPER_CHECK_INTERVAL_MS);
-
-  // --- 4. Session heartbeat (ADD-05) ---
-  //  Sends a 30 s heartbeat to the backend.
-  //  If the backend stops receiving it, the session can be flagged as suspicious.
-  heartbeatInterval = setInterval(async () => {
-    try {
-      const alive = await pingAgent();
-      appendAuditEvent("heartbeat", { agentAlive: alive });
-      await axios
-        .post(`${API_BASE_URL}/heartbeat`, {
-          accessToken,
-          timestamp: new Date().toISOString(),
-          agentAlive: alive,
-        })
-        .catch(() => {}); // never let a heartbeat failure disrupt detection
-    } catch (e) {
-      logger.warn("[systemChecks] heartbeat error:", e.message);
-    }
-  }, HEARTBEAT_INTERVAL_MS);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -156,29 +111,36 @@ function start(win, accessToken) {
 // ─────────────────────────────────────────────────────────────
 
 /**
- * Records, escalates, and reports a security violation.
+ * Pushes a violation payload to the renderer (interview.letshyre.com) via IPC.
+ * The website receives this on `window.electronAPI.onViolation()` and handles
+ * its own UX — warning toasts for soft blocks, termination for hard blocks.
  *
- * ADD-06 — Escalation logic:
- *   - HIGH severity → always show violation screen immediately.
- *   - MEDIUM severity, 1st occurrence → log to backend only (soft block).
- *     Candidate gets one chance to self-correct before the session is blocked.
- *   - MEDIUM severity, 2nd+ occurrence → show violation screen (hard block).
- *
- * @param {Electron.BrowserWindow | null} win
- * @param {string} event
- * @param {"high"|"medium"} severity
- * @param {string|null} accessToken
+ * @param {Electron.BrowserWindow} win
+ * @param {{ event: string, severity: string, count: number, isHardBlock: boolean }} payload
  */
-async function sendViolation(win, event, severity, accessToken = null) {
+function _pushViolationToRenderer(win, payload) {
+  try {
+    win.webContents.send(IPC.PUSH_VIOLATION, {
+      ...payload,
+      source: "electron",
+      timestamp: new Date().toISOString(),
+    });
+    logger.info("[systemChecks] violation pushed to renderer:", payload.event);
+  } catch (err) {
+    logger.warn("[systemChecks] violation push failed:", err.message);
+  }
+}
+
+async function sendViolation(win, event, severity) {
   const now = Date.now();
 
-  // ── Cooldown gate ─────────────────────────────────────────
+  // ── Cooldown gate ─────────────────────────────────────────────────────────
   if (violationCache.has(event)) {
     if (now - violationCache.get(event) < VIOLATION_COOLDOWN_MS) { return; }
   }
   violationCache.set(event, now);
 
-  // ── Escalation tracking (ADD-06) ─────────────────────────
+  // ── Escalation tracking (ADD-06) ───────────────────────────────────────────────
   const prevCount = violationEscalation.get(event) || 0;
   const count     = prevCount + 1;
   violationEscalation.set(event, count);
@@ -188,27 +150,9 @@ async function sendViolation(win, event, severity, accessToken = null) {
   appendAuditEvent("violation", { event, severity, count, isHardBlock });
   logger.warn("[systemChecks] VIOLATION:", event, `| severity: ${severity} | count: ${count} | hardBlock: ${isHardBlock}`);
 
-  // ── Show violation screen (hard blocks only) ─────────────
-  if (win && !isViolationActive && isHardBlock) {
-    isViolationActive = true;
-    win.loadFile(path.join(__dirname, "../../assets/violation.html"), {
-      query: { reason: event },
-    });
-  }
-
-  // ── Report to backend (always, including soft blocks) ─────
-  try {
-    await axios.post(`${API_BASE_URL}/violation`, {
-      event,
-      severity,
-      escalationCount: count,
-      isHardBlock,
-      source: "electron",
-      accessToken,
-      timestamp: new Date().toISOString(),
-    });
-  } catch {
-    logger.error("[systemChecks] violation API failed");
+  // ── Push to website via IPC bridge ───────────────────────────────────────────
+  if (win) {
+    _pushViolationToRenderer(win, { event, severity, count, isHardBlock });
   }
 }
 

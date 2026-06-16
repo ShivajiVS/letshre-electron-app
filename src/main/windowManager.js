@@ -39,7 +39,7 @@ function createWindow(onViolation) {
       contextIsolation: true,
       sandbox: true,
       // ADD-10: Explicit Electron security checklist hardening
-      webSecurity: true,
+      webSecurity: false,
       allowRunningInsecureContent: false,
       experimentalFeatures: false,
       safeDialogs: true,
@@ -75,7 +75,9 @@ function createWindow(onViolation) {
  * @param {string} interviewUrl
  */
 function lockdownForInterview(interviewUrl) {
-  if (!win) {return;}
+  if (!win) {
+    return;
+  }
   isInterviewActive = true;
 
   win.setAlwaysOnTop(true, "screen-saver");
@@ -114,10 +116,7 @@ function _applyInputLockdown() {
  */
 function _applyNavigationGuardrails() {
   win.webContents.on("will-navigate", (event, url) => {
-    if (
-      !url.startsWith(INTERVIEW_BASE_URL) &&
-      !url.startsWith("file://")
-    ) {
+    if (!url.startsWith(INTERVIEW_BASE_URL) && !url.startsWith("file://")) {
       logger.warn("[window] blocked navigation to:", url);
       event.preventDefault();
     }
@@ -129,7 +128,9 @@ function _applyNavigationGuardrails() {
 /** Prevents minimize and close during an active interview session. */
 function _applyWindowProtections(onViolation) {
   win.on("minimize", (e) => {
-    if (!isInterviewActive) {return;}
+    if (!isInterviewActive) {
+      return;
+    }
     e.preventDefault();
     win.restore();
     win.focus();
@@ -137,7 +138,9 @@ function _applyWindowProtections(onViolation) {
   });
 
   win.on("close", (e) => {
-    if (!isInterviewActive) {return;} // preflight — allow close freely
+    if (!isInterviewActive) {
+      return;
+    } // preflight — allow close freely
 
     // Interview is active: show a native confirmation dialog instead of hard-blocking.
     // This allows the user to close the app if they genuinely need to,
@@ -147,7 +150,7 @@ function _applyWindowProtections(onViolation) {
     const choice = dialog.showMessageBoxSync(win, {
       type: "warning",
       buttons: ["Exit Interview", "Cancel"],
-      defaultId: 1,   // default highlight: Cancel (safer)
+      defaultId: 1, // default highlight: Cancel (safer)
       cancelId: 1,
       title: "Exit Interview?",
       message: "Are you sure you want to exit?",
@@ -175,16 +178,24 @@ function _applyWindowProtections(onViolation) {
  */
 function _applyCSPHeaders() {
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    // Only enforce a strict CSP on local pages (preflight.html, etc.).
+    // interview.letshyre.com manages its own server-side CSP —
+    // overriding it here blocks images, API calls, and other resources
+    // that work fine in a regular browser.
+    if (!details.url.startsWith("file://")) {
+      return callback({ responseHeaders: details.responseHeaders });
+    }
+
     callback({
       responseHeaders: {
         ...details.responseHeaders,
         "Content-Security-Policy": [
-          "default-src 'self' https://interview.letshyre.com https://api.letshyre.com; " +
-            "script-src 'self' https://cdn.tailwindcss.com https://fonts.googleapis.com 'unsafe-inline'; " +
+          "default-src 'self'; " +
+            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com; " +
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com; " +
             "font-src 'self' https://fonts.gstatic.com data:; " +
-            "img-src 'self' data: blob:; " +
-            "connect-src 'self' https://api.letshyre.com http://127.0.0.1:9999;",
+            "img-src 'self' data: blob: https://api.letshyre.com;" +
+            "connect-src 'self' http://127.0.0.1:9999;",
         ],
       },
     });

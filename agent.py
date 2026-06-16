@@ -26,6 +26,8 @@ import sys
 import logging
 import hashlib
 import tempfile
+import csv
+import io
 from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
@@ -288,6 +290,11 @@ def detect_suspicious_memory_patterns():
     Catches AI tools that have been renamed by inspecting which DLLs
     or modules are loaded in each non-system process.
     Windows only — uses a single batched `tasklist /M` call for performance.
+
+    Fix: parses the CSV columns properly so only the MODULE column (col 5)
+    is checked against SUSPICIOUS_DLLS — not the process name column (col 0).
+    This prevents the host app name (e.g. 'LetsHyre Secure Interview.exe')
+    from matching the keyword 'interview' and causing a false positive.
     """
     threats = []
 
@@ -300,24 +307,37 @@ def detect_suspicious_memory_patterns():
             ["tasklist", "/M", "/FO", "CSV"],
             capture_output=True, text=True, timeout=10
         )
-        output_lower = result.stdout.lower()
 
-        # Map process names to lines for context
         for line in result.stdout.splitlines():
             line_lower = line.lower()
-            # Skip system / header lines
+            # Skip header and empty lines
             if not line_lower or "image name" in line_lower:
                 continue
+
+            # Parse the CSV row properly so quoted fields with commas
+            # (e.g. "50,000 K" for Mem Usage) don't break field indexing.
+            # tasklist /M /FO CSV columns:
+            #   [0] Image Name  [1] PID  [2] Session Name
+            #   [3] Session#    [4] Mem Usage  [5] Module (DLL name)
+            try:
+                cols = next(csv.reader(io.StringIO(line)))
+            except Exception:
+                continue
+
+            if len(cols) < 6:
+                continue  # malformed / incomplete line
+
+            proc_name   = cols[0]          # e.g. "LetsHyre Secure Interview.exe"
+            module_name = cols[5].lower()  # e.g. "ntdll.dll" — ONLY column checked
+
             for dll in SUSPICIOUS_DLLS:
-                if dll in line_lower:
-                    # Extract process name (first CSV field)
-                    proc_name = line.split(",")[0].strip('"')
+                if dll in module_name:
                     threats.append({
                         "type": "suspicious_dll",
                         "severity": "HIGH",
-                        "detail": f"Process '{proc_name}' has suspicious module loaded: '{dll}'",
+                        "detail": f"Process '{proc_name}' has suspicious module loaded: '{cols[5]}'",
                         "process": proc_name,
-                        "module": dll
+                        "module": cols[5]
                     })
                     break  # one threat per process line
 

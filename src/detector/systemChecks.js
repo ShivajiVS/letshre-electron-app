@@ -9,21 +9,22 @@ const {
   TAMPER_CHECK_INTERVAL_MS,
 } = require("../shared/constants");
 
-// ─── State ────────────────────────────────────────────────────────────────────
-
-const violationCache      = new Map(); // event key → last-fired timestamp
+const violationCache = new Map(); // event key → last-fired timestamp
 const violationEscalation = new Map(); // event key → total fire count (ADD-06)
 // NOTE: isViolationActive removed — website now owns violation state via PUSH_VIOLATION bridge
 
 // Anti-tamper: track whether the agent was alive at interview start
 let agentWasAlive = false;
 
-// Detection loop interval refs — ALL stored so resetState() clears every one (IMP-06)
-let hdmiInterval        = null;
-let agentPollInterval   = null;
-let agentTamperInterval = null;
+// Set to true by start(), false by stop().
+// sendViolation() checks this before pushing — prevents stale interval
+// ticks from sending violations after the interview session has ended.
+let isSessionActive = false;
 
-// ─── Audit Trail (ADD-07) ─────────────────────────────────────────────────────
+// Detection loop interval refs — ALL stored so resetState() clears every one (IMP-06)
+let hdmiInterval = null;
+let agentPollInterval = null;
+let agentTamperInterval = null;
 
 /** In-memory audit log — tamper-evident record of all session events. */
 const auditLog = [];
@@ -36,7 +37,9 @@ const auditLog = [];
  */
 function appendAuditEvent(type, data) {
   auditLog.push({ timestamp: new Date().toISOString(), type, data });
-  if (auditLog.length > 500) { auditLog.shift(); }
+  if (auditLog.length > 500) {
+    auditLog.shift();
+  }
 }
 
 /** Returns a copy of the audit log. Exposed via IPC GET_AUDIT_LOG. */
@@ -44,14 +47,13 @@ function getAuditLog() {
   return [...auditLog];
 }
 
-// ─────────────────────────────────────────────────────────────
 //  INTERVIEW MONITOR (runs every 5 s during active interview)
-// ─────────────────────────────────────────────────────────────
 function start(win) {
+  isSessionActive = true; // enable violation push
   // --- 1. Standard hardware checks (HDMI + mirroring) ---
   hdmiInterval = setInterval(async () => {
     try {
-      const hdmi   = await detectHDMIWindows();
+      const hdmi = await detectHDMIWindows();
       const mirror = await detectMirroring();
 
       appendAuditEvent("scan", { hdmi: hdmi.detected, mirror: mirror.detected });
@@ -62,7 +64,6 @@ function start(win) {
       if (mirror.detected) {
         sendViolation(win, mirror.reason || "Mirroring suspected", "medium");
       }
-
     } catch (e) {
       logger.warn("[systemChecks] detection error:", e.message);
     }
@@ -72,9 +73,14 @@ function start(win) {
   agentPollInterval = setInterval(async () => {
     try {
       const status = await fetchAgentStatus();
-      if (!status) { return; } // agent offline — handled by anti-tamper below
+      if (!status) {
+        return;
+      } // agent offline — handled by anti-tamper below
 
-      appendAuditEvent("agent", { safeToproceed: status.safe_to_proceed, threatCount: status.threats?.length ?? 0 });
+      appendAuditEvent("agent", {
+        safeToproceed: status.safe_to_proceed,
+        threatCount: status.threats?.length ?? 0,
+      });
 
       if (!status.safe_to_proceed && status.threats && status.threats.length > 0) {
         const threat = status.threats[0];
@@ -106,11 +112,8 @@ function start(win) {
   }, TAMPER_CHECK_INTERVAL_MS);
 }
 
-// ─────────────────────────────────────────────────────────────
-//  VIOLATION HANDLER
-// ─────────────────────────────────────────────────────────────
-
 /**
+ * VIOLATION HANDLER:
  * Pushes a violation payload to the renderer (interview.letshyre.com) via IPC.
  * The website receives this on `window.electronAPI.onViolation()` and handles
  * its own UX — warning toasts for soft blocks, termination for hard blocks.
@@ -132,34 +135,44 @@ function _pushViolationToRenderer(win, payload) {
 }
 
 async function sendViolation(win, event, severity) {
+  // Guard: never push violations after the session has ended.
+  // stop() sets isSessionActive = false — any in-flight interval tick is dropped.
+  if (!isSessionActive) {
+    logger.info("[systemChecks] sendViolation suppressed — session no longer active");
+    return;
+  }
+
   const now = Date.now();
 
-  // ── Cooldown gate ─────────────────────────────────────────────────────────
+  //Cooldown gate
   if (violationCache.has(event)) {
-    if (now - violationCache.get(event) < VIOLATION_COOLDOWN_MS) { return; }
+    if (now - violationCache.get(event) < VIOLATION_COOLDOWN_MS) {
+      return;
+    }
   }
   violationCache.set(event, now);
 
-  // ── Escalation tracking (ADD-06) ───────────────────────────────────────────────
+  //Escalation tracking (ADD-06)
   const prevCount = violationEscalation.get(event) || 0;
-  const count     = prevCount + 1;
+  const count = prevCount + 1;
   violationEscalation.set(event, count);
 
   const isHardBlock = severity === "high" || count >= 2;
 
   appendAuditEvent("violation", { event, severity, count, isHardBlock });
-  logger.warn("[systemChecks] VIOLATION:", event, `| severity: ${severity} | count: ${count} | hardBlock: ${isHardBlock}`);
+  logger.warn(
+    "[systemChecks] VIOLATION:",
+    event,
+    `| severity: ${severity} | count: ${count} | hardBlock: ${isHardBlock}`
+  );
 
-  // ── Push to website via IPC bridge ───────────────────────────────────────────
+  //Push to website via IPC bridge
   if (win) {
     _pushViolationToRenderer(win, { event, severity, count, isHardBlock });
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-//  PREFLIGHT: run all checks once and stream per-step progress
-// ─────────────────────────────────────────────────────────────
-
+//PREFLIGHT: run all checks once and stream per-step progress
 /**
  * Runs all preflight security checks and returns a combined result.
  *
@@ -175,19 +188,19 @@ async function sendViolation(win, event, severity) {
 async function runChecksOnce(onProgress = null) {
   const emit = (step, status, result = null) => onProgress?.(step, status, result);
 
-  // ── Step 1: HDMI / external display check ────────────────────────────────
+  // ── Step 1: HDMI / external display check
   emit("hdmi", "running");
   const hdmi = await detectHDMIWindows();
   emit("hdmi", "done", hdmi);
 
-  // ── Step 2: Mirror / blocked-process scan ───────────────────────────────
+  // ── Step 2: Mirror / blocked-process scan
   emit("mirror", "running");
   const mirror = await detectMirroring();
   emit("mirror", "done", mirror);
 
-  // ── Step 3: Security agent deep scan ────────────────────────────────────
+  // ── Step 3: Security agent deep scan
   emit("agent", "running");
-  const agentAlive  = await pingAgent();
+  const agentAlive = await pingAgent();
   const agentStatus = agentAlive ? await triggerAgentScan() : null;
   emit("agent", "done", { alive: agentAlive, status: agentStatus });
 
@@ -205,28 +218,45 @@ async function runChecksOnce(onProgress = null) {
   };
 }
 
-// ─────────────────────────────────────────────────────────────
-//  RESET (called when user hits "Recheck System")
-// ─────────────────────────────────────────────────────────────
-function resetState() {
-  isViolationActive = false;
-  agentWasAlive     = false;
-  violationCache.clear();
-  violationEscalation.clear();
+//  STOP (called when interview session ends)
+/**
+ * Stops all detection intervals and disables the violation push guard.
+ * Called by ipcHandlers when INTERVIEW_COMPLETE is received from the website.
+ * After this, sendViolation() is a no-op so no stale violations reach the site.
+ */
+function stop() {
+  isSessionActive = false;
+  agentWasAlive = false;
 
-  // IMP-06: Clear ALL interval refs (previously only agentTamperInterval was cleared)
   clearInterval(hdmiInterval);
   clearInterval(agentPollInterval);
   clearInterval(agentTamperInterval);
-  clearInterval(heartbeatInterval);
-  hdmiInterval        = null;
-  agentPollInterval   = null;
+  hdmiInterval = null;
+  agentPollInterval = null;
   agentTamperInterval = null;
-  heartbeatInterval   = null;
+
+  logger.info("[systemChecks] detection stopped — session ended");
+}
+
+//  RESET (called when user hits "Recheck System")
+function resetState() {
+  isSessionActive = false;
+  agentWasAlive = false;
+  violationCache.clear();
+  violationEscalation.clear();
+
+  // IMP-06: Clear ALL interval refs
+  clearInterval(hdmiInterval);
+  clearInterval(agentPollInterval);
+  clearInterval(agentTamperInterval);
+  hdmiInterval = null;
+  agentPollInterval = null;
+  agentTamperInterval = null;
 }
 
 module.exports = {
   start,
+  stop,
   sendViolation,
   resetState,
   runChecksOnce,

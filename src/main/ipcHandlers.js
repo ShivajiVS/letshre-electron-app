@@ -18,7 +18,7 @@ const logger = require("./logger");
 const appState = require("./appState");
 const { IPC } = require("../shared/constants");
 const { killSingleProcess, killAllProcesses } = require("./processKiller");
-const { lockdownForInterview, getWindow, minimizeWindow } = require("./windowManager");
+const { lockdownForInterview, endInterview, getWindow, minimizeWindow } = require("./windowManager");
 const { getCurrentInterviewUrl, getCurrentAccessToken } = require("./protocolHandler");
 const startDetection = require("../detector/systemChecks");
 
@@ -87,8 +87,7 @@ function registerIpcHandlers() {
     return await startDetection.runChecksOnce(onProgress);
   });
 
-  // ── Interview Flow ───────────────────────────────────────────────────────
-
+  //Interview Flow
   ipcMain.on(IPC.PROCEED_TO_INTERVIEW, () => {
     logger.info("[ipc] proceed-to-interview received");
     const interviewUrl = getCurrentInterviewUrl();
@@ -103,8 +102,7 @@ function registerIpcHandlers() {
     }
   });
 
-  // ── Process Management ───────────────────────────────────────────────────
-
+  //Process Management 
   ipcMain.handle(IPC.KILL_BLOCKED_APP, async (_event, processName) => {
     // IMP-03: Validate and sanitise before passing to processKiller
     const { valid, safe } = validateProcessName(processName);
@@ -132,7 +130,7 @@ function registerIpcHandlers() {
   });
 
   // ── Auto-Updater ─────────────────────────────────────────────────────────
-  // ADD-01: Renderer can trigger install after update-downloaded event.
+  //Renderer can trigger install after update-downloaded event.
 
   ipcMain.on(IPC.INSTALL_UPDATE, () => {
     logger.info("[ipc] install-update received — quitting and installing");
@@ -140,11 +138,26 @@ function registerIpcHandlers() {
     autoUpdater.quitAndInstall();
   });
 
-  // ── Audit Trail ──────────────────────────────────────────────────────────
+  //Audit Trail
   // ADD-07: Exposes the in-memory audit log to the renderer (support diagnostics).
 
   ipcMain.handle(IPC.GET_AUDIT_LOG, () => {
     return startDetection.getAuditLog ? startDetection.getAuditLog() : [];
+  });
+
+  //Interview Complete
+  // Signal sent by interview.letshyre.com when the session ends.
+  // Stops all detection loops and lifts the window lockdown.
+
+  ipcMain.on(IPC.INTERVIEW_COMPLETE, (_event, { reason } = {}) => {
+    const safeReason = typeof reason === "string" ? reason.slice(0, 40) : "unknown";
+    logger.info(`[ipc] interview-complete received — reason: ${safeReason}`);
+
+    // Stop all active detection / polling loops
+    if (startDetection.stop) { startDetection.stop(); }
+
+    // Lift window lockdown (allows close, minimize, etc.)
+    endInterview(safeReason);
   });
 
   logger.info("[ipc] all handlers registered");

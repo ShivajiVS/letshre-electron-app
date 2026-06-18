@@ -89,6 +89,9 @@ const IPC = {
 
   // Violation bridge: main → renderer push (forwarded to interview.letshyre.com website)
   PUSH_VIOLATION: "push-violation",
+
+  // Interview session end: website → main (lifts window lockdown)
+  INTERVIEW_COMPLETE: "interview-complete",
 };
 
 // ─── Custom Protocol ─────────────────────────────────────────────────────────

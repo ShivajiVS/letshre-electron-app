@@ -67,7 +67,33 @@ function createWindow(onViolation) {
   return win;
 }
 
-// ─── Interview Lockdown ──────────────────────────────────────────────────────
+// ─── Interview End ─────────────────────────────────────────────────────
+
+/**
+ * Called when the interview session ends (signal received from interview.letshyre.com).
+ * Clears the lockdown flag and restores normal window behaviour so the candidate
+ * can close or minimise the app once the interview is fully complete.
+ *
+ * @param {string} reason - e.g. "completed", "auto-submitted", "terminated", "expired"
+ */
+function endInterview(reason) {
+  if (!win) { return; }
+  if (!isInterviewActive) {
+    logger.info("[window] endInterview called but interview was already inactive — skipping");
+    return;
+  }
+
+  isInterviewActive = false;
+
+  win.setAlwaysOnTop(false);
+  win.setKiosk(false);
+  win.setFullScreen(false);
+  win.setMinimizable(true);
+
+  logger.info(`[window] interview ended (reason: ${reason}) — window restrictions lifted`);
+}
+
+// ─── Interview Lockdown ──────────────────────────────────────────────────
 
 /**
  * Activates full interview lockdown mode.
@@ -228,6 +254,7 @@ function minimizeWindow() {
 module.exports = {
   createWindow,
   lockdownForInterview,
+  endInterview,
   getWindow,
   minimizeWindow,
   getIsInterviewActive,

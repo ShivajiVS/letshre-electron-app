@@ -56,6 +56,9 @@ const IPC = {
 
   // Violation bridge: main → renderer push during active interview
   PUSH_VIOLATION: "push-violation",
+
+  // Interview session end: website → main
+  INTERVIEW_COMPLETE: "interview-complete",
 };
 
 // ADD-02: Tracked handler reference so we can remove it on rescan without removeAllListeners.
@@ -196,6 +199,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
       _violationHandler = null;
     }
   },
+
+  // ── Interview session end ─────────────────────────────────────────────────
+  /**
+   * Signal to Electron that the interview session has ended.
+   * Electron will exit kiosk mode and restore close / minimize access.
+   *
+   * Safe to call in a regular browser — no-ops if electronAPI is unavailable.
+   *
+   * @param {"completed"|"auto-submitted"|"terminated"|"expired"} reason
+   */
+  interviewComplete: (reason) =>
+    ipcRenderer.send(IPC.INTERVIEW_COMPLETE, { reason }),
 });
 
 // ─── Input Security (capture phase) ─────────────────────────────────────────

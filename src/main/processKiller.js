@@ -49,14 +49,15 @@ function killSingleProcess(processName) {
       // Multi-process apps (Chrome, Teams, Zoom) spawn many child processes.
       // After taskkill /F /T, children take ~300–700ms to fully exit.
       // Checking immediately causes false "Failed" results — add delay + retry.
-      const checkCmd =
-        process.platform === "darwin"
-          ? `pgrep -f "${processName.replace(".app", "")}"`
-          : `tasklist /FI "IMAGENAME eq ${processName}" /NH`;
-
       const verify = (attempt, delay) =>
         setTimeout(() => {
-          exec(checkCmd, (_err, stdout) => {
+          const verifyProc = process.platform === "darwin"
+            ? spawn("pgrep", ["-f", processName.replace(".app", "")], { shell: false })
+            : spawn("tasklist", ["/FI", `IMAGENAME eq ${processName}`, "/NH"], { shell: false });
+
+          let stdout = "";
+          verifyProc.stdout.on("data", (d) => (stdout += d.toString()));
+          verifyProc.on("close", () => {
             const stillRunning = stdout.toLowerCase().includes(processName.toLowerCase());
 
             if (!stillRunning) {

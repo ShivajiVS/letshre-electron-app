@@ -126,9 +126,13 @@ function registerAppEvents() {
   });
 
   app.on("window-all-closed", () => {
-    if (process.platform !== "darwin") {
-      appState.setQuitting();
+    // Only quit if the user explicitly triggered quit (via quit button, Alt+F4 confirm, etc.)
+    // During preflight, if the window is accidentally destroyed, recreate it instead of exiting.
+    if (appState.isQuitting()) {
       app.quit();
+    } else {
+      // Window was destroyed unexpectedly — recreate it
+      createWindow(safeViolation);
     }
   });
 

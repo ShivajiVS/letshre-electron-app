@@ -75,8 +75,11 @@ const IPC = {
   // Auto-updater (renderer → main)
   INSTALL_UPDATE: "install-update",
 
-  // Audit trail
+  // Audit trail (ADD-07)
   GET_AUDIT_LOG: "get-audit-log",
+
+  // App list (ADD-10)
+  GET_APP_LIST: "get-app-list",
 
   // Soft-violation warning push (main → renderer)
   PUSH_WARNING: "push-warning",

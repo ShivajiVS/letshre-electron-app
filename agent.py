@@ -238,6 +238,16 @@ def get_clipboard_snapshot():
 #  BEHAVIORAL DETECTION (detects renamed apps)
 # ─────────────────────────────────────────────
 
+import functools
+
+@functools.lru_cache(maxsize=256)
+def reverse_dns(ip):
+    """Resolve IP to hostname, cached to avoid repeated lookups."""
+    try:
+        return socket.gethostbyaddr(ip)[0].lower()
+    except (socket.herror, socket.gaierror, OSError):
+        return ""
+
 def detect_suspicious_network_activity():
     """
     BEHAVIORAL DETECTION 2: Network connection signatures.
@@ -264,10 +274,11 @@ def detect_suspicious_network_activity():
                 continue
 
             remote_ip = conn.raddr.ip
+            remote_host = reverse_dns(remote_ip)
             pid       = conn.pid
 
             for domain in SUSPICIOUS_DOMAINS:
-                if domain in remote_ip:
+                if domain in remote_host or domain in remote_ip:
                     proc_name = pid_to_name.get(pid, f"PID {pid}")
                     threats.append({
                         "type": "suspicious_network",
@@ -497,8 +508,8 @@ def run_full_scan():
     }
     event_log.append(log_entry)
     try:
-        with open(LOG_FILE, "w") as f:
-            json.dump(event_log, f, indent=2)
+        with open(LOG_FILE, "a") as f:
+            f.write(json.dumps(log_entry) + "\n")
     except Exception:
         pass
 
@@ -529,15 +540,34 @@ def background_scanner():
 # ─────────────────────────────────────────────
 #  HTTP SERVER (talks to browser module)
 # ─────────────────────────────────────────────
+AGENT_SECRET = os.environ.get("AGENT_SECRET", "")
+
 class AgentHandler(BaseHTTPRequestHandler):
 
+    def _check_auth(self):
+        if AGENT_SECRET and self.headers.get("X-Agent-Token") != AGENT_SECRET:
+            self.send_response(403)
+            self.send_header("Access-Control-Allow-Origin", "https://interview.letshyre.com")
+            self.end_headers()
+            self.wfile.write(b'{"error":"forbidden"}')
+            return False
+        return True
+
+    def _send_cors_headers(self):
+        origin = self.headers.get("Origin", "")
+        allowed_origins = ["file://", "https://interview.letshyre.com"]
+        if any(origin.startswith(o) for o in allowed_origins):
+            self.send_header("Access-Control-Allow-Origin", origin)
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Agent-Token")
+
     def do_GET(self):
-        # CORS headers so browser can call this
+        if not self._check_auth():
+            return
+            
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self._send_cors_headers()
         self.end_headers()
 
         if self.path == "/status":
@@ -571,9 +601,7 @@ class AgentHandler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         # Handle CORS preflight
         self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self._send_cors_headers()
         self.end_headers()
 
     def log_message(self, format, *args):

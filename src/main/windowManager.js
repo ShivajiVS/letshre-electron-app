@@ -29,6 +29,12 @@ let isInterviewActive = false;
  * @returns {BrowserWindow}
  */
 function createWindow(onViolation) {
+  // Prevent duplicate window creation
+  if (win && !win.isDestroyed()) {
+    win.focus();
+    return win;
+  }
+
   win = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -39,7 +45,7 @@ function createWindow(onViolation) {
       contextIsolation: true,
       sandbox: true,
       // ADD-10: Explicit Electron security checklist hardening
-      webSecurity: false,
+      webSecurity: true,
       allowRunningInsecureContent: false,
       experimentalFeatures: false,
       safeDialogs: true,
@@ -50,6 +56,11 @@ function createWindow(onViolation) {
   win.maximize();
   win.loadFile(path.join(__dirname, "../../assets/preflight.html"));
   win.setMenuBarVisibility(false);
+
+  // Clean up reference when window is destroyed
+  win.on("closed", () => {
+    win = null;
+  });
 
   // ADD-10: Block DevTools in production builds
   if (app.isPackaged) {

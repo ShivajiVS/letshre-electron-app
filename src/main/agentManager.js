@@ -22,6 +22,13 @@ const {
   AGENT_POLL_INTERVAL_MS,
 } = require("../shared/constants");
 
+const crypto = require("crypto");
+const AGENT_SECRET = crypto.randomBytes(16).toString("hex");
+
+function getAgentSecret() {
+  return AGENT_SECRET;
+}
+
 /** @type {import("child_process").ChildProcess | null} */
 let agentProcess = null;
 
@@ -54,6 +61,7 @@ function spawnAgent() {
         ...process.env,
         AGENT_LOG_DIR: app.getPath("userData"),
         APP_VERSION:   app.getVersion(),
+        AGENT_SECRET:  AGENT_SECRET,
       },
     });
 
@@ -128,4 +136,4 @@ function killAgent() {
   }
 }
 
-module.exports = { spawnAgent, waitForAgent, killAgent, getAgentPath };
+module.exports = { spawnAgent, waitForAgent, killAgent, getAgentPath, getAgentSecret };

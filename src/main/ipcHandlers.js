@@ -22,6 +22,8 @@ const { lockdownForInterview, endInterview, getWindow, minimizeWindow } = requir
 const { getCurrentInterviewUrl, getCurrentAccessToken } = require("./protocolHandler");
 const startDetection = require("../detector/systemChecks");
 
+const { MEETING_APPS, SCREEN_SHARING_APPS, APP_DISPLAY_NAMES } = require("../shared/appList");
+
 // ─── Input validation ─────────────────────────────────────────────────────────
 
 /**
@@ -49,6 +51,12 @@ function validateProcessName(value) {
  */
 function registerIpcHandlers() {
   // ── App Control ──────────────────────────────────────────────────────────
+
+  ipcMain.handle(IPC.GET_APP_LIST, () => ({
+    meetingApps: MEETING_APPS,
+    screenSharingApps: SCREEN_SHARING_APPS,
+    displayNames: APP_DISPLAY_NAMES,
+  }));
 
   ipcMain.on(IPC.QUIT_APP, () => {
     logger.info("[ipc] quit-app received");

@@ -1,10 +1,10 @@
-const { exec } = require('child_process');
+const { execFile } = require('child_process');
 
 // 🔥 Detect PHYSICAL connected monitors (bypasses "Duplicate Screen" loophole)
 function getMonitors() {
   return new Promise((resolve) => {
     if (process.platform === 'darwin') {
-      exec('system_profiler SPDisplaysDataType', (err, stdout) => {
+      execFile('system_profiler', ['SPDisplaysDataType'], (err, stdout) => {
         if (err) {return resolve([]);}
         const displays = stdout.split('\n').filter(l => l.includes('Resolution:')).length;
         resolve(Array.from({length: displays}, (_, i) => `Mac_Display_${i+1}`));
@@ -12,9 +12,10 @@ function getMonitors() {
       return;
     }
 
-    exec(
-      'powershell "(Get-CimInstance -Namespace root\\wmi -ClassName WmiMonitorID).InstanceName"',
-      (err, stdout) => {
+    execFile("powershell", [
+      "-NoProfile", "-NonInteractive", "-Command",
+      "(Get-CimInstance -Namespace root\\wmi -ClassName WmiMonitorID).InstanceName"
+    ], (err, stdout) => {
         if (err) {return resolve([]);}
 
         const lines = stdout
@@ -33,7 +34,7 @@ function getMonitors() {
 function getVideoControllers() {
   return new Promise((resolve) => {
     if (process.platform === 'darwin') {
-      exec('system_profiler SPDisplaysDataType', (err, stdout) => {
+      execFile('system_profiler', ['SPDisplaysDataType'], (err, stdout) => {
         if (err) {return resolve([]);}
         const lines = stdout
           .split("\n")
@@ -44,9 +45,10 @@ function getVideoControllers() {
       return;
     }
 
-    exec(
-      'powershell "Get-CimInstance Win32_VideoController | Select-Object Name,VideoModeDescription"',
-      (err, stdout) => {
+    execFile("powershell", [
+      "-NoProfile", "-NonInteractive", "-Command",
+      "Get-CimInstance Win32_VideoController | Select-Object Name,VideoModeDescription"
+    ], (err, stdout) => {
         if (err) {return resolve([]);}
 
         const lines = stdout

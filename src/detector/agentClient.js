@@ -14,6 +14,8 @@ const AGENT_HOST = "127.0.0.1";
 const AGENT_PORT = 9999;
 const TIMEOUT_MS = 2000; // max wait per request
 
+const { getAgentSecret } = require("../main/agentManager");
+
 /**
  * Make a GET request to the agent.
  * Returns parsed JSON or null on any error / timeout.
@@ -21,7 +23,10 @@ const TIMEOUT_MS = 2000; // max wait per request
 function agentGet(path) {
   return new Promise((resolve) => {
     const req = http.get(
-      { host: AGENT_HOST, port: AGENT_PORT, path, timeout: TIMEOUT_MS },
+      {
+        host: AGENT_HOST, port: AGENT_PORT, path, timeout: TIMEOUT_MS,
+        headers: { "X-Agent-Token": getAgentSecret() }
+      },
       (res) => {
         let raw = "";
         res.on("data", (chunk) => (raw += chunk));

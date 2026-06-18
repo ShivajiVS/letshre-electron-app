@@ -1,30 +1,29 @@
-const { detectHDMIWindows } = require("./hdmiDetector");
-const detectMirroring = require("./mirrorDetector");
-const { pingAgent, fetchAgentStatus, triggerAgentScan } = require("./agentClient");
-const logger = require("../main/logger");
 const {
   IPC,
   VIOLATION_COOLDOWN_MS,
   DETECTION_INTERVAL_MS,
   TAMPER_CHECK_INTERVAL_MS,
+  HEARTBEAT_INTERVAL_MS,
+  API_BASE_URL,
 } = require("../shared/constants");
+const { getCurrentAccessToken } = require("../main/protocolHandler");
+const axios = require("axios");
+const { detectHDMIWindows } = require("./hdmiDetector");
+const detectMirroring = require("./mirrorDetector");
+const { pingAgent, fetchAgentStatus, triggerAgentScan } = require("./agentClient");
+const logger = require("../main/logger");
 
 const violationCache = new Map(); // event key → last-fired timestamp
 const violationEscalation = new Map(); // event key → total fire count (ADD-06)
-// NOTE: isViolationActive removed — website now owns violation state via PUSH_VIOLATION bridge
 
-// Anti-tamper: track whether the agent was alive at interview start
 let agentWasAlive = false;
-
-// Set to true by start(), false by stop().
-// sendViolation() checks this before pushing — prevents stale interval
-// ticks from sending violations after the interview session has ended.
 let isSessionActive = false;
 
-// Detection loop interval refs — ALL stored so resetState() clears every one (IMP-06)
 let hdmiInterval = null;
 let agentPollInterval = null;
 let agentTamperInterval = null;
+let heartbeatInterval = null;
+let mainWindow = null;
 
 /** In-memory audit log — tamper-evident record of all session events. */
 const auditLog = [];
@@ -47,9 +46,28 @@ function getAuditLog() {
   return [...auditLog];
 }
 
+function startHeartbeat() {
+  if (heartbeatInterval) return;
+  heartbeatInterval = setInterval(async () => {
+    try {
+      const token = getCurrentAccessToken();
+      if (!token) return;
+      await axios.post(
+        `${API_BASE_URL}/interview/heartbeat`,
+        { timestamp: new Date().toISOString() },
+        { headers: { Authorization: `Bearer ${token}` }, timeout: 5000 }
+      );
+    } catch (err) {
+      logger.warn(`[heartbeat] failed: ${err.message}`);
+    }
+  }, HEARTBEAT_INTERVAL_MS);
+}
+
 //  INTERVIEW MONITOR (runs every 5 s during active interview)
 function start(win) {
   isSessionActive = true; // enable violation push
+  mainWindow = win;
+
   // --- 1. Standard hardware checks (HDMI + mirroring) ---
   hdmiInterval = setInterval(async () => {
     try {
@@ -110,6 +128,8 @@ function start(win) {
       logger.warn("[systemChecks] anti-tamper ping error:", e.message);
     }
   }, TAMPER_CHECK_INTERVAL_MS);
+
+  startHeartbeat();
 }
 
 /**
@@ -231,9 +251,14 @@ function stop() {
   clearInterval(hdmiInterval);
   clearInterval(agentPollInterval);
   clearInterval(agentTamperInterval);
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+  }
   hdmiInterval = null;
   agentPollInterval = null;
   agentTamperInterval = null;
+  mainWindow = null;
 
   logger.info("[systemChecks] detection stopped — session ended");
 }

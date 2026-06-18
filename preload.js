@@ -59,7 +59,45 @@ const IPC = {
 
   // Interview session end: website → main
   INTERVIEW_COMPLETE: "interview-complete",
+
+  // App list (ADD-10)
+  GET_APP_LIST: "get-app-list",
 };
+
+// Hardened IPC wrapper — only whitelisted channels are allowed
+const ALLOWED_SEND_CHANNELS = [
+  IPC.QUIT_APP, IPC.RECHECK_SYSTEM, IPC.PROCEED_TO_INTERVIEW,
+  IPC.INSTALL_UPDATE, IPC.MINIMIZE_WINDOW, IPC.INTERVIEW_COMPLETE,
+];
+
+const ALLOWED_INVOKE_CHANNELS = [
+  IPC.RUN_PREFLIGHT, IPC.KILL_BLOCKED_APP,
+  IPC.KILL_ALL_BLOCKED_APPS, IPC.GET_AUDIT_LOG, IPC.GET_APP_LIST,
+];
+
+const ALLOWED_RECEIVE_CHANNELS = [
+  IPC.PUSH_UPDATE_AVAILABLE, IPC.PUSH_UPDATE_DOWNLOADED,
+  IPC.PUSH_WARNING, IPC.PREFLIGHT_PROGRESS, IPC.PUSH_VIOLATION,
+];
+
+function safeSend(channel, ...args) {
+  if (ALLOWED_SEND_CHANNELS.includes(channel)) {
+    ipcRenderer.send(channel, ...args);
+  }
+}
+
+function safeInvoke(channel, ...args) {
+  if (ALLOWED_INVOKE_CHANNELS.includes(channel)) {
+    return ipcRenderer.invoke(channel, ...args);
+  }
+  return Promise.reject(new Error(`Channel not allowed: ${channel}`));
+}
+
+function safeOn(channel, callback) {
+  if (ALLOWED_RECEIVE_CHANNELS.includes(channel)) {
+    ipcRenderer.on(channel, callback);
+  }
+}
 
 // ADD-02: Tracked handler reference so we can remove it on rescan without removeAllListeners.
 // Module-level variable — one active preflight listener at a time.
@@ -68,30 +106,34 @@ let _preflightProgressHandler = null;
 // Violation bridge: tracked handler so we can deregister cleanly on unmount.
 let _violationHandler = null;
 
+let _updateAvailableHandler = null;
+let _updateDownloadedHandler = null;
+let _warningHandler = null;
+
 // ─── Exposed API ─────────────────────────────────────────────────────────────
 
 contextBridge.exposeInMainWorld("electronAPI", {
   // ── App control ────────────────────────────────────────────────────────────
   /** Quit the application. */
-  quitApp: () => ipcRenderer.send(IPC.QUIT_APP),
+  quitApp: () => safeSend(IPC.QUIT_APP),
 
   /** Reload the preflight screen and reset detection state. */
-  recheckSystem: () => ipcRenderer.send(IPC.RECHECK_SYSTEM),
+  recheckSystem: () => safeSend(IPC.RECHECK_SYSTEM),
 
   /**
    * Minimize the window so the user can manually close apps flagged by the
    * preflight scan. Only works during requirements/preflight — ignored during
    * active interview (window lock takes precedence).
    */
-  minimizeWindow: () => ipcRenderer.send(IPC.MINIMIZE_WINDOW),
+  minimizeWindow: () => safeSend(IPC.MINIMIZE_WINDOW),
 
   // ── Preflight ──────────────────────────────────────────────────────────────
   /** Run all preflight security scans and return combined results. */
-  runPreflight: () => ipcRenderer.invoke(IPC.RUN_PREFLIGHT),
+  runPreflight: () => safeInvoke(IPC.RUN_PREFLIGHT),
 
   // ── Interview flow ─────────────────────────────────────────────────────────
   /** Activate interview lockdown mode and navigate to the interview URL. */
-  proceedToInterview: () => ipcRenderer.send(IPC.PROCEED_TO_INTERVIEW),
+  proceedToInterview: () => safeSend(IPC.PROCEED_TO_INTERVIEW),
 
   // ── Process management ─────────────────────────────────────────────────────
   /**
@@ -99,36 +141,58 @@ contextBridge.exposeInMainWorld("electronAPI", {
    * @param {string} processName
    */
   killProcess: (processName) =>
-    ipcRenderer.invoke(IPC.KILL_BLOCKED_APP, processName),
+    safeInvoke(IPC.KILL_BLOCKED_APP, processName),
 
   /**
    * Force-terminate multiple blocked processes at once.
    * @param {string[]} processNames
    */
   killAllProcesses: (processNames) =>
-    ipcRenderer.invoke(IPC.KILL_ALL_BLOCKED_APPS, processNames),
+    safeInvoke(IPC.KILL_ALL_BLOCKED_APPS, processNames),
 
   // ── Auto-updater (ADD-01) ──────────────────────────────────────────────────
   /**
    * Subscribe to update-available events from the main process.
    * @param {(data: { version: string }) => void} callback
    */
-  onUpdateAvailable: (callback) =>
-    ipcRenderer.on(IPC.PUSH_UPDATE_AVAILABLE, (_event, data) => callback(data)),
+  onUpdateAvailable: (callback) => {
+    if (_updateAvailableHandler) {
+      ipcRenderer.removeListener(IPC.PUSH_UPDATE_AVAILABLE, _updateAvailableHandler);
+    }
+    _updateAvailableHandler = (_event, data) => callback(data);
+    safeOn(IPC.PUSH_UPDATE_AVAILABLE, _updateAvailableHandler);
+  },
+  removeUpdateAvailableListener: () => {
+    if (_updateAvailableHandler) {
+      ipcRenderer.removeListener(IPC.PUSH_UPDATE_AVAILABLE, _updateAvailableHandler);
+      _updateAvailableHandler = null;
+    }
+  },
 
   /**
    * Subscribe to update-downloaded events (update ready to install).
    * @param {(data: { version: string }) => void} callback
    */
-  onUpdateDownloaded: (callback) =>
-    ipcRenderer.on(IPC.PUSH_UPDATE_DOWNLOADED, (_event, data) => callback(data)),
+  onUpdateDownloaded: (callback) => {
+    if (_updateDownloadedHandler) {
+      ipcRenderer.removeListener(IPC.PUSH_UPDATE_DOWNLOADED, _updateDownloadedHandler);
+    }
+    _updateDownloadedHandler = (_event, data) => callback(data);
+    safeOn(IPC.PUSH_UPDATE_DOWNLOADED, _updateDownloadedHandler);
+  },
+  removeUpdateDownloadedListener: () => {
+    if (_updateDownloadedHandler) {
+      ipcRenderer.removeListener(IPC.PUSH_UPDATE_DOWNLOADED, _updateDownloadedHandler);
+      _updateDownloadedHandler = null;
+    }
+  },
 
   /** Quit the app and install the downloaded update. */
-  installUpdate: () => ipcRenderer.send(IPC.INSTALL_UPDATE),
+  installUpdate: () => safeSend(IPC.INSTALL_UPDATE),
 
   // ── Audit trail (ADD-07) ───────────────────────────────────────────────────
   /** Fetch the full in-memory session audit log. */
-  getAuditLog: () => ipcRenderer.invoke(IPC.GET_AUDIT_LOG),
+  getAuditLog: () => safeInvoke(IPC.GET_AUDIT_LOG),
 
   // ── Streaming Preflight (ADD-02) ───────────────────────────────────────────
   /**
@@ -143,7 +207,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.removeListener(IPC.PREFLIGHT_PROGRESS, _preflightProgressHandler);
     }
     _preflightProgressHandler = (_event, data) => callback(data);
-    ipcRenderer.on(IPC.PREFLIGHT_PROGRESS, _preflightProgressHandler);
+    safeOn(IPC.PREFLIGHT_PROGRESS, _preflightProgressHandler);
   },
 
   /**
@@ -162,8 +226,19 @@ contextBridge.exposeInMainWorld("electronAPI", {
    * Subscribe to soft-violation warning pushes from the main process.
    * @param {(data: { message: string, severity: string }) => void} callback
    */
-  onWarning: (callback) =>
-    ipcRenderer.on(IPC.PUSH_WARNING, (_event, data) => callback(data)),
+  onWarning: (callback) => {
+    if (_warningHandler) {
+      ipcRenderer.removeListener(IPC.PUSH_WARNING, _warningHandler);
+    }
+    _warningHandler = (_event, data) => callback(data);
+    safeOn(IPC.PUSH_WARNING, _warningHandler);
+  },
+  removeWarningListener: () => {
+    if (_warningHandler) {
+      ipcRenderer.removeListener(IPC.PUSH_WARNING, _warningHandler);
+      _warningHandler = null;
+    }
+  },
 
   // ── Violation bridge (interview active phase) ───────────────────────────────
   /**
@@ -186,7 +261,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.removeListener(IPC.PUSH_VIOLATION, _violationHandler);
     }
     _violationHandler = (_, payload) => callback(payload);
-    ipcRenderer.on(IPC.PUSH_VIOLATION, _violationHandler);
+    safeOn(IPC.PUSH_VIOLATION, _violationHandler);
   },
 
   /**
@@ -210,7 +285,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
    * @param {"completed"|"auto-submitted"|"terminated"|"expired"} reason
    */
   interviewComplete: (reason) =>
-    ipcRenderer.send(IPC.INTERVIEW_COMPLETE, { reason }),
+    safeSend(IPC.INTERVIEW_COMPLETE, { reason }),
+
+  getAppList: () => safeInvoke(IPC.GET_APP_LIST),
 });
 
 // ─── Input Security (capture phase) ─────────────────────────────────────────

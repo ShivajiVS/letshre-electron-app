@@ -40,8 +40,9 @@ async function detectMirroring() {
 // =====================
 function checkProcesses() {
   return new Promise((resolve) => {
-    const cmd = process.platform === "darwin" ? "ps aux" : "tasklist";
-    exec(cmd, (err, stdout) => {
+    const { execFile } = require("child_process");
+    const [bin, ...args] = process.platform === "darwin" ? ["ps", "aux"] : ["tasklist"];
+    execFile(bin, args, (err, stdout) => {
       if (err) {return resolve({ found: [] });}
 
       // Source of truth: src/shared/appList.js
@@ -66,8 +67,9 @@ function checkProcesses() {
 // =====================
 function checkResolution() {
   return new Promise((resolve) => {
+    const { execFile } = require("child_process");
     if (process.platform === "darwin") {
-      exec("system_profiler SPDisplaysDataType", (err, stdout) => {
+      execFile("system_profiler", ["SPDisplaysDataType"], (err, stdout) => {
         if (err) {return resolve({ isSuspicious: false });}
 
         // Count displays — only flag resolution if multiple monitors are present
@@ -88,9 +90,10 @@ function checkResolution() {
     }
 
     // Windows: get both resolution and monitor count in one call
-    exec(
-      'powershell "Get-CimInstance Win32_VideoController | Select-Object CurrentHorizontalResolution,CurrentVerticalResolution; (Get-CimInstance -Namespace root\\wmi -ClassName WmiMonitorID).Count"',
-      (err, stdout) => {
+    execFile("powershell", [
+      "-NoProfile", "-NonInteractive", "-Command",
+      "Get-CimInstance Win32_VideoController | Select-Object CurrentHorizontalResolution,CurrentVerticalResolution; (Get-CimInstance -Namespace root\\wmi -ClassName WmiMonitorID).Count"
+    ], (err, stdout) => {
         if (err) {return resolve({ isSuspicious: false });}
 
         const text = stdout.toLowerCase();

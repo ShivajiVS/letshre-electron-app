@@ -87,6 +87,29 @@ const BROWSER_APPS = [
   "brave.app",
   "vivaldi.app",
 ];
+const AI_CHEATING_APPS = [
+  // Windows
+  "pmodule.exe",            // Parakeet AI (real process name)
+  "parakeet.exe", "parakeetai.exe",
+  "finalroundai.exe", "final round ai.exe", "finalround.exe",
+  "interviewcoder.exe", "interview-coder.exe",
+  "cluely.exe",
+  "lockedinai.exe", "lockedin.exe", "locked-in.exe",
+  "sensei.exe", "sensaiai.exe",
+  "interviewsolver.exe", "interview-solver.exe",
+  "interviewman.exe",
+  "aceround.exe",
+  "hedy.exe", "hedyai.exe",
+  // macOS
+  "pmodule.app",
+  "parakeet.app", "parakeetai.app",
+  "final round ai.app", "finalroundai.app",
+  "interviewcoder.app",
+  "cluely.app",
+  "lockedinai.app", "lockedin ai.app",
+  "sensai.app",
+  "interviewsolver.app",
+];
 
 /** All blocked apps — used for process-kill whitelist validation. */
 const ALL_BLOCKED_APPS = [
@@ -94,6 +117,7 @@ const ALL_BLOCKED_APPS = [
   ...SCREEN_SHARING_APPS,
   ...CASTING_APPS,
   ...BROWSER_APPS,
+  ...AI_CHEATING_APPS,
 ];
 
 // ─── Display Name Lookup ─────────────────────────────────────────────────────
@@ -157,6 +181,38 @@ const APP_DISPLAY_NAMES = {
   "brave.app": "Brave",
   "vivaldi.exe": "Vivaldi",
   "vivaldi.app": "Vivaldi",
+  // AI Cheating Tools
+  "pmodule.exe": "Parakeet AI",
+  "pmodule.app": "Parakeet AI",
+  "parakeet.exe": "Parakeet AI",
+  "parakeetai.exe": "Parakeet AI",
+  "parakeet.app": "Parakeet AI",
+  "parakeetai.app": "Parakeet AI",
+  "finalroundai.exe": "Final Round AI",
+  "final round ai.exe": "Final Round AI",
+  "finalround.exe": "Final Round AI",
+  "final round ai.app": "Final Round AI",
+  "finalroundai.app": "Final Round AI",
+  "interviewcoder.exe": "InterviewCoder",
+  "interview-coder.exe": "InterviewCoder",
+  "interviewcoder.app": "InterviewCoder",
+  "cluely.exe": "Cluely",
+  "cluely.app": "Cluely",
+  "lockedinai.exe": "LockedIn AI",
+  "lockedin.exe": "LockedIn AI",
+  "locked-in.exe": "LockedIn AI",
+  "lockedinai.app": "LockedIn AI",
+  "lockedin ai.app": "LockedIn AI",
+  "sensei.exe": "Sensei AI",
+  "sensaiai.exe": "Sensei AI",
+  "sensai.app": "Sensei AI",
+  "interviewsolver.exe": "Interview Solver",
+  "interview-solver.exe": "Interview Solver",
+  "interviewsolver.app": "Interview Solver",
+  "interviewman.exe": "InterviewMan",
+  "aceround.exe": "AceRound",
+  "hedy.exe": "Hedy AI",
+  "hedyai.exe": "Hedy AI",
 };
 
 /**
@@ -174,6 +230,7 @@ module.exports = {
   SCREEN_SHARING_APPS,
   CASTING_APPS,
   BROWSER_APPS,
+  AI_CHEATING_APPS,
   ALL_BLOCKED_APPS,
   APP_DISPLAY_NAMES,
   getDisplayName,

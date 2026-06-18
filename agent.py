@@ -55,19 +55,41 @@ LOG_FILE = os.path.join(
 
 # AI/cheating service domains checked during network scan
 SUSPICIOUS_DOMAINS = [
+    # LLM API providers
     "openai.com", "api.openai.com",
     "anthropic.com", "api.anthropic.com",
+    "google.generativelanguage", "generativelanguage.googleapis.com",
+    "ai.google.dev",
+    "api.groq.com", "groq.com",
+    "api.together.xyz", "together.ai",
+    "api.mistral.ai", "mistral.ai",
+    "api.cohere.com", "cohere.ai",
+    "api.deepseek.com", "deepseek.com",
+    "api.perplexity.ai", "perplexity.ai",
+    # Interview cheating tool domains
     "parakeet", "parakeetai", "api.parakeet",
-    "claude", "api.claude",
-    "gemini", "google.generativelanguage",
+    "finalroundai.com", "api.finalroundai",
+    "interviewcoder.co", "api.interviewcoder",
+    "cluely.com", "api.cluely",
+    "lockedinai.com", "api.lockedinai",
+    "interviewsolver.com",
+    "interviewman.com",
+    "aceround.app",
+    "hedy.ai", "api.hedy.ai",
+    "sensaiai", "sensei-ai",
+    "aimind.so",
+    # Generic cheating patterns
+    "claude", "api.claude", "gemini",
     "interview-cheat", "answer-ai",
+    "interview-copilot", "interview-assistant",
 ]
 
 # DLL / module name fragments that indicate AI tools
 SUSPICIOUS_DLLS = [
-    "parakeet", "openai", "anthropic", "claude",
+    "parakeet", "pmodule", "openai", "anthropic", "claude",
     "gemini", "interview", "cheat", "answer",
     "api_client", "http_tunnel", "proxy_socket",
+    "finalround", "cluely", "lockedinai", "interviewcoder",
 ]
 
 # Win32 window class names that indicate automation / injection tools
@@ -82,9 +104,66 @@ SUSPICIOUS_WINDOW_CLASSES = [
 
 # Window title keywords that suggest cheating tools
 SUSPICIOUS_WINDOW_TITLES = [
-    "parakeet", "chatgpt", "claude ai", "gemini",
-    "copilot", "interview assistant", "ai answer",
-    "final round", "interview copilot",
+    # AI assistants
+    "parakeet", "chatgpt", "claude ai", "gemini", "copilot",
+    "deepseek", "perplexity",
+    # Interview cheating tools
+    "final round", "finalround", "interview copilot",
+    "interview coder", "interviewcoder",
+    "cluely", "locked in ai", "lockedinai",
+    "sensei ai", "sensai", "interview solver",
+    "interviewman", "aceround", "ace round",
+    "hedy ai", "hedyai", "pmodule",
+    # Generic patterns
+    "interview assistant", "ai answer", "ai helper",
+    "coding assistant", "answer overlay",
+    "stealth mode", "invisible overlay",
+]
+
+# ─── AI CHEATING TOOL DEEP DETECTION CONFIG ──────────────────
+
+# Process name / exe path / cmdline keywords for AI copilot tools
+AI_TOOL_PROCESS_KEYWORDS = [
+    "pmodule",  # Parakeet AI real process name
+    "parakeet", "finalround", "final round", "final_round",
+    "interviewcoder", "interview-coder", "interview_coder",
+    "cluely", "lockedin", "locked-in", "locked_in",
+    "sensai", "sensei", "interviewsolver", "interview-solver",
+    "interviewman", "interview-man", "aceround", "ace-round",
+    "hedy", "hedyai",
+    "interviewcopilot", "interview-copilot",
+    "interviewassistant", "interview-assistant",
+]
+
+# Path fragments — catches renamed exes installed in known directories
+AI_TOOL_PATH_KEYWORDS = [
+    "parakeet", "pmodule", "finalroundai", "final round ai",
+    "interviewcoder", "cluely", "lockedinai", "locked in ai",
+    "sensaiai", "interviewsolver", "interviewman",
+    "aceround", "hedyai",
+]
+
+# Stealth-mode command-line flags used by copilot tools
+AI_TOOL_CMDLINE_FLAGS = [
+    "--stealth", "--invisible", "--overlay", "--ghost",
+    "--hidden-mode", "--undetectable", "--no-taskbar",
+]
+
+# Overlay window detection whitelist (legitimate overlay processes)
+OVERLAY_WHITELIST = {
+    "explorer.exe", "searchhost.exe", "shellexperiencehost.exe",
+    "textinputhost.exe", "nvidia share.exe", "gamebar.exe",
+    "gamebarftserver.exe", "widgets.exe", "startmenuexperiencehost.exe",
+    "msedgewebview2.exe", "runtimebroker.exe",
+    # Our own app
+    "letshyre secure interview.exe", "electron.exe",
+}
+
+# Virtual audio device keywords
+VIRTUAL_AUDIO_KEYWORDS = [
+    "vb-cable", "vb-audio", "voicemeeter", "virtual cable",
+    "blackhole", "soundflower", "loopback",
+    "virtual audio", "cable input", "cable output",
 ]
 
 OS_NAME = platform.system()  # 'Windows', 'Darwin', 'Linux'
@@ -457,11 +536,215 @@ def detect_suspicious_window_properties():
     return threats
 
 # ─────────────────────────────────────────────
+#  BEHAVIORAL DETECTION 6: AI CHEATING TOOLS
+#  Catches copilot tools even if renamed by
+#  scanning process names, paths, and cmdlines.
+# ─────────────────────────────────────────────
+def detect_ai_cheating_tools():
+    """
+    Scans all running processes for AI interview copilot tools.
+    Three-layer detection:
+      1. Process names against keyword list
+      2. Executable install paths for tool directory names
+      3. Command-line arguments for stealth flags
+    """
+    threats = []
+    seen_pids = set()  # avoid duplicate threats per process
+
+    try:
+        for proc in psutil.process_iter(['pid', 'name', 'exe', 'cmdline']):
+            try:
+                pid  = proc.info['pid']
+                name = (proc.info['name'] or "").lower()
+                exe  = (proc.info['exe'] or "").lower()
+                cmd  = " ".join(proc.info['cmdline'] or []).lower()
+
+                if pid in seen_pids:
+                    continue
+
+                # 1. Process name match
+                for kw in AI_TOOL_PROCESS_KEYWORDS:
+                    if kw in name:
+                        seen_pids.add(pid)
+                        threats.append({
+                            "type": "ai_cheating_tool",
+                            "severity": "HIGH",
+                            "detail": f"AI cheating tool detected (process name): '{proc.info['name']}' (PID {pid})",
+                            "process": proc.info['name'],
+                            "pid": pid,
+                            "match_type": "process_name",
+                            "keyword": kw
+                        })
+                        break
+
+                if pid in seen_pids:
+                    continue
+
+                # 2. Executable path match (catches renamed binaries)
+                for kw in AI_TOOL_PATH_KEYWORDS:
+                    if kw in exe:
+                        seen_pids.add(pid)
+                        threats.append({
+                            "type": "ai_cheating_tool",
+                            "severity": "HIGH",
+                            "detail": f"AI cheating tool detected (install path): '{proc.info['name']}' at '{proc.info['exe']}' (PID {pid})",
+                            "process": proc.info['name'],
+                            "pid": pid,
+                            "match_type": "exe_path",
+                            "keyword": kw
+                        })
+                        break
+
+                if pid in seen_pids:
+                    continue
+
+                # 3. Stealth command-line flags
+                for flag in AI_TOOL_CMDLINE_FLAGS:
+                    if flag in cmd:
+                        seen_pids.add(pid)
+                        threats.append({
+                            "type": "ai_cheating_tool",
+                            "severity": "HIGH",
+                            "detail": f"Suspicious stealth flag detected: '{proc.info['name']}' with '{flag}' (PID {pid})",
+                            "process": proc.info['name'],
+                            "pid": pid,
+                            "match_type": "cmdline_flag",
+                            "keyword": flag
+                        })
+                        break
+
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+
+    except Exception as e:
+        logger.warning(f"AI cheating tool detection error: {e}")
+
+    return threats
+
+# ─────────────────────────────────────────────
+#  BEHAVIORAL DETECTION 7: TRANSPARENT OVERLAYS
+#  Catches all overlay-based AI copilots by
+#  detecting invisible click-through windows.
+# ─────────────────────────────────────────────
+def detect_overlay_windows():
+    """
+    Detect transparent overlay windows — the primary delivery mechanism
+    for AI copilot answers.  A window with ALL THREE of these flags
+    is almost certainly an AI overlay:
+      - WS_EX_LAYERED     (0x00080000) — enables transparency
+      - WS_EX_TRANSPARENT (0x00000020) — click-through
+      - WS_EX_TOPMOST     (0x00000008) — always on top
+    Whitelisted system processes are excluded.
+    """
+    if OS_NAME != "Windows":
+        return []
+
+    threats = []
+
+    try:
+        import ctypes
+
+        WS_EX_LAYERED     = 0x00080000
+        WS_EX_TRANSPARENT = 0x00000020
+        WS_EX_TOPMOST     = 0x00000008
+        GWL_EXSTYLE       = -20
+
+        user32 = ctypes.windll.user32
+        GetWindowLongW = user32.GetWindowLongW
+        GetWindowThreadProcessId = user32.GetWindowThreadProcessId
+        IsWindowVisible = user32.IsWindowVisible
+        EnumWindows = user32.EnumWindows
+
+        suspicious_pids = []
+
+        def callback(hwnd, _):
+            if not IsWindowVisible(hwnd):
+                return True
+            ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE)
+            is_layered     = bool(ex_style & WS_EX_LAYERED)
+            is_transparent = bool(ex_style & WS_EX_TRANSPARENT)
+            is_topmost     = bool(ex_style & WS_EX_TOPMOST)
+
+            if is_layered and is_transparent and is_topmost:
+                pid = ctypes.c_ulong()
+                GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+                suspicious_pids.append(pid.value)
+            return True
+
+        WNDENUMPROC = ctypes.WINFUNCTYPE(
+            ctypes.c_bool,
+            ctypes.POINTER(ctypes.c_int),
+            ctypes.POINTER(ctypes.c_int)
+        )
+        EnumWindows(WNDENUMPROC(callback), 0)
+
+        # Resolve PIDs to process names and filter whitelist
+        seen = set()
+        for pid in suspicious_pids:
+            if pid in seen:
+                continue
+            seen.add(pid)
+            try:
+                proc = psutil.Process(pid)
+                pname = proc.name().lower()
+                if pname not in OVERLAY_WHITELIST:
+                    threats.append({
+                        "type": "transparent_overlay",
+                        "severity": "HIGH",
+                        "detail": f"Suspicious transparent overlay detected: '{proc.name()}' (PID {pid})",
+                        "process": proc.name(),
+                        "pid": pid
+                    })
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+
+    except Exception as e:
+        logger.warning(f"Overlay window detection error: {e}")
+
+    return threats
+
+# ─────────────────────────────────────────────
+#  BEHAVIORAL DETECTION 8: VIRTUAL AUDIO DEVICES
+#  Detects VB-Cable, Voicemeeter, and similar
+#  audio routing for hidden AI earpieces.
+# ─────────────────────────────────────────────
+def detect_virtual_audio_devices():
+    """
+    Detect virtual audio cables that could be used to pipe
+    AI-generated answers to earpieces.  Windows only —
+    queries PnP audio endpoint devices via PowerShell.
+    """
+    if OS_NAME != "Windows":
+        return []
+
+    threats = []
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+             "Get-PnpDevice -Class AudioEndpoint -Status OK | Select-Object FriendlyName | Format-List"],
+            capture_output=True, text=True, timeout=5
+        )
+        output = result.stdout.lower()
+        for kw in VIRTUAL_AUDIO_KEYWORDS:
+            if kw in output:
+                threats.append({
+                    "type": "virtual_audio_device",
+                    "severity": "MEDIUM",
+                    "detail": f"Virtual audio device detected (keyword: '{kw}')",
+                })
+                break  # one alert is enough
+
+    except Exception as e:
+        logger.warning(f"Virtual audio detection error: {e}")
+
+    return threats
+
+# ─────────────────────────────────────────────
 #  MAIN SCAN ORCHESTRATOR
 # ─────────────────────────────────────────────
 def run_full_scan():
     """
-    Run all 5 behavioral deep-detection checks and compile results.
+    Run all 8 behavioral deep-detection checks and compile results.
     Process/display/screen-sharing checks are handled by the Electron
     preflight (Node.js) and are intentionally excluded here.
     """
@@ -483,6 +766,15 @@ def run_full_scan():
 
     # 5. Suspicious Win32 window class names
     threats.extend(detect_suspicious_window_properties())
+
+    # 6. AI interview cheating tools (process name/path/cmdline)
+    threats.extend(detect_ai_cheating_tools())
+
+    # 7. Transparent overlay windows (Win32 WS_EX flags)
+    threats.extend(detect_overlay_windows())
+
+    # 8. Virtual audio devices (VB-Cable, Voicemeeter, etc.)
+    threats.extend(detect_virtual_audio_devices())
 
     # ── Compile result ───────────────────────────────────────
     safe      = len(threats) == 0

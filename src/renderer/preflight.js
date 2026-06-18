@@ -16,6 +16,7 @@
 
 let MEETING_APPS = [];
 let SCREEN_SHARING_APPS = [];
+let AI_CHEATING_APPS = [];
 let APP_DISPLAY_NAMES = {};
 
 function getDisplayName(processName) {
@@ -52,6 +53,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const appList = await window.electronAPI.getAppList();
       MEETING_APPS = appList.meetingApps;
       SCREEN_SHARING_APPS = appList.screenSharingApps;
+      AI_CHEATING_APPS = appList.aiCheatingApps || [];
       APP_DISPLAY_NAMES = appList.displayNames;
     } catch (e) {
       console.error("Failed to load app list", e);
@@ -134,7 +136,7 @@ function setLoadingState(btnProceed, btnRescan, finalStatus) {
   finalStatus.textContent = "Running security diagnostics...";
   finalStatus.className = "text-slate-500 font-medium";
 
-  ["hdmi", "meeting", "screen", "wireless"].forEach((id) => {
+  ["hdmi", "meeting", "screen", "wireless", "ai"].forEach((id) => {
     const iconEl = document.getElementById(`icon-${id}`);
     const badgeEl = document.getElementById(`badge-${id}`);
     const actionsEl = document.getElementById(`actions-${id}`);
@@ -185,7 +187,8 @@ function applyStepResult(step, result) {
 
       const foundMeeting = procs.filter((p) => MEETING_APPS.includes(p));
       const foundScreen  = procs.filter((p) => SCREEN_SHARING_APPS.includes(p));
-      const foundOther   = procs.filter((p) => !MEETING_APPS.includes(p) && !SCREEN_SHARING_APPS.includes(p));
+      const foundAi      = procs.filter((p) => AI_CHEATING_APPS.includes(p));
+      const foundOther   = procs.filter((p) => !MEETING_APPS.includes(p) && !SCREEN_SHARING_APPS.includes(p) && !AI_CHEATING_APPS.includes(p));
 
       if (foundMeeting.length > 0) {
         updateCard("meeting", false, "These meeting apps are still running:", foundMeeting);
@@ -199,9 +202,15 @@ function applyStepResult(step, result) {
         updateCard("screen", true, "No screen sharing detected.");
       }
 
+      if (foundAi.length > 0) {
+        updateCard("ai", false, "These AI copilot tools are still running:", foundAi);
+      } else {
+        updateCard("ai", true, "No AI cheating tools detected.");
+      }
+
       const wirelessFailed =
         foundOther.length > 0 ||
-        (result.detected && foundMeeting.length === 0 && foundScreen.length === 0);
+        (result.detected && foundMeeting.length === 0 && foundScreen.length === 0 && foundAi.length === 0);
 
       if (wirelessFailed) {
         if (foundOther.length > 0) {
@@ -213,7 +222,7 @@ function applyStepResult(step, result) {
         updateCard("wireless", true, "No casting/mirroring detected.");
       }
 
-      return !(foundMeeting.length > 0 || foundScreen.length > 0 || wirelessFailed);
+      return !(foundMeeting.length > 0 || foundScreen.length > 0 || foundAi.length > 0 || wirelessFailed);
     }
 
     case "agent":
@@ -234,6 +243,7 @@ function processResults(results, btnProceed, btnRescan, finalStatus) {
   const mirrorPassed  = applyStepResult("mirror", results.mirror);
   const agentPassed   = applyStepResult("agent",  results.agent);
 
+  // Since mirror handles meeting, screen, AI, and wireless, we just check mirrorPassed
   const allPassed = hdmiPassed && mirrorPassed && agentPassed;
 
   btnRescan.disabled = false;

@@ -217,6 +217,45 @@
           </div>
           <div id="actions-wireless" class="flex flex-col gap-2 empty:hidden mt-1"></div>
         </div>
+
+        <!-- Card 5: AI Assistants -->
+        <div
+          id="card-ai"
+          class="glass-card rounded-2xl p-5 flex flex-col border border-slate-200/50 hover:shadow-md hover:border-slate-300/60 transition-all-custom gap-3"
+        >
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-4">
+              <div
+                id="icon-ai"
+                class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200/40 flex-shrink-0 transition-all duration-300"
+              >
+                <svg class="w-5 h-5 spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  ></path>
+                </svg>
+              </div>
+              <div>
+                <h3 class="font-bold text-slate-900 text-[15.5px] leading-tight">
+                  AI Assistant Detection
+                </h3>
+                <p id="desc-ai" class="text-slate-500 text-[13px] font-medium mt-1">
+                  Scanning for interview copilots and cheating tools...
+                </p>
+              </div>
+            </div>
+            <div
+              id="badge-ai"
+              class="text-[12px] font-semibold px-3 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/30"
+            >
+              Scanning
+            </div>
+          </div>
+          <div id="actions-ai" class="flex flex-col gap-2 empty:hidden mt-1"></div>
+        </div>
       </div>
 
       <!-- Footer Actions -->

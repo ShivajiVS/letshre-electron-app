@@ -22,7 +22,7 @@ const { lockdownForInterview, endInterview, getWindow, minimizeWindow } = requir
 const { getCurrentInterviewUrl, getCurrentAccessToken } = require("./protocolHandler");
 const startDetection = require("../detector/systemChecks");
 
-const { MEETING_APPS, SCREEN_SHARING_APPS, APP_DISPLAY_NAMES } = require("../shared/appList");
+const { MEETING_APPS, SCREEN_SHARING_APPS, AI_CHEATING_APPS, APP_DISPLAY_NAMES } = require("../shared/appList");
 
 // ─── Input validation ─────────────────────────────────────────────────────────
 
@@ -55,6 +55,7 @@ function registerIpcHandlers() {
   ipcMain.handle(IPC.GET_APP_LIST, () => ({
     meetingApps: MEETING_APPS,
     screenSharingApps: SCREEN_SHARING_APPS,
+    aiCheatingApps: AI_CHEATING_APPS,
     displayNames: APP_DISPLAY_NAMES,
   }));
 

@@ -181,6 +181,14 @@ function registerIpcHandlers() {
   // Signal sent by interview.letshyre.com when the session ends.
   // Stops all detection loops and lifts the window lockdown.
 
+  // Renderer acknowledges it received & is handling a violation — keeps the
+  // self-enforcement failsafe suppressed while the website stays responsive.
+  ipcMain.on(IPC.ACK_VIOLATION, () => {
+    if (startDetection.acknowledgeViolation) {
+      startDetection.acknowledgeViolation();
+    }
+  });
+
   ipcMain.on(IPC.INTERVIEW_COMPLETE, (_event, { reason } = {}) => {
     const safeReason = typeof reason === "string" ? reason.slice(0, 40) : "unknown";
     logger.info(`[ipc] interview-complete received — reason: ${safeReason}`);

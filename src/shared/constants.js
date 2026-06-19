@@ -115,6 +115,13 @@ const IPC = {
   // Interview session end: website → main (lifts window lockdown)
   INTERVIEW_COMPLETE: "interview-complete",
 
+  // Violation acknowledgement: website → main. The renderer calls this from its
+  // onViolation handler to confirm it received and is handling the violation.
+  // While acks keep arriving, Electron's self-enforcement failsafe stays
+  // suppressed (the website owns the warning/termination UX). If acks stop
+  // (renderer crashed / listener dropped), the failsafe self-enforces.
+  ACK_VIOLATION: "ack-violation",
+
   // Pre-proceed watcher: main → renderer push — real-time blocked-app status
   // while the user is on the "All checks passed" success screen.
   // Payload: { clean: boolean, apps: string[] }

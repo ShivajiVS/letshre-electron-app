@@ -60,6 +60,9 @@ const IPC = {
   // Interview session end: website → main
   INTERVIEW_COMPLETE: "interview-complete",
 
+  // Violation acknowledgement: website → main
+  ACK_VIOLATION: "ack-violation",
+
   // App list (ADD-10)
   GET_APP_LIST: "get-app-list",
 
@@ -71,6 +74,7 @@ const IPC = {
 const ALLOWED_SEND_CHANNELS = [
   IPC.QUIT_APP, IPC.RECHECK_SYSTEM, IPC.PROCEED_TO_INTERVIEW,
   IPC.INSTALL_UPDATE, IPC.MINIMIZE_WINDOW, IPC.INTERVIEW_COMPLETE,
+  IPC.ACK_VIOLATION,
 ];
 
 const ALLOWED_INVOKE_CHANNELS = [
@@ -278,6 +282,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
       _violationHandler = null;
     }
   },
+
+  /**
+   * Acknowledge a received violation. Call this from your onViolation handler
+   * (hard AND soft) to tell Electron the renderer is alive and handling it.
+   * While acks keep arriving, Electron will NOT self-enforce — your in-app
+   * warning/termination flow stays in control. If acks stop (page crashed /
+   * listener dropped), Electron falls back to its own violation screen.
+   *
+   * Safe to call in a plain browser — no-ops if electronAPI is unavailable.
+   */
+  acknowledgeViolation: () => safeSend(IPC.ACK_VIOLATION),
 
   // ── Interview session end ─────────────────────────────────────────────────
   /**

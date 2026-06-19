@@ -30,6 +30,7 @@ let detectionInterval = null;
 let preProceedInterval = null;
 let heartbeatInterval = null;
 let hardBlockFailsafeTimer = null; // one-shot self-enforcement timer (Phase 3 follow-up)
+let lastViolationAckAt = 0; // ms timestamp of the renderer's most recent ack
 
 /**
  * Fail-CLOSED bookkeeping: counts consecutive "indeterminate" results per check
@@ -340,10 +341,19 @@ async function sendViolation(win, event, severity) {
  */
 function armHardBlockFailsafe(reason) {
   if (hardBlockFailsafeTimer) { return; }
+  const armedAt = Date.now();
   hardBlockFailsafeTimer = setTimeout(() => {
     hardBlockFailsafeTimer = null;
     if (!isSessionActive) { return; } // website already terminated the session
-    logger.warn("[systemChecks] hard-block failsafe fired — self-enforcing locally");
+
+    // If the renderer acknowledged a violation during the grace window, the
+    // website is alive and owns the warning/termination UX — do NOT override it.
+    if (lastViolationAckAt >= armedAt) {
+      logger.info("[systemChecks] violation acked by renderer — self-enforcement skipped");
+      return;
+    }
+
+    logger.warn("[systemChecks] hard-block failsafe fired (no renderer ack) — self-enforcing locally");
     try {
       require("../main/windowManager").enforceViolation(reason);
     } catch (err) {
@@ -351,6 +361,15 @@ function armHardBlockFailsafe(reason) {
     }
     stop(); // session is over — halt all detection loops
   }, HARD_BLOCK_GRACE_MS);
+}
+
+/**
+ * Records a renderer acknowledgement. Called via IPC when the website confirms
+ * it received and is handling a violation. Keeps the self-enforcement failsafe
+ * suppressed while the renderer stays responsive.
+ */
+function acknowledgeViolation() {
+  lastViolationAckAt = Date.now();
 }
 
 //PREFLIGHT: run all checks once and stream per-step progress
@@ -495,6 +514,7 @@ module.exports = {
   resetState,
   runChecksOnce,
   getAuditLog,
+  acknowledgeViolation,
   startPreProceedMonitor,
   stopPreProceedMonitor,
 };

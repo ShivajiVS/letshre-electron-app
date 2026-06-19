@@ -31,9 +31,12 @@ import io
 from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-# Force stdout to UTF-8 to prevent Windows cp1252 crash on arrows (→)
+# Force stdout/stderr to UTF-8 to prevent Windows cp1252 crash on non-ascii
+# (stdout carries protocol JSON; stderr carries logs with arrows like →).
 if sys.stdout.encoding != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8')
+if sys.stderr.encoding != 'utf-8':
+    sys.stderr.reconfigure(encoding='utf-8')
 
 # ─────────────────────────────────────────────
 #  CONFIGURATION
@@ -96,10 +99,13 @@ SUSPICIOUS_DLLS = [
     "finalround", "cluely", "lockedinai", "interviewcoder",
 ]
 
-# Win32 window class names that indicate automation / injection tools
+# Win32 window class names that indicate automation / injection tools.
+# NOTE (Phase 4): "IEFrame" and "MozillaWindowClass" were removed — they are the
+# ordinary window classes of Internet Explorer/embedded WebView and Firefox, so
+# they false-positived on every such window. Browsers are already covered by the
+# Node-side process check (BROWSER_APPS); flagging their window class here was
+# both redundant and mislabeled as "automation/injection".
 SUSPICIOUS_WINDOW_CLASSES = [
-    "IEFrame",        # IE automation
-    "MozillaWindowClass",  # Firefox automation
     "tcpListener",
     "websocketServer",
     "apiProxy",
@@ -175,10 +181,13 @@ OS_NAME = platform.system()  # 'Windows', 'Darwin', 'Linux'
 # ─────────────────────────────────────────────
 #  LOGGING SETUP
 # ─────────────────────────────────────────────
+# Phase 2: logs go to STDERR. stdout is now reserved for the newline-delimited
+# JSON command protocol the Electron parent speaks over the pipe — mixing log
+# text into stdout would corrupt that stream.
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[logging.StreamHandler(sys.stdout)]
+    handlers=[logging.StreamHandler(sys.stderr)]
 )
 logger = logging.getLogger("SecurityAgent")
 
@@ -744,6 +753,62 @@ def detect_virtual_audio_devices():
     return threats
 
 # ─────────────────────────────────────────────
+#  PHYSICAL MONITOR COUNT (Phase 4)
+#  Counts physically-attached display monitors via EnumDisplayDevices. Unlike the
+#  Electron screen API (which sees ONE logical display in "Duplicate" mode), this
+#  counts both panels of a cloned/mirrored setup — recovering duplicate-to-
+#  projector detection that the logical-display count alone would miss.
+# ─────────────────────────────────────────────
+def count_physical_monitors():
+    """Return the number of active, non-mirror-driver physical monitors (Windows)."""
+    if OS_NAME != "Windows":
+        return 0
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class DISPLAY_DEVICE(ctypes.Structure):
+            _fields_ = [
+                ("cb", wintypes.DWORD),
+                ("DeviceName", wintypes.WCHAR * 32),
+                ("DeviceString", wintypes.WCHAR * 128),
+                ("StateFlags", wintypes.DWORD),
+                ("DeviceID", wintypes.WCHAR * 128),
+                ("DeviceKey", wintypes.WCHAR * 128),
+            ]
+
+        DISPLAY_DEVICE_ACTIVE = 0x00000001
+        DISPLAY_DEVICE_MIRRORING_DRIVER = 0x00000008
+        EnumDisplayDevices = ctypes.windll.user32.EnumDisplayDevicesW
+
+        count = 0
+        i = 0
+        while True:
+            adapter = DISPLAY_DEVICE()
+            adapter.cb = ctypes.sizeof(DISPLAY_DEVICE)
+            if not EnumDisplayDevices(None, i, ctypes.byref(adapter), 0):
+                break
+            i += 1
+            if not (adapter.StateFlags & DISPLAY_DEVICE_ACTIVE):
+                continue
+            # Enumerate the physical monitor(s) attached to this active adapter.
+            j = 0
+            while True:
+                mon = DISPLAY_DEVICE()
+                mon.cb = ctypes.sizeof(DISPLAY_DEVICE)
+                if not EnumDisplayDevices(adapter.DeviceName, j, ctypes.byref(mon), 0):
+                    break
+                j += 1
+                if (mon.StateFlags & DISPLAY_DEVICE_ACTIVE) and not (
+                    mon.StateFlags & DISPLAY_DEVICE_MIRRORING_DRIVER
+                ):
+                    count += 1
+        return count
+    except Exception as e:
+        logger.warning(f"Physical monitor count error: {e}")
+        return 0
+
+# ─────────────────────────────────────────────
 #  MAIN SCAN ORCHESTRATOR
 # ─────────────────────────────────────────────
 def run_full_scan():
@@ -792,7 +857,11 @@ def run_full_scan():
         "threats": threats,
         "safe_to_proceed": safe,
         "scan_count": scan_results.get("scan_count", 0) + 1,
-        "agent_version": AGENT_VERSION  # IMP-12
+        "agent_version": AGENT_VERSION,  # IMP-12
+        # Phase 4: physical monitor count for duplicate/mirror-mode detection
+        # (the Node screen API only sees logical displays). Cross-checked in
+        # Node; not itself a threat here to avoid double-counting extend mode.
+        "physical_monitors": count_physical_monitors(),
     }
 
     # ── Persist event log ────────────────────────────────────
@@ -905,19 +974,76 @@ class AgentHandler(BaseHTTPRequestHandler):
         pass
 
 def start_http_server():
-    """Start the local HTTP server."""
+    """
+    Start the local HTTP server (best-effort secondary channel).
+
+    Phase 2: a failed bind (port already in use, firewall, AV) is NO LONGER fatal.
+    The Electron parent talks to this agent over the stdin/stdout pipe, which does
+    not depend on a TCP port, so the agent stays fully functional even when HTTP
+    cannot start. HTTP remains available for any consumer that still uses it.
+    """
     try:
         server = HTTPServer(("127.0.0.1", PORT), AgentHandler)
         logger.info(f"HTTP server running at http://127.0.0.1:{PORT}")
-        logger.info(f"  /ping   → Health check")
-        logger.info(f"  /status → Latest scan result")
-        logger.info(f"  /scan   → Trigger immediate scan")
-        logger.info(f"  /log    → Full event log")
         server.serve_forever()
     except OSError as e:
-        logger.error(f"Cannot start server on port {PORT}: {e}")
-        logger.error("Is the agent already running? Close the other instance first.")
-        sys.exit(1)
+        logger.warning(f"HTTP server unavailable on port {PORT}: {e} — "
+                       f"continuing on the stdio pipe only.")
+
+
+# ─────────────────────────────────────────────
+#  STDIO PIPE PROTOCOL (primary Electron channel)
+#  Newline-delimited JSON. Request:  {"id": <n>, "cmd": "ping"|"status"|"scan"}
+#  Response: {"id": <n>, ...result}  written to stdout, one object per line.
+# ─────────────────────────────────────────────
+_stdout_lock = threading.Lock()
+
+def _write_response(obj):
+    """Serialize one response object to stdout as a single line."""
+    try:
+        with _stdout_lock:
+            sys.stdout.write(json.dumps(obj) + "\n")
+            sys.stdout.flush()
+    except Exception as e:
+        logger.warning(f"stdout write failed: {e}")
+
+def _handle_command(cmd):
+    """Dispatch a single command to its handler and return the result dict."""
+    if cmd == "ping":
+        return {"alive": True, "agent_version": AGENT_VERSION, "os": OS_NAME, "port": PORT}
+    if cmd == "status":
+        with scan_lock:
+            return dict(scan_results)
+    if cmd == "scan":
+        return run_full_scan()
+    if cmd == "log":
+        return {"log": event_log}
+    return {"error": "unknown_cmd", "cmd": cmd}
+
+def stdio_protocol_loop():
+    """
+    Blocking read loop over stdin. Keeps the process alive for as long as the
+    parent holds the pipe open — when Electron exits and closes stdin, the loop
+    ends and the agent terminates cleanly (no orphan).
+    """
+    logger.info("stdio pipe protocol ready (primary channel).")
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            req = json.loads(line)
+        except Exception:
+            continue  # ignore malformed input
+        req_id = req.get("id")
+        try:
+            resp = _handle_command(req.get("cmd"))
+        except Exception as e:
+            logger.warning(f"command error: {e}")
+            resp = {"error": str(e)}
+        resp["id"] = req_id
+        _write_response(resp)
+    logger.info("stdin closed — agent shutting down.")
 
 # ─────────────────────────────────────────────
 #  ENTRY POINT
@@ -938,12 +1064,18 @@ def main():
         logger.error("  [MISSING] psutil — run: pip install psutil")
         sys.exit(1)
 
-    # Start background scanner in a daemon thread (which will immediately run the first scan)
+    # Start background scanner in a daemon thread (runs the first scan immediately)
     scanner_thread = threading.Thread(target=background_scanner, daemon=True)
     scanner_thread.start()
 
-    # Start HTTP server (blocking — keeps the agent alive)
-    start_http_server()
+    # HTTP server is now a best-effort SECONDARY channel — run it in a daemon
+    # thread so a bind failure cannot take down the agent.
+    http_thread = threading.Thread(target=start_http_server, daemon=True)
+    http_thread.start()
+
+    # The stdin/stdout pipe is the PRIMARY channel and the blocking main loop —
+    # it keeps the agent alive and tied to the Electron parent's lifetime.
+    stdio_protocol_loop()
 
 if __name__ == "__main__":
     main()

@@ -46,3 +46,6 @@ assets/css/tailwind.css
 *.njsproj
 *.sln
 *.sw?
+
+# Python bytecode cache
+__pycache__/

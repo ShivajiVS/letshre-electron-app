@@ -29,8 +29,8 @@ const AGENT_REQUEST_TIMEOUT_MS = 2000;
 /** Base URL of the interview web app. */
 const INTERVIEW_BASE_URL = "https://interview.letshyre.com";
 
-/** Base URL of the LetsHyre REST API. */
-const API_BASE_URL = "https://api.letshyre.com";
+/** Base URL of the LetsHyre REST API. Overridable via env for staging / tests. */
+const API_BASE_URL = process.env.API_BASE_URL || "https://api.letshyre.com";
 
 // ─── Detection / Violation ───────────────────────────────────────────────────
 
@@ -45,6 +45,16 @@ const TAMPER_CHECK_INTERVAL_MS = 10000;
 
 /** How often (ms) the Electron app sends a heartbeat to the backend during interview. */
 const HEARTBEAT_INTERVAL_MS = 30000;
+
+/**
+ * Fail-CLOSED policy: number of consecutive "indeterminate" results (a check
+ * that errored / timed out and therefore could not confirm the system is clean)
+ * tolerated during an ACTIVE interview before the check is escalated to a
+ * violation. At DETECTION_INTERVAL_MS = 5s, a value of 3 ≈ 15s of blind spot.
+ * This closes the previous silent fail-OPEN hole where any transient probe
+ * error was treated as "secure".
+ */
+const INDETERMINATE_ESCALATION_THRESHOLD = 3;
 
 // ─── IPC Channel Names ───────────────────────────────────────────────────────
 // Keep these in sync with preload.js exposures and ipcHandlers.js registrations.
@@ -95,6 +105,11 @@ const IPC = {
 
   // Interview session end: website → main (lifts window lockdown)
   INTERVIEW_COMPLETE: "interview-complete",
+
+  // Pre-proceed watcher: main → renderer push — real-time blocked-app status
+  // while the user is on the "All checks passed" success screen.
+  // Payload: { clean: boolean, apps: string[] }
+  PUSH_PRE_PROCEED_STATUS: "push-pre-proceed-status",
 };
 
 // ─── Custom Protocol ─────────────────────────────────────────────────────────
@@ -114,6 +129,7 @@ module.exports = {
   DETECTION_INTERVAL_MS,
   TAMPER_CHECK_INTERVAL_MS,
   HEARTBEAT_INTERVAL_MS,
+  INDETERMINATE_ESCALATION_THRESHOLD,
   IPC,
   PROTOCOL_SCHEME,
 };

@@ -3,6 +3,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnProceed = document.getElementById("btn-proceed");
   const finalStatus = document.getElementById("final-status");
   let remainingBlockedApps = 0;
+  let isScanning = false; // true while runScans() is in progress
 
   const icons = {
     loading: '<svg class="w-5 h-5 spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>',
@@ -60,10 +61,14 @@ document.addEventListener("DOMContentLoaded", () => {
   ];
   
   async function runScans() {
+    isScanning = true;
     setLoadingState();
+    // Remove any existing pre-proceed watcher listener before starting a new scan
+    window.electronAPI?.removePreProceedStatusListener?.();
     
     if (!window.electronAPI) {
       setTimeout(() => setMockResults(), 1000);
+      isScanning = false;
       return;
     }
 
@@ -74,6 +79,8 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error(e);
       finalStatus.textContent = "Error running diagnostics.";
       finalStatus.classList.add("text-red-500");
+    } finally {
+      isScanning = false;
     }
   }
 
@@ -161,6 +168,28 @@ document.addEventListener("DOMContentLoaded", () => {
       finalStatus.className = "text-emerald-600 font-semibold text-[15px] flex items-center gap-2";
       btnProceed.disabled = false;
       btnProceed.className = "w-64 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-semibold py-3 rounded-xl shadow-lg shadow-indigo-600/35 hover:shadow-xl hover:shadow-indigo-600/40 hover:-translate-y-[1px] active:translate-y-0 transition-all duration-200 flex items-center justify-center gap-2.5 cursor-pointer whitespace-nowrap border border-indigo-500/20";
+
+      // Subscribe to the background pre-proceed watcher pushed from Electron.
+      // This detects apps re-opened after preflight passes and disables Proceed
+      // in real-time — with zero blocking scan at click-time.
+      window.electronAPI?.onPreProceedStatus?.(({ clean, apps }) => {
+        if (isScanning) return; // ignore during a re-scan cycle
+
+        if (!clean) {
+          // A blocked app reappeared — lock Proceed immediately
+          const names = apps.map(a => (APP_DISPLAY_NAMES[a] || a));
+          finalStatus.textContent = `⚠️ Blocked app re-opened: ${names.join(", ")}. Please close it to proceed.`;
+          finalStatus.className = "text-rose-500 font-semibold text-[15px]";
+          btnProceed.disabled = true;
+          btnProceed.className = "w-64 bg-slate-200 text-slate-400 font-semibold py-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-2.5 cursor-not-allowed whitespace-nowrap";
+        } else if (clean && btnProceed.disabled) {
+          // System is clean again — re-enable Proceed
+          finalStatus.textContent = "All security checks passed. You are ready to start.";
+          finalStatus.className = "text-emerald-600 font-semibold text-[15px] flex items-center gap-2";
+          btnProceed.disabled = false;
+          btnProceed.className = "w-64 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-semibold py-3 rounded-xl shadow-lg shadow-indigo-600/35 hover:shadow-xl hover:shadow-indigo-600/40 hover:-translate-y-[1px] active:translate-y-0 transition-all duration-200 flex items-center justify-center gap-2.5 cursor-pointer whitespace-nowrap border border-indigo-500/20";
+        }
+      });
     } else {
       finalStatus.textContent = "Please resolve the security alerts above to proceed.";
       finalStatus.className = "text-rose-500 font-semibold text-[15px]";
@@ -416,8 +445,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   btnProceed.addEventListener("click", () => {
     if (window.electronAPI) {
+      // Stop watcher listener on this side before navigating
+      window.electronAPI.removePreProceedStatusListener?.();
       btnProceed.disabled = true;
       btnProceed.innerHTML = icons.loading + " Loading...";
+      // Fire-and-forget — no await, no blocking scan.
+      // The watcher already guaranteed the system is clean.
       window.electronAPI.proceedToInterview();
     }
   });

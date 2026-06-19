@@ -62,6 +62,9 @@ const IPC = {
 
   // App list (ADD-10)
   GET_APP_LIST: "get-app-list",
+
+  // Pre-proceed watcher: main → renderer push — real-time blocked-app status
+  PUSH_PRE_PROCEED_STATUS: "push-pre-proceed-status",
 };
 
 // Hardened IPC wrapper — only whitelisted channels are allowed
@@ -78,6 +81,7 @@ const ALLOWED_INVOKE_CHANNELS = [
 const ALLOWED_RECEIVE_CHANNELS = [
   IPC.PUSH_UPDATE_AVAILABLE, IPC.PUSH_UPDATE_DOWNLOADED,
   IPC.PUSH_WARNING, IPC.PREFLIGHT_PROGRESS, IPC.PUSH_VIOLATION,
+  IPC.PUSH_PRE_PROCEED_STATUS,
 ];
 
 function safeSend(channel, ...args) {
@@ -288,6 +292,27 @@ contextBridge.exposeInMainWorld("electronAPI", {
     safeSend(IPC.INTERVIEW_COMPLETE, { reason }),
 
   getAppList: () => safeInvoke(IPC.GET_APP_LIST),
+
+  // ── Pre-proceed watcher (background blocked-app status) ───────────────────
+  /**
+   * Subscribe to real-time blocked-app status pushes from the background
+   * pre-proceed watcher (active after preflight passes, stopped on Proceed).
+   *
+   * Payload: { clean: boolean, apps: string[] }
+   *   clean: true  → all clear, Proceed button should be enabled
+   *   clean: false → blocked apps still running, Proceed should be disabled
+   *
+   * @param {(payload: { clean: boolean, apps: string[] }) => void} callback
+   */
+  onPreProceedStatus: (callback) => {
+    ipcRenderer.removeAllListeners(IPC.PUSH_PRE_PROCEED_STATUS);
+    safeOn(IPC.PUSH_PRE_PROCEED_STATUS, (_e, data) => callback(data));
+  },
+
+  /** Unsubscribe when leaving the preflight screen. */
+  removePreProceedStatusListener: () => {
+    ipcRenderer.removeAllListeners(IPC.PUSH_PRE_PROCEED_STATUS);
+  },
 });
 
 // ─── Input Security (capture phase) ─────────────────────────────────────────

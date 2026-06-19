@@ -19,8 +19,10 @@ const appState = require("./appState");
 const { IPC } = require("../shared/constants");
 const { killSingleProcess, killAllProcesses } = require("./processKiller");
 const { lockdownForInterview, endInterview, getWindow, minimizeWindow } = require("./windowManager");
+const { invalidateProcessCache } = require("../detector/mirrorDetector");
 const { getCurrentInterviewUrl, getCurrentAccessToken } = require("./protocolHandler");
 const startDetection = require("../detector/systemChecks");
+const { startPreProceedMonitor, stopPreProceedMonitor } = startDetection;
 
 const { MEETING_APPS, SCREEN_SHARING_APPS, AI_CHEATING_APPS, APP_DISPLAY_NAMES } = require("../shared/appList");
 
@@ -74,6 +76,8 @@ function registerIpcHandlers() {
     const win = getWindow();
     if (!win) { return; }
     logger.info("[ipc] recheck-system received");
+    stopPreProceedMonitor();
+    invalidateProcessCache();
     if (startDetection.resetState) { startDetection.resetState(); }
     win.loadFile(path.join(__dirname, "../../assets/preflight.html"));
   });
@@ -93,14 +97,24 @@ function registerIpcHandlers() {
       }
     };
 
-    return await startDetection.runChecksOnce(onProgress);
+    const result = await startDetection.runChecksOnce(onProgress);
+
+    // Start the background pre-proceed watcher as soon as preflight is done.
+    // It polls checkProcesses() every 2s and pushes { clean, apps } to the
+    // renderer — this keeps the Proceed button state accurate without any
+    // blocking scan at click-time.
+    startPreProceedMonitor(getWindow());
+
+    return result;
   });
 
   //Interview Flow
   ipcMain.on(IPC.PROCEED_TO_INTERVIEW, () => {
     logger.info("[ipc] proceed-to-interview received");
-    const interviewUrl = getCurrentInterviewUrl();
+    // Stop the pre-proceed watcher — no longer needed once interview starts.
+    stopPreProceedMonitor();
 
+    const interviewUrl = getCurrentInterviewUrl();
     lockdownForInterview(interviewUrl);
 
     try {

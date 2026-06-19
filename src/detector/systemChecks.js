@@ -4,6 +4,7 @@ const {
   DETECTION_INTERVAL_MS,
   HEARTBEAT_INTERVAL_MS,
   INDETERMINATE_ESCALATION_THRESHOLD,
+  HARD_BLOCK_GRACE_MS,
   API_BASE_URL,
 } = require("../shared/constants");
 const { getCurrentAccessToken } = require("../main/protocolHandler");
@@ -28,6 +29,7 @@ let isSessionActive = false;
 let detectionInterval = null;
 let preProceedInterval = null;
 let heartbeatInterval = null;
+let hardBlockFailsafeTimer = null; // one-shot self-enforcement timer (Phase 3 follow-up)
 
 /**
  * Fail-CLOSED bookkeeping: counts consecutive "indeterminate" results per check
@@ -321,6 +323,34 @@ async function sendViolation(win, event, severity) {
 
   // 2. Authoritative backend report (durable, retried) — Phase 3.
   reportViolationToBackend(payload);
+
+  // 3. Self-enforcement failsafe — if this is a hard block and the website does
+  //    not terminate within the grace window, Electron enforces it locally.
+  if (isHardBlock) {
+    armHardBlockFailsafe(event);
+  }
+}
+
+/**
+ * Arms the one-shot self-enforcement timer. If the session is still active when
+ * it fires (the website didn't call interviewComplete), Electron lifts the
+ * lockdown and shows the local violation screen, then halts detection. A no-op
+ * if already armed — the first hard block wins.
+ * @param {string} reason
+ */
+function armHardBlockFailsafe(reason) {
+  if (hardBlockFailsafeTimer) { return; }
+  hardBlockFailsafeTimer = setTimeout(() => {
+    hardBlockFailsafeTimer = null;
+    if (!isSessionActive) { return; } // website already terminated the session
+    logger.warn("[systemChecks] hard-block failsafe fired — self-enforcing locally");
+    try {
+      require("../main/windowManager").enforceViolation(reason);
+    } catch (err) {
+      logger.warn("[systemChecks] self-enforcement failed:", err.message);
+    }
+    stop(); // session is over — halt all detection loops
+  }, HARD_BLOCK_GRACE_MS);
 }
 
 //PREFLIGHT: run all checks once and stream per-step progress
@@ -389,6 +419,8 @@ async function runChecksOnce(onProgress = null) {
 function stop() {
   isSessionActive = false;
   indeterminateStreak.clear();
+  clearTimeout(hardBlockFailsafeTimer);
+  hardBlockFailsafeTimer = null;
 
   // Final delivery attempt for any violations not yet POSTed — the access token
   // is still valid immediately after the session ends. Fire-and-forget; the queue
@@ -412,6 +444,8 @@ function resetState() {
   violationEscalation.clear();
   indeterminateStreak.clear();
   pendingReports.length = 0; // new-session boundary — drop any stale unsent reports
+  clearTimeout(hardBlockFailsafeTimer);
+  hardBlockFailsafeTimer = null;
 
   clearInterval(detectionInterval);
   detectionInterval = null;

@@ -37,12 +37,12 @@ const ICONS = {
     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>',
 };
 
-// ─── State ──────────────────────────────────────────────────────────────────────────────
-
-let remainingBlockedApps = 0;
-
-// ─── DOM References ───────────────────────────────────────────────────────────────────
-
+// ─── State ──────────────────────────────────────────────────────────────────────────────
+
+let remainingBlockedApps = 0;
+
+// ─── DOM References ───────────────────────────────────────────────────────────────────
+
 document.addEventListener("DOMContentLoaded", async () => {
   const btnRescan  = document.getElementById("btn-rescan");
   const btnProceed = document.getElementById("btn-proceed");
@@ -420,12 +420,15 @@ function renderAgentCard(agent) {
   card.id = "card-agent";
 
   if (!agent || !agent.alive) {
+    // Agent is REQUIRED — without it the deep behavioral scan (AI tools,
+    // overlays, network, duplicate displays) cannot run. Render as a blocking
+    // error, not an amber warning, so it's clear Proceed stays disabled.
     card.className =
-      "glass-card rounded-2xl p-5 flex flex-col border border-amber-200/50 hover:shadow-md transition-all-custom gap-3";
+      "glass-card rounded-2xl p-5 flex flex-col border border-rose-200/50 shadow-sm hover:shadow-md transition-all-custom gap-3 glow-red";
     card.innerHTML = `
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-4">
-          <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center border border-amber-200/40 flex-shrink-0">
+          <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-200/40 flex-shrink-0">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
                 d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
@@ -433,10 +436,10 @@ function renderAgentCard(agent) {
           </div>
           <div>
             <h3 class="font-bold text-slate-900 text-[15.5px] leading-tight">Deep Scan Agent</h3>
-            <p class="text-amber-600 text-[13px] font-semibold mt-1">Security agent not running — deep behavioral scan unavailable.</p>
+            <p class="text-rose-700 text-[13px] font-semibold mt-1">Security agent failed to start — it is required to continue. Click Re-scan to retry.</p>
           </div>
         </div>
-        <div class="text-[12px] font-semibold px-3 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/30">Warning</div>
+        <div class="text-[12px] font-semibold px-3 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200/30 pulse-soft animate-pulse">Required</div>
       </div>`;
     container.appendChild(card);
     return false;

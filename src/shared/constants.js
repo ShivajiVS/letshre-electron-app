@@ -56,6 +56,15 @@ const HEARTBEAT_INTERVAL_MS = 30000;
  */
 const INDETERMINATE_ESCALATION_THRESHOLD = 3;
 
+/**
+ * Grace period (ms) after a hard-block violation before Electron SELF-ENFORCES.
+ * The violation is pushed to the website first; if the session is still active
+ * after this window (the site dropped the event or failed to terminate),
+ * Electron lifts the lockdown and shows the local violation screen itself.
+ * This closes the gap where renderer-only enforcement = silent bypass.
+ */
+const HARD_BLOCK_GRACE_MS = 8000;
+
 // ─── IPC Channel Names ───────────────────────────────────────────────────────
 // Keep these in sync with preload.js exposures and ipcHandlers.js registrations.
 //
@@ -130,6 +139,7 @@ module.exports = {
   TAMPER_CHECK_INTERVAL_MS,
   HEARTBEAT_INTERVAL_MS,
   INDETERMINATE_ESCALATION_THRESHOLD,
+  HARD_BLOCK_GRACE_MS,
   IPC,
   PROTOCOL_SCHEME,
 };

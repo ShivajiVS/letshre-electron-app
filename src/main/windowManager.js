@@ -105,6 +105,36 @@ function endInterview(reason) {
   logger.info(`[window] interview ended (reason: ${reason}) — window restrictions lifted`);
 }
 
+// ─── Self-Enforced Violation ─────────────────────────────────────────────
+
+/**
+ * Electron self-enforcement of a hard-block (failsafe).
+ *
+ * Invoked when a hard-block violation was pushed to the website but the session
+ * is still active after the grace window — i.e. the renderer dropped the event
+ * or failed to terminate. Lifts the interview lockdown so the candidate can read
+ * the screen and act, then navigates to the local violation page (which offers
+ * Quit / Re-check). This guarantees a hard-block has a consequence even when the
+ * website doesn't handle it.
+ *
+ * @param {string} reason
+ */
+function enforceViolation(reason) {
+  if (!win || win.isDestroyed()) { return; }
+
+  isInterviewActive = false;
+  win.setAlwaysOnTop(false);
+  win.setKiosk(false);
+  win.setFullScreen(false);
+  win.setMinimizable(true);
+
+  win.loadFile(path.join(__dirname, "../../assets/violation.html"), {
+    query: { reason: String(reason).slice(0, 200) },
+  });
+
+  logger.warn(`[window] self-enforced violation screen — reason: ${reason}`);
+}
+
 // ─── Interview Lockdown ──────────────────────────────────────────────────
 
 /**
@@ -268,6 +298,7 @@ module.exports = {
   createWindow,
   lockdownForInterview,
   endInterview,
+  enforceViolation,
   getWindow,
   minimizeWindow,
   getIsInterviewActive,

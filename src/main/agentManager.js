@@ -271,6 +271,20 @@ async function waitForAgent(maxMs = AGENT_PING_TIMEOUT_MS) {
   return false;
 }
 
+/**
+ * Ensures the agent is alive, respawning it if it has died. Called before each
+ * preflight so a transient agent failure (crash, AV kill) is recoverable simply
+ * by re-scanning, rather than permanently blocking the candidate.
+ * @returns {Promise<boolean>} true if the agent is alive (or came back).
+ */
+async function ensureAgent() {
+  const res = await sendAgentCommand("ping", 600);
+  if (res && res.alive) { return true; }
+  logger.warn("[agent] not responding — attempting respawn before preflight");
+  await spawnAgent();
+  return await waitForAgent();
+}
+
 // ─── Cleanup ─────────────────────────────────────────────────────────────────
 
 /**
@@ -296,4 +310,5 @@ module.exports = {
   getAgentPath,
   getAgentSecret,
   sendAgentCommand,
+  ensureAgent,
 };

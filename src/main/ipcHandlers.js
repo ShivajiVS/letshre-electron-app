@@ -21,6 +21,7 @@ const { killSingleProcess, killAllProcesses } = require("./processKiller");
 const { lockdownForInterview, endInterview, getWindow, minimizeWindow } = require("./windowManager");
 const { invalidateProcessCache } = require("../detector/mirrorDetector");
 const { getCurrentInterviewUrl, getCurrentAccessToken } = require("./protocolHandler");
+const { ensureAgent } = require("./agentManager");
 const startDetection = require("../detector/systemChecks");
 const { startPreProceedMonitor, stopPreProceedMonitor } = startDetection;
 
@@ -86,6 +87,14 @@ function registerIpcHandlers() {
 
   ipcMain.handle(IPC.RUN_PREFLIGHT, async (event) => {
     logger.info("[ipc] run-preflight-scans invoked");
+
+    // Self-heal: respawn the agent if it has died, so a transient failure is
+    // recoverable by re-scanning rather than permanently blocking Proceed.
+    try {
+      await ensureAgent();
+    } catch (err) {
+      logger.warn("[ipc] ensureAgent failed:", err.message);
+    }
 
     // ADD-02: Streaming preflight — push progress for each step as it completes.
     // event.sender.send() is safe to call from within an ipcMain.handle() handler.

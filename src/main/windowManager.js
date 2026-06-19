@@ -13,6 +13,7 @@
 const path = require("path");
 const { app, BrowserWindow, session, dialog } = require("electron");
 const logger = require("./logger");
+const appState = require("./appState");
 const { INTERVIEW_BASE_URL } = require("../shared/constants");
 
 /** @type {BrowserWindow | null} */
@@ -176,6 +177,7 @@ function _applyWindowProtections(onViolation) {
 
   win.on("close", (e) => {
     if (!isInterviewActive) {
+      appState.setQuitting();
       return;
     } // preflight — allow close freely
 

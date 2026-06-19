@@ -75,8 +75,8 @@ async function onReady() {
   // 1. Auto-updater with in-app notification events
   setupAutoUpdater();
 
-  // 2. Spawn security agent
-  spawnAgent();
+  // 2. Spawn security agent (kills stale orphans first)
+  await spawnAgent();
   const agentReady = await waitForAgent();
   if (agentReady) {
     logger.info("[app] security agent ready ✅");
@@ -126,14 +126,7 @@ function registerAppEvents() {
   });
 
   app.on("window-all-closed", () => {
-    // Only quit if the user explicitly triggered quit (via quit button, Alt+F4 confirm, etc.)
-    // During preflight, if the window is accidentally destroyed, recreate it instead of exiting.
-    if (appState.isQuitting()) {
-      app.quit();
-    } else {
-      // Window was destroyed unexpectedly — recreate it
-      createWindow(safeViolation);
-    }
+    app.quit();
   });
 
   app.on("activate", () => {

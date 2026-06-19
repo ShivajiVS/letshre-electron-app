@@ -3,7 +3,9 @@
  * ────────────────────────
  * Owns the full lifecycle of the Python security agent binary:
  *   - Resolving the binary path (packaged vs. dev)
+ *   - Killing stale instances from previous crashes
  *   - Spawning the process
+ *   - Auto-respawning on unexpected exit
  *   - Polling until ready
  *   - Cleaning up on exit
  */
@@ -15,6 +17,7 @@ const http = require("http");
 const { app } = require("electron");
 const { spawn } = require("child_process");
 const logger = require("./logger");
+const appState = require("./appState");
 const {
   AGENT_HOST,
   AGENT_PORT,
@@ -45,11 +48,82 @@ function getAgentPath() {
   return path.join(__dirname, "../../resources", binName);
 }
 
+// ─── Stale Agent Cleanup ─────────────────────────────────────────────────────
+
+/**
+ * Kills any stale agent process occupying the agent port.
+ * This handles the case where a previous Electron crash left an orphaned
+ * agent.exe still bound to port 9999, preventing a new instance from starting.
+ *
+ * Cross-platform: uses `netstat` + `taskkill` on Windows, `lsof` + `kill` on macOS/Linux.
+ * @returns {Promise<void>}
+ */
+function killStaleAgent() {
+  return new Promise((resolve) => {
+    if (process.platform === "win32") {
+      // Step 1: Kill all agent.exe by image name (safe — we haven't spawned ours yet)
+      const killByName = spawn("taskkill", ["/IM", "agent.exe", "/F"], { shell: false });
+      killByName.on("close", () => {
+        // Step 2: Fallback — kill anything else on the agent port
+        // Use PowerShell for reliable netstat parsing (cmd /c for is fragile)
+        const psCmd = `
+          $lines = netstat -aon | Select-String ':${AGENT_PORT}.*LISTENING';
+          foreach ($line in $lines) {
+            $pid = ($line -split '\\s+')[-1];
+            if ($pid -and $pid -ne '0') {
+              taskkill /PID $pid /F 2>$null;
+            }
+          }
+        `;
+        const killByPort = spawn("powershell", ["-NoProfile", "-NonInteractive", "-Command", psCmd], { shell: false });
+        killByPort.on("close", () => setTimeout(resolve, 500));
+        killByPort.on("error", () => resolve());
+      });
+      killByName.on("error", () => resolve());
+    } else {
+      // macOS / Linux: find PID(s) via lsof
+      const findProc = spawn("lsof", ["-ti", `:${AGENT_PORT}`], {
+        shell: false,
+      });
+
+      let stdout = "";
+      findProc.stdout.on("data", (d) => (stdout += d.toString()));
+      findProc.on("close", () => {
+        const pids = stdout
+          .trim()
+          .split(/\s+/)
+          .filter((p) => p && p !== "0");
+        if (pids.length === 0) return resolve();
+
+        logger.info(
+          `[agent] killing stale agent(s) on port ${AGENT_PORT}: PIDs ${pids.join(", ")}`
+        );
+        const kills = pids.map(
+          (pid) =>
+            new Promise((res) => {
+              const kp = spawn("kill", ["-9", pid], { shell: false });
+              kp.on("close", res);
+              kp.on("error", res);
+            })
+        );
+        Promise.all(kills).then(() => setTimeout(resolve, 500));
+      });
+      findProc.on("error", () => resolve());
+    }
+  });
+}
+
+// ─── Spawn ───────────────────────────────────────────────────────────────────
+
 /**
  * Spawns the Python security agent binary and keeps a reference to it.
- * Logs stdout/stderr and clears the reference on exit.
+ * Kills any stale orphaned agent first, then spawns fresh.
+ * Logs stdout/stderr and auto-respawns on unexpected exit.
  */
-function spawnAgent() {
+async function spawnAgent() {
+  // Kill any orphaned agent from a previous crash
+  await killStaleAgent();
+
   const agentPath = getAgentPath();
   try {
     agentProcess = spawn(agentPath, [], {
@@ -60,8 +134,8 @@ function spawnAgent() {
       env: {
         ...process.env,
         AGENT_LOG_DIR: app.getPath("userData"),
-        APP_VERSION:   app.getVersion(),
-        AGENT_SECRET:  AGENT_SECRET,
+        APP_VERSION: app.getVersion(),
+        AGENT_SECRET: AGENT_SECRET,
       },
     });
 
@@ -74,6 +148,17 @@ function spawnAgent() {
     agentProcess.on("exit", (code) => {
       logger.warn(`[agent] exited with code ${code}`);
       agentProcess = null;
+
+      // Auto-respawn if the agent died unexpectedly (not during app shutdown)
+      if (code !== 0 && !appState.isQuitting()) {
+        logger.info("[agent] scheduling auto-respawn in 2s...");
+        setTimeout(() => {
+          if (!appState.isQuitting()) {
+            logger.info("[agent] respawning...");
+            spawnAgent();
+          }
+        }, 2000);
+      }
     });
 
     logger.info("[agent] spawned from", agentPath);
@@ -81,6 +166,8 @@ function spawnAgent() {
     logger.error("[agent] failed to spawn:", err.message);
   }
 }
+
+// ─── Wait / Poll ─────────────────────────────────────────────────────────────
 
 /**
  * Polls /ping every AGENT_POLL_INTERVAL_MS for up to maxMs milliseconds.
@@ -120,6 +207,8 @@ function waitForAgent(maxMs = AGENT_PING_TIMEOUT_MS) {
   });
 }
 
+// ─── Cleanup ─────────────────────────────────────────────────────────────────
+
 /**
  * Terminates the agent process if it is running.
  * Called during app `will-quit`.
@@ -136,4 +225,10 @@ function killAgent() {
   }
 }
 
-module.exports = { spawnAgent, waitForAgent, killAgent, getAgentPath, getAgentSecret };
+module.exports = {
+  spawnAgent,
+  waitForAgent,
+  killAgent,
+  getAgentPath,
+  getAgentSecret,
+};

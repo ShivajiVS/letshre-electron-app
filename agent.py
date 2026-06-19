@@ -31,6 +31,10 @@ import io
 from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
+# Force stdout to UTF-8 to prevent Windows cp1252 crash on arrows (→)
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout.reconfigure(encoding='utf-8')
+
 # ─────────────────────────────────────────────
 #  CONFIGURATION
 # ─────────────────────────────────────────────
@@ -934,10 +938,7 @@ def main():
         logger.error("  [MISSING] psutil — run: pip install psutil")
         sys.exit(1)
 
-    logger.info("Running initial scan...")
-    run_full_scan()
-
-    # Start background scanner in a daemon thread
+    # Start background scanner in a daemon thread (which will immediately run the first scan)
     scanner_thread = threading.Thread(target=background_scanner, daemon=True)
     scanner_thread.start()
 

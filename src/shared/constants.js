@@ -16,7 +16,7 @@ const AGENT_PORT = 9999;
 const AGENT_HOST = "127.0.0.1";
 
 /** Max ms to wait for agent to become ready after spawn. */
-const AGENT_PING_TIMEOUT_MS = 6000;
+const AGENT_PING_TIMEOUT_MS = 15000;
 
 /** Interval between each poll attempt while waiting for agent. */
 const AGENT_POLL_INTERVAL_MS = 500;

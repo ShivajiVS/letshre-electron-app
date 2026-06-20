@@ -13,15 +13,12 @@
 "use strict";
 
 const { app, globalShortcut, desktopCapturer, session } = require("electron");
-const { autoUpdater } = require("electron-updater");
 const logger = require("./logger");
-const appState = require("./appState");
 const { spawnAgent, waitForAgent, killAgent } = require("./agentManager");
 const { createWindow, getWindow, getIsInterviewActive } = require("./windowManager");
 const { registerIpcHandlers } = require("./ipcHandlers");
 const { applyArgvDeepLink } = require("./protocolHandler");
-const { getCurrentAccessToken } = require("./protocolHandler");
-const { IPC } = require("../shared/constants");
+const updater = require("./updater");
 const startDetection = require("../detector/systemChecks");
 
 /**
@@ -39,43 +36,14 @@ function safeViolation(event, severity) {
 }
 
 /**
- * Wires up auto-updater events so the renderer can show an in-app banner.
- * ADD-01: Replaces the silent `checkForUpdatesAndNotify()` system notification.
- */
-function setupAutoUpdater() {
-  try {
-    autoUpdater.on("update-available", (info) => {
-      logger.info("[updater] update available:", info.version);
-      getWindow()?.webContents.send(IPC.PUSH_UPDATE_AVAILABLE, { version: info.version });
-    });
-
-    autoUpdater.on("update-downloaded", (info) => {
-      logger.info("[updater] update downloaded, ready to install:", info.version);
-      getWindow()?.webContents.send(IPC.PUSH_UPDATE_DOWNLOADED, { version: info.version });
-    });
-
-    autoUpdater.on("error", (err) => {
-      logger.warn("[updater] error:", err.message);
-    });
-
-    autoUpdater.checkForUpdates();
-  } catch (err) {
-    logger.warn("[app] auto-updater setup failed:", err.message);
-  }
-}
-
-/**
  * Initialises the application once Electron is ready.
- * Order: logger → updater → agent → IPC → window → shortcuts → screen capture.
+ * Order: logger → agent → IPC → window → shortcuts → screen capture → updater.
  */
 async function onReady() {
   // 0. Initialise file logger now that userData path is available
   logger.init(app.getPath("userData"));
 
-  // 1. Auto-updater with in-app notification events
-  setupAutoUpdater();
-
-  // 2. Spawn security agent (kills stale orphans first)
+  // 1. Spawn security agent (kills stale orphans first)
   await spawnAgent();
   const agentReady = await waitForAgent();
   if (agentReady) {
@@ -117,6 +85,10 @@ async function onReady() {
       }
     }
   );
+
+  // 8. Auto-updater — initialised LAST so the window exists for early events.
+  //    Interview-safe: checks/installs are gated on interview state internally.
+  updater.init();
 }
 
 /** Registers all top-level Electron app event listeners. */
@@ -137,6 +109,7 @@ function registerAppEvents() {
 
   app.on("will-quit", () => {
     globalShortcut.unregisterAll();
+    updater.dispose();
     killAgent();
   });
 }

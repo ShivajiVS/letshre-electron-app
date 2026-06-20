@@ -31,11 +31,15 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
-      # - name: Run ESLint
-      #   run: npm run lint
+      # Non-blocking for now (the repo has pre-existing lint debt). Once that is
+      # cleared, drop `continue-on-error` to make this a hard release gate.
+      - name: Run ESLint
+        run: npm run lint
+        continue-on-error: true
 
-      # - name: Check Prettier formatting
-      #   run: npm run format:check
+      - name: Check Prettier formatting
+        run: npm run format:check
+        continue-on-error: true
 
   # ──────────────────────────────────────────────────────────────
   # 1. Build agent.exe on Windows
@@ -142,6 +146,12 @@ jobs:
       - name: Package (Windows)
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          # Code signing — electron-builder auto-detects these. Leave the repo
+          # secrets unset to build UNSIGNED (auto-update still works on Windows);
+          # add WIN_CSC_LINK (base64 .pfx or URL) + WIN_CSC_KEY_PASSWORD to sign,
+          # with NO code changes required.
+          CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
         run: npx electron-builder --win --publish always
 
   # ──────────────────────────────────────────────────────────────

@@ -38,9 +38,15 @@ const IPC = {
   // Auto-updater — push events (main → renderer)
   PUSH_UPDATE_AVAILABLE: "push-update-available",
   PUSH_UPDATE_DOWNLOADED: "push-update-downloaded",
+  PUSH_UPDATE_PROGRESS: "push-update-progress",
+  PUSH_UPDATE_ERROR: "push-update-error",
+  PUSH_UPDATE_STATE: "push-update-state",
 
   // Auto-updater — invoke (renderer → main)
   INSTALL_UPDATE: "install-update",
+
+  // App version (renderer invoke → main)
+  GET_APP_VERSION: "get-app-version",
 
   // Audit trail
   GET_AUDIT_LOG: "get-audit-log",
@@ -80,10 +86,12 @@ const ALLOWED_SEND_CHANNELS = [
 const ALLOWED_INVOKE_CHANNELS = [
   IPC.RUN_PREFLIGHT, IPC.KILL_BLOCKED_APP,
   IPC.KILL_ALL_BLOCKED_APPS, IPC.GET_AUDIT_LOG, IPC.GET_APP_LIST,
+  IPC.GET_APP_VERSION,
 ];
 
 const ALLOWED_RECEIVE_CHANNELS = [
   IPC.PUSH_UPDATE_AVAILABLE, IPC.PUSH_UPDATE_DOWNLOADED,
+  IPC.PUSH_UPDATE_PROGRESS, IPC.PUSH_UPDATE_ERROR, IPC.PUSH_UPDATE_STATE,
   IPC.PUSH_WARNING, IPC.PREFLIGHT_PROGRESS, IPC.PUSH_VIOLATION,
   IPC.PUSH_PRE_PROCEED_STATUS,
 ];
@@ -116,6 +124,9 @@ let _violationHandler = null;
 
 let _updateAvailableHandler = null;
 let _updateDownloadedHandler = null;
+let _updateProgressHandler = null;
+let _updateErrorHandler = null;
+let _updateStateHandler = null;
 let _warningHandler = null;
 
 // ─── Exposed API ─────────────────────────────────────────────────────────────
@@ -195,8 +206,48 @@ contextBridge.exposeInMainWorld("electronAPI", {
     }
   },
 
-  /** Quit the app and install the downloaded update. */
+  /** Quit the app and install the downloaded update (ignored during an interview). */
   installUpdate: () => safeSend(IPC.INSTALL_UPDATE),
+
+  /**
+   * Subscribe to download-progress events.
+   * @param {(data: { percent: number, bytesPerSecond?: number }) => void} callback
+   */
+  onUpdateProgress: (callback) => {
+    if (_updateProgressHandler) {
+      ipcRenderer.removeListener(IPC.PUSH_UPDATE_PROGRESS, _updateProgressHandler);
+    }
+    _updateProgressHandler = (_event, data) => callback(data);
+    safeOn(IPC.PUSH_UPDATE_PROGRESS, _updateProgressHandler);
+  },
+
+  /**
+   * Subscribe to updater error events.
+   * @param {(data: { error: string }) => void} callback
+   */
+  onUpdateError: (callback) => {
+    if (_updateErrorHandler) {
+      ipcRenderer.removeListener(IPC.PUSH_UPDATE_ERROR, _updateErrorHandler);
+    }
+    _updateErrorHandler = (_event, data) => callback(data);
+    safeOn(IPC.PUSH_UPDATE_ERROR, _updateErrorHandler);
+  },
+
+  /**
+   * Subscribe to coarse updater state changes (idle/checking/available/
+   * downloading/downloaded/error).
+   * @param {(data: { state: string, version?: string|null }) => void} callback
+   */
+  onUpdateState: (callback) => {
+    if (_updateStateHandler) {
+      ipcRenderer.removeListener(IPC.PUSH_UPDATE_STATE, _updateStateHandler);
+    }
+    _updateStateHandler = (_event, data) => callback(data);
+    safeOn(IPC.PUSH_UPDATE_STATE, _updateStateHandler);
+  },
+
+  /** Returns the running application version string. */
+  getAppVersion: () => safeInvoke(IPC.GET_APP_VERSION),
 
   // ── Audit trail (ADD-07) ───────────────────────────────────────────────────
   /** Fetch the full in-memory session audit log. */

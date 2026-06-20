@@ -13,14 +13,14 @@
 
 const path = require("path");
 const { ipcMain, app } = require("electron");
-const { autoUpdater } = require("electron-updater");
+const updater = require("./updater");
 const logger = require("./logger");
 const appState = require("./appState");
 const { IPC } = require("../shared/constants");
 const { killSingleProcess, killAllProcesses } = require("./processKiller");
 const { lockdownForInterview, endInterview, getWindow, minimizeWindow } = require("./windowManager");
 const { invalidateProcessCache } = require("../detector/mirrorDetector");
-const { getCurrentInterviewUrl, getCurrentAccessToken } = require("./protocolHandler");
+const { getCurrentInterviewUrl } = require("./protocolHandler");
 const { ensureAgent } = require("./agentManager");
 const startDetection = require("../detector/systemChecks");
 const { startPreProceedMonitor, stopPreProceedMonitor } = startDetection;
@@ -165,10 +165,13 @@ function registerIpcHandlers() {
   //Renderer can trigger install after update-downloaded event.
 
   ipcMain.on(IPC.INSTALL_UPDATE, () => {
-    logger.info("[ipc] install-update received — quitting and installing");
-    appState.setQuitting();
-    autoUpdater.quitAndInstall();
+    logger.info("[ipc] install-update received");
+    // Gated internally — refuses during an active interview.
+    updater.installUpdate();
   });
+
+  // Renderer asks for the running app version (shown in the preflight footer).
+  ipcMain.handle(IPC.GET_APP_VERSION, () => app.getVersion());
 
   //Audit Trail
   // ADD-07: Exposes the in-memory audit log to the renderer (support diagnostics).
@@ -198,6 +201,9 @@ function registerIpcHandlers() {
 
     // Lift window lockdown (allows close, minimize, etc.)
     endInterview(safeReason);
+
+    // Safe moment to surface any held update / re-check.
+    updater.onInterviewEnded();
   });
 
   logger.info("[ipc] all handlers registered");

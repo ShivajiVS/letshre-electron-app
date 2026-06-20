@@ -99,6 +99,41 @@ body {
   border-bottom: 1px solid #6ee7b7;
 }
 
+.update-banner--error {
+  background: linear-gradient(90deg, #fef2f2, #fee2e2);
+  color: #991b1b;
+  border-bottom: 1px solid #fecaca;
+}
+
+.update-progress {
+  flex: 1;
+  max-width: 200px;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.update-progress__bar {
+  height: 100%;
+  background: #2563eb;
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+
+.app-version {
+  position: fixed;
+  bottom: 8px;
+  right: 12px;
+  z-index: 50;
+  font-family: "Inter", sans-serif;
+  font-size: 11px;
+  color: #94a3b8;
+  user-select: none;
+  pointer-events: none;
+}
+
 .update-banner__actions {
   display: flex;
   align-items: center;

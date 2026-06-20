@@ -60,14 +60,28 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // ── Auto-updater banner (ADD-01) ──────────────────────────────────────────
+  // ── App version footer ─────────────────────────────────────────────────────
+  if (window.electronAPI?.getAppVersion) {
+    window.electronAPI.getAppVersion().then((v) => {
+      const el = document.getElementById("app-version");
+      if (el && v) { el.textContent = `v${v}`; }
+    }).catch(() => {});
+  }
+
+  // ── Auto-updater banner (interview-safe; main process gates install) ───────
   if (window.electronAPI?.onUpdateAvailable) {
-    window.electronAPI.onUpdateAvailable(({ version }) => {
-      showUpdateBanner(`Update v${version} available — downloading in the background…`, false);
-    });
-    window.electronAPI.onUpdateDownloaded(({ version }) => {
-      showUpdateBanner(`v${version} downloaded and ready. Restart to apply.`, true);
-    });
+    window.electronAPI.onUpdateAvailable(({ version }) =>
+      setUpdateBanner({ kind: "available", version })
+    );
+    window.electronAPI.onUpdateProgress?.(({ percent }) =>
+      setUpdateBanner({ kind: "downloading", percent, version: _updateBanner.version })
+    );
+    window.electronAPI.onUpdateDownloaded(({ version }) =>
+      setUpdateBanner({ kind: "downloaded", version })
+    );
+    window.electronAPI.onUpdateError?.(({ error }) =>
+      setUpdateBanner({ kind: "error", error })
+    );
   }
 
   // ── Scan Lifecycle ──────────────────────────────────────────────────────
@@ -557,14 +571,31 @@ function showScanError(finalStatus, btnRescan, message) {
   }, 1000);
 }
 
-// ─── Auto-Updater Banner (ADD-01) ─────────────────────────────────────────────
+// ─── Auto-Updater Banner ──────────────────────────────────────────────────────
+// State-driven top banner. The main process gates the actual install, so the
+// renderer only reflects state; "Later" just dismisses (the update still applies
+// on the next quit via autoInstallOnAppQuit).
 
-/**
- * Shows or updates the in-app update notification banner.
- * @param {string} message
- * @param {boolean} readyToInstall - If true, shows the "Restart & Update" button.
- */
-function showUpdateBanner(message, readyToInstall) {
+let _updateBanner = { kind: "idle" };
+
+window.__dismissUpdateBanner = () => {
+  _updateBanner = { kind: "idle" };
+  document.getElementById("update-banner")?.remove();
+};
+
+function setUpdateBanner(next) {
+  // Preserve a known version across the download lifecycle.
+  _updateBanner = { ..._updateBanner, ...next };
+  renderUpdateBanner();
+}
+
+function renderUpdateBanner() {
+  const s = _updateBanner;
+  if (!s || s.kind === "idle") {
+    document.getElementById("update-banner")?.remove();
+    return;
+  }
+
   let banner = document.getElementById("update-banner");
   if (!banner) {
     banner = document.createElement("div");
@@ -572,21 +603,48 @@ function showUpdateBanner(message, readyToInstall) {
     document.body.prepend(banner);
   }
 
-  banner.className = readyToInstall
-    ? "update-banner update-banner--ready"
-    : "update-banner update-banner--available";
+  const dismiss =
+    '<div class="update-banner__actions">' +
+    '<button class="update-banner__btn update-banner__btn--dismiss" ' +
+    'onclick="window.__dismissUpdateBanner()">✕</button></div>';
 
-  banner.innerHTML = `
-    <span class="update-banner__msg">${message}</span>
-    <div class="update-banner__actions">
-      ${readyToInstall
-        ? `<button class="update-banner__btn update-banner__btn--install"
-              onclick="window.electronAPI?.installUpdate()">
-            Restart &amp; Update
-           </button>`
-        : ""}
-      <button class="update-banner__btn update-banner__btn--dismiss"
-              onclick="document.getElementById('update-banner').remove()">✕</button>
-    </div>`;
+  let cls = "update-banner ";
+  let msg = "";
+  let actions = "";
+
+  switch (s.kind) {
+    case "available":
+      cls += "update-banner--available";
+      msg = `Update v${s.version} available — downloading…`;
+      actions = dismiss;
+      break;
+    case "downloading": {
+      const pct = s.percent ?? 0;
+      cls += "update-banner--available";
+      msg = `Downloading update${s.version ? ` v${s.version}` : ""}… ${pct}%`;
+      actions = `<div class="update-progress"><div class="update-progress__bar" style="width:${pct}%"></div></div>`;
+      break;
+    }
+    case "downloaded":
+      cls += "update-banner--ready";
+      msg = `Update v${s.version} is ready.`;
+      actions =
+        '<div class="update-banner__actions">' +
+        '<button class="update-banner__btn update-banner__btn--install" ' +
+        'onclick="window.electronAPI?.installUpdate()">Restart &amp; Update</button>' +
+        '<button class="update-banner__btn update-banner__btn--dismiss" ' +
+        'onclick="window.__dismissUpdateBanner()">Later</button></div>';
+      break;
+    case "error":
+      cls += "update-banner--error";
+      msg = `Update problem: ${s.error || "unknown error"}`;
+      actions = dismiss;
+      break;
+    default:
+      return;
+  }
+
+  banner.className = cls;
+  banner.innerHTML = `<span class="update-banner__msg">${msg}</span>${actions}`;
 }
 

@@ -47,6 +47,12 @@ const TAMPER_CHECK_INTERVAL_MS = 10000;
 const HEARTBEAT_INTERVAL_MS = 30000;
 
 /**
+ * How often (ms) to re-check GitHub for app updates. Checks are SUPPRESSED while
+ * an interview is active — a proctor client must never restart mid-session.
+ */
+const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+/**
  * Fail-CLOSED policy: number of consecutive "indeterminate" results (a check
  * that errored / timed out and therefore could not confirm the system is clean)
  * tolerated during an ACTIVE interview before the check is escalated to a
@@ -90,9 +96,15 @@ const IPC = {
   // Auto-updater (main → renderer push)
   PUSH_UPDATE_AVAILABLE: "push-update-available",
   PUSH_UPDATE_DOWNLOADED: "push-update-downloaded",
+  PUSH_UPDATE_PROGRESS: "push-update-progress",
+  PUSH_UPDATE_ERROR: "push-update-error",
+  PUSH_UPDATE_STATE: "push-update-state",
 
   // Auto-updater (renderer → main)
   INSTALL_UPDATE: "install-update",
+
+  // App version (renderer invoke → main)
+  GET_APP_VERSION: "get-app-version",
 
   // Audit trail (ADD-07)
   GET_AUDIT_LOG: "get-audit-log",
@@ -145,6 +157,7 @@ module.exports = {
   DETECTION_INTERVAL_MS,
   TAMPER_CHECK_INTERVAL_MS,
   HEARTBEAT_INTERVAL_MS,
+  UPDATE_CHECK_INTERVAL_MS,
   INDETERMINATE_ESCALATION_THRESHOLD,
   HARD_BLOCK_GRACE_MS,
   IPC,

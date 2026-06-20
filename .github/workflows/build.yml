@@ -144,15 +144,27 @@ jobs:
         run: npm run build:css
 
       - name: Package (Windows)
+        shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          # Code signing — electron-builder auto-detects these. Leave the repo
-          # secrets unset to build UNSIGNED (auto-update still works on Windows);
-          # add WIN_CSC_LINK (base64 .pfx or URL) + WIN_CSC_KEY_PASSWORD to sign,
-          # with NO code changes required.
-          CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
-        run: npx electron-builder --win --publish always
+          # Read signing secrets into NEUTRAL names electron-builder does NOT
+          # recognise (it natively reads CSC_LINK / WIN_CSC_LINK / *_KEY_PASSWORD).
+          # A missing secret is injected as an EMPTY STRING, and electron-builder
+          # treats an empty CSC_LINK as "sign, but the cert path is invalid" — the
+          # "not a file" failure. We promote to the real names only when non-empty,
+          # so this builds UNSIGNED with no cert and signs automatically once the
+          # WIN_CSC_LINK secret is added — no further code changes required.
+          SIGN_PFX: ${{ secrets.WIN_CSC_LINK }}
+          SIGN_PFX_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: |
+          if ($env:SIGN_PFX) {
+            $env:CSC_LINK = $env:SIGN_PFX
+            $env:CSC_KEY_PASSWORD = $env:SIGN_PFX_PASSWORD
+            Write-Host "Code signing ENABLED."
+          } else {
+            Write-Host "No signing certificate — building UNSIGNED."
+          }
+          npx electron-builder --win --publish always
 
   # ──────────────────────────────────────────────────────────────
   # 4. Package Electron app for macOS (needs agent binary)

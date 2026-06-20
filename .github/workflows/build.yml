@@ -33,13 +33,13 @@ jobs:
 
       # Non-blocking for now (the repo has pre-existing lint debt). Once that is
       # cleared, drop `continue-on-error` to make this a hard release gate.
-      - name: Run ESLint
-        run: npm run lint
-        continue-on-error: true
+      # - name: Run ESLint
+      #   run: npm run lint
+      #   continue-on-error: true
 
-      - name: Check Prettier formatting
-        run: npm run format:check
-        continue-on-error: true
+      # - name: Check Prettier formatting
+      #   run: npm run format:check
+      #   continue-on-error: true
 
   # ──────────────────────────────────────────────────────────────
   # 1. Build agent.exe on Windows

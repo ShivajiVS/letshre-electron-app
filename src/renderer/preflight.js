@@ -68,21 +68,30 @@ document.addEventListener("DOMContentLoaded", async () => {
     }).catch(() => {});
   }
 
-  // ── Auto-updater banner (interview-safe; main process gates install) ───────
+  // ── Auto-updater card (consent-first; interview-safe — main gates everything) ─
   if (window.electronAPI?.onUpdateAvailable) {
-    window.electronAPI.onUpdateAvailable(({ version }) =>
-      setUpdateBanner({ kind: "available", version })
+    window.electronAPI.onUpdateAvailable((data) =>
+      setUpdateCard({
+        kind: "available",
+        version: data?.version,
+        sizeBytes: data?.sizeBytes ?? null,
+        releaseNotes: data?.releaseNotes ?? null,
+      })
     );
-    window.electronAPI.onUpdateProgress?.(({ percent }) =>
-      setUpdateBanner({ kind: "downloading", percent, version: _updateBanner.version })
+    window.electronAPI.onUpdateProgress?.((data) =>
+      setUpdateCard({
+        kind: "downloading",
+        percent: data?.percent ?? 0,
+        transferred: data?.transferred ?? null,
+        total: data?.total ?? null,
+      })
     );
-    window.electronAPI.onUpdateDownloaded(({ version }) =>
-      setUpdateBanner({ kind: "downloaded", version })
+    window.electronAPI.onUpdateDownloaded((data) =>
+      setUpdateCard({ kind: "downloaded", version: data?.version })
     );
     window.electronAPI.onUpdateError?.(({ error }) => {
-      // Auto-update failures (no published release yet, offline, feed parse) are
-      // NOT actionable by the candidate and must never interrupt the preflight.
-      // Log silently — the only update UI the user sees is "ready to install".
+      // Update-check failures (no release yet, offline, feed parse) are NOT
+      // candidate-actionable and must never interrupt the preflight. Log only.
       console.warn("[updater] background update check failed (ignored):", error);
     });
   }
@@ -574,78 +583,125 @@ function showScanError(finalStatus, btnRescan, message) {
   }, 1000);
 }
 
-// ─── Auto-Updater Banner ──────────────────────────────────────────────────────
-// State-driven top banner. The main process gates the actual install, so the
-// renderer only reflects state; "Later" just dismisses (the update still applies
-// on the next quit via autoInstallOnAppQuit).
+// ─── Auto-Updater Card ────────────────────────────────────────────────────────
+// Consent-first, bottom-right floating card. The main process gates download and
+// install (never during an interview); the renderer only reflects state and
+// relays the user's choice. Update-check failures never render anything.
 
-let _updateBanner = { kind: "idle" };
+let _update = { kind: "idle", notesOpen: false };
 
-window.__dismissUpdateBanner = () => {
-  _updateBanner = { kind: "idle" };
-  document.getElementById("update-banner")?.remove();
-};
-
-function setUpdateBanner(next) {
-  // Preserve a known version across the download lifecycle.
-  _updateBanner = { ..._updateBanner, ...next };
-  renderUpdateBanner();
+/** Formats a byte count as a compact human string (e.g. "12.4 MB"). */
+function formatBytes(bytes) {
+  if (!bytes || bytes < 0) { return ""; }
+  const units = ["B", "KB", "MB", "GB"];
+  let i = 0;
+  let n = bytes;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i += 1; }
+  return `${n.toFixed(n < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
-function renderUpdateBanner() {
-  const s = _updateBanner;
-  if (!s || s.kind === "idle") {
-    document.getElementById("update-banner")?.remove();
-    return;
+/** Escapes text for safe insertion into the DOM (release notes are remote). */
+function escapeHtml(str) {
+  return String(str || "").replace(/[&<>"']/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
+}
+
+window.__updateAction = (action) => {
+  if (action === "download") {
+    window.electronAPI?.downloadUpdate?.();
+    setUpdateCard({ kind: "downloading", percent: 0 });
+  } else if (action === "install") {
+    window.electronAPI?.installUpdate?.();
+  } else if (action === "notes") {
+    setUpdateCard({ notesOpen: !_update.notesOpen });
+  } else if (action === "dismiss") {
+    setUpdateCard({ kind: "idle" });
+  }
+};
+
+function setUpdateCard(next) {
+  _update = { ..._update, ...next };
+  renderUpdateCard();
+}
+
+function renderUpdateCard() {
+  const s = _update;
+  const existing = document.getElementById("update-card");
+
+  if (!s || s.kind === "idle") { existing?.remove(); return; }
+
+  let card = existing;
+  if (!card) {
+    card = document.createElement("div");
+    card.id = "update-card";
+    card.setAttribute("role", "status");
+    card.setAttribute("aria-live", "polite");
+    document.body.appendChild(card);
   }
 
-  let banner = document.getElementById("update-banner");
-  if (!banner) {
-    banner = document.createElement("div");
-    banner.id = "update-banner";
-    document.body.prepend(banner);
-  }
+  card.className = "update-card";
+  card.innerHTML = updateCardBody(s);
+}
 
-  const dismiss =
-    '<div class="update-banner__actions">' +
-    '<button class="update-banner__btn update-banner__btn--dismiss" ' +
-    'onclick="window.__dismissUpdateBanner()">✕</button></div>';
+function updateCardBody(s) {
+  const icon = {
+    available: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v12m0 0l-4-4m4 4l4-4M5 20h14"/>',
+    downloading: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v12m0 0l-4-4m4 4l4-4M5 20h14"/>',
+    downloaded: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>',
+  }[s.kind] || "";
 
-  let cls = "update-banner ";
-  let msg = "";
-  let actions = "";
+  const head = (title, tone = "") => `
+    <div class="update-card__head">
+      <span class="update-card__icon ${tone}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">${icon}</svg>
+      </span>
+      <span class="update-card__title">${title}</span>
+      ${s.version ? `<span class="update-card__chip">v${escapeHtml(s.version)}</span>` : ""}
+    </div>`;
+
+  const notes = s.releaseNotes
+    ? `<button class="update-card__notes-toggle" onclick="window.__updateAction('notes')">
+         ${s.notesOpen ? "Hide" : "What’s new"}
+       </button>
+       ${s.notesOpen ? `<div class="update-card__notes">${escapeHtml(
+         typeof s.releaseNotes === "string" ? s.releaseNotes : ""
+       ).slice(0, 1200)}</div>` : ""}`
+    : "";
 
   switch (s.kind) {
-    case "available":
-      cls += "update-banner--available";
-      msg = `Update v${s.version} available — downloading…`;
-      actions = dismiss;
-      break;
+    case "available": {
+      const size = s.sizeBytes ? ` (${formatBytes(s.sizeBytes)})` : "";
+      return `
+        ${head("Update available")}
+        <p class="update-card__body">A new version is ready to download${size}.</p>
+        ${notes}
+        <div class="update-card__actions">
+          <button class="update-card__btn update-card__btn--primary" onclick="window.__updateAction('download')">Download</button>
+          <button class="update-card__btn update-card__btn--ghost" onclick="window.__updateAction('dismiss')">Not now</button>
+        </div>`;
+    }
     case "downloading": {
-      const pct = s.percent ?? 0;
-      cls += "update-banner--available";
-      msg = `Downloading update${s.version ? ` v${s.version}` : ""}… ${pct}%`;
-      actions = `<div class="update-progress"><div class="update-progress__bar" style="width:${pct}%"></div></div>`;
-      break;
+      const pct = Math.max(0, Math.min(100, s.percent ?? 0));
+      const sizeLine = (s.transferred && s.total)
+        ? `${formatBytes(s.transferred)} / ${formatBytes(s.total)}`
+        : "";
+      return `
+        ${head("Downloading update")}
+        <div class="update-card__progress"><div class="update-card__progress-bar" style="width:${pct}%"></div></div>
+        <p class="update-card__meta"><span>${pct}%</span><span>${sizeLine}</span></p>`;
     }
     case "downloaded":
-      cls += "update-banner--ready";
-      msg = `Update v${s.version} is ready.`;
-      actions =
-        '<div class="update-banner__actions">' +
-        '<button class="update-banner__btn update-banner__btn--install" ' +
-        'onclick="window.electronAPI?.installUpdate()">Restart &amp; Update</button>' +
-        '<button class="update-banner__btn update-banner__btn--dismiss" ' +
-        'onclick="window.__dismissUpdateBanner()">Later</button></div>';
-      break;
+      return `
+        ${head("Update ready", "update-card__icon--ok")}
+        <p class="update-card__body">It will install silently and reopen.</p>
+        <div class="update-card__actions">
+          <button class="update-card__btn update-card__btn--primary" onclick="window.__updateAction('install')">Restart &amp; update</button>
+          <button class="update-card__btn update-card__btn--ghost" onclick="window.__updateAction('dismiss')">Later</button>
+        </div>
+        <p class="update-card__hint">“Later” installs the update next time you close the app.</p>`;
     default:
-      // "error" and any unknown state never render a banner — update failures
-      // are background-only and must not disturb the candidate.
-      document.getElementById("update-banner")?.remove();
-      return;
+      return "";
   }
-
-  banner.className = cls;
-  banner.innerHTML = `<span class="update-banner__msg">${msg}</span>${actions}`;
 }
 

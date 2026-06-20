@@ -43,6 +43,7 @@ const IPC = {
   PUSH_UPDATE_STATE: "push-update-state",
 
   // Auto-updater — invoke (renderer → main)
+  DOWNLOAD_UPDATE: "download-update",
   INSTALL_UPDATE: "install-update",
 
   // App version (renderer invoke → main)
@@ -79,8 +80,8 @@ const IPC = {
 // Hardened IPC wrapper — only whitelisted channels are allowed
 const ALLOWED_SEND_CHANNELS = [
   IPC.QUIT_APP, IPC.RECHECK_SYSTEM, IPC.PROCEED_TO_INTERVIEW,
-  IPC.INSTALL_UPDATE, IPC.MINIMIZE_WINDOW, IPC.INTERVIEW_COMPLETE,
-  IPC.ACK_VIOLATION,
+  IPC.DOWNLOAD_UPDATE, IPC.INSTALL_UPDATE, IPC.MINIMIZE_WINDOW,
+  IPC.INTERVIEW_COMPLETE, IPC.ACK_VIOLATION,
 ];
 
 const ALLOWED_INVOKE_CHANNELS = [
@@ -206,7 +207,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     }
   },
 
-  /** Quit the app and install the downloaded update (ignored during an interview). */
+  /** Start downloading the available update (user consent; ignored during an interview). */
+  downloadUpdate: () => safeSend(IPC.DOWNLOAD_UPDATE),
+
+  /** Quit the app and silently install the downloaded update (ignored during an interview). */
   installUpdate: () => safeSend(IPC.INSTALL_UPDATE),
 
   /**

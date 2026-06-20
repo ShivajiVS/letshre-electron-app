@@ -164,6 +164,11 @@ function registerIpcHandlers() {
   // ── Auto-Updater ─────────────────────────────────────────────────────────
   //Renderer can trigger install after update-downloaded event.
 
+  ipcMain.on(IPC.DOWNLOAD_UPDATE, () => {
+    logger.info("[ipc] download-update received");
+    updater.downloadUpdate();
+  });
+
   ipcMain.on(IPC.INSTALL_UPDATE, () => {
     logger.info("[ipc] install-update received");
     // Gated internally — refuses during an active interview.

@@ -101,6 +101,7 @@ const IPC = {
   PUSH_UPDATE_STATE: "push-update-state",
 
   // Auto-updater (renderer → main)
+  DOWNLOAD_UPDATE: "download-update",
   INSTALL_UPDATE: "install-update",
 
   // App version (renderer invoke → main)

@@ -62,8 +62,9 @@ function setState(next, extra = {}) {
  * events can reach the renderer).
  */
 function init() {
-  // Background download; deferred updates apply on the next ordinary quit.
-  autoUpdater.autoDownload = true;
+  // CONSENT-FIRST: do not fetch bytes until the user clicks Download.
+  autoUpdater.autoDownload = false;
+  // A downloaded-but-deferred update installs on the next ordinary quit.
   autoUpdater.autoInstallOnAppQuit = true;
   // electron-updater accepts any logger with debug/info/warn/error — ours has all.
   autoUpdater.logger = logger;
@@ -77,6 +78,8 @@ function init() {
     send(IPC.PUSH_UPDATE_AVAILABLE, {
       version: info.version,
       releaseNotes: info.releaseNotes,
+      // Total download size (bytes) so the card can show "ready to download (X MB)".
+      sizeBytes: Array.isArray(info.files) && info.files[0] ? info.files[0].size : null,
     });
   });
 
@@ -138,6 +141,27 @@ function checkForUpdates() {
 }
 
 /**
+ * Renderer-triggered download (user consented). Refuses during an interview so
+ * a background download can never be kicked off mid-session.
+ * @returns {boolean} whether the download was started.
+ */
+function downloadUpdate() {
+  if (getIsInterviewActive()) {
+    logger.warn("[updater] download blocked — interview active");
+    return false;
+  }
+  if (state !== "available") {
+    logger.warn("[updater] download requested but no update is available");
+    return false;
+  }
+  logger.info("[updater] downloading update:", latestInfo?.version);
+  autoUpdater.downloadUpdate().catch((err) =>
+    logger.warn("[updater] downloadUpdate failed:", err.message)
+  );
+  return true;
+}
+
+/**
  * Renderer-triggered "Restart & Update". Refuses during an active interview and
  * only acts when an update is actually downloaded.
  * @returns {boolean} whether the install was initiated.
@@ -154,9 +178,11 @@ function installUpdate() {
     logger.warn("[updater] install requested but no update is ready");
     return false;
   }
-  logger.info("[updater] quitting to install update:", latestInfo?.version);
+  logger.info("[updater] quitting to install update (silent):", latestInfo?.version);
   appState.setQuitting();
-  autoUpdater.quitAndInstall();
+  // (isSilent=true, isForceRunAfter=true): run the NSIS installer silently and
+  // relaunch the app — no installer wizard popup. perMachine:false avoids UAC.
+  autoUpdater.quitAndInstall(true, true);
   return true;
 }
 
@@ -190,6 +216,7 @@ function dispose() {
 module.exports = {
   init,
   checkForUpdates,
+  downloadUpdate,
   installUpdate,
   onInterviewEnded,
   getState,

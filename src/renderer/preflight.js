@@ -658,10 +658,7 @@ function escapeHtml(str) {
 }
 
 window.__updateAction = (action) => {
-  if (action === "download") {
-    window.electronAPI?.downloadUpdate?.();
-    setUpdateCard({ kind: "downloading", percent: 0 });
-  } else if (action === "install") {
+  if (action === "install") {
     window.electronAPI?.installUpdate?.();
   } else if (action === "notes") {
     setUpdateCard({ notesOpen: !_update.notesOpen });

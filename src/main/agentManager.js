@@ -219,6 +219,10 @@ async function spawnAgent() {
       // We already track a live agent — terminate ONLY it, never taskkill all
       // agent.exe by name (which would kill a concurrently-spawned sibling).
       killAgent();
+      // Give the OS a moment to release port 9999 before the new agent binds it,
+      // so a still-dying old process can't cause the fresh one to EADDRINUSE-exit
+      // and churn the respawn loop. (killStaleAgent waits similarly below.)
+      await new Promise((r) => setTimeout(r, 500));
     } else {
       // No tracked agent — clear a true orphan from a previous run (by port/name).
       await killStaleAgent();

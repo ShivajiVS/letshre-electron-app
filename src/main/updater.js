@@ -80,6 +80,16 @@ function init() {
   autoUpdater.on("checking-for-update", () => setState("checking"));
 
   autoUpdater.on("update-available", (info) => {
+    // A periodic re-check re-emits update-available for the SAME version even
+    // after it's fully downloaded (electron-updater doesn't dedupe across
+    // checks). Keep the staged "downloaded" state instead of un-readying it and
+    // re-downloading — otherwise installUpdate() would refuse until the
+    // round-trip completes and the card would regress from "ready" to
+    // "downloading".
+    if (downloaded && latestInfo?.version === info.version) {
+      logger.info("[updater] update-available for already-staged version — keeping ready state");
+      return;
+    }
     latestInfo = info;
     downloaded = false;
     logger.info("[updater] update available:", info.version);

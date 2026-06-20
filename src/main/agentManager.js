@@ -34,6 +34,12 @@ function getAgentSecret() {
 /** @type {import("child_process").ChildProcess | null} */
 let agentProcess = null;
 
+// Guards against two spawn paths (auto-respawn timer + ensureAgent) running
+// concurrently and killing each other's freshly-spawned child by image name.
+let _spawning = false;
+/** @type {NodeJS.Timeout | null} */
+let _respawnTimer = null;
+
 // ─── Pipe protocol state (Phase 2) ───────────────────────────────────────────
 // Electron talks to the agent over stdin/stdout using newline-delimited JSON.
 // Each request carries an incrementing id; responses are matched back by id.
@@ -198,57 +204,84 @@ function killStaleAgent() {
  * Logs stdout/stderr and auto-respawns on unexpected exit.
  */
 async function spawnAgent() {
-  // Kill any orphaned agent from a previous crash
-  await killStaleAgent();
+  // Re-entrancy guard: never let two spawn paths run at once (they would
+  // taskkill each other's child by image name and clobber agentProcess).
+  if (_spawning) {
+    logger.warn("[agent] spawn already in progress — skipping duplicate");
+    return;
+  }
+  _spawning = true;
+  // A spawn supersedes any pending auto-respawn.
+  if (_respawnTimer) { clearTimeout(_respawnTimer); _respawnTimer = null; }
 
-  const { command, args } = getAgentSpawn();
   try {
-    // Phase 2: stdin is now piped so we can send commands. stdout carries the
-    // JSON protocol (parsed by _consumeStdout); stderr carries the agent's logs.
-    agentProcess = spawn(command, args, {
-      detached: false,
-      stdio: ["pipe", "pipe", "pipe"],
-      // IMP-08: Direct the agent to write its log to userData (writable in all modes).
-      // IMP-12: Pass the canonical app version so agent doesn't need its own version string.
-      env: {
-        ...process.env,
-        AGENT_LOG_DIR: app.getPath("userData"),
-        APP_VERSION: app.getVersion(),
-        AGENT_SECRET: AGENT_SECRET,
-      },
-    });
+    if (agentProcess) {
+      // We already track a live agent — terminate ONLY it, never taskkill all
+      // agent.exe by name (which would kill a concurrently-spawned sibling).
+      killAgent();
+    } else {
+      // No tracked agent — clear a true orphan from a previous run (by port/name).
+      await killStaleAgent();
+    }
 
-    agentProcess.stdout.on("data", (d) => _consumeStdout(d.toString()));
-    // stderr is the agent's normal log channel now (logs moved off stdout).
-    agentProcess.stderr.on("data", (d) =>
-      logger.info("[agent]", d.toString().trim())
-    );
-    agentProcess.on("exit", (code) => {
-      logger.warn(`[agent] exited with code ${code}`);
-      agentProcess = null;
-      // Fail any in-flight commands so callers don't hang until timeout.
-      for (const [, entry] of _pending) {
-        clearTimeout(entry.timer);
-        entry.resolve(null);
-      }
-      _pending.clear();
-      _stdoutBuf = "";
+    const { command, args } = getAgentSpawn();
+    try {
+      // Phase 2: stdin is piped so we can send commands. stdout carries the JSON
+      // protocol (parsed by _consumeStdout); stderr carries the agent's logs.
+      const child = spawn(command, args, {
+        detached: false,
+        stdio: ["pipe", "pipe", "pipe"],
+        // IMP-08: agent writes its log to userData (writable in all modes).
+        // IMP-12: pass the canonical app version so the agent needs no own string.
+        env: {
+          ...process.env,
+          AGENT_LOG_DIR: app.getPath("userData"),
+          APP_VERSION: app.getVersion(),
+          AGENT_SECRET: AGENT_SECRET,
+        },
+      });
+      agentProcess = child;
 
-      // Auto-respawn if the agent died unexpectedly (not during app shutdown)
-      if (code !== 0 && !appState.isQuitting()) {
-        logger.info("[agent] scheduling auto-respawn in 2s...");
-        setTimeout(() => {
-          if (!appState.isQuitting()) {
-            logger.info("[agent] respawning...");
-            spawnAgent();
-          }
-        }, 2000);
-      }
-    });
+      child.stdout.on("data", (d) => _consumeStdout(d.toString()));
+      // stderr is the agent's normal log channel now (logs moved off stdout).
+      child.stderr.on("data", (d) => logger.info("[agent]", d.toString().trim()));
 
-    logger.info("[agent] spawned:", command, args.join(" "));
-  } catch (err) {
-    logger.error("[agent] failed to spawn:", err.message);
+      child.on("exit", (code) => {
+        // Ignore exit events from a process we've already replaced — otherwise an
+        // old child's exit would null the NEW agentProcess and trigger a stray
+        // respawn (kill/respawn thrash).
+        if (agentProcess !== child) { return; }
+        logger.warn(`[agent] exited with code ${code}`);
+        agentProcess = null;
+        // Fail any in-flight commands so callers don't hang until timeout.
+        for (const [, entry] of _pending) {
+          clearTimeout(entry.timer);
+          entry.resolve(null);
+        }
+        _pending.clear();
+        _stdoutBuf = "";
+
+        // Auto-respawn on unexpected death (not during app shutdown). Tracked in
+        // _respawnTimer so killAgent()/shutdown can cancel it (otherwise it could
+        // fire after will-quit and orphan a fresh agent past app exit).
+        if (code !== 0 && !appState.isQuitting()) {
+          logger.info("[agent] scheduling auto-respawn in 2s...");
+          _respawnTimer = setTimeout(() => {
+            _respawnTimer = null;
+            if (!appState.isQuitting()) {
+              logger.info("[agent] respawning...");
+              spawnAgent();
+            }
+          }, 2000);
+        }
+      });
+
+      logger.info("[agent] spawned:", command, args.join(" "));
+    } catch (err) {
+      logger.error("[agent] failed to spawn:", err.message);
+    }
+  } finally {
+    _spawning = false;
   }
 }
 
@@ -292,6 +325,8 @@ async function ensureAgent() {
  * Called during app `will-quit`.
  */
 function killAgent() {
+  // Cancel any pending auto-respawn so it can't fire after shutdown.
+  if (_respawnTimer) { clearTimeout(_respawnTimer); _respawnTimer = null; }
   if (agentProcess) {
     try {
       agentProcess.kill();

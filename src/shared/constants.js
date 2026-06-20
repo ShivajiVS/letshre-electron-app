@@ -40,9 +40,6 @@ const VIOLATION_COOLDOWN_MS = 15000;
 /** How often (ms) to run hardware + agent deep-scan polls during interview. */
 const DETECTION_INTERVAL_MS = 5000;
 
-/** How often (ms) to ping the agent for anti-tamper checks. */
-const TAMPER_CHECK_INTERVAL_MS = 10000;
-
 /** How often (ms) the Electron app sends a heartbeat to the backend during interview. */
 const HEARTBEAT_INTERVAL_MS = 30000;
 
@@ -101,8 +98,10 @@ const IPC = {
   PUSH_UPDATE_STATE: "push-update-state",
 
   // Auto-updater (renderer → main)
-  DOWNLOAD_UPDATE: "download-update",
   INSTALL_UPDATE: "install-update",
+
+  // Auto-updater state pull (renderer invoke → main) — recover missed events
+  GET_UPDATE_STATE: "get-update-state",
 
   // App version (renderer invoke → main)
   GET_APP_VERSION: "get-app-version",
@@ -156,7 +155,6 @@ module.exports = {
   API_BASE_URL,
   VIOLATION_COOLDOWN_MS,
   DETECTION_INTERVAL_MS,
-  TAMPER_CHECK_INTERVAL_MS,
   HEARTBEAT_INTERVAL_MS,
   UPDATE_CHECK_INTERVAL_MS,
   INDETERMINATE_ESCALATION_THRESHOLD,

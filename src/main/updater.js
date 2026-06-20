@@ -20,7 +20,6 @@
 
 "use strict";
 
-const { app } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const logger = require("./logger");
 const appState = require("./appState");
@@ -33,6 +32,11 @@ let state = "idle";
 let latestInfo = null; // last update info (version, releaseNotes)
 let lastError = null;
 let periodicTimer = null;
+let lastPercent = 0; // most recent download-progress %, for getState() recovery
+// Sticky flag: an update has finished downloading and is staged on disk. Unlike
+// `state` (which a later re-check can flip to "checking"/"idle"), this stays true
+// until install/reset, so installUpdate() can't refuse a ready update.
+let downloaded = false;
 
 // ─── Renderer messaging ──────────────────────────────────────────────────────
 
@@ -63,13 +67,12 @@ function setState(next, extra = {}) {
  * events can reach the renderer).
  */
 function init() {
-  // AUTOMATIC: download in the background as soon as an update is found, and
-  // install it silently on the next app quit (the "Chrome model"). Combined with
-  // the one-click NSIS installer this is fully silent — no prompts, no wizard.
-  // We never force-restart mid-session: the app is launched via a letshyre://
-  // deep link whose token would be lost on relaunch, so install-on-quit is the
-  // safe automatic path.
-  autoUpdater.autoDownload = true;
+  // AUTOMATIC but INTERVIEW-GATED. We disable electron-updater's own auto-download
+  // (which would fire on update-available with no interview check) and instead
+  // start the download ourselves via downloadUpdate(), which refuses during an
+  // active interview. Still no user consent step — it just won't bleed a download
+  // into a locked-down session. Install is silent on the next app quit.
+  autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
   // electron-updater accepts any logger with debug/info/warn/error — ours has all.
   autoUpdater.logger = logger;
@@ -78,6 +81,7 @@ function init() {
 
   autoUpdater.on("update-available", (info) => {
     latestInfo = info;
+    downloaded = false;
     logger.info("[updater] update available:", info.version);
     setState("available");
     send(IPC.PUSH_UPDATE_AVAILABLE, {
@@ -86,6 +90,9 @@ function init() {
       // Total download size (bytes) so the card can show "ready to download (X MB)".
       sizeBytes: Array.isArray(info.files) && info.files[0] ? info.files[0].size : null,
     });
+    // Start the download automatically — but gated: downloadUpdate() is a no-op
+    // during an active interview, so a download never begins mid-session.
+    downloadUpdate();
   });
 
   autoUpdater.on("update-not-available", () => {
@@ -95,6 +102,7 @@ function init() {
 
   autoUpdater.on("download-progress", (p) => {
     const percent = Math.round(p.percent || 0);
+    lastPercent = percent;
     setState("downloading", { percent });
     send(IPC.PUSH_UPDATE_PROGRESS, {
       percent,
@@ -106,6 +114,7 @@ function init() {
 
   autoUpdater.on("update-downloaded", (info) => {
     latestInfo = info;
+    downloaded = true;
     logger.info("[updater] update downloaded, ready to install:", info.version);
     setState("downloaded");
     send(IPC.PUSH_UPDATE_DOWNLOADED, {
@@ -179,7 +188,7 @@ function installUpdate() {
     });
     return false;
   }
-  if (state !== "downloaded") {
+  if (!downloaded) {
     logger.warn("[updater] install requested but no update is ready");
     return false;
   }
@@ -220,9 +229,24 @@ function onInterviewEnded() {
   }
 }
 
-/** Current updater snapshot — exposed to the renderer for initial banner state. */
+/**
+ * Current updater snapshot — the renderer pulls this on load to recover any
+ * state/progress events it missed before its listeners were attached (e.g. after
+ * a Recheck reloads the page). Returns enough to re-render the update card.
+ */
 function getState() {
-  return { state, version: latestInfo?.version || null, error: lastError };
+  return {
+    state,
+    version: latestInfo?.version || null,
+    releaseNotes: latestInfo?.releaseNotes || null,
+    sizeBytes:
+      Array.isArray(latestInfo?.files) && latestInfo.files[0]
+        ? latestInfo.files[0].size
+        : null,
+    percent: lastPercent,
+    downloaded,
+    error: lastError,
+  };
 }
 
 function dispose() {
@@ -240,5 +264,4 @@ module.exports = {
   onInterviewEnded,
   getState,
   dispose,
-  getAppVersion: () => app.getVersion(),
 };

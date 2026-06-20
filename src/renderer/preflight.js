@@ -40,6 +40,13 @@ const ICONS = {
 // ─── State ──────────────────────────────────────────────────────────────────────────────
 
 let remainingBlockedApps = 0;
+// True once preflight has fully passed — gates the live pre-proceed watcher.
+let _proceedReady = false;
+
+const PROCEED_ENABLED_CLASS =
+  "w-64 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-semibold py-3 rounded-xl shadow-lg shadow-indigo-600/35 hover:shadow-xl hover:shadow-indigo-600/40 hover:-translate-y-[1px] active:translate-y-0 transition-all duration-200 flex items-center justify-center gap-2.5 cursor-pointer whitespace-nowrap border border-indigo-500/20";
+const PROCEED_DISABLED_CLASS =
+  "w-64 bg-slate-200 text-slate-400 font-semibold py-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-2.5 cursor-not-allowed whitespace-nowrap";
 
 // ─── DOM References ───────────────────────────────────────────────────────────────────
 
@@ -94,7 +101,29 @@ document.addEventListener("DOMContentLoaded", async () => {
       // candidate-actionable and must never interrupt the preflight. Log only.
       console.warn("[updater] background update check failed (ignored):", error);
     });
+
+    // Recovery: pull the current updater state in case an event fired before
+    // these listeners attached (e.g. after a Recheck reloaded the page).
+    window.electronAPI.getUpdateState?.().then((s) => {
+      if (!s) { return; }
+      if (s.downloaded) {
+        setUpdateCard({ kind: "downloaded", version: s.version });
+      } else if (s.state === "downloading") {
+        setUpdateCard({ kind: "downloading", percent: s.percent, version: s.version });
+      } else if (s.state === "available") {
+        setUpdateCard({ kind: "available", version: s.version, sizeBytes: s.sizeBytes, releaseNotes: s.releaseNotes });
+      }
+    }).catch(() => {});
   }
+
+  // ── Live blocked-app gating of the Proceed button ──────────────────────────
+  // The pre-proceed watcher (main) pushes {clean, apps} every 2s while the user
+  // is on the success screen. Without this, a candidate who passes preflight then
+  // launches Zoom/OBS before clicking Proceed would still see Proceed enabled.
+  window.electronAPI?.onPreProceedStatus?.(({ clean, apps }) => {
+    if (!_proceedReady) { return; } // only gate once preflight has passed
+    applyLiveProceedStatus(clean, apps || [], btnProceed, finalStatus);
+  });
 
   // ── Scan Lifecycle ──────────────────────────────────────────────────────
 
@@ -273,20 +302,41 @@ function processResults(results, btnProceed, btnRescan, finalStatus) {
   const allPassed = hdmiPassed && mirrorPassed && agentPassed;
 
   btnRescan.disabled = false;
+  // Gate the live pre-proceed watcher: only react to it once preflight passed.
+  _proceedReady = allPassed;
 
   if (allPassed) {
     finalStatus.textContent = "All security checks passed. You are ready to start.";
     finalStatus.className =
       "text-emerald-600 font-semibold text-[15px] flex items-center gap-2";
     btnProceed.disabled = false;
-    btnProceed.className =
-      "w-64 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-semibold py-3 rounded-xl shadow-lg shadow-indigo-600/35 hover:shadow-xl hover:shadow-indigo-600/40 hover:-translate-y-[1px] active:translate-y-0 transition-all duration-200 flex items-center justify-center gap-2.5 cursor-pointer whitespace-nowrap border border-indigo-500/20";
+    btnProceed.className = PROCEED_ENABLED_CLASS;
   } else {
     finalStatus.textContent = "Please resolve the security alerts above to proceed.";
     finalStatus.className = "text-rose-500 font-semibold text-[15px]";
     btnProceed.disabled = true;
-    btnProceed.className =
-      "w-64 bg-slate-200 text-slate-400 font-semibold py-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-2.5 cursor-not-allowed whitespace-nowrap";
+    btnProceed.className = PROCEED_DISABLED_CLASS;
+  }
+}
+
+/**
+ * Live gating of the Proceed button from the pre-proceed watcher: if a blocked
+ * app is launched after preflight passes but before the user clicks Proceed,
+ * disable Proceed again; re-enable when the screen is clean.
+ */
+function applyLiveProceedStatus(clean, apps, btnProceed, finalStatus) {
+  if (clean) {
+    finalStatus.textContent = "All security checks passed. You are ready to start.";
+    finalStatus.className =
+      "text-emerald-600 font-semibold text-[15px] flex items-center gap-2";
+    btnProceed.disabled = false;
+    btnProceed.className = PROCEED_ENABLED_CLASS;
+  } else {
+    const names = apps.map((p) => getDisplayName(p)).join(", ");
+    finalStatus.textContent = `A blocked app was launched: ${names}. Close it to proceed.`;
+    finalStatus.className = "text-rose-500 font-semibold text-[15px]";
+    btnProceed.disabled = true;
+    btnProceed.className = PROCEED_DISABLED_CLASS;
   }
 }
 

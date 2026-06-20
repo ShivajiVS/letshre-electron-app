@@ -43,8 +43,8 @@ const IPC = {
   PUSH_UPDATE_STATE: "push-update-state",
 
   // Auto-updater — invoke (renderer → main)
-  DOWNLOAD_UPDATE: "download-update",
   INSTALL_UPDATE: "install-update",
+  GET_UPDATE_STATE: "get-update-state",
 
   // App version (renderer invoke → main)
   GET_APP_VERSION: "get-app-version",
@@ -80,14 +80,14 @@ const IPC = {
 // Hardened IPC wrapper — only whitelisted channels are allowed
 const ALLOWED_SEND_CHANNELS = [
   IPC.QUIT_APP, IPC.RECHECK_SYSTEM, IPC.PROCEED_TO_INTERVIEW,
-  IPC.DOWNLOAD_UPDATE, IPC.INSTALL_UPDATE, IPC.MINIMIZE_WINDOW,
+  IPC.INSTALL_UPDATE, IPC.MINIMIZE_WINDOW,
   IPC.INTERVIEW_COMPLETE, IPC.ACK_VIOLATION,
 ];
 
 const ALLOWED_INVOKE_CHANNELS = [
   IPC.RUN_PREFLIGHT, IPC.KILL_BLOCKED_APP,
   IPC.KILL_ALL_BLOCKED_APPS, IPC.GET_AUDIT_LOG, IPC.GET_APP_LIST,
-  IPC.GET_APP_VERSION,
+  IPC.GET_APP_VERSION, IPC.GET_UPDATE_STATE,
 ];
 
 const ALLOWED_RECEIVE_CHANNELS = [
@@ -207,11 +207,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     }
   },
 
-  /** Start downloading the available update (user consent; ignored during an interview). */
-  downloadUpdate: () => safeSend(IPC.DOWNLOAD_UPDATE),
-
   /** Quit the app and silently install the downloaded update (ignored during an interview). */
   installUpdate: () => safeSend(IPC.INSTALL_UPDATE),
+
+  /** Pull the current updater snapshot to recover any events missed before listeners attached. */
+  getUpdateState: () => safeInvoke(IPC.GET_UPDATE_STATE),
 
   /**
    * Subscribe to download-progress events.

@@ -143,7 +143,11 @@ function registerIpcHandlers() {
       return { success: false, error: "Invalid process name", processName: String(processName).slice(0, 40) };
     }
     logger.info("[ipc] kill-blocked-app:", safe);
-    return await killSingleProcess(safe);
+    const result = await killSingleProcess(safe);
+    // Drop the 3s process cache so the next scan reflects the kill immediately
+    // (otherwise the just-killed app shows as still running until the TTL).
+    invalidateProcessCache();
+    return result;
   });
 
   ipcMain.handle(IPC.KILL_ALL_BLOCKED_APPS, async (_event, processNames) => {
@@ -158,22 +162,23 @@ function registerIpcHandlers() {
       .map((r) => r.safe);
 
     logger.info("[ipc] kill-all-blocked-apps:", validNames);
-    return await killAllProcesses(validNames);
+    const results = await killAllProcesses(validNames);
+    invalidateProcessCache(); // refresh cache so killed apps clear immediately
+    return results;
   });
 
   // ── Auto-Updater ─────────────────────────────────────────────────────────
   //Renderer can trigger install after update-downloaded event.
-
-  ipcMain.on(IPC.DOWNLOAD_UPDATE, () => {
-    logger.info("[ipc] download-update received");
-    updater.downloadUpdate();
-  });
 
   ipcMain.on(IPC.INSTALL_UPDATE, () => {
     logger.info("[ipc] install-update received");
     // Gated internally — refuses during an active interview.
     updater.installUpdate();
   });
+
+  // Renderer pulls the current updater snapshot on load to recover any
+  // state/progress events it missed before its listeners were attached.
+  ipcMain.handle(IPC.GET_UPDATE_STATE, () => updater.getState());
 
   // Renderer asks for the running app version (shown in the preflight footer).
   ipcMain.handle(IPC.GET_APP_VERSION, () => app.getVersion());

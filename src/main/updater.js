@@ -63,9 +63,13 @@ function setState(next, extra = {}) {
  * events can reach the renderer).
  */
 function init() {
-  // CONSENT-FIRST: do not fetch bytes until the user clicks Download.
-  autoUpdater.autoDownload = false;
-  // A downloaded-but-deferred update installs on the next ordinary quit.
+  // AUTOMATIC: download in the background as soon as an update is found, and
+  // install it silently on the next app quit (the "Chrome model"). Combined with
+  // the one-click NSIS installer this is fully silent — no prompts, no wizard.
+  // We never force-restart mid-session: the app is launched via a letshyre://
+  // deep link whose token would be lost on relaunch, so install-on-quit is the
+  // safe automatic path.
+  autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   // electron-updater accepts any logger with debug/info/warn/error — ours has all.
   autoUpdater.logger = logger;
@@ -193,9 +197,11 @@ function installUpdate() {
   }
 
   // Short delay so the OS releases the agent's file handles before the
-  // installer launches. (isSilent=true, isForceRunAfter=true) → silent install
-  // + relaunch, no wizard popup. perMachine:false avoids a UAC prompt.
-  setTimeout(() => autoUpdater.quitAndInstall(true, true), 1200);
+  // installer launches. (isSilent=true, isForceRunAfter=FALSE): silent one-click
+  // install with NO relaunch — the app is launched via a letshyre:// deep link
+  // whose token would be lost on relaunch, so the candidate reopens from their
+  // interview link (on the new version). perMachine:false avoids a UAC prompt.
+  setTimeout(() => autoUpdater.quitAndInstall(true, false), 1200);
   return true;
 }
 

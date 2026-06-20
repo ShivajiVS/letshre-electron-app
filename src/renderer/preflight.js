@@ -674,12 +674,8 @@ function updateCardBody(s) {
       const size = s.sizeBytes ? ` (${formatBytes(s.sizeBytes)})` : "";
       return `
         ${head("Update available")}
-        <p class="update-card__body">A new version is ready to download${size}.</p>
-        ${notes}
-        <div class="update-card__actions">
-          <button class="update-card__btn update-card__btn--primary" onclick="window.__updateAction('download')">Download</button>
-          <button class="update-card__btn update-card__btn--ghost" onclick="window.__updateAction('dismiss')">Not now</button>
-        </div>`;
+        <p class="update-card__body">Downloading in the background${size}…</p>
+        ${notes}`;
     }
     case "downloading": {
       const pct = Math.max(0, Math.min(100, s.percent ?? 0));
@@ -694,12 +690,12 @@ function updateCardBody(s) {
     case "downloaded":
       return `
         ${head("Update ready", "update-card__icon--ok")}
-        <p class="update-card__body">It will install silently and reopen.</p>
+        <p class="update-card__body">It installs automatically when you close the app.</p>
         <div class="update-card__actions">
-          <button class="update-card__btn update-card__btn--primary" onclick="window.__updateAction('install')">Restart &amp; update</button>
-          <button class="update-card__btn update-card__btn--ghost" onclick="window.__updateAction('dismiss')">Later</button>
+          <button class="update-card__btn update-card__btn--primary" onclick="window.__updateAction('install')">Update now</button>
+          <button class="update-card__btn update-card__btn--ghost" onclick="window.__updateAction('dismiss')">Dismiss</button>
         </div>
-        <p class="update-card__hint">“Later” installs the update next time you close the app.</p>`;
+        <p class="update-card__hint">"Update now" closes the app and installs — reopen from your interview link.</p>`;
     default:
       return "";
   }

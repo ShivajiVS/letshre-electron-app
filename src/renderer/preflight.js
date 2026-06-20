@@ -79,9 +79,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.electronAPI.onUpdateDownloaded(({ version }) =>
       setUpdateBanner({ kind: "downloaded", version })
     );
-    window.electronAPI.onUpdateError?.(({ error }) =>
-      setUpdateBanner({ kind: "error", error })
-    );
+    window.electronAPI.onUpdateError?.(({ error }) => {
+      // Auto-update failures (no published release yet, offline, feed parse) are
+      // NOT actionable by the candidate and must never interrupt the preflight.
+      // Log silently — the only update UI the user sees is "ready to install".
+      console.warn("[updater] background update check failed (ignored):", error);
+    });
   }
 
   // ── Scan Lifecycle ──────────────────────────────────────────────────────
@@ -635,12 +638,10 @@ function renderUpdateBanner() {
         '<button class="update-banner__btn update-banner__btn--dismiss" ' +
         'onclick="window.__dismissUpdateBanner()">Later</button></div>';
       break;
-    case "error":
-      cls += "update-banner--error";
-      msg = `Update problem: ${s.error || "unknown error"}`;
-      actions = dismiss;
-      break;
     default:
+      // "error" and any unknown state never render a banner — update failures
+      // are background-only and must not disturb the candidate.
+      document.getElementById("update-banner")?.remove();
       return;
   }
 

@@ -24,6 +24,7 @@ const { app } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const logger = require("./logger");
 const appState = require("./appState");
+const { killAgent } = require("./agentManager");
 const { getWindow, getIsInterviewActive } = require("./windowManager");
 const { IPC, UPDATE_CHECK_INTERVAL_MS } = require("../shared/constants");
 
@@ -180,9 +181,21 @@ function installUpdate() {
   }
   logger.info("[updater] quitting to install update (silent):", latestInfo?.version);
   appState.setQuitting();
-  // (isSilent=true, isForceRunAfter=true): run the NSIS installer silently and
-  // relaunch the app — no installer wizard popup. perMachine:false avoids UAC.
-  autoUpdater.quitAndInstall(true, true);
+
+  // Kill the bundled Python agent FIRST so resources\agent.exe is not locked
+  // when the installer removes the old version (otherwise the uninstall fails
+  // with "Failed to uninstall old application files"). The installer's
+  // customInit hook also force-kills it, but doing it here too closes the race.
+  try {
+    killAgent();
+  } catch (err) {
+    logger.warn("[updater] killAgent before install failed:", err.message);
+  }
+
+  // Short delay so the OS releases the agent's file handles before the
+  // installer launches. (isSilent=true, isForceRunAfter=true) → silent install
+  // + relaunch, no wizard popup. perMachine:false avoids a UAC prompt.
+  setTimeout(() => autoUpdater.quitAndInstall(true, true), 1200);
   return true;
 }
 

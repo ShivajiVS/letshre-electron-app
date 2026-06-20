@@ -97,7 +97,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "LetsHyre Secure Interview"
+      "shortcutName": "LetsHyre Secure Interview",
+      "include": "build/installer.nsh"
     },
     "mac": {
       "target": [

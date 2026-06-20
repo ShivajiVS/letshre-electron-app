@@ -31,6 +31,11 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
+      # Hard gate — security-critical unit tests (detection, kill whitelist,
+      # blocklist) must pass before any build/publish.
+      - name: Run tests
+        run: npm test
+
       # Non-blocking for now (the repo has pre-existing lint debt). Once that is
       # cleared, drop `continue-on-error` to make this a hard release gate.
       # - name: Run ESLint

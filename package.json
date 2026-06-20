@@ -19,6 +19,7 @@
     "build": "npm run build:css && electron-builder",
     "build:full": "npm run build:css && npm run build:agent && electron-builder",
     "dist": "electron-builder --win --mac",
+    "test": "node --test",
     "lint": "eslint src preload.js main.js --ext .js",
     "lint:fix": "eslint src preload.js main.js --ext .js --fix",
     "format": "prettier --write \"src/**/*.js\" \"assets/**/*.{html,css}\" \"preload.js\" \"main.js\"",

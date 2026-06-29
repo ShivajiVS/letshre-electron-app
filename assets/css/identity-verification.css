@@ -88,20 +88,6 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Accent stripe at the top */
-.iv-card::before {
-  content: "";
-  display: block;
-  height: 3px;
-  background: linear-gradient(90deg, var(--accent) 0%, #e8a87c 50%, var(--accent) 100%);
-  background-size: 200% 100%;
-  animation: ivStripe 4s linear infinite;
-}
-
-@keyframes ivStripe {
-  from { background-position: 0% 0%; }
-  to   { background-position: 200% 0%; }
-}
 
 /* ── Card header ─────────────────────────────────────────────────────────── */
 

@@ -7,12 +7,17 @@
  * they are never exposed to the renderer (which only ever sees non-sensitive
  * user fields like name/email/role). The renderer drives auth through IPC.
  *
- * Session-only: tokens are held in memory for the life of the app. There is no
- * refresh endpoint yet, so the user logs in once per launch.
+ * Persistence: on successful login the session is encrypted via Electron
+ * safeStorage (DPAPI on Windows) and written to userData/session.enc.
+ * On startup call authManager.init() (after app.whenReady) to restore it so
+ * the user is not asked to log in again after closing and reopening the app.
  */
 
 "use strict";
 
+const fs = require("fs");
+const path = require("path");
+const { safeStorage, app } = require("electron");
 const axios = require("axios");
 const logger = require("./logger");
 const {
@@ -22,6 +27,99 @@ const {
 
 /** @type {{ accessToken: string, refreshToken: string, user: object } | null} */
 let session = null;
+
+// ─── Session persistence ──────────────────────────────────────────────────────
+
+function _sessionFilePath() {
+  return path.join(app.getPath("userData"), "session.enc");
+}
+
+function _saveSession() {
+  try {
+    if (!safeStorage.isEncryptionAvailable()) { return; }
+    const payload = JSON.stringify({
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
+      user: session.user,
+    });
+    const encrypted = safeStorage.encryptString(payload);
+    fs.writeFileSync(_sessionFilePath(), encrypted);
+  } catch (err) {
+    logger.warn("[auth] session persist failed:", err.message);
+  }
+}
+
+function _clearPersistedSession() {
+  try {
+    const fp = _sessionFilePath();
+    if (fs.existsSync(fp)) { fs.unlinkSync(fp); }
+  } catch { /* ignore */ }
+}
+
+/**
+ * Restores a previously saved session from disk (encrypted via safeStorage).
+ * Must be called after app.whenReady() — safeStorage is not available before.
+ */
+function init() {
+  try {
+    if (!safeStorage.isEncryptionAvailable()) {
+      logger.warn("[auth] safeStorage unavailable — sessions will not persist across restarts");
+      return;
+    }
+    const fp = _sessionFilePath();
+    if (!fs.existsSync(fp)) { return; }
+    const encrypted = fs.readFileSync(fp);
+    const data = safeStorage.decryptString(encrypted);
+    const parsed = JSON.parse(data);
+    if (parsed?.accessToken && parsed?.user) {
+      session = {
+        accessToken: parsed.accessToken,
+        refreshToken: parsed.refreshToken || null,
+        user: parsed.user,
+      };
+      logger.info("[auth] session restored for", session.user.email);
+    }
+  } catch (err) {
+    logger.warn("[auth] session restore failed — will require re-login:", err.message);
+    _clearPersistedSession();
+  }
+}
+
+// ─── Token refresh ────────────────────────────────────────────────────────────
+
+/**
+ * Attempts a token refresh using the stored refresh token.
+ * Updates `session.accessToken` (and refresh token if rotated) on success.
+ * Clears the session (and persisted file) on failure — forces re-login.
+ * @returns {Promise<boolean>}
+ */
+async function _refreshTokens() {
+  if (!session?.refreshToken) { return false; }
+  try {
+    const res = await axios.post(
+      `${API_BASE_URL}${TOKEN_REFRESH_PATH}`,
+      { refresh_token: session.refreshToken },
+      { timeout: 10000, headers: { "Content-Type": "application/json" } }
+    );
+    const body = res.data || {};
+    const data = body.data || body;
+    const newAccessToken = data.access_token || data.access || data.token;
+    if (!newAccessToken) { return false; }
+    session.accessToken = newAccessToken;
+    const newRefresh = data.refresh_token || data.refresh;
+    if (newRefresh) { session.refreshToken = newRefresh; }
+    _saveSession(); // persist the rotated tokens
+    logger.info("[auth] access token refreshed");
+    return true;
+  } catch (err) {
+    logger.warn("[auth] token refresh failed — clearing session:", err.message);
+    session = null;
+    _clearPersistedSession();
+    return false;
+  }
+}
+
+// ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
  * Logs in with email/password and stores the session in main.
@@ -46,7 +144,7 @@ async function login(email, password) {
     // Keep tokens here; expose only display-safe fields to the renderer.
     session = {
       accessToken: data.access_token,
-      refreshToken: data.refresh_token,
+      refreshToken: data.refresh_token || null,
       user: {
         id: data.id,
         name: data.name,
@@ -56,6 +154,7 @@ async function login(email, password) {
       },
     };
 
+    _saveSession(); // persist across restarts
     logger.info("[auth] login success:", data.email);
     return { success: true, message: body.message || "Login successful.", user: session.user };
   } catch (err) {
@@ -70,7 +169,7 @@ async function login(email, password) {
 }
 
 /**
- * Logs out (best-effort server call) and clears the local session.
+ * Logs out (best-effort server call) and clears the local + persisted session.
  * @returns {Promise<{ success: boolean }>}
  */
 async function logout() {
@@ -84,57 +183,12 @@ async function logout() {
       );
     }
   } catch (err) {
-    // Clear locally even if the server call fails — the user wants to be logged out.
     logger.warn("[auth] logout request failed (clearing locally anyway):", err.message);
   }
   session = null;
+  _clearPersistedSession();
   logger.info("[auth] logged out");
   return { success: true };
-}
-
-/** Display-safe user object for the renderer (no tokens). */
-function getUser() {
-  return session?.user || null;
-}
-
-/** Tokens for the interview hand-off (main-process use only). */
-function getTokens() {
-  if (!session) { return null; }
-  return { accessToken: session.accessToken, refreshToken: session.refreshToken };
-}
-
-function isAuthenticated() {
-  return session !== null;
-}
-
-/**
- * Attempts a token refresh using the stored refresh token.
- * Updates `session.accessToken` (and refresh token if rotated) on success.
- * Clears the session on failure (forces re-login).
- * @returns {Promise<boolean>} true if the access token was refreshed
- */
-async function _refreshTokens() {
-  if (!session?.refreshToken) { return false; }
-  try {
-    const res = await axios.post(
-      `${API_BASE_URL}${TOKEN_REFRESH_PATH}`,
-      { refresh_token: session.refreshToken },
-      { timeout: 10000, headers: { "Content-Type": "application/json" } }
-    );
-    const body = res.data || {};
-    const data = body.data || body;
-    const newAccessToken = data.access_token || data.access || data.token;
-    if (!newAccessToken) { return false; }
-    session.accessToken = newAccessToken;
-    const newRefresh = data.refresh_token || data.refresh;
-    if (newRefresh) { session.refreshToken = newRefresh; }
-    logger.info("[auth] access token refreshed");
-    return true;
-  } catch (err) {
-    logger.warn("[auth] token refresh failed — clearing session:", err.message);
-    session = null;
-    return false;
-  }
 }
 
 /**
@@ -181,4 +235,19 @@ async function getCandidateProfile() {
   }
 }
 
-module.exports = { login, logout, getUser, getTokens, isAuthenticated, getCandidateProfile };
+/** Display-safe user object for the renderer (no tokens). */
+function getUser() {
+  return session?.user || null;
+}
+
+/** Tokens for the interview hand-off (main-process use only). */
+function getTokens() {
+  if (!session) { return null; }
+  return { accessToken: session.accessToken, refreshToken: session.refreshToken };
+}
+
+function isAuthenticated() {
+  return session !== null;
+}
+
+module.exports = { init, login, logout, getUser, getTokens, isAuthenticated, getCandidateProfile };

@@ -1,50 +1,25 @@
 /**
  * src/renderer/login.js
  * ─────────────────────
- * Login screen controller. Talks to the main process via window.electronAPI —
- * credentials go to main, which performs the HTTP login (axios) and keeps the
- * tokens. The renderer only learns success/failure + display-safe user fields.
+ * Login screen controller. Credentials go to main via IPC — tokens never
+ * touch the renderer. The renderer only learns success/failure + display-safe
+ * user fields. Ctrl+V paste works natively in both input fields.
  */
 
 "use strict";
 
 document.addEventListener("DOMContentLoaded", () => {
-  const form = document.getElementById("login-form");
-  const emailEl = document.getElementById("email");
-  const passwordEl = document.getElementById("password");
-  const errorEl = document.getElementById("auth-error");
-  const submitBtn = document.getElementById("submit-btn");
-  const pasteEmailBtn = document.getElementById("paste-email");
-  const pastePasswordBtn = document.getElementById("paste-password");
-  const togglePasswordBtn = document.getElementById("toggle-password");
-  const eyeIcon = document.getElementById("eye-icon");
-  const eyeOffIcon = document.getElementById("eye-off-icon");
+  const form          = document.getElementById("login-form");
+  const emailEl       = document.getElementById("email");
+  const passwordEl    = document.getElementById("password");
+  const errorEl       = document.getElementById("auth-error");
+  const submitBtn     = document.getElementById("submit-btn");
+  const showPasswordCb = document.getElementById("show-password");
 
-  // ── Show / hide password ──────────────────────────────────────────────────
-  togglePasswordBtn.addEventListener("click", () => {
-    const isHidden = passwordEl.type === "password";
-    passwordEl.type = isHidden ? "text" : "password";
-    eyeIcon.style.display = isHidden ? "none" : "";
-    eyeOffIcon.style.display = isHidden ? "" : "none";
-    passwordEl.focus();
+  // ── Show / hide password via checkbox ────────────────────────────────────
+  showPasswordCb.addEventListener("change", () => {
+    passwordEl.type = showPasswordCb.checked ? "text" : "password";
   });
-
-  // ── Paste from clipboard ──────────────────────────────────────────────────
-  async function pasteInto(inputEl) {
-    try {
-      const text = await navigator.clipboard.readText();
-      if (text) {
-        inputEl.value = text.trim();
-        inputEl.dispatchEvent(new Event("input", { bubbles: true }));
-        inputEl.focus();
-      }
-    } catch {
-      // Clipboard access denied — silently ignore (user can still type / Ctrl+V)
-    }
-  }
-
-  pasteEmailBtn.addEventListener("click", () => pasteInto(emailEl));
-  pastePasswordBtn.addEventListener("click", () => pasteInto(passwordEl));
 
   // ── Error helpers ─────────────────────────────────────────────────────────
   function showError(message) {
@@ -56,13 +31,11 @@ document.addEventListener("DOMContentLoaded", () => {
     errorEl.classList.remove("show");
   }
   function setLoading(loading) {
-    submitBtn.disabled = loading;
+    submitBtn.disabled  = loading;
     submitBtn.textContent = loading ? "Signing in…" : "Sign in";
-    emailEl.disabled = loading;
+    emailEl.disabled    = loading;
     passwordEl.disabled = loading;
-    pasteEmailBtn.disabled = loading;
-    pastePasswordBtn.disabled = loading;
-    togglePasswordBtn.disabled = loading;
+    showPasswordCb.disabled = loading;
   }
 
   // ── Form submit ───────────────────────────────────────────────────────────
@@ -70,7 +43,7 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
     clearError();
 
-    const email = emailEl.value.trim();
+    const email    = emailEl.value.trim();
     const password = passwordEl.value;
     if (!email || !password) {
       showError("Please enter your email and password.");
@@ -86,7 +59,6 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const result = await window.electronAPI.login(email, password);
       if (result?.success) {
-        // Tokens stay in main; just move to the dashboard.
         window.location.href = "./dashboard.html";
         return;
       }

@@ -18,7 +18,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const logoutBtn       = document.getElementById("logout-btn");
   const dashNote        = document.getElementById("dash-note");
 
-  // Profile card elements
+  // Profile card
   const profileAvatar   = document.getElementById("profile-avatar");
   const profileInitials = document.getElementById("profile-initials");
   const profileName     = document.getElementById("profile-name");
@@ -36,7 +36,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     return (parts[0][0] + (parts[1]?.[0] || "")).toUpperCase();
   }
 
-  // ── Guard: must be authenticated ────────────────────────────────────────
+  function setAvatarPhoto(containerEl, initialsEl, src, displayName) {
+    const img = document.createElement("img");
+    img.alt = displayName;
+    img.src = src;
+    img.onerror = () => {
+      img.remove();
+      initialsEl.textContent = initials(displayName);
+      initialsEl.style.display = "";
+    };
+    initialsEl.style.display = "none";
+    containerEl.appendChild(img);
+  }
+
+  // ── Guard: must be authenticated ─────────────────────────────────────────
   let sessionUser = null;
   try {
     sessionUser = await window.electronAPI?.getAuthUser?.();
@@ -47,64 +60,47 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  // Populate topbar with session data immediately (no network wait)
-  const firstName = String(sessionUser.name || "there").trim().split(/\s+/)[0];
-  welcomeEl.textContent      = `Welcome, ${firstName}`;
-  nameEl.textContent         = sessionUser.name || sessionUser.email || "User";
+  // Populate topbar immediately from session data (no network wait)
+  const displayNameFallback = sessionUser.name || sessionUser.email || "User";
+  welcomeEl.textContent      = `Welcome, ${String(displayNameFallback).trim().split(/\s+/)[0]}`;
+  nameEl.textContent         = displayNameFallback;
   roleEl.textContent         = sessionUser.role || "";
-  avatarInitials.textContent = initials(sessionUser.name || sessionUser.email);
+  avatarInitials.textContent = initials(displayNameFallback);
 
   // ── Fetch candidate profile ──────────────────────────────────────────────
   let profile = null;
   try {
     const res = await window.electronAPI?.getCandidateProfile?.();
-    if (res?.success && res.data) {
-      profile = res.data;
-    }
+    if (res?.success && res.data) { profile = res.data; }
   } catch { profile = null; }
 
   if (profile) {
-    // Topbar: update with richer profile data
-    const displayName = profile.name || sessionUser.name || sessionUser.email || "User";
-    nameEl.textContent         = displayName;
-    roleEl.textContent         = profile.role || sessionUser.role || "";
+    const displayName = profile.name || displayNameFallback;
+
+    // Update topbar
+    nameEl.textContent    = displayName;
+    roleEl.textContent    = profile.role || sessionUser.role || "";
+    welcomeEl.textContent = `Welcome, ${String(displayName).trim().split(/\s+/)[0]}`;
     avatarInitials.textContent = initials(displayName);
-    welcomeEl.textContent      = `Welcome, ${String(displayName).trim().split(/\s+/)[0]}`;
 
-    // Profile card photo
+    // Profile photo in topbar avatar
     if (profile.profile_photo) {
-      const img = document.createElement("img");
-      img.alt = displayName;
-      img.src = profile.profile_photo;
-      img.onerror = () => {
-        img.remove();
-        profileInitials.textContent = initials(displayName);
-        profileInitials.style.display = "";
-      };
-      profileInitials.style.display = "none";
-      profileAvatar.appendChild(img);
-
-      // Also swap topbar avatar to photo
-      const topImg = document.createElement("img");
-      topImg.alt = displayName;
-      topImg.src = profile.profile_photo;
-      topImg.onerror = () => {
-        topImg.remove();
-        avatarInitials.textContent = initials(displayName);
-        avatarInitials.style.display = "";
-      };
-      avatarInitials.style.display = "none";
-      avatarEl.appendChild(topImg);
-    } else {
-      profileInitials.textContent = initials(displayName);
+      setAvatarPhoto(avatarEl, avatarInitials, profile.profile_photo, displayName);
     }
 
-    // Profile card text
+    // Profile card
     profileName.innerHTML = "";
     profileName.textContent = displayName;
 
     profileRole.innerHTML = "";
     profileRole.textContent = profile.role || "";
+
+    // Profile card photo
+    if (profile.profile_photo) {
+      setAvatarPhoto(profileAvatar, profileInitials, profile.profile_photo, displayName);
+    } else {
+      profileInitials.textContent = initials(displayName);
+    }
 
     // Meta row: email + phone
     profileMeta.innerHTML = "";
@@ -128,30 +124,24 @@ document.addEventListener("DOMContentLoaded", async () => {
         </span>`;
     }
 
-    // ── Attempt tracker ────────────────────────────────────────────────────
+    // ── Attempt tracker ──────────────────────────────────────────────────
     const used      = Number(profile.interview_attempts_used)      || 0;
     const max       = Number(profile.max_interviews_allowed)       || 0;
     const remaining = Number(profile.interview_attempts_remaining) ?? (max - used);
 
     if (max > 0) {
       attemptTracker.style.display = "";
-
-      // Dots
       attemptDots.innerHTML = "";
       for (let i = 0; i < max; i++) {
         const dot = document.createElement("span");
         dot.className = "attempt-dot" + (i < used ? " used" : "");
         attemptDots.appendChild(dot);
       }
-
-      // Count label
       attemptCount.textContent = `${remaining} of ${max} remaining`;
-      if (remaining <= 0) {
-        attemptCount.classList.add("exhausted");
-      }
+      if (remaining <= 0) { attemptCount.classList.add("exhausted"); }
     }
 
-    // ── Gate the button ────────────────────────────────────────────────────
+    // ── Gate the button ──────────────────────────────────────────────────
     if (remaining <= 0) {
       takeBtn.disabled = true;
       dashNote.textContent = "You've used all your interview attempts. Contact support if you need more.";
@@ -159,11 +149,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
   } else {
-    // Profile fetch failed — clear skeletons, show session data
-    profileName.textContent    = sessionUser.name || sessionUser.email || "User";
-    profileRole.textContent    = sessionUser.role || "";
-    profileMeta.innerHTML      = "";
-    profileInitials.textContent = initials(sessionUser.name || sessionUser.email);
+    // Profile fetch failed — clear skeletons with session data
+    profileName.textContent     = displayNameFallback;
+    profileRole.textContent     = sessionUser.role || "";
+    profileMeta.innerHTML       = "";
+    profileInitials.textContent = initials(displayNameFallback);
   }
 
   // ── Take interview ───────────────────────────────────────────────────────
@@ -177,15 +167,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ── Logout ───────────────────────────────────────────────────────────────
   logoutBtn.addEventListener("click", async () => {
     logoutBtn.disabled = true;
-    logoutBtn.textContent = "Logging out…";
-    try {
-      await window.electronAPI?.logout?.();
-    } catch { /* clear locally regardless */ }
+    logoutBtn.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+        <polyline points="16 17 21 12 16 7"/>
+        <line x1="21" y1="12" x2="9" y2="12"/>
+      </svg>
+      Logging out…`;
+    try { await window.electronAPI?.logout?.(); } catch { /* clear locally regardless */ }
     window.location.href = "./login.html";
   });
 });
 
-/** Minimal HTML escape for user-supplied strings inserted via innerHTML. */
 function escHtml(str) {
   return String(str)
     .replace(/&/g, "&amp;")

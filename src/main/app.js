@@ -20,6 +20,7 @@ const { registerIpcHandlers } = require("./ipcHandlers");
 const { applyArgvDeepLink } = require("./protocolHandler");
 const updater = require("./updater");
 const startDetection = require("../detector/systemChecks");
+const authManager = require("./authManager");
 
 /**
  * Wires up the violation callback and forwards it to the detection module.
@@ -42,6 +43,9 @@ function safeViolation(event, severity) {
 async function onReady() {
   // 0. Initialise file logger now that userData path is available
   logger.init(app.getPath("userData"));
+
+  // 0b. Restore persisted auth session (safeStorage is ready after app.whenReady)
+  authManager.init();
 
   // 1. Spawn security agent (kills stale orphans first)
   await spawnAgent();

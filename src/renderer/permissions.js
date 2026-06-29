@@ -3,30 +3,46 @@
  * ───────────────────────────
  * Permissions page controller.
  *
- * Requests camera, microphone, and screen-sharing access via the standard
- * Web APIs. Each permission is requested independently so the user sees
- * clear per-item feedback. The "Start Interview" button unlocks only when
- * all three are granted.
+ * Requests camera, microphone, and screen-sharing access independently via
+ * the Web API. Each card has its own state machine:
+ *   idle → requesting → granted | denied
  *
- * On grant  → tracks are stopped immediately (we only needed the permission,
- *             not the live stream).
- * On denial → card shows a "Try again" button so the user can fix OS
- *             settings and retry without leaving the page.
- *
- * Screen sharing: Electron's setDisplayMediaRequestHandler (already wired in
- * app.js) auto-selects screen 0 — no OS picker dialog appears. The card
- * still shows so the candidate knows their screen will be shared.
+ * Tracks are stopped immediately after grant (permission is all we need).
+ * Screen sharing auto-grants via Electron's setDisplayMediaRequestHandler.
+ * The Start Interview button unlocks only when all three reach "granted".
  */
 
 "use strict";
 
 document.addEventListener("DOMContentLoaded", () => {
+
   // ── State ───────────────────────────────────────────────────────────────
   const state = { camera: "idle", mic: "idle", screen: "idle" };
 
-  // ── Element refs ────────────────────────────────────────────────────────
-  const btnStart  = document.getElementById("btn-start");
-  const permNote  = document.getElementById("perm-note");
+  // ── SVG templates ───────────────────────────────────────────────────────
+  const ICON = {
+    camera: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>`,
+    mic: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+      <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>`,
+    screen: `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+      <line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`,
+  };
+
+  // Animated checkmark: stroke-dashoffset draws in via CSS .perm-check-path
+  const CHECK_SVG = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path class="perm-check-path" d="M20 6L9 17l-5-5"/></svg>`;
+
+  // X for denied
+  const CROSS_SVG = `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+
+  // Spinner for requesting state
+  const SPIN_SVG = `<svg class="perm-spin" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>`;
 
   // ── Badge config ────────────────────────────────────────────────────────
   const BADGE = {
@@ -36,26 +52,9 @@ document.addEventListener("DOMContentLoaded", () => {
     denied:     { text: "✗ Denied",     cls: "perm-badge perm-badge--denied" },
   };
 
-  // SVG icon for each permission (used to swap to checkmark/spinner on state change)
-  const ICON_SVG = {
-    camera: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>`,
-    mic: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-      <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>`,
-    screen: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-      <line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`,
-  };
+  const BTN_LABEL = { camera: "Allow camera", mic: "Allow microphone", screen: "Allow screen" };
 
-  const CHECK_SVG = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M20 6L9 17l-5-5"/></svg>`;
-
-  const SPIN_SVG = `<svg class="perm-spinning" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`;
-
-  // ── Apply state to a card ───────────────────────────────────────────────
+  // ── Apply state ─────────────────────────────────────────────────────────
   function applyState(perm, newState) {
     state[perm] = newState;
 
@@ -64,22 +63,23 @@ document.addEventListener("DOMContentLoaded", () => {
     const badge = document.getElementById(`badge-${perm}`);
     const btn   = document.getElementById(`btn-${perm}`);
 
-    // Card modifier class
+    // Card modifier — preserve base class
     card.className = `perm-card${newState !== "idle" ? ` perm-card--${newState}` : ""}`;
 
-    // Icon: spinner while requesting, checkmark when granted, original on idle/denied
+    // Icon content
     if (newState === "requesting") {
       icon.innerHTML = SPIN_SVG;
     } else if (newState === "granted") {
       icon.innerHTML = CHECK_SVG;
+    } else if (newState === "denied") {
+      icon.innerHTML = CROSS_SVG;
     } else {
-      icon.innerHTML = ICON_SVG[perm];
+      icon.innerHTML = ICON[perm];
     }
 
     // Badge
-    const { text, cls } = BADGE[newState];
-    badge.textContent = text;
-    badge.className   = cls;
+    badge.textContent = BADGE[newState].text;
+    badge.className   = BADGE[newState].cls;
 
     // Allow / retry button
     if (newState === "granted") {
@@ -91,31 +91,33 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       btn.style.display = "";
       btn.disabled      = newState === "requesting";
-      btn.textContent   = { camera: "Allow camera", mic: "Allow microphone", screen: "Allow screen" }[perm];
+      btn.textContent   = BTN_LABEL[perm];
     }
 
     syncStartButton();
   }
 
-  // ── Gate the Start button ───────────────────────────────────────────────
+  // ── Start button gate ───────────────────────────────────────────────────
+  const btnStart   = document.getElementById("btn-start");
+  const btnLabel   = document.getElementById("btn-start-label");
+  const btnIcon    = document.getElementById("btn-start-icon");
+  const permNote   = document.getElementById("perm-note");
+
   function syncStartButton() {
     const allGranted = Object.values(state).every(s => s === "granted");
     btnStart.disabled = !allGranted;
-    if (allGranted) {
-      permNote.textContent = "All permissions granted. You're ready to begin.";
-      permNote.classList.add("all-granted");
-    } else {
-      permNote.textContent = "Allow all three permissions above to continue.";
-      permNote.classList.remove("all-granted");
-    }
+    permNote.textContent = allGranted
+      ? "All permissions granted — you're ready to begin."
+      : "Allow all three permissions above to continue.";
+    permNote.classList.toggle("all-granted", allGranted);
   }
 
   // ── Permission requests ─────────────────────────────────────────────────
   async function requestCamera() {
     applyState("camera", "requesting");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      stream.getTracks().forEach(t => t.stop());
+      const s = await navigator.mediaDevices.getUserMedia({ video: true });
+      s.getTracks().forEach(t => t.stop());
       applyState("camera", "granted");
     } catch {
       applyState("camera", "denied");
@@ -125,8 +127,8 @@ document.addEventListener("DOMContentLoaded", () => {
   async function requestMic() {
     applyState("mic", "requesting");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(t => t.stop());
+      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+      s.getTracks().forEach(t => t.stop());
       applyState("mic", "granted");
     } catch {
       applyState("mic", "denied");
@@ -136,10 +138,10 @@ document.addEventListener("DOMContentLoaded", () => {
   async function requestScreen() {
     applyState("screen", "requesting");
     try {
-      // Electron's setDisplayMediaRequestHandler auto-selects screen 0 —
-      // no OS picker appears. We just verify the call succeeds.
-      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-      stream.getTracks().forEach(t => t.stop());
+      // Electron's setDisplayMediaRequestHandler auto-selects screen 0;
+      // no OS picker dialog appears.
+      const s = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      s.getTracks().forEach(t => t.stop());
       applyState("screen", "granted");
     } catch {
       applyState("screen", "denied");
@@ -154,7 +156,8 @@ document.addEventListener("DOMContentLoaded", () => {
   btnStart.addEventListener("click", () => {
     if (btnStart.disabled) { return; }
     btnStart.disabled = true;
-    btnStart.innerHTML = `${SPIN_SVG} Starting…`;
+    btnLabel.textContent = "Starting…";
+    btnIcon.outerHTML = `<svg class="perm-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>`;
     window.electronAPI?.proceedToInterview?.();
   });
 });

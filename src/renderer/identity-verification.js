@@ -163,8 +163,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (result?.success && result.data?.profile_photo) {
         profilePhotoSrc = result.data.profile_photo;
         refPhoto.src = profilePhotoSrc;
+        refPhoto.style.display = "";
+        const placeholder = document.getElementById("ref-photo-placeholder");
+        if (placeholder) placeholder.style.display = "none";
       }
-    } catch { /* non-fatal */ }
+      // non-fatal: if profile photo missing, placeholder stays visible
+    } catch { /* non-fatal — silently skip */ }
   }
 
   // ── Audio recorder ────────────────────────────────────────────────────────

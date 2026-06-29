@@ -34,6 +34,11 @@ const IPC = {
   // Permissions page: preflight Proceed → main loads permissions.html
   LOAD_PERMISSIONS_PAGE: "load-permissions-page",
 
+  // Identity verification page
+  LOAD_IDENTITY_VERIFICATION: "load-identity-verification",
+  SUBMIT_VOICE_SAMPLE: "submit-voice-sample",
+  SUBMIT_FACE_VERIFICATION: "submit-face-verification",
+
   // Dashboard → security check
   START_INTERVIEW: "start-interview",
 
@@ -94,6 +99,7 @@ const ALLOWED_SEND_CHANNELS = [
   IPC.QUIT_APP, IPC.RECHECK_SYSTEM, IPC.PROCEED_TO_INTERVIEW,
   IPC.INSTALL_UPDATE, IPC.MINIMIZE_WINDOW, IPC.START_INTERVIEW,
   IPC.INTERVIEW_COMPLETE, IPC.ACK_VIOLATION, IPC.LOAD_PERMISSIONS_PAGE,
+  IPC.LOAD_IDENTITY_VERIFICATION,
 ];
 
 const ALLOWED_INVOKE_CHANNELS = [
@@ -101,6 +107,7 @@ const ALLOWED_INVOKE_CHANNELS = [
   IPC.KILL_ALL_BLOCKED_APPS, IPC.GET_AUDIT_LOG, IPC.GET_APP_LIST,
   IPC.GET_APP_VERSION, IPC.GET_UPDATE_STATE,
   IPC.AUTH_LOGIN, IPC.AUTH_LOGOUT, IPC.GET_AUTH_USER, IPC.GET_CANDIDATE_PROFILE,
+  IPC.SUBMIT_VOICE_SAMPLE, IPC.SUBMIT_FACE_VERIFICATION,
 ];
 
 const ALLOWED_RECEIVE_CHANNELS = [
@@ -176,6 +183,26 @@ contextBridge.exposeInMainWorld("electronAPI", {
    * permission dialogs. Lockdown happens when the user clicks Start Interview.
    */
   loadPermissionsPage: () => safeSend(IPC.LOAD_PERMISSIONS_PAGE),
+
+  /** Permissions "Start interview": navigate to identity verification. */
+  loadIdentityVerification: () => safeSend(IPC.LOAD_IDENTITY_VERIFICATION),
+
+  /**
+   * Submit a voice recording blob. The Uint8Array is sent to main which
+   * handles the multipart POST with the Bearer token.
+   * @param {Uint8Array} uint8Array
+   * @param {string} mimeType
+   */
+  submitVoiceSample: (uint8Array, mimeType) =>
+    safeInvoke(IPC.SUBMIT_VOICE_SAMPLE, uint8Array, mimeType),
+
+  /**
+   * Submit a captured photo (canvas dataURL) for face verification.
+   * Main process decodes the base64, builds multipart, POSTs with Bearer token.
+   * @param {string} dataUrl
+   */
+  submitFaceVerification: (dataUrl) =>
+    safeInvoke(IPC.SUBMIT_FACE_VERIFICATION, dataUrl),
 
   // ── App control ────────────────────────────────────────────────────────────
   /** Quit the application. */

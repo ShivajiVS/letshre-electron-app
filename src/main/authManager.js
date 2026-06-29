@@ -235,6 +235,92 @@ async function getCandidateProfile() {
   }
 }
 
+/**
+ * Submits a voice sample blob to the API for identity verification.
+ * @param {Uint8Array} uint8Array
+ * @param {string} mimeType
+ * @returns {Promise<{ ok: boolean, error?: string }>}
+ */
+async function submitVoiceSample(uint8Array, mimeType) {
+  if (!session?.accessToken) { return { ok: false, error: "Not authenticated." }; }
+
+  const doRequest = () => {
+    const buf = Buffer.from(uint8Array);
+    let ext = "webm";
+    if (mimeType?.includes("mp4")) ext = "mp4";
+    if (mimeType?.includes("ogg")) ext = "ogg";
+    if (mimeType?.includes("wav")) ext = "wav";
+
+    const form = new FormData();
+    const blob = new Blob([buf], { type: mimeType || "audio/webm" });
+    form.append("voice_sample", blob, `voice_sample.${ext}`);
+
+    return axios.post(
+      `${API_BASE_URL}/user/v1/candidate/interview/voice_sample/`,
+      form,
+      { timeout: 30000, headers: { Authorization: `Bearer ${session.accessToken}` } }
+    );
+  };
+
+  try {
+    await doRequest();
+    return { ok: true };
+  } catch (err) {
+    if (err.response?.status === 401) {
+      const refreshed = await _refreshTokens();
+      if (refreshed) {
+        try { await doRequest(); return { ok: true }; } catch (e2) {
+          return { ok: false, error: e2.response?.data?.message || e2.message };
+        }
+      }
+      return { ok: false, error: "Session expired." };
+    }
+    return { ok: false, error: err.response?.data?.message || err.message || "Voice submission failed." };
+  }
+}
+
+/**
+ * Submits a captured photo (data URL) to the face verification API.
+ * @param {string} dataUrl  — canvas toDataURL result
+ * @returns {Promise<{ ok: boolean, data?: object, error?: string }>}
+ */
+async function submitFaceVerification(dataUrl) {
+  if (!session?.accessToken) { return { ok: false, error: "Not authenticated." }; }
+
+  const doRequest = () => {
+    const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, "");
+    const buf = Buffer.from(base64, "base64");
+    const form = new FormData();
+    const blob = new Blob([buf], { type: "image/jpeg" });
+    form.append("live_photo", blob, "photo.jpg");
+
+    return axios.post(
+      `${API_BASE_URL}/user/v1/candidate/interview/face_verification/`,
+      form,
+      { timeout: 30000, headers: { Authorization: `Bearer ${session.accessToken}` } }
+    );
+  };
+
+  try {
+    const res = await doRequest();
+    return { ok: true, data: res.data?.data || res.data };
+  } catch (err) {
+    if (err.response?.status === 401) {
+      const refreshed = await _refreshTokens();
+      if (refreshed) {
+        try {
+          const res2 = await doRequest();
+          return { ok: true, data: res2.data?.data || res2.data };
+        } catch (e2) {
+          return { ok: false, error: e2.response?.data?.message || e2.message };
+        }
+      }
+      return { ok: false, error: "Session expired." };
+    }
+    return { ok: false, error: err.response?.data?.message || err.message || "Face verification failed." };
+  }
+}
+
 /** Display-safe user object for the renderer (no tokens). */
 function getUser() {
   return session?.user || null;
@@ -250,4 +336,4 @@ function isAuthenticated() {
   return session !== null;
 }
 
-module.exports = { init, login, logout, getUser, getTokens, isAuthenticated, getCandidateProfile };
+module.exports = { init, login, logout, getUser, getTokens, isAuthenticated, getCandidateProfile, submitVoiceSample, submitFaceVerification };

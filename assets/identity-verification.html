@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Identity Verification — LetsHyre Secure Interview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./css/auth.css" />
+    <link rel="stylesheet" href="./css/identity-verification.css" />
+  </head>
+  <body class="iv-body">
+
+    <!-- Header -->
+    <header class="iv-topbar">
+      <img src="./logo.png" alt="LetsHyre" class="iv-topbar__logo" />
+
+      <!-- Step progress: global flow -->
+      <nav class="perm-steps" aria-label="Interview setup progress">
+        <div class="perm-step perm-step--done">
+          <div class="perm-step__dot">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          </div>
+          <span class="perm-step__label">Security check</span>
+        </div>
+        <div class="perm-step__connector perm-step__connector--done"></div>
+        <div class="perm-step perm-step--done">
+          <div class="perm-step__dot">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          </div>
+          <span class="perm-step__label">Permissions</span>
+        </div>
+        <div class="perm-step__connector perm-step__connector--done"></div>
+        <div class="perm-step perm-step--active">
+          <div class="perm-step__dot">3</div>
+          <span class="perm-step__label">Identity</span>
+        </div>
+        <div class="perm-step__connector"></div>
+        <div class="perm-step">
+          <div class="perm-step__dot">4</div>
+          <span class="perm-step__label">Interview</span>
+        </div>
+      </nav>
+
+      <div style="width:140px"></div>
+    </header>
+
+    <!-- Main -->
+    <main class="iv-main">
+      <div class="iv-card">
+
+        <!-- Card header -->
+        <div class="iv-card__header">
+          <div>
+            <h1 class="iv-card__title">Identity <span class="iv-card__title-accent">Check</span></h1>
+            <div class="iv-card__title-bar"></div>
+          </div>
+          <!-- Sub-step pills: Voice → Photo → Result -->
+          <div class="iv-steps" id="iv-steps">
+            <div class="iv-step iv-step--active" id="step-pill-1">
+              <div class="iv-step__dot" id="step-dot-1">1</div>
+              <span class="iv-step__label">Voice</span>
+            </div>
+            <div class="iv-step__line" id="step-line-1"></div>
+            <div class="iv-step" id="step-pill-2">
+              <div class="iv-step__dot" id="step-dot-2">2</div>
+              <span class="iv-step__label">Photo</span>
+            </div>
+            <div class="iv-step__line" id="step-line-2"></div>
+            <div class="iv-step" id="step-pill-3">
+              <div class="iv-step__dot" id="step-dot-3">3</div>
+              <span class="iv-step__label">Result</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Error banner (hidden by default) -->
+        <div class="iv-error" id="iv-error" hidden>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span id="iv-error-text"></span>
+        </div>
+
+        <!-- Body: sidebar + step content -->
+        <div class="iv-body-split">
+
+          <!-- Sidebar -->
+          <aside class="iv-sidebar">
+            <div class="iv-sidebar__img-wrap">
+              <svg class="iv-sidebar__illustration" viewBox="0 0 200 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Person silhouette -->
+                <circle cx="100" cy="72" r="38" fill="#e8e3d9" />
+                <circle cx="100" cy="72" r="28" fill="#d97757" opacity=".18" />
+                <circle cx="100" cy="72" r="18" fill="#d97757" opacity=".35" />
+                <!-- ID card shape -->
+                <rect x="30" y="130" width="140" height="76" rx="12" fill="#fff" stroke="#e8e3d9" stroke-width="2"/>
+                <rect x="48" y="148" width="36" height="40" rx="6" fill="#e8e3d9"/>
+                <rect x="96" y="152" width="56" height="6" rx="3" fill="#e8e3d9"/>
+                <rect x="96" y="164" width="40" height="5" rx="2.5" fill="#f0ede6"/>
+                <rect x="96" y="175" width="48" height="5" rx="2.5" fill="#f0ede6"/>
+                <!-- Checkmark circle -->
+                <circle cx="156" cy="130" r="16" fill="#16a34a"/>
+                <path d="M149 130l5 5 9-9" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <h3 class="iv-sidebar__title" id="sidebar-title">Voice Verification</h3>
+            <p class="iv-sidebar__desc" id="sidebar-desc">We need a short audio sample to verify your identity and ensure a secure session.</p>
+          </aside>
+
+          <!-- Step panels -->
+          <div class="iv-content">
+
+            <!-- Step 1: Voice -->
+            <section class="iv-panel" id="panel-voice">
+              <div class="iv-voice__heading">
+                <div class="iv-voice__icon-wrap" id="voice-icon-wrap">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                </div>
+                <div>
+                  <p class="iv-voice__label">Voice Recording <span class="iv-required">(Required)</span></p>
+                  <p class="iv-voice__sub">Read the statement clearly so we can verify your identity.</p>
+                </div>
+              </div>
+
+              <div class="iv-statement" id="iv-statement">
+                <p class="iv-statement__text">"I confirm that I am the person taking this interview, and I will follow the instructions."</p>
+                <!-- Waveform visualizer shown while recording -->
+                <div class="iv-waveform" id="iv-waveform" hidden>
+                  <div class="iv-waveform__bar" style="--i:0"></div><div class="iv-waveform__bar" style="--i:1"></div>
+                  <div class="iv-waveform__bar" style="--i:2"></div><div class="iv-waveform__bar" style="--i:3"></div>
+                  <div class="iv-waveform__bar" style="--i:4"></div><div class="iv-waveform__bar" style="--i:5"></div>
+                  <div class="iv-waveform__bar" style="--i:6"></div><div class="iv-waveform__bar" style="--i:7"></div>
+                  <div class="iv-waveform__bar" style="--i:8"></div><div class="iv-waveform__bar" style="--i:9"></div>
+                  <div class="iv-waveform__bar" style="--i:10"></div><div class="iv-waveform__bar" style="--i:11"></div>
+                  <div class="iv-waveform__bar" style="--i:12"></div><div class="iv-waveform__bar" style="--i:13"></div>
+                  <div class="iv-waveform__bar" style="--i:14"></div><div class="iv-waveform__bar" style="--i:15"></div>
+                  <div class="iv-waveform__bar" style="--i:16"></div><div class="iv-waveform__bar" style="--i:17"></div>
+                  <div class="iv-waveform__bar" style="--i:18"></div><div class="iv-waveform__bar" style="--i:19"></div>
+                </div>
+              </div>
+
+              <!-- idle -->
+              <div class="iv-voice__cta" id="voice-cta-idle">
+                <button class="iv-btn iv-btn--primary iv-btn--lg" id="btn-start-recording">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+                  Start Recording
+                </button>
+              </div>
+
+              <!-- recording -->
+              <div class="iv-voice__cta" id="voice-cta-recording" hidden>
+                <button class="iv-btn iv-btn--danger iv-btn--lg iv-btn--pulse" id="btn-stop-recording">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+                  Stop Recording
+                </button>
+              </div>
+
+              <!-- reviewing -->
+              <div class="iv-voice__cta iv-voice__cta--review" id="voice-cta-reviewing" hidden>
+                <div class="iv-playback-row">
+                  <button class="iv-btn iv-btn--ghost" id="btn-playback">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="playback-icon"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    <span id="playback-label">Listen back</span>
+                  </button>
+                  <div class="iv-playback-divider"></div>
+                  <button class="iv-btn iv-btn--ghost" id="btn-retake-voice">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.2"/></svg>
+                    Retake
+                  </button>
+                </div>
+                <button class="iv-btn iv-btn--primary iv-btn--lg" id="btn-continue-voice">
+                  Continue to Step 2
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+                </button>
+              </div>
+            </section>
+
+            <!-- Step 2: Photo -->
+            <section class="iv-panel" id="panel-photo" hidden>
+              <div class="iv-photo-grid">
+                <!-- Registered -->
+                <div class="iv-photo-col">
+                  <span class="iv-photo-label">Registered Image</span>
+                  <div class="iv-photo-frame iv-photo-frame--ref">
+                    <img id="ref-photo" src="" alt="Profile reference" class="iv-photo-frame__img" />
+                    <div class="iv-photo-frame__badge">REFERENCE PHOTO</div>
+                  </div>
+                </div>
+                <!-- Live -->
+                <div class="iv-photo-col">
+                  <span class="iv-photo-label iv-photo-label--live">Live Camera</span>
+                  <div class="iv-photo-frame iv-photo-frame--live" id="live-frame">
+                    <video id="iv-video" autoplay playsinline muted class="iv-photo-frame__video"></video>
+                    <img id="iv-captured" class="iv-photo-frame__img" alt="Captured" hidden />
+                    <canvas id="iv-canvas" hidden></canvas>
+                    <div class="iv-photo-frame__badge iv-photo-frame__badge--live" id="live-badge">POSITION YOUR FACE</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="iv-photo-cta" id="photo-cta-capture">
+                <button class="iv-btn iv-btn--primary iv-btn--lg" id="btn-capture">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                  Capture Image
+                </button>
+              </div>
+
+              <div class="iv-photo-cta iv-photo-cta--confirm" id="photo-cta-confirm" hidden>
+                <button class="iv-btn iv-btn--outline" id="btn-retake-photo">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.2"/></svg>
+                  Retake
+                </button>
+                <button class="iv-btn iv-btn--primary iv-btn--lg" id="btn-submit-photo">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><polyline points="16 3 12 7 8 3"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  Confirm &amp; Submit
+                </button>
+              </div>
+
+              <button class="iv-btn iv-btn--ghost iv-back-btn" id="btn-back-to-voice">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                Back to Voice Step
+              </button>
+            </section>
+
+            <!-- Step 3: Result -->
+            <section class="iv-panel" id="panel-result" hidden>
+              <div class="iv-result-compare">
+                <div class="iv-result-photo">
+                  <img id="result-ref" src="" alt="Registered" class="iv-result-photo__img iv-result-photo__img--ref" />
+                  <span class="iv-result-photo__tag">REGISTERED</span>
+                </div>
+
+                <div class="iv-result-match" id="result-match-badge">
+                  <!-- filled by JS -->
+                </div>
+
+                <div class="iv-result-photo">
+                  <img id="result-captured" src="" alt="Live capture" class="iv-result-photo__img" />
+                  <span class="iv-result-photo__tag">LIVE CAPTURE</span>
+                </div>
+              </div>
+
+              <div class="iv-result-status" id="result-status">
+                <!-- filled by JS -->
+              </div>
+
+              <p class="iv-result-msg" id="result-msg"></p>
+
+              <div class="iv-result-cta">
+                <button class="iv-btn iv-btn--begin" id="btn-begin-interview" hidden>
+                  Begin Interview
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+                </button>
+                <button class="iv-btn iv-btn--danger iv-btn--lg" id="btn-retry-photo" hidden>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.2"/></svg>
+                  Try Again
+                </button>
+                <p class="iv-result-tip" id="result-tip" hidden>Professional tip: <span>Remove glasses or masks for better accuracy.</span></p>
+              </div>
+            </section>
+
+          </div><!-- /iv-content -->
+        </div><!-- /iv-body-split -->
+
+      </div><!-- /iv-card -->
+    </main>
+
+    <script src="../src/renderer/identity-verification.js"></script>
+  </body>
+</html>

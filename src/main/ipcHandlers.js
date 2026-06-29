@@ -18,7 +18,7 @@ const logger = require("./logger");
 const appState = require("./appState");
 const { IPC } = require("../shared/constants");
 const { killSingleProcess, killAllProcesses } = require("./processKiller");
-const { lockdownForInterview, endInterview, getWindow, minimizeWindow, loadSecurityCheck, loadPermissionsPage } = require("./windowManager");
+const { lockdownForInterview, endInterview, getWindow, minimizeWindow, loadSecurityCheck, loadPermissionsPage, loadIdentityVerificationPage } = require("./windowManager");
 const { invalidateProcessCache } = require("../detector/mirrorDetector");
 const { getCurrentInterviewUrl, setInterviewSession } = require("./protocolHandler");
 const { ensureAgent } = require("./agentManager");
@@ -98,6 +98,24 @@ function registerIpcHandlers() {
   ipcMain.on(IPC.LOAD_PERMISSIONS_PAGE, () => {
     logger.info("[ipc] load-permissions-page");
     loadPermissionsPage();
+  });
+
+  // Permissions "Start interview" → load identity verification page.
+  ipcMain.on(IPC.LOAD_IDENTITY_VERIFICATION, () => {
+    logger.info("[ipc] load-identity-verification");
+    loadIdentityVerificationPage();
+  });
+
+  // Identity verification — voice sample upload (blob arrives as Uint8Array over IPC).
+  ipcMain.handle(IPC.SUBMIT_VOICE_SAMPLE, async (_event, uint8Array, mimeType) => {
+    logger.info("[ipc] submit-voice-sample");
+    return await authManager.submitVoiceSample(uint8Array, mimeType);
+  });
+
+  // Identity verification — face photo upload (data URL string).
+  ipcMain.handle(IPC.SUBMIT_FACE_VERIFICATION, async (_event, dataUrl) => {
+    logger.info("[ipc] submit-face-verification");
+    return await authManager.submitFaceVerification(dataUrl);
   });
 
   // ── App Control ──────────────────────────────────────────────────────────

@@ -13,16 +13,15 @@
     <link rel="stylesheet" href="./css/auth.css" />
   </head>
   <body>
+
     <header class="topbar">
-      <div class="brand">
-        <span class="brand__mark">L</span>
-        <div>
-          <div class="brand__name">LetsHyre</div>
-          <div class="brand__sub">Secure Interview</div>
-        </div>
+      <div class="topbar__brand">
+        <img src="./logo.png" alt="LetsHyre" />
       </div>
       <div class="topbar__user">
-        <span class="avatar" id="avatar">–</span>
+        <span class="avatar" id="avatar">
+          <span id="avatar-initials">–</span>
+        </span>
         <div>
           <div class="topbar__name" id="user-name">…</div>
           <div class="topbar__role" id="user-role"></div>
@@ -32,20 +31,49 @@
     </header>
 
     <main class="dash-main">
+
+      <!-- Profile card -->
+      <div class="profile-card" id="profile-card">
+        <div class="profile-card__avatar" id="profile-avatar">
+          <span id="profile-initials">–</span>
+        </div>
+        <div class="profile-card__info">
+          <p class="profile-card__name" id="profile-name">
+            <span class="skeleton" style="width:180px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+          </p>
+          <p class="profile-card__role" id="profile-role">
+            <span class="skeleton" style="width:110px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+          </p>
+          <div class="profile-card__meta" id="profile-meta">
+            <span class="skeleton" style="width:160px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interview card -->
       <div class="dash-card">
         <h1 class="dash-card__title" id="welcome">Welcome</h1>
         <p class="dash-card__text">
           When you're ready, start your interview. We'll run a quick security
           check first to make sure your environment is set up correctly.
         </p>
+
+        <!-- Attempt tracker — hidden until profile loads -->
+        <div class="attempt-tracker" id="attempt-tracker" style="display:none">
+          <span class="attempt-tracker__label">Attempts used</span>
+          <div class="attempt-tracker__dots" id="attempt-dots"></div>
+          <span class="attempt-tracker__count" id="attempt-count"></span>
+        </div>
+
         <button class="btn-cta" id="take-interview-btn" type="button">
           Take interview
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
           </svg>
         </button>
-        <p class="dash-note">A security check runs before the interview begins.</p>
+        <p class="dash-note" id="dash-note">A security check runs before the interview begins.</p>
       </div>
+
     </main>
 
     <script src="../src/renderer/dashboard.js"></script>

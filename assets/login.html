@@ -15,12 +15,9 @@
   <body>
     <div class="auth-center">
       <div class="auth-card">
+
         <div class="brand">
-          <span class="brand__mark">L</span>
-          <div>
-            <div class="brand__name">LetsHyre</div>
-            <div class="brand__sub">Secure Interview</div>
-          </div>
+          <img src="./logo.png" alt="LetsHyre" class="brand__logo" />
         </div>
 
         <h1 class="auth-title">Sign in</h1>
@@ -31,28 +28,56 @@
         <form id="login-form" novalidate>
           <div class="field">
             <label class="field__label" for="email">Email</label>
-            <input
-              class="field__input"
-              id="email"
-              name="email"
-              type="email"
-              autocomplete="username"
-              placeholder="you@example.com"
-              required
-            />
+            <div class="field__row">
+              <input
+                class="field__input"
+                id="email"
+                name="email"
+                type="email"
+                autocomplete="username"
+                placeholder="you@example.com"
+                required
+              />
+              <button class="field__action" type="button" id="paste-email" title="Paste from clipboard" aria-label="Paste email">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+              </button>
+            </div>
           </div>
 
           <div class="field">
             <label class="field__label" for="password">Password</label>
-            <input
-              class="field__input"
-              id="password"
-              name="password"
-              type="password"
-              autocomplete="current-password"
-              placeholder="••••••••"
-              required
-            />
+            <div class="field__row">
+              <input
+                class="field__input"
+                id="password"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                placeholder="••••••••"
+                required
+              />
+              <button class="field__action" type="button" id="paste-password" title="Paste from clipboard" aria-label="Paste password">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+              </button>
+              <button class="field__action" type="button" id="toggle-password" title="Show / hide password" aria-label="Toggle password visibility">
+                <!-- eye icon — toggled by JS -->
+                <svg id="eye-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+                <svg id="eye-off-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+              </button>
+            </div>
           </div>
 
           <button class="btn" id="submit-btn" type="submit">Sign in</button>

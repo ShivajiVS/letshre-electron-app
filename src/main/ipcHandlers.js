@@ -75,6 +75,11 @@ function registerIpcHandlers() {
 
   ipcMain.handle(IPC.GET_AUTH_USER, () => authManager.getUser());
 
+  ipcMain.handle(IPC.GET_CANDIDATE_PROFILE, async () => {
+    logger.info("[ipc] get-candidate-profile");
+    return await authManager.getCandidateProfile();
+  });
+
   // Dashboard "Take Interview": set the interview session from the logged-in
   // tokens, then hand off to the EXISTING security-check screen.
   ipcMain.on(IPC.START_INTERVIEW, () => {

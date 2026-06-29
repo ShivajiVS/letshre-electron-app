@@ -29,6 +29,7 @@ const IPC = {
   AUTH_LOGIN: "auth-login",
   AUTH_LOGOUT: "auth-logout",
   GET_AUTH_USER: "get-auth-user",
+  GET_CANDIDATE_PROFILE: "get-candidate-profile",
 
   // Dashboard → security check
   START_INTERVIEW: "start-interview",
@@ -96,7 +97,7 @@ const ALLOWED_INVOKE_CHANNELS = [
   IPC.RUN_PREFLIGHT, IPC.KILL_BLOCKED_APP,
   IPC.KILL_ALL_BLOCKED_APPS, IPC.GET_AUDIT_LOG, IPC.GET_APP_LIST,
   IPC.GET_APP_VERSION, IPC.GET_UPDATE_STATE,
-  IPC.AUTH_LOGIN, IPC.AUTH_LOGOUT, IPC.GET_AUTH_USER,
+  IPC.AUTH_LOGIN, IPC.AUTH_LOGOUT, IPC.GET_AUTH_USER, IPC.GET_CANDIDATE_PROFILE,
 ];
 
 const ALLOWED_RECEIVE_CHANNELS = [
@@ -154,6 +155,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   /** Get the logged-in user's display-safe fields (or null). */
   getAuthUser: () => safeInvoke(IPC.GET_AUTH_USER),
+
+  /**
+   * Fetch the full candidate profile from the API (name, photo, interview
+   * attempts, phone, role). Performs automatic token refresh on 401.
+   * Returns display-safe fields only — tokens never leave main.
+   * @returns {Promise<{ success: boolean, data?: object, message?: string }>}
+   */
+  getCandidateProfile: () => safeInvoke(IPC.GET_CANDIDATE_PROFILE),
 
   /** Dashboard "Take Interview": hand the session to the security check. */
   startInterview: () => safeSend(IPC.START_INTERVIEW),
@@ -424,13 +433,18 @@ document.addEventListener(
 document.addEventListener(
   "keydown",
   (e) => {
-    // Block Copy (C), Paste (V), View Source (U) on Windows (Ctrl) and Mac (Cmd)
-    if (
-      (e.ctrlKey || e.metaKey) &&
-      ["c", "v", "u"].includes(e.key.toLowerCase())
-    ) {
-      e.preventDefault();
-      e.stopPropagation();
+    if (e.ctrlKey || e.metaKey) {
+      const key = e.key.toLowerCase();
+      if (["c", "v", "u"].includes(key)) {
+        // Allow Ctrl+V paste into form inputs on auth pages (login / dashboard).
+        // Copy and View-Source remain blocked unconditionally.
+        const tag = e.target?.tagName;
+        if (key === "v" && (tag === "INPUT" || tag === "TEXTAREA")) {
+          return; // let the browser handle native paste
+        }
+        e.preventDefault();
+        e.stopPropagation();
+      }
     }
 
     // Block PrintScreen

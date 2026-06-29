@@ -35,6 +35,8 @@ const API_BASE_URL = process.env.API_BASE_URL || "https://api.letshyre.com";
 /** Auth API paths (relative to API_BASE_URL). */
 const AUTH_LOGIN_PATH = "/user/v1/login/";
 const AUTH_LOGOUT_PATH = "/user/v1/logout/";
+const CANDIDATE_PROFILE_PATH = "/user/v1/candidate_profile/";
+const TOKEN_REFRESH_PATH = "/user/v1/login_refresh/";
 
 // ─── Detection / Violation ───────────────────────────────────────────────────
 
@@ -91,6 +93,9 @@ const IPC = {
 
   // Dashboard → start the security check for the logged-in session
   START_INTERVIEW: "start-interview",
+
+  // Candidate profile (authenticated GET, returns attempts + display fields)
+  GET_CANDIDATE_PROFILE: "get-candidate-profile",
 
   // Preflight
   RUN_PREFLIGHT: "run-preflight-scans",
@@ -167,6 +172,8 @@ module.exports = {
   API_BASE_URL,
   AUTH_LOGIN_PATH,
   AUTH_LOGOUT_PATH,
+  CANDIDATE_PROFILE_PATH,
+  TOKEN_REFRESH_PATH,
   VIOLATION_COOLDOWN_MS,
   DETECTION_INTERVAL_MS,
   HEARTBEAT_INTERVAL_MS,

@@ -15,7 +15,10 @@
 
 const axios = require("axios");
 const logger = require("./logger");
-const { API_BASE_URL, AUTH_LOGIN_PATH, AUTH_LOGOUT_PATH } = require("../shared/constants");
+const {
+  API_BASE_URL, AUTH_LOGIN_PATH, AUTH_LOGOUT_PATH,
+  CANDIDATE_PROFILE_PATH, TOKEN_REFRESH_PATH,
+} = require("../shared/constants");
 
 /** @type {{ accessToken: string, refreshToken: string, user: object } | null} */
 let session = null;
@@ -104,4 +107,78 @@ function isAuthenticated() {
   return session !== null;
 }
 
-module.exports = { login, logout, getUser, getTokens, isAuthenticated };
+/**
+ * Attempts a token refresh using the stored refresh token.
+ * Updates `session.accessToken` (and refresh token if rotated) on success.
+ * Clears the session on failure (forces re-login).
+ * @returns {Promise<boolean>} true if the access token was refreshed
+ */
+async function _refreshTokens() {
+  if (!session?.refreshToken) { return false; }
+  try {
+    const res = await axios.post(
+      `${API_BASE_URL}${TOKEN_REFRESH_PATH}`,
+      { refresh_token: session.refreshToken },
+      { timeout: 10000, headers: { "Content-Type": "application/json" } }
+    );
+    const body = res.data || {};
+    const data = body.data || body;
+    const newAccessToken = data.access_token || data.access || data.token;
+    if (!newAccessToken) { return false; }
+    session.accessToken = newAccessToken;
+    const newRefresh = data.refresh_token || data.refresh;
+    if (newRefresh) { session.refreshToken = newRefresh; }
+    logger.info("[auth] access token refreshed");
+    return true;
+  } catch (err) {
+    logger.warn("[auth] token refresh failed — clearing session:", err.message);
+    session = null;
+    return false;
+  }
+}
+
+/**
+ * Fetches the candidate profile from the API. Performs one automatic token
+ * refresh on 401 before giving up. Never exposes tokens to the renderer.
+ * @returns {Promise<{ success: boolean, data?: object, message?: string }>}
+ */
+async function getCandidateProfile() {
+  if (!session?.accessToken) {
+    return { success: false, message: "Not authenticated." };
+  }
+
+  const doRequest = () =>
+    axios.get(`${API_BASE_URL}${CANDIDATE_PROFILE_PATH}`, {
+      timeout: 15000,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.accessToken}`,
+      },
+    });
+
+  try {
+    const res = await doRequest();
+    const body = res.data || {};
+    return { success: true, data: body.data || {} };
+  } catch (err) {
+    if (err.response?.status === 401) {
+      const refreshed = await _refreshTokens();
+      if (refreshed) {
+        try {
+          const res2 = await doRequest();
+          const body2 = res2.data || {};
+          return { success: true, data: body2.data || {} };
+        } catch (err2) {
+          const msg = err2.response?.data?.message || err2.message || "Profile fetch failed after token refresh.";
+          return { success: false, message: msg };
+        }
+      }
+      return { success: false, message: "Session expired. Please log in again." };
+    }
+    const message = err.response?.data?.message || err.message || "Failed to load profile.";
+    logger.warn("[auth] getCandidateProfile failed:", message);
+    return { success: false, message };
+  }
+}
+
+module.exports = { login, logout, getUser, getTokens, isAuthenticated, getCandidateProfile };

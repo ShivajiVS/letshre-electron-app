@@ -167,8 +167,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   btnProceed.addEventListener("click", () => {
     if (window.electronAPI) {
       btnProceed.disabled = true;
-      btnProceed.innerHTML = `${ICONS.loading  } Loading...`;
-      window.electronAPI.proceedToInterview();
+      btnProceed.innerHTML = `${ICONS.loading} Loading...`;
+      window.electronAPI.loadPermissionsPage();
     }
   });
 

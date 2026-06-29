@@ -97,6 +97,14 @@ const IPC = {
   // Candidate profile (authenticated GET, returns attempts + display fields)
   GET_CANDIDATE_PROFILE: "get-candidate-profile",
 
+  // Permissions page: preflight Proceed → main loads permissions.html
+  LOAD_PERMISSIONS_PAGE: "load-permissions-page",
+
+  // Identity verification page
+  LOAD_IDENTITY_VERIFICATION: "load-identity-verification",
+  SUBMIT_VOICE_SAMPLE: "submit-voice-sample",
+  SUBMIT_FACE_VERIFICATION: "submit-face-verification",
+
   // Preflight
   RUN_PREFLIGHT: "run-preflight-scans",
 

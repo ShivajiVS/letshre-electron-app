@@ -299,12 +299,34 @@ function minimizeWindow() {
 /**
  * Navigates to the security-check (preflight) screen. Called after the user
  * picks "Take Interview" on the dashboard — the interview session tokens are
- * set first by the IPC handler. The preflight → lockdown → interview flow is
- * unchanged from here.
+ * set first by the IPC handler. The preflight → permissions → lockdown →
+ * interview flow is unchanged from here.
  */
 function loadSecurityCheck() {
   if (win && !win.isDestroyed()) {
     win.loadFile(path.join(__dirname, "../../assets/preflight.html"));
+  }
+}
+
+/**
+ * Navigates to the permissions page. Called when the user clicks Proceed on
+ * the preflight screen — all security checks have passed but the window is
+ * NOT yet in kiosk/lockdown mode (the OS needs to show native permission
+ * dialogs). Lockdown happens only after the user clicks Start Interview.
+ */
+function loadPermissionsPage() {
+  if (win && !win.isDestroyed()) {
+    win.loadFile(path.join(__dirname, "../../assets/permissions.html"));
+  }
+}
+
+/**
+ * Navigates to the identity verification page. Called after all permissions
+ * are granted — camera/mic/screen already approved by the OS.
+ */
+function loadIdentityVerificationPage() {
+  if (win && !win.isDestroyed()) {
+    win.loadFile(path.join(__dirname, "../../assets/identity-verification.html"));
   }
 }
 
@@ -314,6 +336,8 @@ module.exports = {
   endInterview,
   enforceViolation,
   loadSecurityCheck,
+  loadPermissionsPage,
+  loadIdentityVerificationPage,
   getWindow,
   minimizeWindow,
   getIsInterviewActive,

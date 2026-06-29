@@ -182,8 +182,9 @@
                 <div class="iv-photo-col">
                   <span class="iv-photo-label">Registered Image</span>
                   <div class="iv-photo-frame iv-photo-frame--ref" style="background:#f0ede6">
-                    <img id="ref-photo" src="" alt="Profile reference" class="iv-photo-frame__img" onerror="this.style.display='none'" />
-                    <!-- fallback avatar when no profile photo -->
+                    <!-- img hidden until JS sets a valid src -->
+                    <img id="ref-photo" alt="Profile reference" class="iv-photo-frame__img" style="display:none" />
+                    <!-- placeholder shown until photo loads -->
                     <div id="ref-photo-placeholder" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
                       <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#c5bfb0" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                     </div>

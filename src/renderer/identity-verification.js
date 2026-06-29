@@ -157,18 +157,29 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // ── Load profile photo ────────────────────────────────────────────────────
 
+  const refPhotoPlaceholder = document.getElementById("ref-photo-placeholder");
+
+  function showRefPhoto(src) {
+    refPhoto.onload = () => {
+      refPhoto.style.display = "block";
+      if (refPhotoPlaceholder) refPhotoPlaceholder.style.display = "none";
+    };
+    refPhoto.onerror = () => {
+      // URL failed (CSP block, 404, etc.) — keep placeholder visible
+      refPhoto.style.display = "none";
+      if (refPhotoPlaceholder) refPhotoPlaceholder.style.display = "flex";
+    };
+    refPhoto.src = src;
+  }
+
   async function loadProfile() {
     try {
       const result = await window.electronAPI?.getCandidateProfile?.();
       if (result?.success && result.data?.profile_photo) {
         profilePhotoSrc = result.data.profile_photo;
-        refPhoto.src = profilePhotoSrc;
-        refPhoto.style.display = "";
-        const placeholder = document.getElementById("ref-photo-placeholder");
-        if (placeholder) placeholder.style.display = "none";
+        showRefPhoto(profilePhotoSrc);
       }
-      // non-fatal: if profile photo missing, placeholder stays visible
-    } catch { /* non-fatal — silently skip */ }
+    } catch { /* non-fatal — placeholder stays */ }
   }
 
   // ── Audio recorder ────────────────────────────────────────────────────────

@@ -18,7 +18,7 @@ const logger = require("./logger");
 const appState = require("./appState");
 const { IPC } = require("../shared/constants");
 const { killSingleProcess, killAllProcesses } = require("./processKiller");
-const { lockdownForInterview, endInterview, getWindow, minimizeWindow, loadSecurityCheck } = require("./windowManager");
+const { lockdownForInterview, endInterview, getWindow, minimizeWindow, loadSecurityCheck, loadPermissionsPage } = require("./windowManager");
 const { invalidateProcessCache } = require("../detector/mirrorDetector");
 const { getCurrentInterviewUrl, setInterviewSession } = require("./protocolHandler");
 const { ensureAgent } = require("./agentManager");
@@ -91,6 +91,13 @@ function registerIpcHandlers() {
     logger.info("[ipc] start-interview — entering security check");
     setInterviewSession(tokens.accessToken, tokens.refreshToken);
     loadSecurityCheck();
+  });
+
+  // Preflight "Proceed" → load the permissions page (NOT locked down yet;
+  // the OS needs to present native mic/camera/screen dialogs).
+  ipcMain.on(IPC.LOAD_PERMISSIONS_PAGE, () => {
+    logger.info("[ipc] load-permissions-page");
+    loadPermissionsPage();
   });
 
   // ── App Control ──────────────────────────────────────────────────────────

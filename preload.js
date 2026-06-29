@@ -31,6 +31,9 @@ const IPC = {
   GET_AUTH_USER: "get-auth-user",
   GET_CANDIDATE_PROFILE: "get-candidate-profile",
 
+  // Permissions page: preflight Proceed → main loads permissions.html
+  LOAD_PERMISSIONS_PAGE: "load-permissions-page",
+
   // Dashboard → security check
   START_INTERVIEW: "start-interview",
 
@@ -90,7 +93,7 @@ const IPC = {
 const ALLOWED_SEND_CHANNELS = [
   IPC.QUIT_APP, IPC.RECHECK_SYSTEM, IPC.PROCEED_TO_INTERVIEW,
   IPC.INSTALL_UPDATE, IPC.MINIMIZE_WINDOW, IPC.START_INTERVIEW,
-  IPC.INTERVIEW_COMPLETE, IPC.ACK_VIOLATION,
+  IPC.INTERVIEW_COMPLETE, IPC.ACK_VIOLATION, IPC.LOAD_PERMISSIONS_PAGE,
 ];
 
 const ALLOWED_INVOKE_CHANNELS = [
@@ -166,6 +169,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   /** Dashboard "Take Interview": hand the session to the security check. */
   startInterview: () => safeSend(IPC.START_INTERVIEW),
+
+  /**
+   * Preflight "Proceed": navigate to the permissions page.
+   * The window is NOT locked down yet — the OS needs to present native
+   * permission dialogs. Lockdown happens when the user clicks Start Interview.
+   */
+  loadPermissionsPage: () => safeSend(IPC.LOAD_PERMISSIONS_PAGE),
 
   // ── App control ────────────────────────────────────────────────────────────
   /** Quit the application. */

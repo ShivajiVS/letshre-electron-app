@@ -416,6 +416,216 @@ html, body {
 }
 .dash-note.exhausted-note { color: var(--danger); font-weight: 500; }
 
+/* ── Permissions page ───────────────────────────────────────────────────────── */
+
+:root {
+  --success: #16a34a;
+  --success-soft: #f0fdf4;
+  --success-border: #bbf7d0;
+  --warn: #d97706;
+  --warn-soft: #fffbeb;
+  --warn-border: #fde68a;
+}
+
+.perm-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+/* Minimal header — logo only */
+.perm-header {
+  height: 62px;
+  display: flex;
+  align-items: center;
+  padding: 0 32px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 4px rgba(26,26,25,0.05);
+}
+.perm-header__logo {
+  height: 30px;
+  width: auto;
+  display: block;
+}
+
+/* Main area */
+.perm-main {
+  flex: 1;
+  max-width: 780px;
+  margin: 48px auto;
+  padding: 0 24px;
+  width: 100%;
+}
+
+.perm-intro {
+  text-align: center;
+  margin-bottom: 36px;
+}
+.perm-intro__title {
+  font-family: var(--font-serif);
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0 0 8px;
+}
+.perm-intro__sub {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.55;
+  margin: 0;
+}
+
+/* 3-column permission cards */
+.perm-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.perm-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 28px 22px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.perm-card--requesting {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow);
+}
+.perm-card--granted {
+  border-color: var(--success-border);
+  box-shadow: 0 0 0 3px var(--success-soft), var(--shadow);
+}
+.perm-card--denied {
+  border-color: #ecd5cc;
+  box-shadow: 0 0 0 3px var(--danger-soft), var(--shadow);
+}
+
+/* Icon circle */
+.perm-card__icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  color: var(--muted);
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+.perm-card--requesting .perm-card__icon {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.perm-card--granted .perm-card__icon {
+  background: var(--success-soft);
+  border-color: var(--success-border);
+  color: var(--success);
+}
+.perm-card--denied .perm-card__icon {
+  background: var(--danger-soft);
+  border-color: #ecd5cc;
+  color: var(--danger);
+}
+
+.perm-card__name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 6px;
+}
+.perm-card__desc {
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.55;
+  margin: 0 0 16px;
+  min-height: 36px;
+}
+
+/* Status badge */
+.perm-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: var(--bg);
+  color: var(--faint);
+  border: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+.perm-badge--pending {
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+  border-color: var(--accent);
+}
+.perm-badge--granted {
+  background: var(--success-soft);
+  color: var(--success);
+  border-color: var(--success-border);
+}
+.perm-badge--denied {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: #ecd5cc;
+}
+
+/* Allow / retry button on each card */
+.perm-allow-btn {
+  width: 100%;
+  height: 38px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1.5px solid var(--input-border);
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.perm-allow-btn:hover:not(:disabled) {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-hover);
+}
+.perm-allow-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Spinning animation for requesting state */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.perm-spinning { animation: spin 0.9s linear infinite; }
+
+/* Bottom CTA */
+.perm-actions {
+  text-align: center;
+}
+.perm-footer-note {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--faint);
+}
+.perm-footer-note.all-granted { color: var(--success); font-weight: 500; }
+
 /* Skeleton shimmer */
 .skeleton {
   display: inline-block;

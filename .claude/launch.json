@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "auth-preview",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-l", "5173", "assets"],
+      "port": 5173
+    }
+  ]
+}

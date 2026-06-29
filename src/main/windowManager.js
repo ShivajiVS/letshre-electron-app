@@ -320,6 +320,16 @@ function loadPermissionsPage() {
   }
 }
 
+/**
+ * Navigates to the identity verification page. Called after all permissions
+ * are granted — camera/mic/screen already approved by the OS.
+ */
+function loadIdentityVerificationPage() {
+  if (win && !win.isDestroyed()) {
+    win.loadFile(path.join(__dirname, "../../assets/identity-verification.html"));
+  }
+}
+
 module.exports = {
   createWindow,
   lockdownForInterview,
@@ -327,6 +337,7 @@ module.exports = {
   enforceViolation,
   loadSecurityCheck,
   loadPermissionsPage,
+  loadIdentityVerificationPage,
   getWindow,
   minimizeWindow,
   getIsInterviewActive,

@@ -100,6 +100,20 @@ function getCurrentAccessToken() {
 }
 
 /**
+ * Sets the interview session from already-obtained tokens (the login flow).
+ * Reuses buildInterviewUrl so the interview opens with ?ac=&rc= exactly as the
+ * deep-link path did — the downstream preflight → lockdown → interview flow is
+ * unchanged.
+ * @param {string} accessToken
+ * @param {string} refreshToken
+ */
+function setInterviewSession(accessToken, refreshToken) {
+  currentAccessToken = accessToken || null;
+  currentInterviewUrl = buildInterviewUrl({ accessToken, refreshToken });
+  logger.info("[protocol] interview session set from login tokens");
+}
+
+/**
  * Applies a deep-link URL from argv on initial Windows launch.
  * @param {string[]} argv
  */
@@ -115,6 +129,7 @@ function applyArgvDeepLink(argv) {
 module.exports = {
   handleIncomingProtocol,
   applyArgvDeepLink,
+  setInterviewSession,
   getCurrentInterviewUrl,
   getCurrentAccessToken,
 };

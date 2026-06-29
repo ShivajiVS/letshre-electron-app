@@ -32,6 +32,10 @@ const INTERVIEW_BASE_URL = "https://interview.letshyre.com";
 /** Base URL of the LetsHyre REST API. Overridable via env for staging / tests. */
 const API_BASE_URL = process.env.API_BASE_URL || "https://api.letshyre.com";
 
+/** Auth API paths (relative to API_BASE_URL). */
+const AUTH_LOGIN_PATH = "/user/v1/login/";
+const AUTH_LOGOUT_PATH = "/user/v1/logout/";
+
 // ─── Detection / Violation ───────────────────────────────────────────────────
 
 /** Minimum ms between repeated reports of the same violation event. */
@@ -79,6 +83,14 @@ const IPC = {
   // App control
   QUIT_APP: "quit-app",
   RECHECK_SYSTEM: "recheck-system",
+
+  // Auth (renderer invoke → main; tokens stay in main)
+  AUTH_LOGIN: "auth-login",
+  AUTH_LOGOUT: "auth-logout",
+  GET_AUTH_USER: "get-auth-user",
+
+  // Dashboard → start the security check for the logged-in session
+  START_INTERVIEW: "start-interview",
 
   // Preflight
   RUN_PREFLIGHT: "run-preflight-scans",
@@ -153,6 +165,8 @@ module.exports = {
   AGENT_REQUEST_TIMEOUT_MS,
   INTERVIEW_BASE_URL,
   API_BASE_URL,
+  AUTH_LOGIN_PATH,
+  AUTH_LOGOUT_PATH,
   VIOLATION_COOLDOWN_MS,
   DETECTION_INTERVAL_MS,
   HEARTBEAT_INTERVAL_MS,

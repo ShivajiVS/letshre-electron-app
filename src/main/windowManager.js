@@ -55,7 +55,9 @@ function createWindow(onViolation) {
   });
 
   win.maximize();
-  win.loadFile(path.join(__dirname, "../../assets/preflight.html"));
+  // Entry point: the login screen. Security check is reached after login →
+  // dashboard → "Take Interview" (see loadSecurityCheck()).
+  win.loadFile(path.join(__dirname, "../../assets/login.html"));
   win.setMenuBarVisibility(false);
 
   // Clean up reference when window is destroyed
@@ -294,11 +296,24 @@ function minimizeWindow() {
   }
 }
 
+/**
+ * Navigates to the security-check (preflight) screen. Called after the user
+ * picks "Take Interview" on the dashboard — the interview session tokens are
+ * set first by the IPC handler. The preflight → lockdown → interview flow is
+ * unchanged from here.
+ */
+function loadSecurityCheck() {
+  if (win && !win.isDestroyed()) {
+    win.loadFile(path.join(__dirname, "../../assets/preflight.html"));
+  }
+}
+
 module.exports = {
   createWindow,
   lockdownForInterview,
   endInterview,
   enforceViolation,
+  loadSecurityCheck,
   getWindow,
   minimizeWindow,
   getIsInterviewActive,

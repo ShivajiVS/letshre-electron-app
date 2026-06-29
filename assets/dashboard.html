@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard — LetsHyre Secure Interview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./css/auth.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand__mark">L</span>
+        <div>
+          <div class="brand__name">LetsHyre</div>
+          <div class="brand__sub">Secure Interview</div>
+        </div>
+      </div>
+      <div class="topbar__user">
+        <span class="avatar" id="avatar">–</span>
+        <div>
+          <div class="topbar__name" id="user-name">…</div>
+          <div class="topbar__role" id="user-role"></div>
+        </div>
+        <button class="btn-ghost" id="logout-btn" type="button">Log out</button>
+      </div>
+    </header>
+
+    <main class="dash-main">
+      <div class="dash-card">
+        <h1 class="dash-card__title" id="welcome">Welcome</h1>
+        <p class="dash-card__text">
+          When you're ready, start your interview. We'll run a quick security
+          check first to make sure your environment is set up correctly.
+        </p>
+        <button class="btn-cta" id="take-interview-btn" type="button">
+          Take interview
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+        <p class="dash-note">A security check runs before the interview begins.</p>
+      </div>
+    </main>
+
+    <script src="../src/renderer/dashboard.js"></script>
+  </body>
+</html>

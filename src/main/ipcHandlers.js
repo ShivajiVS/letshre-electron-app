@@ -18,10 +18,11 @@ const logger = require("./logger");
 const appState = require("./appState");
 const { IPC } = require("../shared/constants");
 const { killSingleProcess, killAllProcesses } = require("./processKiller");
-const { lockdownForInterview, endInterview, getWindow, minimizeWindow } = require("./windowManager");
+const { lockdownForInterview, endInterview, getWindow, minimizeWindow, loadSecurityCheck } = require("./windowManager");
 const { invalidateProcessCache } = require("../detector/mirrorDetector");
-const { getCurrentInterviewUrl } = require("./protocolHandler");
+const { getCurrentInterviewUrl, setInterviewSession } = require("./protocolHandler");
 const { ensureAgent } = require("./agentManager");
+const authManager = require("./authManager");
 const startDetection = require("../detector/systemChecks");
 const { startPreProceedMonitor, stopPreProceedMonitor } = startDetection;
 
@@ -53,6 +54,40 @@ function validateProcessName(value) {
  * Registers all IPC handlers. Must be called after app is ready.
  */
 function registerIpcHandlers() {
+  // ── Auth ───────────────────────────────────────────────────────────────────
+  // Tokens are handled entirely in main (authManager); the renderer only ever
+  // receives display-safe user fields.
+
+  ipcMain.handle(IPC.AUTH_LOGIN, async (_event, creds) => {
+    const email = typeof creds?.email === "string" ? creds.email.trim() : "";
+    const password = typeof creds?.password === "string" ? creds.password : "";
+    if (!email || !password) {
+      return { success: false, message: "Email and password are required." };
+    }
+    logger.info("[ipc] auth-login for", email);
+    return await authManager.login(email, password);
+  });
+
+  ipcMain.handle(IPC.AUTH_LOGOUT, async () => {
+    logger.info("[ipc] auth-logout received");
+    return await authManager.logout();
+  });
+
+  ipcMain.handle(IPC.GET_AUTH_USER, () => authManager.getUser());
+
+  // Dashboard "Take Interview": set the interview session from the logged-in
+  // tokens, then hand off to the EXISTING security-check screen.
+  ipcMain.on(IPC.START_INTERVIEW, () => {
+    const tokens = authManager.getTokens();
+    if (!tokens) {
+      logger.warn("[ipc] start-interview rejected — not authenticated");
+      return;
+    }
+    logger.info("[ipc] start-interview — entering security check");
+    setInterviewSession(tokens.accessToken, tokens.refreshToken);
+    loadSecurityCheck();
+  });
+
   // ── App Control ──────────────────────────────────────────────────────────
 
   ipcMain.handle(IPC.GET_APP_LIST, () => ({

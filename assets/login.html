@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sign in — LetsHyre Secure Interview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./css/auth.css" />
+  </head>
+  <body>
+    <div class="auth-center">
+      <div class="auth-card">
+        <div class="brand">
+          <span class="brand__mark">L</span>
+          <div>
+            <div class="brand__name">LetsHyre</div>
+            <div class="brand__sub">Secure Interview</div>
+          </div>
+        </div>
+
+        <h1 class="auth-title">Sign in</h1>
+        <p class="auth-subtitle">Log in to access your dashboard and start your interview.</p>
+
+        <div id="auth-error" class="auth-error" role="alert"></div>
+
+        <form id="login-form" novalidate>
+          <div class="field">
+            <label class="field__label" for="email">Email</label>
+            <input
+              class="field__input"
+              id="email"
+              name="email"
+              type="email"
+              autocomplete="username"
+              placeholder="you@example.com"
+              required
+            />
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="password">Password</label>
+            <input
+              class="field__input"
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              placeholder="••••••••"
+              required
+            />
+          </div>
+
+          <button class="btn" id="submit-btn" type="submit">Sign in</button>
+        </form>
+
+        <p class="auth-foot">Your session is secured for the interview.</p>
+      </div>
+    </div>
+
+    <script src="../src/renderer/login.js"></script>
+  </body>
+</html>

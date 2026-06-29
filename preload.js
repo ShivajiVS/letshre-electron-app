@@ -25,6 +25,14 @@ const IPC = {
   QUIT_APP: "quit-app",
   RECHECK_SYSTEM: "recheck-system",
 
+  // Auth
+  AUTH_LOGIN: "auth-login",
+  AUTH_LOGOUT: "auth-logout",
+  GET_AUTH_USER: "get-auth-user",
+
+  // Dashboard → security check
+  START_INTERVIEW: "start-interview",
+
   // Preflight
   RUN_PREFLIGHT: "run-preflight-scans",
 
@@ -80,7 +88,7 @@ const IPC = {
 // Hardened IPC wrapper — only whitelisted channels are allowed
 const ALLOWED_SEND_CHANNELS = [
   IPC.QUIT_APP, IPC.RECHECK_SYSTEM, IPC.PROCEED_TO_INTERVIEW,
-  IPC.INSTALL_UPDATE, IPC.MINIMIZE_WINDOW,
+  IPC.INSTALL_UPDATE, IPC.MINIMIZE_WINDOW, IPC.START_INTERVIEW,
   IPC.INTERVIEW_COMPLETE, IPC.ACK_VIOLATION,
 ];
 
@@ -88,6 +96,7 @@ const ALLOWED_INVOKE_CHANNELS = [
   IPC.RUN_PREFLIGHT, IPC.KILL_BLOCKED_APP,
   IPC.KILL_ALL_BLOCKED_APPS, IPC.GET_AUDIT_LOG, IPC.GET_APP_LIST,
   IPC.GET_APP_VERSION, IPC.GET_UPDATE_STATE,
+  IPC.AUTH_LOGIN, IPC.AUTH_LOGOUT, IPC.GET_AUTH_USER,
 ];
 
 const ALLOWED_RECEIVE_CHANNELS = [
@@ -133,6 +142,22 @@ let _warningHandler = null;
 // ─── Exposed API ─────────────────────────────────────────────────────────────
 
 contextBridge.exposeInMainWorld("electronAPI", {
+  // ── Auth ─────────────────────────────────────────────────────────────────────
+  /**
+   * Log in. Tokens stay in the main process; this resolves with display-safe
+   * fields only. @returns {Promise<{success:boolean, message:string, user?:object}>}
+   */
+  login: (email, password) => safeInvoke(IPC.AUTH_LOGIN, { email, password }),
+
+  /** Log out (clears the main-process session). */
+  logout: () => safeInvoke(IPC.AUTH_LOGOUT),
+
+  /** Get the logged-in user's display-safe fields (or null). */
+  getAuthUser: () => safeInvoke(IPC.GET_AUTH_USER),
+
+  /** Dashboard "Take Interview": hand the session to the security check. */
+  startInterview: () => safeSend(IPC.START_INTERVIEW),
+
   // ── App control ────────────────────────────────────────────────────────────
   /** Quit the application. */
   quitApp: () => safeSend(IPC.QUIT_APP),

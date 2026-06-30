@@ -9,10 +9,6 @@
 "use strict";
 
 document.addEventListener("DOMContentLoaded", async () => {
-  const avatarEl        = document.getElementById("avatar");
-  const avatarInitials  = document.getElementById("avatar-initials");
-  const nameEl          = document.getElementById("user-name");
-  const roleEl          = document.getElementById("user-role");
   const welcomeEl       = document.getElementById("welcome");
   const takeBtn         = document.getElementById("take-interview-btn");
   const logoutBtn       = document.getElementById("logout-btn");
@@ -70,9 +66,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Populate topbar immediately from session data (no network wait)
   const displayNameFallback = sessionUser.name || sessionUser.email || "User";
   welcomeEl.textContent      = `Welcome, ${String(displayNameFallback).trim().split(/\s+/)[0]}`;
-  nameEl.textContent         = displayNameFallback;
-  roleEl.textContent         = sessionUser.role || "";
-  avatarInitials.textContent = initials(displayNameFallback);
 
   // ── Fetch candidate profile ──────────────────────────────────────────────
   let profile = null;
@@ -84,16 +77,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (profile) {
     const displayName = profile.name || displayNameFallback;
 
-    // Update topbar
-    nameEl.textContent    = displayName;
-    roleEl.textContent    = profile.role || sessionUser.role || "";
+    // Update welcome
     welcomeEl.textContent = `Welcome, ${String(displayName).trim().split(/\s+/)[0]}`;
-    avatarInitials.textContent = initials(displayName);
-
-    // Profile photo in topbar avatar
-    if (profile.profile_photo) {
-      setAvatarPhoto(avatarEl, avatarInitials, profile.profile_photo, displayName);
-    }
 
     // Profile card
     profileName.innerHTML = "";

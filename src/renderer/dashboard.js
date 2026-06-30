@@ -9,10 +9,6 @@
 "use strict";
 
 document.addEventListener("DOMContentLoaded", async () => {
-  const avatarEl        = document.getElementById("avatar");
-  const avatarInitials  = document.getElementById("avatar-initials");
-  const nameEl          = document.getElementById("user-name");
-  const roleEl          = document.getElementById("user-role");
   const welcomeEl       = document.getElementById("welcome");
   const takeBtn         = document.getElementById("take-interview-btn");
   const logoutBtn       = document.getElementById("logout-btn");
@@ -36,10 +32,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     return (parts[0][0] + (parts[1]?.[0] || "")).toUpperCase();
   }
 
-  function setAvatarPhoto(containerEl, initialsEl, src, displayName) {
+  async function setAvatarPhoto(containerEl, initialsEl, src, displayName) {
+    // Proxy the image through main process to avoid CSP blocking CDN/S3 URLs
+    let imgSrc = src;
+    try {
+      const res = await window.electronAPI?.fetchProfileImage?.(src);
+      if (res?.ok && res.dataUrl) { imgSrc = res.dataUrl; }
+    } catch { /* fall through to direct URL */ }
+
     const img = document.createElement("img");
     img.alt = displayName;
-    img.src = src;
+    img.src = imgSrc;
     img.onerror = () => {
       img.remove();
       initialsEl.textContent = initials(displayName);
@@ -63,9 +66,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Populate topbar immediately from session data (no network wait)
   const displayNameFallback = sessionUser.name || sessionUser.email || "User";
   welcomeEl.textContent      = `Welcome, ${String(displayNameFallback).trim().split(/\s+/)[0]}`;
-  nameEl.textContent         = displayNameFallback;
-  roleEl.textContent         = sessionUser.role || "";
-  avatarInitials.textContent = initials(displayNameFallback);
 
   // ── Fetch candidate profile ──────────────────────────────────────────────
   let profile = null;
@@ -77,16 +77,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (profile) {
     const displayName = profile.name || displayNameFallback;
 
-    // Update topbar
-    nameEl.textContent    = displayName;
-    roleEl.textContent    = profile.role || sessionUser.role || "";
+    // Update welcome
     welcomeEl.textContent = `Welcome, ${String(displayName).trim().split(/\s+/)[0]}`;
-    avatarInitials.textContent = initials(displayName);
-
-    // Profile photo in topbar avatar
-    if (profile.profile_photo) {
-      setAvatarPhoto(avatarEl, avatarInitials, profile.profile_photo, displayName);
-    }
 
     // Profile card
     profileName.innerHTML = "";

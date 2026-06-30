@@ -97,6 +97,9 @@ const IPC = {
   // Candidate profile (authenticated GET, returns attempts + display fields)
   GET_CANDIDATE_PROFILE: "get-candidate-profile",
 
+  // Proxy an image URL through main process (bypasses renderer CSP) → data URL
+  FETCH_PROFILE_IMAGE: "fetch-profile-image",
+
   // Permissions page: preflight Proceed → main loads permissions.html
   LOAD_PERMISSIONS_PAGE: "load-permissions-page",
 

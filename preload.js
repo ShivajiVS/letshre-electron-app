@@ -39,6 +39,9 @@ const IPC = {
   SUBMIT_VOICE_SAMPLE: "submit-voice-sample",
   SUBMIT_FACE_VERIFICATION: "submit-face-verification",
 
+  // Image proxy: main fetches CDN image → base64 data URL (bypasses renderer CSP)
+  FETCH_PROFILE_IMAGE: "fetch-profile-image",
+
   // Dashboard → security check
   START_INTERVIEW: "start-interview",
 
@@ -108,6 +111,7 @@ const ALLOWED_INVOKE_CHANNELS = [
   IPC.GET_APP_VERSION, IPC.GET_UPDATE_STATE,
   IPC.AUTH_LOGIN, IPC.AUTH_LOGOUT, IPC.GET_AUTH_USER, IPC.GET_CANDIDATE_PROFILE,
   IPC.SUBMIT_VOICE_SAMPLE, IPC.SUBMIT_FACE_VERIFICATION,
+  IPC.FETCH_PROFILE_IMAGE,
 ];
 
 const ALLOWED_RECEIVE_CHANNELS = [
@@ -186,6 +190,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   /** Permissions "Start interview": navigate to identity verification. */
   loadIdentityVerification: () => safeSend(IPC.LOAD_IDENTITY_VERIFICATION),
+
+  /**
+   * Fetch an external image via the main process and return it as a base64
+   * data URL. Use this instead of img.src = url to avoid CSP violations when
+   * the image is hosted on S3 / CDN domains not in the renderer's img-src.
+   * @param {string} url
+   * @returns {Promise<{ ok: boolean, dataUrl?: string, error?: string }>}
+   */
+  fetchProfileImage: (url) => safeInvoke(IPC.FETCH_PROFILE_IMAGE, url),
 
   /**
    * Submit a voice recording blob. The Uint8Array is sent to main which

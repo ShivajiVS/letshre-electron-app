@@ -1,0 +1,133 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   login.css — Login page styles
+   ────────────────────────────────────────────────────────────────────────── */
+
+.auth-center {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 460px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 44px 40px;
+}
+
+/* Brand / Logo */
+.brand { margin-bottom: 32px; }
+.brand__logo {
+  height: 34px;
+  width: auto;
+  display: block;
+  object-fit: contain;
+}
+
+.auth-title {
+  font-family: var(--font-serif);
+  font-size: 27px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0 0 6px;
+}
+.auth-subtitle {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0 0 28px;
+  line-height: 1.5;
+}
+
+/* Fields */
+.field { margin-bottom: 20px; }
+.field__label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  margin-bottom: 7px;
+}
+.field__input {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
+  font-size: 14.5px;
+  font-family: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--input-border);
+  border-radius: 10px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.field__input::placeholder { color: var(--faint); }
+.field__input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* Show password checkbox */
+.field__show-password {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+}
+.field__show-password input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.field__show-password label {
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Error banner */
+.auth-error {
+  display: none;
+  margin: 0 0 20px;
+  padding: 11px 14px;
+  font-size: 13.5px;
+  color: var(--danger);
+  background: var(--danger-soft);
+  border: 1px solid #ecd5cc;
+  border-radius: 10px;
+  line-height: 1.4;
+}
+.auth-error.show { display: block; }
+
+/* Submit button */
+.btn {
+  width: 100%;
+  height: 48px;
+  margin-top: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  color: #fff;
+  background: var(--accent);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.05s ease;
+}
+.btn:hover { background: var(--accent-hover); }
+.btn:active { transform: translateY(0.5px); }
+.btn:disabled { opacity: 0.65; cursor: default; transform: none; }
+
+.auth-foot {
+  margin-top: 24px;
+  font-size: 12.5px;
+  color: var(--faint);
+  text-align: center;
+}

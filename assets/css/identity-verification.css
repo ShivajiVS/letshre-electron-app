@@ -2,9 +2,6 @@
    identity-verification.css
    ──────────────────────────────────────────────────────────────────────────── */
 
-/* Critical: ensure [hidden] always wins over any display: flex/grid rule */
-[hidden] { display: none !important; }
-
 /* ── Page shell ──────────────────────────────────────────────────────────── */
 
 .iv-body {

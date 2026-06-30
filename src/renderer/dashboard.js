@@ -71,7 +71,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   let profile = null;
   try {
     const res = await window.electronAPI?.getCandidateProfile?.();
-    if (res?.success && res.data) { profile = res.data; }
+    if (res?.success && res.data) {
+      profile = res.data;
+    } else if (!res?.success) {
+      const msg = res?.message || "";
+      // Session expired mid-use (refresh also failed in main) — force re-login
+      if (msg.includes("Session expired") || msg.includes("Not authenticated")) {
+        window.location.href = "./login.html";
+        return;
+      }
+    }
   } catch { profile = null; }
 
   if (profile) {

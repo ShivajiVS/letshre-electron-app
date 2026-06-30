@@ -27,9 +27,10 @@ let isInterviewActive = false;
 /**
  * Creates and configures the main application window.
  * @param {(event: string, severity: string) => void} onViolation
+ * @param {'login'|'dashboard'} [startPage='login'] - Which page to open on launch.
  * @returns {BrowserWindow}
  */
-function createWindow(onViolation) {
+function createWindow(onViolation, startPage = "login") {
   // Prevent duplicate window creation
   if (win && !win.isDestroyed()) {
     win.focus();
@@ -55,9 +56,11 @@ function createWindow(onViolation) {
   });
 
   win.maximize();
-  // Entry point: the login screen. Security check is reached after login →
-  // dashboard → "Take Interview" (see loadSecurityCheck()).
-  win.loadFile(path.join(__dirname, "../../assets/login.html"));
+
+  const pageFiles = { login: "login.html", dashboard: "dashboard.html" };
+  const pageFile = pageFiles[startPage] || pageFiles.login;
+  win.loadFile(path.join(__dirname, "../../assets", pageFile));
+
   win.setMenuBarVisibility(false);
 
   // Clean up reference when window is destroyed

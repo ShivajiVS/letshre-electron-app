@@ -378,6 +378,46 @@ async function submitRole(role) {
   }
 }
 
+/**
+ * Verifies the restored session against the API on startup.
+ * Tries the access token; on 401 attempts a refresh; on network error
+ * grants offline grace so the user isn't forced to log in without connectivity.
+ *
+ * @returns {Promise<{ valid: boolean, offline?: boolean, reason?: string }>}
+ */
+async function verifySession() {
+  if (!session?.accessToken) {
+    return { valid: false, reason: "no-session" };
+  }
+
+  try {
+    await axios.get(`${API_BASE_URL}${CANDIDATE_PROFILE_PATH}`, {
+      timeout: 8000,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.accessToken}`,
+      },
+    });
+    logger.info("[auth] session verified on startup");
+    return { valid: true };
+  } catch (err) {
+    if (err.response?.status === 401) {
+      logger.info("[auth] access token expired on startup — attempting refresh");
+      const refreshed = await _refreshTokens();
+      if (refreshed) {
+        logger.info("[auth] tokens refreshed successfully on startup");
+        return { valid: true };
+      }
+      logger.warn("[auth] refresh failed on startup — user must re-login");
+      return { valid: false, reason: "expired" };
+    }
+    // No response = network unreachable — grant offline grace rather than
+    // forcing re-login when the user is clearly already authenticated.
+    logger.warn("[auth] verifySession: network unreachable — allowing offline startup");
+    return { valid: true, offline: true };
+  }
+}
+
 /** Display-safe user object for the renderer (no tokens). */
 function getUser() {
   return session?.user || null;
@@ -393,4 +433,4 @@ function isAuthenticated() {
   return session !== null;
 }
 
-module.exports = { init, login, logout, getUser, getTokens, isAuthenticated, getCandidateProfile, fetchProfileImage, submitVoiceSample, submitFaceVerification, submitRole };
+module.exports = { init, verifySession, login, logout, getUser, getTokens, isAuthenticated, getCandidateProfile, fetchProfileImage, submitVoiceSample, submitFaceVerification, submitRole };

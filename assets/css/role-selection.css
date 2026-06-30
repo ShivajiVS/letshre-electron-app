@@ -15,6 +15,30 @@
     var(--bg);
 }
 
+/* ── Top bar ─────────────────────────────────────────────────────────────── */
+
+.rs-topbar {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  padding: 0 36px;
+  background: rgba(255,255,255,.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.rs-topbar__logo {
+  height: 28px;
+  width: auto;
+  object-fit: contain;
+  flex-shrink: 0;
+  display: block;
+}
+
 /* ── Main ────────────────────────────────────────────────────────────────── */
 
 .rs-main {

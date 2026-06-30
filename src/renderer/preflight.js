@@ -27,13 +27,13 @@ function getDisplayName(processName) {
 
 const ICONS = {
   loading:
-    '<svg class="w-5 h-5 spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
+    '<svg class="sc-icon spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>',
   success:
-    '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
+    '<svg class="sc-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>',
   error:
-    '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
+    '<svg class="sc-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>',
 };
 
@@ -43,10 +43,8 @@ let remainingBlockedApps = 0;
 // True once preflight has fully passed — gates the live pre-proceed watcher.
 let _proceedReady = false;
 
-const PROCEED_ENABLED_CLASS =
-  "w-64 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-semibold py-3 rounded-xl shadow-lg shadow-indigo-600/35 hover:shadow-xl hover:shadow-indigo-600/40 hover:-translate-y-[1px] active:translate-y-0 transition-all duration-200 flex items-center justify-center gap-2.5 cursor-pointer whitespace-nowrap border border-indigo-500/20";
-const PROCEED_DISABLED_CLASS =
-  "w-64 bg-slate-200 text-slate-400 font-semibold py-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-2.5 cursor-not-allowed whitespace-nowrap";
+const PROCEED_ENABLED_CLASS  = "sc-btn-proceed sc-btn-proceed--enabled";
+const PROCEED_DISABLED_CLASS = "sc-btn-proceed sc-btn-proceed--disabled";
 
 // ─── DOM References ───────────────────────────────────────────────────────────────────
 
@@ -185,11 +183,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 function setLoadingState(btnProceed, btnRescan, finalStatus) {
   btnProceed.disabled = true;
-  btnProceed.className =
-    "w-64 bg-slate-100 text-slate-400 font-semibold py-3 rounded-xl border border-slate-200 transition-all flex items-center justify-center gap-3 cursor-not-allowed whitespace-nowrap";
+  btnProceed.className = "sc-btn-proceed sc-btn-proceed--loading";
   btnRescan.disabled = true;
   finalStatus.textContent = "Running security diagnostics...";
-  finalStatus.className = "text-slate-500 font-medium";
+  finalStatus.className = "sc-status";
 
   ["hdmi", "meeting", "screen", "wireless", "ai"].forEach((id) => {
     const iconEl = document.getElementById(`icon-${id}`);
@@ -198,15 +195,13 @@ function setLoadingState(btnProceed, btnRescan, finalStatus) {
 
     if (iconEl) {
       iconEl.innerHTML = ICONS.loading;
-      iconEl.className =
-        "w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200/40 flex-shrink-0 transition-all duration-300";
+      iconEl.className = "sc-card__icon";
     }
     if (badgeEl) {
-      badgeEl.className =
-        "text-[12px] font-semibold px-3 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200/30";
+      badgeEl.className = "sc-badge sc-badge--scanning";
       badgeEl.textContent = "Scanning";
     }
-    if (actionsEl) {actionsEl.innerHTML = "";}
+    if (actionsEl) { actionsEl.innerHTML = ""; }
   });
 
   // Remove stale agent card
@@ -307,13 +302,12 @@ function processResults(results, btnProceed, btnRescan, finalStatus) {
 
   if (allPassed) {
     finalStatus.textContent = "All security checks passed. You are ready to start.";
-    finalStatus.className =
-      "text-emerald-600 font-semibold text-[15px] flex items-center gap-2";
+    finalStatus.className = "sc-status sc-status--pass";
     btnProceed.disabled = false;
     btnProceed.className = PROCEED_ENABLED_CLASS;
   } else {
     finalStatus.textContent = "Please resolve the security alerts above to proceed.";
-    finalStatus.className = "text-rose-500 font-semibold text-[15px]";
+    finalStatus.className = "sc-status sc-status--fail";
     btnProceed.disabled = true;
     btnProceed.className = PROCEED_DISABLED_CLASS;
   }
@@ -327,14 +321,13 @@ function processResults(results, btnProceed, btnRescan, finalStatus) {
 function applyLiveProceedStatus(clean, apps, btnProceed, finalStatus) {
   if (clean) {
     finalStatus.textContent = "All security checks passed. You are ready to start.";
-    finalStatus.className =
-      "text-emerald-600 font-semibold text-[15px] flex items-center gap-2";
+    finalStatus.className = "sc-status sc-status--pass";
     btnProceed.disabled = false;
     btnProceed.className = PROCEED_ENABLED_CLASS;
   } else {
     const names = apps.map((p) => getDisplayName(p)).join(", ");
     finalStatus.textContent = `A blocked app was launched: ${names}. Close it to proceed.`;
-    finalStatus.className = "text-rose-500 font-semibold text-[15px]";
+    finalStatus.className = "sc-status sc-status--fail";
     btnProceed.disabled = true;
     btnProceed.className = PROCEED_DISABLED_CLASS;
   }
@@ -352,29 +345,23 @@ function updateCard(id, passed, msg, blockedApps = []) {
   if (actionsEl) {actionsEl.innerHTML = "";}
 
   if (passed) {
-    cardEl.className =
-      "glass-card rounded-2xl p-5 flex flex-col border border-slate-200/50 hover:shadow-md hover:border-slate-300/60 transition-all-custom gap-3";
+    cardEl.className = "sc-card";
     iconEl.innerHTML = ICONS.success;
-    iconEl.className =
-      "w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200/40 shadow-sm flex-shrink-0 transition-all duration-300";
+    iconEl.className = "sc-card__icon sc-card__icon--pass";
     descEl.textContent = msg;
-    descEl.className = "text-slate-500 text-[13px] font-medium mt-1";
+    descEl.className = "sc-card__desc";
     if (badgeEl) {
-      badgeEl.className =
-        "text-[12px] font-semibold px-3 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/30";
+      badgeEl.className = "sc-badge sc-badge--pass";
       badgeEl.textContent = "Ready";
     }
   } else {
-    cardEl.className =
-      "glass-card rounded-2xl p-5 flex flex-col border border-rose-200/50 shadow-sm hover:shadow-md hover:border-rose-300/60 transition-all-custom gap-3 glow-red";
+    cardEl.className = "sc-card sc-card--fail";
     iconEl.innerHTML = ICONS.error;
-    iconEl.className =
-      "w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-200/40 shadow-sm flex-shrink-0 transition-all duration-300";
+    iconEl.className = "sc-card__icon sc-card__icon--fail";
     descEl.textContent = msg;
-    descEl.className = "text-rose-700 text-[13px] font-semibold mt-1";
+    descEl.className = "sc-card__desc sc-card__desc--fail";
     if (badgeEl) {
-      badgeEl.className =
-        "text-[12px] font-semibold px-3 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200/30 pulse-soft animate-pulse";
+      badgeEl.className = "sc-badge sc-badge--fail";
       badgeEl.textContent = "Action Required";
     }
 
@@ -389,25 +376,23 @@ function updateCard(id, passed, msg, blockedApps = []) {
 function renderKillButtons(container, blockedApps) {
   blockedApps.forEach((appName) => {
     const row = document.createElement("div");
-    row.className =
-      "flex items-center justify-between bg-slate-50/50 rounded-xl px-4 py-2.5 border border-slate-200/30 mt-1.5 transition-all-custom hover:bg-slate-50";
+    row.className = "sc-kill-row";
 
     row.innerHTML = `
-      <div class="flex items-center gap-3">
-        <span class="relative flex h-2 w-2">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-          <span class="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+      <div class="sc-kill-info-wrap">
+        <span class="sc-kill-indicator">
+          <span class="sc-kill-ping"></span>
+          <span class="sc-kill-dot"></span>
         </span>
-        <div class="flex flex-col">
-          <span class="text-slate-800 text-sm font-semibold leading-none">${getDisplayName(appName)}</span>
-          <span class="text-slate-400 text-[10px] font-medium mt-1.5">${appName}</span>
+        <div class="sc-kill-info">
+          <span class="sc-kill-name">${getDisplayName(appName)}</span>
+          <span class="sc-kill-process">${appName}</span>
         </div>
       </div>`;
 
     const btn = document.createElement("button");
-    btn.className =
-      "bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 font-semibold text-xs py-1.5 px-3.5 rounded-xl border border-rose-200/50 transition-all-custom active:scale-95 flex items-center gap-1.5 whitespace-nowrap shadow-sm";
-    btn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Close ${getDisplayName(appName)}`;
+    btn.className = "sc-kill-btn";
+    btn.innerHTML = `<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Close ${getDisplayName(appName)}`;
     btn.addEventListener("click", () => handleKillApp(btn, appName, row));
 
     row.appendChild(btn);
@@ -416,9 +401,8 @@ function renderKillButtons(container, blockedApps) {
 
   if (blockedApps.length > 1) {
     const closeAllBtn = document.createElement("button");
-    closeAllBtn.className =
-      "w-full bg-gradient-to-r from-slate-800 to-slate-900 hover:from-indigo-600 hover:to-indigo-700 text-white font-semibold text-xs py-2.5 px-4 rounded-xl transition-all-custom active:scale-[0.98] flex items-center justify-center gap-2 mt-2 shadow-sm";
-    closeAllBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Close All & Re-scan`;
+    closeAllBtn.className = "sc-kill-all-btn";
+    closeAllBtn.innerHTML = `<svg class="sc-icon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Close All & Re-scan`;
     closeAllBtn.addEventListener("click", () =>
       handleKillAll(closeAllBtn, blockedApps)
     );
@@ -430,36 +414,32 @@ function renderKillButtons(container, blockedApps) {
 
 async function handleKillApp(btn, processName, row) {
   btn.disabled = true;
-  btn.className =
-    "bg-amber-50 text-amber-600 font-semibold text-xs py-2 px-3.5 rounded-xl border border-amber-200/60 flex items-center gap-1.5 whitespace-nowrap cursor-wait shadow-sm";
-  btn.innerHTML = `<svg class="w-3.5 h-3.5 spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Closing...`;
+  btn.className = "sc-kill-btn sc-kill-btn--killing";
+  btn.innerHTML = `<svg class="sc-icon-xs spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Closing...`;
 
   try {
     const result = await window.electronAPI.killProcess(processName);
 
     if (result.success) {
-      btn.className =
-        "bg-emerald-50 text-emerald-700 font-semibold text-xs py-1.5 px-3.5 rounded-xl border border-emerald-200/60 flex items-center gap-1.5 whitespace-nowrap shadow-sm";
-      btn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg> Closed`;
+      btn.className = "sc-kill-btn sc-kill-btn--killed";
+      btn.innerHTML = `<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg> Closed`;
 
-      row.classList.add("opacity-50", "pointer-events-none");
-      row.querySelector(".animate-ping")?.remove();
-      const dot = row.querySelector(".bg-rose-500");
-      if (dot) {dot.className = "relative inline-flex rounded-full h-2 w-2 bg-slate-400";}
+      row.classList.add("sc-kill-row--closed");
+      row.querySelector(".sc-kill-ping")?.remove();
+      const dot = row.querySelector(".sc-kill-dot");
+      if (dot) { dot.className = "sc-kill-dot sc-kill-dot--closed"; }
 
       remainingBlockedApps = Math.max(0, remainingBlockedApps - 1);
       if (remainingBlockedApps === 0) {
         setTimeout(() => document.getElementById("btn-rescan")?.click(), 2000);
       }
     } else {
-      btn.className =
-        "bg-rose-50 text-rose-600 font-semibold text-xs py-2 px-3.5 rounded-xl border border-rose-200/60 flex items-center gap-1.5 whitespace-nowrap shadow-sm";
+      btn.className = "sc-kill-btn sc-kill-btn--failed";
       btn.innerHTML = `❌ Failed — close ${getDisplayName(processName)} manually`;
       btn.disabled = false;
     }
   } catch {
-    btn.className =
-      "bg-rose-50 text-rose-600 font-semibold text-xs py-2 px-3.5 rounded-xl border border-rose-200/60 flex items-center gap-1.5 whitespace-nowrap shadow-sm";
+    btn.className = "sc-kill-btn sc-kill-btn--failed";
     btn.innerHTML = `❌ Error — close ${getDisplayName(processName)} manually`;
     btn.disabled = false;
   }
@@ -467,18 +447,15 @@ async function handleKillApp(btn, processName, row) {
 
 async function handleKillAll(btn, processNames) {
   btn.disabled = true;
-  btn.className =
-    "w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white font-semibold text-sm py-3 px-4 rounded-xl flex items-center justify-center gap-2 mt-3 shadow-md cursor-wait";
-  btn.innerHTML = `<svg class="w-4 h-4 spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Closing all apps...`;
+  btn.className = "sc-kill-all-btn sc-kill-all-btn--killing";
+  btn.innerHTML = `<svg class="sc-icon-sm spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Closing all apps...`;
 
   try {
     await window.electronAPI.killAllProcesses(processNames);
-    btn.className =
-      "w-full bg-gradient-to-r from-emerald-600 to-emerald-700 text-white font-semibold text-sm py-3 px-4 rounded-xl flex items-center justify-center gap-2 mt-3 shadow-md";
+    btn.className = "sc-kill-all-btn sc-kill-all-btn--success";
     btn.innerHTML = "✅ All apps closed — re-scanning...";
   } catch {
-    btn.className =
-      "w-full bg-gradient-to-r from-rose-500 to-rose-600 text-white font-semibold text-sm py-3 px-4 rounded-xl flex items-center justify-center gap-2 mt-3 shadow-md";
+    btn.className = "sc-kill-all-btn sc-kill-all-btn--failed";
     btn.innerHTML = "❌ Some apps failed to close";
   }
 
@@ -489,33 +466,29 @@ async function handleKillAll(btn, processNames) {
 
 function renderAgentCard(agent) {
   document.getElementById("card-agent")?.remove();
-  const container = document.querySelector(".flex.flex-col.gap-4");
-  if (!container) {return true;}
+  const container = document.querySelector(".sc-cards");
+  if (!container) { return true; }
 
   const card = document.createElement("div");
   card.id = "card-agent";
 
   if (!agent || !agent.alive) {
-    // Agent is REQUIRED — without it the deep behavioral scan (AI tools,
-    // overlays, network, duplicate displays) cannot run. Render as a blocking
-    // error, not an amber warning, so it's clear Proceed stays disabled.
-    card.className =
-      "glass-card rounded-2xl p-5 flex flex-col border border-rose-200/50 shadow-sm hover:shadow-md transition-all-custom gap-3 glow-red";
+    card.className = "sc-card sc-card--fail";
     card.innerHTML = `
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-4">
-          <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-200/40 flex-shrink-0">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="sc-card__row">
+        <div class="sc-card__row-left">
+          <div class="sc-card__icon sc-card__icon--fail">
+            <svg class="sc-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
                 d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
             </svg>
           </div>
-          <div>
-            <h3 class="font-bold text-slate-900 text-[15.5px] leading-tight">Deep Scan Agent</h3>
-            <p class="text-rose-700 text-[13px] font-semibold mt-1">Security agent failed to start — it is required to continue. Click Re-scan to retry.</p>
+          <div class="sc-card__body">
+            <h3 class="sc-card__title">Deep Scan Agent</h3>
+            <p class="sc-card__desc sc-card__desc--fail">Security agent failed to start — it is required to continue. Click Re-scan to retry.</p>
           </div>
         </div>
-        <div class="text-[12px] font-semibold px-3 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200/30 pulse-soft animate-pulse">Required</div>
+        <div class="sc-badge sc-badge--fail">Required</div>
       </div>`;
     container.appendChild(card);
     return false;
@@ -524,73 +497,63 @@ function renderAgentCard(agent) {
   const threats = agent.status?.threats || [];
 
   if (threats.length === 0) {
-    card.className =
-      "glass-card rounded-2xl p-5 flex flex-col border border-slate-200/50 hover:shadow-md transition-all-custom gap-3";
+    card.className = "sc-card";
     card.innerHTML = `
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-4">
-          <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200/40 flex-shrink-0">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="sc-card__row">
+        <div class="sc-card__row-left">
+          <div class="sc-card__icon sc-card__icon--pass">
+            <svg class="sc-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
             </svg>
           </div>
-          <div>
-            <h3 class="font-bold text-slate-900 text-[15.5px] leading-tight">Deep Scan Agent</h3>
-            <p class="text-slate-500 text-[13px] font-medium mt-1">No AI tools, network anomalies, or automation frameworks detected.</p>
+          <div class="sc-card__body">
+            <h3 class="sc-card__title">Deep Scan Agent</h3>
+            <p class="sc-card__desc">No AI tools, network anomalies, or automation frameworks detected.</p>
           </div>
         </div>
-        <div class="text-[12px] font-semibold px-3 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/30">Ready</div>
+        <div class="sc-badge sc-badge--pass">Ready</div>
       </div>`;
     container.appendChild(card);
     return true;
   }
 
-  card.className =
-    "glass-card rounded-2xl p-5 flex flex-col border border-rose-200/50 shadow-sm hover:shadow-md transition-all-custom gap-3";
+  card.className = "sc-card sc-card--fail";
 
   const threatRows = threats
     .map(
       (t) => `
-    <div class="flex items-start gap-3 bg-slate-50/50 rounded-xl px-4 py-2.5 border border-slate-200/30 mt-1.5">
-      <span class="relative flex h-2 w-2 mt-1.5 flex-shrink-0">
-        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-        <span class="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+    <div class="sc-threat-row">
+      <span class="sc-kill-indicator">
+        <span class="sc-kill-ping"></span>
+        <span class="sc-kill-dot"></span>
       </span>
-      <div>
-        <span class="text-slate-800 text-sm font-semibold">
-          ${t.type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-        </span>
-        <p class="text-slate-500 text-[12px] mt-0.5">${t.detail}</p>
+      <div class="sc-threat-content">
+        <span class="sc-threat-title">${t.type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</span>
+        <p class="sc-threat-detail">${t.detail}</p>
       </div>
-      <span class="ml-auto text-[11px] font-bold px-2 py-0.5 rounded-full ${
-        t.severity === "HIGH"
-          ? "bg-rose-50 text-rose-700 border border-rose-200/40"
-          : "bg-amber-50 text-amber-700 border border-amber-200/40"
-      }">${t.severity}</span>
+      <span class="sc-threat-badge sc-threat-badge--${t.severity === "HIGH" ? "high" : "medium"}">${t.severity}</span>
     </div>`
     )
     .join("");
 
   card.innerHTML = `
-    <div class="flex items-center justify-between">
-      <div class="flex items-center gap-4">
-        <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-200/40 flex-shrink-0">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div class="sc-card__row">
+      <div class="sc-card__row-left">
+        <div class="sc-card__icon sc-card__icon--fail">
+          <svg class="sc-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
           </svg>
         </div>
-        <div>
-          <h3 class="font-bold text-slate-900 text-[15.5px] leading-tight">Deep Scan Agent</h3>
-          <p class="text-rose-700 text-[13px] font-semibold mt-1">
+        <div class="sc-card__body">
+          <h3 class="sc-card__title">Deep Scan Agent</h3>
+          <p class="sc-card__desc sc-card__desc--fail">
             ${threats.length} behavioral threat${threats.length > 1 ? "s" : ""} detected. Close the applications below and rescan.
           </p>
         </div>
       </div>
-      <div class="text-[12px] font-semibold px-3 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200/30 pulse-soft animate-pulse">
-        Action Required
-      </div>
+      <div class="sc-badge sc-badge--fail">Action Required</div>
     </div>
-    <div class="flex flex-col gap-1 mt-1">${threatRows}</div>`;
+    <div class="sc-card__threats">${threatRows}</div>`;
 
   container.appendChild(card);
   return false;
@@ -619,7 +582,7 @@ function showScanError(finalStatus, btnRescan, message) {
   btnRescan.disabled = false;
   let seconds = 5;
 
-  finalStatus.className = "text-amber-600 font-semibold text-[14.5px]";
+  finalStatus.className = "sc-status sc-status--warn";
   finalStatus.textContent = `Diagnostics failed: ${message} — retrying in ${seconds}s…`;
 
   const timer = setInterval(() => {

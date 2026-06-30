@@ -3,318 +3,191 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- Tailwind CSS — bundled locally (no CDN dependency) -->
-    <link rel="stylesheet" href="./css/tailwind.css" />
-    <!-- Inter font -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <!-- Preflight styles (extracted from inline) -->
+    <link rel="stylesheet" href="./css/base.css" />
+    <link rel="stylesheet" href="./css/components.css" />
     <link rel="stylesheet" href="./css/preflight.css" />
   </head>
-  <body class="min-h-screen w-screen overflow-y-auto text-slate-900 flex flex-col relative z-0">
-    <!-- Ambient Gradient Background Blobs -->
-    <div
-      class="fixed top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-400/10 blur-[130px] pointer-events-none -z-10 animate-blob"
-    ></div>
-    <div
-      class="fixed bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-blue-400/10 blur-[140px] pointer-events-none -z-10 animate-blob"
-      style="animation-delay: 3s"
-    ></div>
+  <body class="sc-body">
+
+    <!-- Background blobs -->
+    <div class="sc-blob sc-blob--1"></div>
+    <div class="sc-blob sc-blob--2"></div>
 
     <!-- Header -->
-    <header class="px-8 py-8 pb-4 w-full max-w-5xl mx-auto flex items-center gap-5 animate-fade-in">
-      <!-- Back to dashboard -->
+    <header class="sc-header animate-fade-in">
       <button
         id="btn-back-dashboard"
         onclick="window.electronAPI?.loadDashboard?.()"
-        class="flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-800 bg-white/70 hover:bg-white border border-slate-200 rounded-xl px-3 py-2 transition-all duration-150 flex-shrink-0"
+        class="btn-back-nav"
       >
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <svg class="back-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
         </svg>
         Back
       </button>
 
-      <div
-        class="w-12 h-12 bg-gradient-to-tr from-indigo-500 to-violet-600 rounded-2xl flex items-center justify-center shadow-md shadow-indigo-600/20 border border-indigo-400/20 flex-shrink-0"
-      >
-        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-          ></path>
+      <div class="sc-header__icon">
+        <svg class="sc-icon-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z">
+          </path>
         </svg>
       </div>
-      <div>
-        <h1 class="text-2xl font-extrabold text-slate-950 tracking-tight flex items-center gap-2">
+
+      <div class="sc-header__titles">
+        <h1 class="sc-header__title">
           Security Checks
-          <span
-            class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/40"
-            >Secure Session</span
-          >
+          <span class="sc-header__badge">Secure Session</span>
         </h1>
-        <p class="text-slate-500 font-medium text-sm mt-0.5">
-          Environment Compliance Required:Close all unauthorized screens, apps, or browsers to
-          proceed
+        <p class="sc-header__sub">
+          Environment Compliance Required — close all unauthorized screens, apps, or browsers to proceed
         </p>
       </div>
     </header>
 
     <!-- Main Content -->
-    <main
-      class="w-full max-w-5xl mx-auto mt-10 px-8 pb-10 flex flex-col gap-6 animate-fade-in"
-      style="animation-delay: 0.1s; opacity: 0"
-    >
-      <!-- Cards Stack (Vertical List Layout) -->
-      <div class="flex flex-col gap-4">
+    <main class="sc-main animate-fade-in" style="animation-delay: 0.1s; opacity: 0">
+
+      <!-- Cards -->
+      <div class="sc-cards">
+
         <!-- Card 1: HDMI Display -->
-        <div
-          id="card-hdmi"
-          class="glass-card rounded-2xl p-5 flex flex-col border border-slate-200/50 hover:shadow-md hover:border-slate-300/60 transition-all-custom gap-3"
-        >
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-4">
-              <div
-                id="icon-hdmi"
-                class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200/40 flex-shrink-0 transition-all duration-300"
-              >
-                <svg class="w-5 h-5 spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  ></path>
+        <div id="card-hdmi" class="sc-card">
+          <div class="sc-card__row">
+            <div class="sc-card__row-left">
+              <div id="icon-hdmi" class="sc-card__icon">
+                <svg class="sc-icon spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                  </path>
                 </svg>
               </div>
-              <div>
-                <h3 class="font-bold text-slate-900 text-[15.5px] leading-tight">
-                  HDMI Connection
-                </h3>
-                <p id="desc-hdmi" class="text-slate-500 text-[13px] font-medium mt-1">
-                  Scanning for external display connections...
-                </p>
+              <div class="sc-card__body">
+                <h3 class="sc-card__title">HDMI Connection</h3>
+                <p id="desc-hdmi" class="sc-card__desc">Scanning for external display connections...</p>
               </div>
             </div>
-            <div
-              id="badge-hdmi"
-              class="text-[12px] font-semibold px-3 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/30"
-            >
-              Scanning
-            </div>
+            <div id="badge-hdmi" class="sc-badge sc-badge--scanning">Scanning</div>
           </div>
-          <div id="actions-hdmi" class="flex flex-col gap-2 empty:hidden mt-1"></div>
+          <div id="actions-hdmi" class="sc-card__actions"></div>
         </div>
 
         <!-- Card 2: Meeting Apps -->
-        <div
-          id="card-meeting"
-          class="glass-card rounded-2xl p-5 flex flex-col border border-slate-200/50 hover:shadow-md hover:border-slate-300/60 transition-all-custom gap-3"
-        >
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-4">
-              <div
-                id="icon-meeting"
-                class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200/40 flex-shrink-0 transition-all duration-300"
-              >
-                <svg class="w-5 h-5 spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  ></path>
+        <div id="card-meeting" class="sc-card">
+          <div class="sc-card__row">
+            <div class="sc-card__row-left">
+              <div id="icon-meeting" class="sc-card__icon">
+                <svg class="sc-icon spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                  </path>
                 </svg>
               </div>
-              <div>
-                <h3 class="font-bold text-slate-900 text-[15.5px] leading-tight">
-                  Active Meetings
-                </h3>
-                <p id="desc-meeting" class="text-slate-500 text-[13px] font-medium mt-1">
-                  Scanning for active communication software...
-                </p>
+              <div class="sc-card__body">
+                <h3 class="sc-card__title">Active Meetings</h3>
+                <p id="desc-meeting" class="sc-card__desc">Scanning for active communication software...</p>
               </div>
             </div>
-            <div
-              id="badge-meeting"
-              class="text-[12px] font-semibold px-3 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/30"
-            >
-              Scanning
-            </div>
+            <div id="badge-meeting" class="sc-badge sc-badge--scanning">Scanning</div>
           </div>
-          <div id="actions-meeting" class="flex flex-col gap-2 empty:hidden mt-1"></div>
+          <div id="actions-meeting" class="sc-card__actions"></div>
         </div>
 
-        <!-- Card 3: Screen Sharing / Capturing -->
-        <div
-          id="card-screen"
-          class="glass-card rounded-2xl p-5 flex flex-col border border-slate-200/50 hover:shadow-md hover:border-slate-300/60 transition-all-custom gap-3"
-        >
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-4">
-              <div
-                id="icon-screen"
-                class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200/40 flex-shrink-0 transition-all duration-300"
-              >
-                <svg class="w-5 h-5 spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  ></path>
+        <!-- Card 3: Screen Sharing -->
+        <div id="card-screen" class="sc-card">
+          <div class="sc-card__row">
+            <div class="sc-card__row-left">
+              <div id="icon-screen" class="sc-card__icon">
+                <svg class="sc-icon spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                  </path>
                 </svg>
               </div>
-              <div>
-                <h3 class="font-bold text-slate-900 text-[15.5px] leading-tight">
-                  Screen Capture & Recording
-                </h3>
-                <p id="desc-screen" class="text-slate-500 text-[13px] font-medium mt-1">
-                  Scanning for recording or streaming applications...
-                </p>
+              <div class="sc-card__body">
+                <h3 class="sc-card__title">Screen Capture &amp; Recording</h3>
+                <p id="desc-screen" class="sc-card__desc">Scanning for recording or streaming applications...</p>
               </div>
             </div>
-            <div
-              id="badge-screen"
-              class="text-[12px] font-semibold px-3 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/30"
-            >
-              Scanning
-            </div>
+            <div id="badge-screen" class="sc-badge sc-badge--scanning">Scanning</div>
           </div>
-          <div id="actions-screen" class="flex flex-col gap-2 empty:hidden mt-1"></div>
+          <div id="actions-screen" class="sc-card__actions"></div>
         </div>
 
-        <!-- Card 4: Casting / Mirroring -->
-        <div
-          id="card-wireless"
-          class="glass-card rounded-2xl p-5 flex flex-col border border-slate-200/50 hover:shadow-md hover:border-slate-300/60 transition-all-custom gap-3"
-        >
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-4">
-              <div
-                id="icon-wireless"
-                class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200/40 flex-shrink-0 transition-all duration-300"
-              >
-                <svg class="w-5 h-5 spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  ></path>
+        <!-- Card 4: Wireless Mirroring -->
+        <div id="card-wireless" class="sc-card">
+          <div class="sc-card__row">
+            <div class="sc-card__row-left">
+              <div id="icon-wireless" class="sc-card__icon">
+                <svg class="sc-icon spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                  </path>
                 </svg>
               </div>
-              <div>
-                <h3 class="font-bold text-slate-900 text-[15.5px] leading-tight">
-                  Wireless Mirroring & Browsers
-                </h3>
-                <p id="desc-wireless" class="text-slate-500 text-[13px] font-medium mt-1">
-                  Scanning for wireless casting or browser activity...
-                </p>
+              <div class="sc-card__body">
+                <h3 class="sc-card__title">Wireless Mirroring &amp; Browsers</h3>
+                <p id="desc-wireless" class="sc-card__desc">Scanning for wireless casting or browser activity...</p>
               </div>
             </div>
-            <div
-              id="badge-wireless"
-              class="text-[12px] font-semibold px-3 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/30"
-            >
-              Scanning
-            </div>
+            <div id="badge-wireless" class="sc-badge sc-badge--scanning">Scanning</div>
           </div>
-          <div id="actions-wireless" class="flex flex-col gap-2 empty:hidden mt-1"></div>
+          <div id="actions-wireless" class="sc-card__actions"></div>
         </div>
 
         <!-- Card 5: AI Assistants -->
-        <div
-          id="card-ai"
-          class="glass-card rounded-2xl p-5 flex flex-col border border-slate-200/50 hover:shadow-md hover:border-slate-300/60 transition-all-custom gap-3"
-        >
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-4">
-              <div
-                id="icon-ai"
-                class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200/40 flex-shrink-0 transition-all duration-300"
-              >
-                <svg class="w-5 h-5 spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  ></path>
+        <div id="card-ai" class="sc-card">
+          <div class="sc-card__row">
+            <div class="sc-card__row-left">
+              <div id="icon-ai" class="sc-card__icon">
+                <svg class="sc-icon spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                  </path>
                 </svg>
               </div>
-              <div>
-                <h3 class="font-bold text-slate-900 text-[15.5px] leading-tight">
-                  AI Assistant Detection
-                </h3>
-                <p id="desc-ai" class="text-slate-500 text-[13px] font-medium mt-1">
-                  Scanning for interview copilots and cheating tools...
-                </p>
+              <div class="sc-card__body">
+                <h3 class="sc-card__title">AI Assistant Detection</h3>
+                <p id="desc-ai" class="sc-card__desc">Scanning for interview copilots and cheating tools...</p>
               </div>
             </div>
-            <div
-              id="badge-ai"
-              class="text-[12px] font-semibold px-3 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/30"
-            >
-              Scanning
-            </div>
+            <div id="badge-ai" class="sc-badge sc-badge--scanning">Scanning</div>
           </div>
-          <div id="actions-ai" class="flex flex-col gap-2 empty:hidden mt-1"></div>
+          <div id="actions-ai" class="sc-card__actions"></div>
         </div>
-      </div>
 
-      <!-- Footer Actions -->
-      <div class="flex flex-col items-center mt-6 gap-3 border-t border-slate-200/60 pt-5">
-        <p id="final-status" class="text-slate-500 font-medium text-[14.5px]">
-          Running security diagnostics...
-        </p>
-        <div class="flex flex-row gap-4 justify-center">
-          <button
-            id="btn-rescan"
-            class="w-64 bg-white hover:bg-slate-50 text-slate-700 font-semibold py-3 rounded-xl border border-slate-200 hover:border-slate-300 transition-all shadow-sm active:scale-[0.98] flex items-center justify-center gap-2.5 whitespace-nowrap"
-          >
-            <svg
-              class="w-5 h-5 text-slate-500"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2.5"
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              ></path>
+      </div><!-- /sc-cards -->
+
+      <!-- Footer -->
+      <div class="sc-footer">
+        <p id="final-status" class="sc-status">Running security diagnostics...</p>
+        <div class="sc-footer__buttons">
+          <button id="btn-rescan" class="sc-btn-rescan">
+            <svg class="sc-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+              </path>
             </svg>
             Rescan
           </button>
-          <button
-            id="btn-proceed"
-            disabled
-            class="w-64 bg-slate-200 text-slate-400 font-semibold py-3 rounded-xl transition-all flex items-center justify-center gap-2.5 cursor-not-allowed whitespace-nowrap"
-          >
+          <button id="btn-proceed" disabled class="sc-btn-proceed sc-btn-proceed--disabled">
             Proceed to Next
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2.5"
-                d="M9 5l7 7-7 7"
-              ></path>
+            <svg class="sc-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path>
             </svg>
           </button>
         </div>
       </div>
+
     </main>
 
     <div id="app-version" class="app-version"></div>
-
     <script src="../src/renderer/preflight.js"></script>
   </body>
 </html>

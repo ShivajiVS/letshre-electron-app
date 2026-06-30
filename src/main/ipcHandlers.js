@@ -18,7 +18,7 @@ const logger = require("./logger");
 const appState = require("./appState");
 const { IPC } = require("../shared/constants");
 const { killSingleProcess, killAllProcesses } = require("./processKiller");
-const { lockdownForInterview, endInterview, getWindow, minimizeWindow, loadSecurityCheck, loadPermissionsPage, loadIdentityVerificationPage, loadRoleSelectionPage } = require("./windowManager");
+const { lockdownForInterview, endInterview, getWindow, minimizeWindow, loadDashboard, loadSecurityCheck, loadPermissionsPage, loadIdentityVerificationPage, loadRoleSelectionPage } = require("./windowManager");
 const { invalidateProcessCache } = require("../detector/mirrorDetector");
 const { getCurrentInterviewUrl, setInterviewSession } = require("./protocolHandler");
 const { ensureAgent } = require("./agentManager");
@@ -121,6 +121,19 @@ function registerIpcHandlers() {
   ipcMain.handle(IPC.SUBMIT_FACE_VERIFICATION, async (_event, dataUrl) => {
     logger.info("[ipc] submit-face-verification");
     return await authManager.submitFaceVerification(dataUrl);
+  });
+
+  // Back navigation
+  ipcMain.on(IPC.LOAD_DASHBOARD, () => {
+    logger.info("[ipc] load-dashboard (back nav)");
+    stopPreProceedMonitor();
+    loadDashboard();
+  });
+
+  ipcMain.on(IPC.LOAD_SECURITY_CHECK, () => {
+    logger.info("[ipc] load-security-check (back nav)");
+    stopPreProceedMonitor();
+    loadSecurityCheck();
   });
 
   // Role selection page navigation.

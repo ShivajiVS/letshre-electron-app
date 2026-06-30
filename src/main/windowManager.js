@@ -331,6 +331,16 @@ function loadIdentityVerificationPage() {
 }
 
 /**
+ * Navigates back to the dashboard. Used by the back button on the security
+ * check page — does not clear the session, just shows the dashboard again.
+ */
+function loadDashboard() {
+  if (win && !win.isDestroyed()) {
+    win.loadFile(path.join(__dirname, "../../assets/dashboard.html"));
+  }
+}
+
+/**
  * Navigates to the role selection page. Called after identity verification
  * passes — candidate confirms or enters their role before interview lockdown.
  */
@@ -345,6 +355,7 @@ module.exports = {
   lockdownForInterview,
   endInterview,
   enforceViolation,
+  loadDashboard,
   loadSecurityCheck,
   loadPermissionsPage,
   loadIdentityVerificationPage,

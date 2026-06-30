@@ -1,0 +1,480 @@
+/* ────────────────────────────────────────────────────────────────────────────
+   role-selection.css
+   ──────────────────────────────────────────────────────────────────────────── */
+
+[hidden] { display: none !important; }
+
+/* ── Page shell ──────────────────────────────────────────────────────────── */
+
+.rs-body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -8%, rgba(0,85,255,.07) 0%, transparent 65%),
+    var(--bg);
+}
+
+/* ── Main ────────────────────────────────────────────────────────────────── */
+
+.rs-main {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 36px 24px 56px;
+}
+
+/* ── Card ────────────────────────────────────────────────────────────────── */
+
+.rs-card {
+  width: 100%;
+  max-width: 1000px;
+  background: #fff;
+  border: 1.5px solid var(--border);
+  border-radius: 22px;
+  box-shadow:
+    0 1px 2px rgba(26,26,25,.04),
+    0 24px 64px -12px rgba(26,26,25,.12);
+  overflow: hidden;
+  animation: rsCardIn .4s ease both;
+}
+
+@keyframes rsCardIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Card header ─────────────────────────────────────────────────────────── */
+
+.rs-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 40px 22px;
+  border-bottom: 1px solid var(--border);
+  gap: 24px;
+  flex-wrap: wrap;
+  background: linear-gradient(180deg, #fdfcf9 0%, #fff 100%);
+}
+
+.rs-card__title {
+  font-family: var(--font-serif);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -.03em;
+  color: var(--ink);
+  margin: 0 0 5px;
+  text-transform: uppercase;
+  font-style: italic;
+}
+.rs-card__title-accent { color: var(--accent); }
+
+.rs-card__title-bar {
+  height: 3px;
+  width: 56px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--ink) 0%, var(--accent) 100%);
+}
+
+/* ── Sub-step pills ──────────────────────────────────────────────────────── */
+
+.rs-steps {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg);
+  padding: 10px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+}
+
+.rs-step { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+
+.rs-step__dot {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+  background: var(--border); color: var(--faint);
+  transition: background .3s, color .3s, box-shadow .3s, transform .25s;
+}
+.rs-step__label {
+  font-size: 11px; font-weight: 600; color: var(--faint);
+  white-space: nowrap; transition: color .3s;
+}
+.rs-step__line {
+  width: 24px; height: 2px;
+  background: var(--border); border-radius: 1px;
+  margin: 0 2px; margin-bottom: 16px;
+  flex-shrink: 0; transition: background .3s;
+}
+.rs-step__line--done { background: #16a34a; }
+
+.rs-step--active .rs-step__dot {
+  background: var(--accent); color: #fff;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  transform: scale(1.1);
+}
+.rs-step--active .rs-step__label { color: var(--accent); }
+.rs-step--done   .rs-step__dot  { background: #16a34a; color: #fff; }
+.rs-step--done   .rs-step__label { color: #16a34a; }
+
+/* ── Body split ──────────────────────────────────────────────────────────── */
+
+.rs-body-split {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: 480px;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+
+.rs-sidebar {
+  padding: 40px 24px 40px 40px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  background: #faf9f5;
+}
+
+.rs-sidebar__icon-wrap {
+  width: 100px; height: 100px;
+  border-radius: 26px;
+  background: var(--accent-soft);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 24px;
+  flex-shrink: 0;
+  box-shadow: 0 4px 20px rgba(0,85,255,.12);
+}
+
+.rs-sidebar__title {
+  font-family: var(--font-serif);
+  font-size: 15px; font-weight: 600;
+  color: var(--ink); margin: 0 0 10px;
+}
+
+.rs-sidebar__desc {
+  font-size: 12.5px; color: var(--muted);
+  line-height: 1.65; margin: 0;
+}
+
+.rs-sidebar__dots {
+  display: flex; gap: 6px;
+  margin-top: auto; padding-top: 32px;
+}
+.rs-sidebar__dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--border);
+  transition: width .3s, background .3s, border-radius .3s;
+}
+.rs-sidebar__dot--active {
+  width: 24px; border-radius: 4px;
+  background: var(--accent);
+}
+
+/* ── Content ─────────────────────────────────────────────────────────────── */
+
+.rs-content {
+  padding: 44px 52px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.rs-panel { animation: rsFadeUp .4s ease both; }
+
+@keyframes rsFadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   CONFIRM STEP
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.rs-confirm__skeleton-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 24px 0;
+}
+
+.rs-confirm__badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.rs-confirm__badge-icon {
+  width: 68px; height: 68px;
+  border-radius: 18px;
+  background: var(--accent-soft);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 4px;
+  box-shadow: 0 4px 14px rgba(0,85,255,.14);
+}
+
+.rs-confirm__badge-label {
+  font-size: 11px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--faint); margin: 0;
+}
+
+.rs-confirm__role-name {
+  font-size: 30px; font-weight: 800;
+  color: var(--accent); letter-spacing: -.02em; margin: 0;
+}
+
+.rs-confirm__role-bar {
+  height: 3px; width: 56px; border-radius: 2px;
+  background: linear-gradient(90deg, var(--ink), var(--accent));
+}
+
+.rs-confirm__question {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 24px;
+  text-align: center;
+  margin-bottom: 28px;
+  font-size: 15px;
+  color: var(--ink);
+  line-height: 1.6;
+}
+.rs-confirm__question strong { color: var(--accent); }
+
+.rs-confirm__actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   INPUT / CLARIFY / SKILLS — shared panel header
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.rs-panel__header { margin-bottom: 28px; }
+
+.rs-panel__eyebrow {
+  font-size: 11px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--accent); margin: 0 0 6px;
+}
+
+.rs-panel__title {
+  font-size: 24px; font-weight: 800;
+  color: var(--ink); letter-spacing: -.02em;
+  margin: 0 0 6px;
+}
+.rs-panel__title-accent { color: var(--accent); }
+
+.rs-panel__sub {
+  font-size: 14px; color: var(--muted);
+  margin: 0; line-height: 1.55;
+}
+
+/* ── Input step ──────────────────────────────────────────────────────────── */
+
+.rs-input-label {
+  display: block;
+  font-size: 13px; font-weight: 600;
+  color: var(--ink); margin-bottom: 8px;
+}
+
+.rs-input-wrap { margin-bottom: 24px; }
+
+.rs-input-field {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 18px;
+  border: 2px solid var(--input-border);
+  border-radius: 14px;
+  background: #fff;
+  transition: border-color .2s, box-shadow .2s, background .2s;
+}
+.rs-input-field:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  background: #f8fbff;
+}
+.rs-input-icon { color: var(--faint); flex-shrink: 0; }
+
+.rs-input-field input {
+  flex: 1; border: none; outline: none;
+  background: transparent;
+  font-size: 15px; font-weight: 600;
+  font-family: inherit; color: var(--ink);
+}
+.rs-input-field input::placeholder { color: var(--faint); font-weight: 400; }
+
+/* ── Clarification step ──────────────────────────────────────────────────── */
+
+.rs-role-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 24px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.rs-role-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  cursor: pointer;
+  background: #fff;
+  transition: border-color .2s, box-shadow .2s, background .2s;
+  animation: rsFadeUp .3s ease both;
+}
+.rs-role-card:hover { border-color: var(--accent); background: var(--accent-soft); }
+.rs-role-card--selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.rs-role-card__radio {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid var(--border);
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color .2s, background .2s;
+}
+.rs-role-card--selected .rs-role-card__radio {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.rs-role-card--selected .rs-role-card__radio::after {
+  content: '';
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.rs-role-card__label { font-size: 14px; font-weight: 600; color: var(--ink); }
+
+/* ── Skills step ─────────────────────────────────────────────────────────── */
+
+.rs-skills-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 28px;
+  min-height: 40px;
+}
+
+.rs-skill-chip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  background: var(--accent-soft);
+  border: 1px solid rgba(0,85,255,.18);
+  border-radius: 20px;
+  animation: rsFadeUp .35s ease both;
+}
+.rs-skill-chip svg { flex-shrink: 0; color: var(--accent); }
+.rs-skill-chip span { font-size: 13px; font-weight: 600; color: var(--accent); }
+
+.rs-skills-empty {
+  padding: 20px 0;
+  font-size: 14px;
+  color: var(--faint);
+}
+
+.rs-skills-divider { height: 1px; background: var(--border); margin-bottom: 24px; }
+
+/* ── Skeleton ────────────────────────────────────────────────────────────── */
+
+.rs-skeleton {
+  display: block;
+  background: linear-gradient(90deg, #ede9e2 25%, #f5f3ee 50%, #ede9e2 75%);
+  background-size: 200% 100%;
+  animation: rsShimmer 1.4s infinite;
+  border-radius: 8px;
+}
+@keyframes rsShimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   SHARED BUTTONS
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.rs-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 24px;
+  font-size: 14px; font-weight: 700;
+  font-family: inherit;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  transition: background .15s, transform .1s, box-shadow .15s, opacity .15s, border-color .15s, color .15s;
+  letter-spacing: -.01em;
+  white-space: nowrap;
+}
+.rs-btn:active:not(:disabled) { transform: translateY(1px); }
+.rs-btn:disabled { opacity: .4; cursor: not-allowed; }
+.rs-btn--full { width: 100%; }
+.rs-btn--lg { height: 52px; font-size: 15px; }
+
+.rs-btn--primary {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(0,85,255,.25);
+}
+.rs-btn--primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0,68,204,.35);
+}
+
+.rs-btn--outline {
+  background: transparent;
+  color: var(--ink);
+  border: 1.5px solid var(--input-border);
+}
+.rs-btn--outline:hover:not(:disabled) {
+  background: var(--bg);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.rs-btn--begin {
+  background: var(--ink);
+  color: #fff;
+  height: 56px;
+  font-size: 16px;
+  border-radius: 14px;
+  box-shadow: 0 4px 18px rgba(26,26,25,.2);
+}
+.rs-btn--begin:hover:not(:disabled) {
+  background: #2d2d2b;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(26,26,25,.28);
+}
+
+/* Spinner */
+.rs-spinner {
+  width: 16px; height: 16px;
+  border: 2.5px solid rgba(255,255,255,.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: rsSpin .75s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes rsSpin { to { transform: rotate(360deg); } }

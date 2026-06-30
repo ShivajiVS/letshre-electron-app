@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./css/auth.css" />
+    <link rel="stylesheet" href="./css/role-selection.css" />
+  </head>
+  <body class="rs-body">
+
+    <!-- Top bar -->
+    <header class="iv-topbar">
+      <img src="./logo.png" alt="LetsHyre" class="iv-topbar__logo" />
+    </header>
+
+    <!-- Main -->
+    <main class="rs-main">
+      <div class="rs-card">
+
+        <!-- ── Card header ─────────────────────────────────────────────── -->
+        <div class="rs-card__header">
+          <div>
+            <h1 class="rs-card__title">Role <span class="rs-card__title-accent">Selection</span></h1>
+            <div class="rs-card__title-bar"></div>
+          </div>
+
+          <!-- Sub-step pills -->
+          <div class="rs-steps">
+            <div class="rs-step rs-step--active" id="step-pill-confirm">
+              <div class="rs-step__dot">1</div>
+              <span class="rs-step__label">Confirm</span>
+            </div>
+            <div class="rs-step__line" id="line-1"></div>
+            <div class="rs-step" id="step-pill-input">
+              <div class="rs-step__dot">2</div>
+              <span class="rs-step__label">Role</span>
+            </div>
+            <div class="rs-step__line" id="line-2"></div>
+            <div class="rs-step" id="step-pill-clarify">
+              <div class="rs-step__dot">3</div>
+              <span class="rs-step__label">Clarify</span>
+            </div>
+            <div class="rs-step__line" id="line-3"></div>
+            <div class="rs-step" id="step-pill-skills">
+              <div class="rs-step__dot">4</div>
+              <span class="rs-step__label">Skills</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Body split ──────────────────────────────────────────────── -->
+        <div class="rs-body-split">
+
+          <!-- Sidebar -->
+          <aside class="rs-sidebar">
+            <div class="rs-sidebar__icon-wrap">
+              <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="7" width="20" height="14" rx="2"/>
+                <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+                <line x1="12" y1="12" x2="12" y2="16"/>
+                <line x1="10" y1="14" x2="14" y2="14"/>
+              </svg>
+            </div>
+            <h3 class="rs-sidebar__title" id="sidebar-title">Your Selected Role</h3>
+            <p class="rs-sidebar__desc" id="sidebar-desc">Review the role assigned to you. If it's correct, proceed directly to the interview. Otherwise, enter a different role.</p>
+            <div class="rs-sidebar__dots">
+              <span class="rs-sidebar__dot rs-sidebar__dot--active" id="dot-1"></span>
+              <span class="rs-sidebar__dot" id="dot-2"></span>
+              <span class="rs-sidebar__dot" id="dot-3"></span>
+              <span class="rs-sidebar__dot" id="dot-4"></span>
+            </div>
+          </aside>
+
+          <!-- Content -->
+          <div class="rs-content">
+
+            <!-- ── Panel 1: Confirm ────────────────────────────────────── -->
+            <div class="rs-panel" id="panel-confirm">
+              <!-- Skeleton while profile loads -->
+              <div id="confirm-skeleton" class="rs-confirm__skeleton-wrap">
+                <div class="rs-skeleton" style="width:68px;height:68px;border-radius:18px"></div>
+                <div class="rs-skeleton" style="width:120px;height:13px"></div>
+                <div class="rs-skeleton" style="width:200px;height:34px;border-radius:10px"></div>
+                <div class="rs-skeleton" style="width:100%;max-width:380px;height:72px;border-radius:16px;margin-top:8px"></div>
+                <div style="display:flex;gap:12px;width:100%;max-width:320px">
+                  <div class="rs-skeleton" style="flex:1;height:46px;border-radius:12px"></div>
+                  <div class="rs-skeleton" style="flex:1;height:46px;border-radius:12px"></div>
+                </div>
+              </div>
+
+              <!-- Actual content (hidden until profile loaded) -->
+              <div id="confirm-content" hidden>
+                <div class="rs-confirm__badge">
+                  <div class="rs-confirm__badge-icon">
+                    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="2" y="7" width="20" height="14" rx="2"/>
+                      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+                      <line x1="12" y1="12" x2="12" y2="16"/>
+                      <line x1="10" y1="14" x2="14" y2="14"/>
+                    </svg>
+                  </div>
+                  <p class="rs-confirm__badge-label">Selected Role</p>
+                  <h2 class="rs-confirm__role-name" id="confirm-role-name">–</h2>
+                  <div class="rs-confirm__role-bar"></div>
+                </div>
+
+                <div class="rs-confirm__question">
+                  <p>You have been assigned <strong id="confirm-role-inline">–</strong>. Do you want to continue to the interview with this role?</p>
+                </div>
+
+                <div class="rs-confirm__actions">
+                  <button class="rs-btn rs-btn--outline" id="btn-no" type="button">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    No, change role
+                  </button>
+                  <button class="rs-btn rs-btn--primary" id="btn-yes" type="button">
+                    Yes, continue
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Panel 2: Input ──────────────────────────────────────── -->
+            <div class="rs-panel" id="panel-input" hidden>
+              <div class="rs-panel__header">
+                <p class="rs-panel__eyebrow">Interview Setup</p>
+                <h3 class="rs-panel__title">What role are you interviewing for?</h3>
+                <p class="rs-panel__sub">Enter your job title and we'll personalise your interview experience.</p>
+              </div>
+
+              <div class="rs-input-wrap">
+                <label class="rs-input-label" for="role-input">Job Title / Role</label>
+                <div class="rs-input-field">
+                  <svg class="rs-input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                  </svg>
+                  <input type="text" id="role-input" placeholder="e.g. Frontend Developer, Product Manager…" autocomplete="off" />
+                </div>
+              </div>
+
+              <button class="rs-btn rs-btn--primary rs-btn--full rs-btn--lg" id="btn-submit-role" type="button" disabled>
+                Continue to Interview
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+              </button>
+            </div>
+
+            <!-- ── Panel 3: Clarification ──────────────────────────────── -->
+            <div class="rs-panel" id="panel-clarify" hidden>
+              <div class="rs-panel__header">
+                <p class="rs-panel__eyebrow">Clarification Needed</p>
+                <h3 class="rs-panel__title">Which type of <span id="ambiguous-role-label" class="rs-panel__title-accent">role</span> are you?</h3>
+                <p class="rs-panel__sub">Select the option that best describes your specialisation.</p>
+              </div>
+
+              <div class="rs-role-cards" id="role-cards"></div>
+
+              <button class="rs-btn rs-btn--primary rs-btn--full rs-btn--lg" id="btn-confirm-clarify" type="button" disabled>
+                Confirm selection
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+              </button>
+            </div>
+
+            <!-- ── Panel 4: Skills ─────────────────────────────────────── -->
+            <div class="rs-panel" id="panel-skills" hidden>
+              <div class="rs-panel__header">
+                <p class="rs-panel__eyebrow">Ready to Begin</p>
+                <h3 class="rs-panel__title">Skills for <span id="confirmed-role-label" class="rs-panel__title-accent">–</span></h3>
+                <p class="rs-panel__sub">Here are the key areas we'll cover in your interview. Review them and start when you're ready.</p>
+              </div>
+
+              <div class="rs-skills-grid" id="skills-grid"></div>
+              <div class="rs-skills-divider"></div>
+
+              <button class="rs-btn rs-btn--begin rs-btn--full" id="btn-start-interview" type="button">
+                Start Interview
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+              </button>
+            </div>
+
+          </div><!-- /rs-content -->
+        </div><!-- /rs-body-split -->
+      </div><!-- /rs-card -->
+    </main>
+
+    <script src="../src/renderer/role-selection.js"></script>
+  </body>
+</html>

@@ -330,6 +330,16 @@ function loadIdentityVerificationPage() {
   }
 }
 
+/**
+ * Navigates to the role selection page. Called after identity verification
+ * passes — candidate confirms or enters their role before interview lockdown.
+ */
+function loadRoleSelectionPage() {
+  if (win && !win.isDestroyed()) {
+    win.loadFile(path.join(__dirname, "../../assets/role-selection.html"));
+  }
+}
+
 module.exports = {
   createWindow,
   lockdownForInterview,
@@ -338,6 +348,7 @@ module.exports = {
   loadSecurityCheck,
   loadPermissionsPage,
   loadIdentityVerificationPage,
+  loadRoleSelectionPage,
   getWindow,
   minimizeWindow,
   getIsInterviewActive,

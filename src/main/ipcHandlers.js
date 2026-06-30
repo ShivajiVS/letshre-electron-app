@@ -18,7 +18,7 @@ const logger = require("./logger");
 const appState = require("./appState");
 const { IPC } = require("../shared/constants");
 const { killSingleProcess, killAllProcesses } = require("./processKiller");
-const { lockdownForInterview, endInterview, getWindow, minimizeWindow, loadSecurityCheck, loadPermissionsPage, loadIdentityVerificationPage } = require("./windowManager");
+const { lockdownForInterview, endInterview, getWindow, minimizeWindow, loadSecurityCheck, loadPermissionsPage, loadIdentityVerificationPage, loadRoleSelectionPage } = require("./windowManager");
 const { invalidateProcessCache } = require("../detector/mirrorDetector");
 const { getCurrentInterviewUrl, setInterviewSession } = require("./protocolHandler");
 const { ensureAgent } = require("./agentManager");
@@ -121,6 +121,20 @@ function registerIpcHandlers() {
   ipcMain.handle(IPC.SUBMIT_FACE_VERIFICATION, async (_event, dataUrl) => {
     logger.info("[ipc] submit-face-verification");
     return await authManager.submitFaceVerification(dataUrl);
+  });
+
+  // Role selection page navigation.
+  ipcMain.on(IPC.LOAD_ROLE_SELECTION, () => {
+    logger.info("[ipc] load-role-selection");
+    loadRoleSelectionPage();
+  });
+
+  // Role selection — submit role → get skills or clarification suggestions.
+  ipcMain.handle(IPC.SUBMIT_ROLE, async (_event, role) => {
+    const safeRole = typeof role === "string" ? role.trim().slice(0, 200) : "";
+    if (!safeRole) { return { ok: false, error: "Role is required." }; }
+    logger.info("[ipc] submit-role:", safeRole);
+    return await authManager.submitRole(safeRole);
   });
 
   // ── App Control ──────────────────────────────────────────────────────────

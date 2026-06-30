@@ -426,8 +426,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   btnBegin.addEventListener("click", () => {
     btnBegin.disabled = true;
-    btnBegin.innerHTML = `<span class="iv-spinner"></span> Starting…`;
-    window.electronAPI?.proceedToInterview?.();
+    btnBegin.innerHTML = `<span class="iv-spinner"></span> Loading…`;
+    window.electronAPI?.loadRoleSelection?.();
   });
 
   btnRetryPhoto.addEventListener("click", () => {

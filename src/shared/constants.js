@@ -108,6 +108,10 @@ const IPC = {
   SUBMIT_VOICE_SAMPLE: "submit-voice-sample",
   SUBMIT_FACE_VERIFICATION: "submit-face-verification",
 
+  // Role selection page
+  LOAD_ROLE_SELECTION: "load-role-selection",
+  SUBMIT_ROLE: "submit-role",
+
   // Preflight
   RUN_PREFLIGHT: "run-preflight-scans",
 

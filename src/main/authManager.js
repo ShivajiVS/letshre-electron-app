@@ -343,6 +343,41 @@ async function submitFaceVerification(dataUrl) {
   }
 }
 
+/**
+ * Submits a role string to the skills-for-role API.
+ * @param {string} role
+ * @returns {Promise<{ ok: boolean, data?: object, error?: string }>}
+ */
+async function submitRole(role) {
+  if (!session?.accessToken) { return { ok: false, error: "Not authenticated." }; }
+
+  const doRequest = () =>
+    axios.post(
+      `${API_BASE_URL}/user/v1/candidate_resume_ai/skills_for_role/`,
+      { role },
+      { timeout: 20000, headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.accessToken}` } }
+    );
+
+  try {
+    const res = await doRequest();
+    return { ok: true, data: res.data?.data || res.data };
+  } catch (err) {
+    if (err.response?.status === 401) {
+      const refreshed = await _refreshTokens();
+      if (refreshed) {
+        try {
+          const res2 = await doRequest();
+          return { ok: true, data: res2.data?.data || res2.data };
+        } catch (e2) {
+          return { ok: false, error: e2.response?.data?.message || e2.message };
+        }
+      }
+      return { ok: false, error: "Session expired." };
+    }
+    return { ok: false, error: err.response?.data?.message || err.message || "Role submission failed." };
+  }
+}
+
 /** Display-safe user object for the renderer (no tokens). */
 function getUser() {
   return session?.user || null;
@@ -358,4 +393,4 @@ function isAuthenticated() {
   return session !== null;
 }
 
-module.exports = { init, login, logout, getUser, getTokens, isAuthenticated, getCandidateProfile, fetchProfileImage, submitVoiceSample, submitFaceVerification };
+module.exports = { init, login, logout, getUser, getTokens, isAuthenticated, getCandidateProfile, fetchProfileImage, submitVoiceSample, submitFaceVerification, submitRole };

@@ -39,6 +39,10 @@ const IPC = {
   SUBMIT_VOICE_SAMPLE: "submit-voice-sample",
   SUBMIT_FACE_VERIFICATION: "submit-face-verification",
 
+  // Role selection page
+  LOAD_ROLE_SELECTION: "load-role-selection",
+  SUBMIT_ROLE: "submit-role",
+
   // Image proxy: main fetches CDN image → base64 data URL (bypasses renderer CSP)
   FETCH_PROFILE_IMAGE: "fetch-profile-image",
 
@@ -102,7 +106,7 @@ const ALLOWED_SEND_CHANNELS = [
   IPC.QUIT_APP, IPC.RECHECK_SYSTEM, IPC.PROCEED_TO_INTERVIEW,
   IPC.INSTALL_UPDATE, IPC.MINIMIZE_WINDOW, IPC.START_INTERVIEW,
   IPC.INTERVIEW_COMPLETE, IPC.ACK_VIOLATION, IPC.LOAD_PERMISSIONS_PAGE,
-  IPC.LOAD_IDENTITY_VERIFICATION,
+  IPC.LOAD_IDENTITY_VERIFICATION, IPC.LOAD_ROLE_SELECTION,
 ];
 
 const ALLOWED_INVOKE_CHANNELS = [
@@ -111,7 +115,7 @@ const ALLOWED_INVOKE_CHANNELS = [
   IPC.GET_APP_VERSION, IPC.GET_UPDATE_STATE,
   IPC.AUTH_LOGIN, IPC.AUTH_LOGOUT, IPC.GET_AUTH_USER, IPC.GET_CANDIDATE_PROFILE,
   IPC.SUBMIT_VOICE_SAMPLE, IPC.SUBMIT_FACE_VERIFICATION,
-  IPC.FETCH_PROFILE_IMAGE,
+  IPC.FETCH_PROFILE_IMAGE, IPC.SUBMIT_ROLE,
 ];
 
 const ALLOWED_RECEIVE_CHANNELS = [
@@ -190,6 +194,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   /** Permissions "Start interview": navigate to identity verification. */
   loadIdentityVerification: () => safeSend(IPC.LOAD_IDENTITY_VERIFICATION),
+
+  /** Identity verification "Begin Interview": navigate to role selection. */
+  loadRoleSelection: () => safeSend(IPC.LOAD_ROLE_SELECTION),
+
+  /**
+   * Submit a role string; main POSTs to skills_for_role API with Bearer token.
+   * @param {string} role
+   * @returns {Promise<{ ok: boolean, data?: { needs_clarification: boolean, suggestions?: string[], skills?: string[] }, error?: string }>}
+   */
+  submitRole: (role) => safeInvoke(IPC.SUBMIT_ROLE, role),
 
   /**
    * Fetch an external image via the main process and return it as a base64

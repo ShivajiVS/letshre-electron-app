@@ -422,7 +422,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   btnCapture.addEventListener("click", capturePhoto);
   btnRetakePhoto.addEventListener("click", retakePhoto);
   btnSubmitPhoto.addEventListener("click", submitPhoto);
-  btnBackToVoice.addEventListener("click", () => { stopCamera(); capturedDataUrl = null; goToStep(1); });
+  btnBackToVoice.addEventListener("click", () => {
+    stopCamera();
+    capturedDataUrl = null;
+    // Restore voice continue button — may have been left in spinner state after a successful submit
+    btnContinueVoice.disabled = false;
+    btnContinueVoice.innerHTML = `Continue to Step 2 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>`;
+    goToStep(1);
+  });
 
   btnBegin.addEventListener("click", () => {
     btnBegin.disabled = true;
@@ -432,6 +439,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   btnRetryPhoto.addEventListener("click", () => {
     capturedDataUrl = null;
+    // Restore photo buttons — may have been left in spinner/disabled state after a successful submit
+    btnSubmitPhoto.disabled = false;
+    btnSubmitPhoto.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><polyline points="16 3 12 7 8 3"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Confirm &amp; Submit`;
+    btnRetakePhoto.disabled = false;
     goToStep(2);
   });
 

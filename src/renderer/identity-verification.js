@@ -159,17 +159,26 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const refPhotoPlaceholder = document.getElementById("ref-photo-placeholder");
 
-  function showRefPhoto(src) {
+  async function resolveImageUrl(url) {
+    // Proxy through main process so CDN/S3 URLs aren't blocked by renderer CSP
+    try {
+      const res = await window.electronAPI?.fetchProfileImage?.(url);
+      if (res?.ok && res.dataUrl) return res.dataUrl;
+    } catch { /* fall through */ }
+    return url; // fallback: try direct (may fail under strict CSP)
+  }
+
+  async function showRefPhoto(src) {
+    const resolved = await resolveImageUrl(src);
     refPhoto.onload = () => {
       refPhoto.style.display = "block";
       if (refPhotoPlaceholder) refPhotoPlaceholder.style.display = "none";
     };
     refPhoto.onerror = () => {
-      // URL failed (CSP block, 404, etc.) — keep placeholder visible
       refPhoto.style.display = "none";
       if (refPhotoPlaceholder) refPhotoPlaceholder.style.display = "flex";
     };
-    refPhoto.src = src;
+    refPhoto.src = resolved;
   }
 
   async function loadProfile() {
@@ -177,7 +186,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const result = await window.electronAPI?.getCandidateProfile?.();
       if (result?.success && result.data?.profile_photo) {
         profilePhotoSrc = result.data.profile_photo;
-        showRefPhoto(profilePhotoSrc);
+        await showRefPhoto(profilePhotoSrc);
       }
     } catch { /* non-fatal — placeholder stays */ }
   }
@@ -344,7 +353,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
       const result = await window.electronAPI?.submitFaceVerification?.(capturedDataUrl);
       if (result?.ok) {
-        showResult(result.data);
+        await showResult(result.data);
       } else {
         showError(result?.error || "Face verification failed. Please try again.");
         btnSubmitPhoto.disabled = false;
@@ -360,12 +369,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // ── Result ────────────────────────────────────────────────────────────────
 
-  function showResult(data) {
+  async function showResult(data) {
     const isMatch = !!data?.match;
 
-    // Fill comparison images
-    resultRef.src      = profilePhotoSrc;
-    resultCaptured.src = capturedDataUrl;
+    // Fill comparison images — proxy registered photo through main to avoid CSP
+    if (profilePhotoSrc) {
+      resultRef.src = await resolveImageUrl(profilePhotoSrc);
+    }
+    resultCaptured.src = capturedDataUrl; // already a local data: URL — no proxy needed
 
     // Match badge
     resultMatchBadge.innerHTML = `<span class="iv-result-match__pill ${isMatch ? "iv-result-match__pill--match" : "iv-result-match__pill--no-match"}">${isMatch ? "Matched" : "No Match"}</span>`;

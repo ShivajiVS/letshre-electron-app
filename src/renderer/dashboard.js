@@ -36,10 +36,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     return (parts[0][0] + (parts[1]?.[0] || "")).toUpperCase();
   }
 
-  function setAvatarPhoto(containerEl, initialsEl, src, displayName) {
+  async function setAvatarPhoto(containerEl, initialsEl, src, displayName) {
+    // Proxy the image through main process to avoid CSP blocking CDN/S3 URLs
+    let imgSrc = src;
+    try {
+      const res = await window.electronAPI?.fetchProfileImage?.(src);
+      if (res?.ok && res.dataUrl) { imgSrc = res.dataUrl; }
+    } catch { /* fall through to direct URL */ }
+
     const img = document.createElement("img");
     img.alt = displayName;
-    img.src = src;
+    img.src = imgSrc;
     img.onerror = () => {
       img.remove();
       initialsEl.textContent = initials(displayName);

@@ -80,6 +80,11 @@ function registerIpcHandlers() {
     return await authManager.getCandidateProfile();
   });
 
+  // Proxy image through main process — renderer CSP blocks external CDN URLs
+  ipcMain.handle(IPC.FETCH_PROFILE_IMAGE, async (_event, url) => {
+    return await authManager.fetchProfileImage(url);
+  });
+
   // Dashboard "Take Interview": set the interview session from the logged-in
   // tokens, then hand off to the EXISTING security-check screen.
   ipcMain.on(IPC.START_INTERVIEW, () => {

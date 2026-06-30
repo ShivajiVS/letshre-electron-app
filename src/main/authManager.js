@@ -236,6 +236,28 @@ async function getCandidateProfile() {
 }
 
 /**
+ * Fetches an image URL in the main process (no CSP) and returns it as a
+ * base64 data URL so the renderer can display it without CSP violations.
+ * @param {string} url
+ * @returns {Promise<{ ok: boolean, dataUrl?: string, error?: string }>}
+ */
+async function fetchProfileImage(url) {
+  if (!url || typeof url !== "string") { return { ok: false, error: "No URL provided." }; }
+  try {
+    const res = await axios.get(url, {
+      responseType: "arraybuffer",
+      timeout: 15000,
+    });
+    const contentType = res.headers["content-type"] || "image/jpeg";
+    const base64 = Buffer.from(res.data).toString("base64");
+    return { ok: true, dataUrl: `data:${contentType};base64,${base64}` };
+  } catch (err) {
+    logger.warn("[auth] fetchProfileImage failed:", err.message);
+    return { ok: false, error: err.message };
+  }
+}
+
+/**
  * Submits a voice sample blob to the API for identity verification.
  * @param {Uint8Array} uint8Array
  * @param {string} mimeType
@@ -336,4 +358,4 @@ function isAuthenticated() {
   return session !== null;
 }
 
-module.exports = { init, login, logout, getUser, getTokens, isAuthenticated, getCandidateProfile, submitVoiceSample, submitFaceVerification };
+module.exports = { init, login, logout, getUser, getTokens, isAuthenticated, getCandidateProfile, fetchProfileImage, submitVoiceSample, submitFaceVerification };

@@ -1,10 +1,9 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  // Scan all files that contain Tailwind class names
+  // Only violation.html uses Tailwind — all other pages use raw CSS
   content: [
-    "./assets/**/*.html",
-    "./assets/**/*.js",
-    "./src/renderer/**/*.js",
+    "./assets/violation.html",
+    "./src/renderer/violation.js",
   ],
   theme: {
     extend: {},

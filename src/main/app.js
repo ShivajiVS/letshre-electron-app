@@ -49,11 +49,24 @@ async function onReady() {
 
   // 1. Spawn security agent (kills stale orphans first)
   await spawnAgent();
-  const agentReady = await waitForAgent();
+
+  // 1b. Verify restored session and wait for agent in parallel — both are
+  //     network/IO operations and have no dependency on each other.
+  const [agentReady, sessionResult] = await Promise.all([
+    waitForAgent(),
+    authManager.verifySession(),
+  ]);
+
   if (agentReady) {
     logger.info("[app] security agent ready ✅");
   } else {
     logger.warn("[app] agent not responding — continuing without deep detection");
+  }
+
+  if (sessionResult.valid) {
+    logger.info(`[app] startup auth: valid session${sessionResult.offline ? " (offline grace)" : ""}`);
+  } else {
+    logger.info(`[app] startup auth: no valid session (${sessionResult.reason}) — routing to login`);
   }
 
   // 3. Register all IPC channels
@@ -64,8 +77,10 @@ async function onReady() {
     applyArgvDeepLink(process.argv);
   }
 
-  // 5. Create the main window (passes violation callback for window events)
-  createWindow(safeViolation);
+  // 5. Create the main window — open dashboard directly if session is valid,
+  //    otherwise start at login.
+  const startPage = sessionResult.valid ? "dashboard" : "login";
+  createWindow(safeViolation, startPage);
 
   // 6. Register OS-level Alt+F4 global shortcut
   globalShortcut.register("Alt+F4", () => {

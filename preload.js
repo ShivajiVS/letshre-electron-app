@@ -43,6 +43,10 @@ const IPC = {
   LOAD_ROLE_SELECTION: "load-role-selection",
   SUBMIT_ROLE: "submit-role",
 
+  // Back navigation
+  LOAD_DASHBOARD: "load-dashboard",
+  LOAD_SECURITY_CHECK: "load-security-check",
+
   // Image proxy: main fetches CDN image → base64 data URL (bypasses renderer CSP)
   FETCH_PROFILE_IMAGE: "fetch-profile-image",
 
@@ -107,6 +111,7 @@ const ALLOWED_SEND_CHANNELS = [
   IPC.INSTALL_UPDATE, IPC.MINIMIZE_WINDOW, IPC.START_INTERVIEW,
   IPC.INTERVIEW_COMPLETE, IPC.ACK_VIOLATION, IPC.LOAD_PERMISSIONS_PAGE,
   IPC.LOAD_IDENTITY_VERIFICATION, IPC.LOAD_ROLE_SELECTION,
+  IPC.LOAD_DASHBOARD, IPC.LOAD_SECURITY_CHECK,
 ];
 
 const ALLOWED_INVOKE_CHANNELS = [
@@ -197,6 +202,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   /** Identity verification "Begin Interview": navigate to role selection. */
   loadRoleSelection: () => safeSend(IPC.LOAD_ROLE_SELECTION),
+
+  /** Back: navigate to dashboard (from security check). */
+  loadDashboard: () => safeSend(IPC.LOAD_DASHBOARD),
+
+  /** Back: navigate to security check (from permissions page). */
+  loadSecurityCheck: () => safeSend(IPC.LOAD_SECURITY_CHECK),
 
   /**
    * Submit a role string; main POSTs to skills_for_role API with Bearer token.

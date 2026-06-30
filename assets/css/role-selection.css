@@ -31,14 +31,6 @@
   z-index: 10;
 }
 
-.rs-topbar__logo {
-  height: 28px;
-  width: auto;
-  object-fit: contain;
-  flex-shrink: 0;
-  display: block;
-}
-
 /* ── Main ────────────────────────────────────────────────────────────────── */
 
 .rs-main {

@@ -112,6 +112,10 @@ const IPC = {
   LOAD_ROLE_SELECTION: "load-role-selection",
   SUBMIT_ROLE: "submit-role",
 
+  // Back navigation
+  LOAD_DASHBOARD: "load-dashboard",
+  LOAD_SECURITY_CHECK: "load-security-check",
+
   // Preflight
   RUN_PREFLIGHT: "run-preflight-scans",
 

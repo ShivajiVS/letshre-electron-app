@@ -22,6 +22,9 @@ let win = null;
 /** @type {boolean} */
 let isInterviewActive = false;
 
+/** @type {string | null} — base64 JPEG captured during identity verification, injected into the interview SPA sessionStorage on dom-ready */
+let _candidatePhotoBase64 = null;
+
 // ─── Window Creation ─────────────────────────────────────────────────────────
 
 /**
@@ -143,11 +146,16 @@ function enforceViolation(reason) {
 // ─── Interview Lockdown ──────────────────────────────────────────────────
 
 /**
- * Activates full interview lockdown mode.
- * Must be called after the interview URL has been loaded.
+ * Activates full interview lockdown mode and injects auth tokens + candidate
+ * photo into the SPA's sessionStorage before React boots.
+ *
+ * Injection uses webContents.executeJavaScript() on the dom-ready event, which
+ * fires after the HTML is parsed but before module scripts execute — no race.
+ *
  * @param {string} interviewUrl
+ * @param {{ accessToken: string|null, refreshToken: string|null } | null} tokens
  */
-function lockdownForInterview(interviewUrl) {
+function lockdownForInterview(interviewUrl, tokens = null) {
   if (!win) {
     return;
   }
@@ -158,8 +166,43 @@ function lockdownForInterview(interviewUrl) {
   win.setFullScreen(true);
   win.setMinimizable(false);
 
+  const hasTokens = tokens?.accessToken || tokens?.refreshToken;
+  const hasPhoto = Boolean(_candidatePhotoBase64);
+
+  if (hasTokens || hasPhoto) {
+    win.webContents.once("dom-ready", () => {
+      const statements = [];
+      if (tokens?.accessToken)
+        statements.push(`sessionStorage.setItem('ac', ${JSON.stringify(tokens.accessToken)});`);
+      if (tokens?.refreshToken)
+        statements.push(`sessionStorage.setItem('rc', ${JSON.stringify(tokens.refreshToken)});`);
+      if (_candidatePhotoBase64)
+        statements.push(`sessionStorage.setItem('candidate_photo', ${JSON.stringify(_candidatePhotoBase64)});`);
+
+      if (statements.length > 0) {
+        win.webContents
+          .executeJavaScript(statements.join("\n"))
+          .catch((err) => logger.warn("[window] sessionStorage injection failed:", err.message));
+      }
+    });
+  }
+
   win.loadURL(interviewUrl);
   logger.info("[window] lockdown activated — navigating to interview");
+}
+
+/**
+ * Stores the base64 photo captured during identity verification so it can be
+ * injected into the interview SPA sessionStorage on the next dom-ready event.
+ * @param {string} dataUrl — base64 data URL ("data:image/jpeg;base64,…")
+ */
+function storeCandidatePhoto(dataUrl) {
+  if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) {
+    logger.warn("[window] storeCandidatePhoto: invalid data URL, ignoring");
+    return;
+  }
+  _candidatePhotoBase64 = dataUrl;
+  logger.info("[window] candidate photo stored for interview injection");
 }
 
 // ─── Internal Hardening ──────────────────────────────────────────────────────
@@ -356,6 +399,7 @@ function loadRoleSelectionPage() {
 module.exports = {
   createWindow,
   lockdownForInterview,
+  storeCandidatePhoto,
   endInterview,
   enforceViolation,
   loadDashboard,

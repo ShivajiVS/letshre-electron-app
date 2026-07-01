@@ -174,6 +174,10 @@ const IPC = {
   // while the user is on the "All checks passed" success screen.
   // Payload: { clean: boolean, apps: string[] }
   PUSH_PRE_PROCEED_STATUS: "push-pre-proceed-status",
+
+  // Identity verification → main: store the captured photo for injection into
+  // the interview SPA sessionStorage before React boots.
+  STORE_CANDIDATE_PHOTO: "store-candidate-photo",
 };
 
 // ─── Custom Protocol ─────────────────────────────────────────────────────────

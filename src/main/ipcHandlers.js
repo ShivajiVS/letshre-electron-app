@@ -18,7 +18,7 @@ const logger = require("./logger");
 const appState = require("./appState");
 const { IPC } = require("../shared/constants");
 const { killSingleProcess, killAllProcesses } = require("./processKiller");
-const { lockdownForInterview, endInterview, getWindow, minimizeWindow, loadDashboard, loadSecurityCheck, loadPermissionsPage, loadIdentityVerificationPage, loadRoleSelectionPage } = require("./windowManager");
+const { lockdownForInterview, storeCandidatePhoto, endInterview, getWindow, minimizeWindow, loadDashboard, loadSecurityCheck, loadPermissionsPage, loadIdentityVerificationPage, loadRoleSelectionPage } = require("./windowManager");
 const { invalidateProcessCache } = require("../detector/mirrorDetector");
 const { getCurrentInterviewUrl, setInterviewSession } = require("./protocolHandler");
 const { ensureAgent } = require("./agentManager");
@@ -214,14 +214,21 @@ function registerIpcHandlers() {
     return result;
   });
 
+  // Identity verification: store candidate photo for sessionStorage injection.
+  ipcMain.handle(IPC.STORE_CANDIDATE_PHOTO, (_event, dataUrl) => {
+    logger.info("[ipc] store-candidate-photo received");
+    storeCandidatePhoto(dataUrl);
+  });
+
   //Interview Flow
   ipcMain.on(IPC.PROCEED_TO_INTERVIEW, () => {
     logger.info("[ipc] proceed-to-interview received");
     // Stop the pre-proceed watcher — no longer needed once interview starts.
     stopPreProceedMonitor();
 
+    const tokens = authManager.getTokens();
     const interviewUrl = getCurrentInterviewUrl();
-    lockdownForInterview(interviewUrl);
+    lockdownForInterview(interviewUrl, tokens);
 
     try {
       const win = getWindow();

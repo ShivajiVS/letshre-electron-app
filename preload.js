@@ -103,6 +103,9 @@ const IPC = {
 
   // Pre-proceed watcher: main → renderer push — real-time blocked-app status
   PUSH_PRE_PROCEED_STATUS: "push-pre-proceed-status",
+
+  // Identity verification → main: store captured photo for sessionStorage injection
+  STORE_CANDIDATE_PHOTO: "store-candidate-photo",
 };
 
 // Hardened IPC wrapper — only whitelisted channels are allowed
@@ -121,6 +124,7 @@ const ALLOWED_INVOKE_CHANNELS = [
   IPC.AUTH_LOGIN, IPC.AUTH_LOGOUT, IPC.GET_AUTH_USER, IPC.GET_CANDIDATE_PROFILE,
   IPC.SUBMIT_VOICE_SAMPLE, IPC.SUBMIT_FACE_VERIFICATION,
   IPC.FETCH_PROFILE_IMAGE, IPC.SUBMIT_ROLE,
+  IPC.STORE_CANDIDATE_PHOTO,
 ];
 
 const ALLOWED_RECEIVE_CHANNELS = [
@@ -241,6 +245,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
    */
   submitFaceVerification: (dataUrl) =>
     safeInvoke(IPC.SUBMIT_FACE_VERIFICATION, dataUrl),
+
+  /**
+   * Store the verified photo from identity-verification.html in the main
+   * process so it can be injected into the interview SPA sessionStorage before
+   * React boots (via webContents.executeJavaScript on dom-ready).
+   * @param {string} dataUrl — base64 data URL
+   */
+  storeCandidatePhoto: (dataUrl) =>
+    safeInvoke(IPC.STORE_CANDIDATE_PHOTO, dataUrl),
 
   // ── App control ────────────────────────────────────────────────────────────
   /** Quit the application. */

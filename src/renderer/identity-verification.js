@@ -431,9 +431,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     goToStep(1);
   });
 
-  btnBegin.addEventListener("click", () => {
+  btnBegin.addEventListener("click", async () => {
     btnBegin.disabled = true;
     btnBegin.innerHTML = `<span class="iv-spinner"></span> Loading…`;
+    // Hand the verified live photo to the main process so it can inject it into
+    // sessionStorage on the interview window before the React SPA boots.
+    await window.electronAPI?.storeCandidatePhoto?.(capturedDataUrl);
     window.electronAPI?.loadRoleSelection?.();
   });
 

@@ -22,7 +22,7 @@ const axios = require("axios");
 const logger = require("./logger");
 const {
   API_BASE_URL, AUTH_LOGIN_PATH, AUTH_LOGOUT_PATH,
-  CANDIDATE_PROFILE_PATH, TOKEN_REFRESH_PATH,
+  CANDIDATE_PROFILE_PATH, TOKEN_REFRESH_PATH, SCREEN_RECORDING_PATH,
 } = require("../shared/constants");
 
 /** @type {{ accessToken: string, refreshToken: string, user: object } | null} */
@@ -418,6 +418,49 @@ async function verifySession() {
   }
 }
 
+/**
+ * Uploads a single screen-recording chunk to the backend.
+ * Handles token refresh on 401 like all other authenticated calls.
+ *
+ * @param {Uint8Array} uint8Array  — raw webm chunk bytes
+ * @param {number}     chunkIndex  — 0-based sequence number
+ * @param {{ sessionId?: string|null, interviewId?: string|null }} meta
+ * @returns {Promise<{ ok: boolean, error?: string }>}
+ */
+async function uploadRecordingChunk(uint8Array, chunkIndex, meta = {}) {
+  if (!session?.accessToken) { return { ok: false, error: "Not authenticated." }; }
+
+  const doRequest = () => {
+    const buf = Buffer.from(uint8Array);
+    const form = new FormData();
+    form.append("chunk", new Blob([buf], { type: "video/webm" }), `chunk_${chunkIndex}.webm`);
+    form.append("chunk_index", String(chunkIndex));
+    if (meta?.sessionId)   { form.append("session_id",   String(meta.sessionId)); }
+    if (meta?.interviewId) { form.append("interview_id", String(meta.interviewId)); }
+    return axios.post(
+      `${API_BASE_URL}${SCREEN_RECORDING_PATH}`,
+      form,
+      { timeout: 30000, headers: { Authorization: `Bearer ${session.accessToken}` } }
+    );
+  };
+
+  try {
+    await doRequest();
+    return { ok: true };
+  } catch (err) {
+    if (err.response?.status === 401) {
+      const refreshed = await _refreshTokens();
+      if (refreshed) {
+        try { await doRequest(); return { ok: true }; } catch (e2) {
+          return { ok: false, error: e2.response?.data?.message || e2.message };
+        }
+      }
+      return { ok: false, error: "Session expired." };
+    }
+    return { ok: false, error: err.response?.data?.message || err.message || "Chunk upload failed." };
+  }
+}
+
 /** Display-safe user object for the renderer (no tokens). */
 function getUser() {
   return session?.user || null;
@@ -433,4 +476,4 @@ function isAuthenticated() {
   return session !== null;
 }
 
-module.exports = { init, verifySession, login, logout, getUser, getTokens, isAuthenticated, getCandidateProfile, fetchProfileImage, submitVoiceSample, submitFaceVerification, submitRole };
+module.exports = { init, verifySession, login, logout, getUser, getTokens, isAuthenticated, getCandidateProfile, fetchProfileImage, submitVoiceSample, submitFaceVerification, submitRole, uploadRecordingChunk };

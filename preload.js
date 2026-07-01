@@ -106,6 +106,12 @@ const IPC = {
 
   // Identity verification → main: store captured photo for sessionStorage injection
   STORE_CANDIDATE_PHOTO: "store-candidate-photo",
+
+  // Screen recording / proctoring
+  PROCTORING_START: "proctoring-start",
+  PROCTORING_STOP: "proctoring-stop",
+  PUSH_PROCTORING_STARTED: "push-proctoring-started",
+  PUSH_PROCTORING_ERROR: "push-proctoring-error",
 };
 
 // Hardened IPC wrapper — only whitelisted channels are allowed
@@ -115,6 +121,7 @@ const ALLOWED_SEND_CHANNELS = [
   IPC.INTERVIEW_COMPLETE, IPC.ACK_VIOLATION, IPC.LOAD_PERMISSIONS_PAGE,
   IPC.LOAD_IDENTITY_VERIFICATION, IPC.LOAD_ROLE_SELECTION,
   IPC.LOAD_DASHBOARD, IPC.LOAD_SECURITY_CHECK,
+  IPC.PROCTORING_STOP,
 ];
 
 const ALLOWED_INVOKE_CHANNELS = [
@@ -125,6 +132,7 @@ const ALLOWED_INVOKE_CHANNELS = [
   IPC.SUBMIT_VOICE_SAMPLE, IPC.SUBMIT_FACE_VERIFICATION,
   IPC.FETCH_PROFILE_IMAGE, IPC.SUBMIT_ROLE,
   IPC.STORE_CANDIDATE_PHOTO,
+  IPC.PROCTORING_START,
 ];
 
 const ALLOWED_RECEIVE_CHANNELS = [
@@ -132,6 +140,7 @@ const ALLOWED_RECEIVE_CHANNELS = [
   IPC.PUSH_UPDATE_PROGRESS, IPC.PUSH_UPDATE_ERROR, IPC.PUSH_UPDATE_STATE,
   IPC.PUSH_WARNING, IPC.PREFLIGHT_PROGRESS, IPC.PUSH_VIOLATION,
   IPC.PUSH_PRE_PROCEED_STATUS,
+  IPC.PUSH_PROCTORING_STARTED, IPC.PUSH_PROCTORING_ERROR,
 ];
 
 function safeSend(channel, ...args) {
@@ -484,6 +493,40 @@ contextBridge.exposeInMainWorld("electronAPI", {
     safeSend(IPC.INTERVIEW_COMPLETE, { reason }),
 
   getAppList: () => safeInvoke(IPC.GET_APP_LIST),
+
+  // ── Screen recording / proctoring ─────────────────────────────────────────
+  /**
+   * Tell Electron to start screen + mic recording and upload chunks to the backend.
+   * Call this when the interview session begins.
+   * @param {{ sessionId?: string, interviewId?: string }} meta
+   * @returns {Promise<{ ok: boolean, error?: string }>}
+   */
+  startProctoring: (meta) => safeInvoke(IPC.PROCTORING_START, meta || {}),
+
+  /**
+   * Tell Electron to stop recording. The final chunk is flushed before the
+   * recorder window closes.
+   */
+  stopProctoring: () => safeSend(IPC.PROCTORING_STOP),
+
+  /**
+   * Called when Electron confirms the MediaRecorder has actually started.
+   * Fires after startProctoring resolves — use this to show a "recording" indicator.
+   * @param {() => void} callback
+   */
+  onProctoringStarted: (callback) => {
+    ipcRenderer.removeAllListeners(IPC.PUSH_PROCTORING_STARTED);
+    safeOn(IPC.PUSH_PROCTORING_STARTED, () => callback());
+  },
+
+  /**
+   * Called if screen capture or MediaRecorder fails.
+   * @param {(data: { error: string }) => void} callback
+   */
+  onProctoringError: (callback) => {
+    ipcRenderer.removeAllListeners(IPC.PUSH_PROCTORING_ERROR);
+    safeOn(IPC.PUSH_PROCTORING_ERROR, (_, data) => callback(data));
+  },
 
   // ── Pre-proceed watcher (background blocked-app status) ───────────────────
   /**

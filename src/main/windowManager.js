@@ -60,6 +60,10 @@ function createWindow(onViolation, startPage = "login") {
 
   win.maximize();
 
+  // win.webContents.openDevTools({
+  //   mode: "right",
+  // });
+
   const pageFiles = { login: "login.html", dashboard: "dashboard.html" };
   const pageFile = pageFiles[startPage] || pageFiles.login;
   win.loadFile(path.join(__dirname, "../../assets", pageFile));
@@ -97,7 +101,9 @@ function createWindow(onViolation, startPage = "login") {
  * @param {string} reason - e.g. "completed", "auto-submitted", "terminated", "expired"
  */
 function endInterview(reason) {
-  if (!win) { return; }
+  if (!win) {
+    return;
+  }
   if (!isInterviewActive) {
     logger.info("[window] endInterview called but interview was already inactive — skipping");
     return;
@@ -128,7 +134,9 @@ function endInterview(reason) {
  * @param {string} reason
  */
 function enforceViolation(reason) {
-  if (!win || win.isDestroyed()) { return; }
+  if (!win || win.isDestroyed()) {
+    return;
+  }
 
   isInterviewActive = false;
   win.setAlwaysOnTop(false);
@@ -172,12 +180,17 @@ function lockdownForInterview(interviewUrl, tokens = null) {
   if (hasTokens || hasPhoto) {
     win.webContents.once("dom-ready", () => {
       const statements = [];
-      if (tokens?.accessToken)
+      if (tokens?.accessToken) {
         statements.push(`sessionStorage.setItem('ac', ${JSON.stringify(tokens.accessToken)});`);
-      if (tokens?.refreshToken)
+      }
+      if (tokens?.refreshToken) {
         statements.push(`sessionStorage.setItem('rc', ${JSON.stringify(tokens.refreshToken)});`);
-      if (_candidatePhotoBase64)
-        statements.push(`sessionStorage.setItem('candidate_photo', ${JSON.stringify(_candidatePhotoBase64)});`);
+      }
+      if (_candidatePhotoBase64) {
+        statements.push(
+          `sessionStorage.setItem('candidate_photo', ${JSON.stringify(_candidatePhotoBase64)});`
+        );
+      }
 
       if (statements.length > 0) {
         win.webContents

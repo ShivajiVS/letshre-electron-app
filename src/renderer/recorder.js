@@ -2,36 +2,122 @@
  * src/renderer/recorder.js
  * ─────────────────────────
  * Runs inside the hidden recorder BrowserWindow.
- * Receives a screen source ID from main, opens screen + mic streams,
- * and sends 5-second video/webm chunks back to main via IPC.
  *
- * Flow:
+ * Pipeline (mirrors ScreenRecordingContext.jsx from the interview site):
  *   main → "recorder:init" { sourceId }
- *   renderer: getUserMedia (screen) + getUserMedia (mic) → merge → MediaRecorder
- *   renderer → "recorder:ready"   (recording confirmed started)
- *   renderer → "recorder:chunk"   (Uint8Array, every CHUNK_INTERVAL_MS)
- *   main → "recorder:stop"
- *   renderer: mediaRecorder.stop() → final chunk → streams released
+ *   → getUserMedia (screen via chromeMediaSource) + getUserMedia (mic)
+ *   → single continuous MediaRecorder (1s timeslice)
+ *   → webmChunker re-chunks raw bytes into independently-decodable WebM blobs
+ *     (initSegment + complete Clusters, ~15s each)
+ *   → each complete chunk: "recorder:chunk" Uint8Array → main → uploadVideoChunk
+ *   → on stop: flush final clusters → "recorder:stopped" → main → completeVideoUpload
  */
 
 "use strict";
 
-const CHUNK_INTERVAL_MS = 5000;
+// ─── WebM chunker (mirrors src/lib/webmChunker.js from the interview site) ───
+// Finds Cluster element boundaries (0x1F43B675) in the raw MediaRecorder stream
+// and emits initSegment + complete Clusters as independently-decodable WebM blobs.
+
+const CLUSTER_ID = [0x1f, 0x43, 0xb6, 0x75];
+const CHUNK_TARGET_MS = 15000; // ~15 s per upload chunk (matches RECORDING_SEGMENT_MS)
+const TIMESLICE_MS    = 1000;  // MediaRecorder fires ondataavailable every 1s
+
+function _concat(a, b) {
+  const out = new Uint8Array(a.length + b.length);
+  out.set(a, 0);
+  out.set(b, a.length);
+  return out;
+}
+
+function _clusterOffsets(buf) {
+  const offsets = [];
+  for (let i = 0; i + 3 < buf.length; i++) {
+    if (
+      buf[i]     === CLUSTER_ID[0] &&
+      buf[i + 1] === CLUSTER_ID[1] &&
+      buf[i + 2] === CLUSTER_ID[2] &&
+      buf[i + 3] === CLUSTER_ID[3]
+    ) {
+      offsets.push(i);
+    }
+  }
+  return offsets;
+}
+
+function createWebmChunker({ targetMs, onChunk }) {
+  let init      = null;             // Uint8Array — WebM header, prepended to every chunk
+  let tail      = new Uint8Array(0); // bytes from first un-emitted cluster onward
+  let lastEmit  = 0;
+
+  const emit = (uptoOffset) => {
+    const clusters = tail.slice(0, uptoOffset);
+    onChunk(new Blob([init, clusters], { type: "video/webm" }));
+    tail     = tail.slice(uptoOffset);
+    lastEmit = Date.now();
+  };
+
+  return {
+    push(arrayBuffer) {
+      tail = _concat(tail, new Uint8Array(arrayBuffer));
+
+      // Capture init segment once: everything before the first Cluster.
+      if (!init) {
+        const offsets = _clusterOffsets(tail);
+        if (offsets.length === 0) return; // header still arriving
+        init     = tail.slice(0, offsets[0]);
+        tail     = tail.slice(offsets[0]);
+        lastEmit = Date.now();
+      }
+
+      if (Date.now() - lastEmit < targetMs) return;
+
+      // Emit all COMPLETE clusters (everything before the last cluster start —
+      // the last one may still be receiving bytes).
+      const offsets = _clusterOffsets(tail);
+      if (offsets.length >= 2) {
+        emit(offsets[offsets.length - 1]);
+      }
+    },
+
+    flush() {
+      if (!init || tail.length === 0) return;
+      onChunk(new Blob([init, tail], { type: "video/webm" }));
+      tail = new Uint8Array(0);
+    },
+  };
+}
+
+// ─── MIME selection ───────────────────────────────────────────────────────────
+
+const MIME_CANDIDATES = [
+  "video/webm;codecs=vp9,opus",
+  "video/webm;codecs=vp8,opus",
+  "video/webm;codecs=vp8",
+  "video/webm",
+];
+
+function pickMime() {
+  return MIME_CANDIDATES.find((m) => MediaRecorder.isTypeSupported(m)) || "";
+}
+
+// ─── Recorder state ───────────────────────────────────────────────────────────
 
 let mediaRecorder = null;
-let screenStream = null;
-let micStream = null;
+let screenStream  = null;
+let micStream     = null;
+
+// ─── Main flow ────────────────────────────────────────────────────────────────
 
 window.recorderBridge.onInit(async ({ sourceId }) => {
   try {
-    // Screen video — use chromeMediaSource to capture the primary display.
-    // audio:false here because chromeMediaSource audio = system loopback (not mic).
+    // Screen video — chromeMediaSource captures the OS-level display silently.
     screenStream = await navigator.mediaDevices.getUserMedia({
       video: {
         mandatory: {
-          chromeMediaSource: "desktop",
+          chromeMediaSource:   "desktop",
           chromeMediaSourceId: sourceId,
-          maxWidth: 1920,
+          maxWidth:  1920,
           maxHeight: 1080,
           maxFrameRate: 15,
         },
@@ -39,40 +125,55 @@ window.recorderBridge.onInit(async ({ sourceId }) => {
       audio: false,
     });
 
-    // Mic audio — separate getUserMedia call for reliable cross-platform mic capture.
-    micStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: false,
-        noiseSuppression: false,
-        sampleRate: 44100,
-      },
-      video: false,
-    });
+    // Mic audio — separate call for reliable cross-platform mic capture.
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, sampleRate: 44100 },
+        video: false,
+      });
+    } catch {
+      // Mic unavailable — proceed with screen-only recording.
+    }
 
-    // Merge screen video + mic audio into one stream for MediaRecorder.
     const merged = new MediaStream([
       ...screenStream.getVideoTracks(),
-      ...micStream.getAudioTracks(),
+      ...(micStream ? micStream.getAudioTracks() : []),
     ]);
 
-    const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
-      ? "video/webm;codecs=vp8,opus"
-      : "video/webm";
+    const mime    = pickMime();
+    let chunkChain = Promise.resolve();
 
-    mediaRecorder = new MediaRecorder(merged, { mimeType: mime });
-
-    mediaRecorder.ondataavailable = async (e) => {
-      if (e.data && e.data.size > 0) {
-        const buf = await e.data.arrayBuffer();
+    const chunker = createWebmChunker({
+      targetMs: CHUNK_TARGET_MS,
+      onChunk: async (blob) => {
+        const buf = await blob.arrayBuffer();
         window.recorderBridge.sendChunk(new Uint8Array(buf));
-      }
+      },
+    });
+
+    mediaRecorder = new MediaRecorder(merged, mime ? { mimeType: mime } : {});
+
+    // Serialise byte pushes so the chunker always receives bytes in order.
+    mediaRecorder.ondataavailable = (e) => {
+      if (!e.data || e.data.size === 0) return;
+      chunkChain = chunkChain
+        .then(() => e.data.arrayBuffer())
+        .then((buf) => chunker.push(buf))
+        .catch((err) => console.error("[recorder] chunker push failed:", err));
+    };
+
+    mediaRecorder.onstop = async () => {
+      await chunkChain;        // ensure all buffered bytes have been processed
+      chunker.flush();         // emit final clusters as the last decodable chunk
+      window.recorderBridge.sendStopped(); // signal main: no more chunks coming
+      _releaseStreams();
     };
 
     mediaRecorder.onerror = (e) => {
       window.recorderBridge.sendError(e.error?.message || "MediaRecorder error");
     };
 
-    mediaRecorder.start(CHUNK_INTERVAL_MS);
+    mediaRecorder.start(TIMESLICE_MS);
     window.recorderBridge.sendReady();
   } catch (err) {
     window.recorderBridge.sendError(err.message || "getUserMedia failed");
@@ -83,15 +184,20 @@ window.recorderBridge.onInit(async ({ sourceId }) => {
 window.recorderBridge.onStop(() => {
   try {
     if (mediaRecorder && mediaRecorder.state !== "inactive") {
-      mediaRecorder.stop();
+      mediaRecorder.stop(); // → ondataavailable (final) → onstop → flush → sendStopped
+    } else {
+      window.recorderBridge.sendStopped();
+      _releaseStreams();
     }
-  } catch { /* ignore */ }
-  _releaseStreams();
+  } catch {
+    window.recorderBridge.sendStopped();
+    _releaseStreams();
+  }
 });
 
 function _releaseStreams() {
   screenStream?.getTracks().forEach((t) => t.stop());
   micStream?.getTracks().forEach((t) => t.stop());
   screenStream = null;
-  micStream = null;
+  micStream    = null;
 }

@@ -38,8 +38,11 @@ const AUTH_LOGOUT_PATH = "/user/v1/logout/";
 const CANDIDATE_PROFILE_PATH = "/user/v1/candidate_profile/";
 const TOKEN_REFRESH_PATH = "/user/v1/login_refresh/";
 
-/** Screen recording chunk upload path — TODO: confirm with backend team. */
-const SCREEN_RECORDING_PATH = "/user/v1/candidate/interview/recording/chunk/";
+/** Screen-recording upload API paths (relative to API_BASE_URL). */
+const VIDEO_UPLOAD_START_PATH    = "/user/v1/candidate_interview/video_upload/start/";
+const VIDEO_UPLOAD_CHUNK_PATH    = "/user/v1/candidate_interview/video_upload/chunk/";
+const VIDEO_UPLOAD_COMPLETE_PATH = "/user/v1/candidate_interview/video_upload/complete/";
+const VIDEO_UPLOAD_STATUS_PATH   = "/user/v1/candidate_interview/video_upload/status/";
 
 // ─── Detection / Violation ───────────────────────────────────────────────────
 
@@ -191,11 +194,12 @@ const IPC = {
   PUSH_PROCTORING_ERROR: "push-proctoring-error",
 
   // Internal: hidden recorder window ↔ main (NOT exposed to interview site)
-  RECORDER_INIT: "recorder:init",
-  RECORDER_STOP: "recorder:stop",
-  RECORDER_READY: "recorder:ready",
-  RECORDER_CHUNK: "recorder:chunk",
-  RECORDER_ERROR: "recorder:error",
+  RECORDER_INIT:    "recorder:init",
+  RECORDER_STOP:    "recorder:stop",
+  RECORDER_READY:   "recorder:ready",
+  RECORDER_CHUNK:   "recorder:chunk",
+  RECORDER_ERROR:   "recorder:error",
+  RECORDER_STOPPED: "recorder:stopped", // renderer → main after final chunk flush
 };
 
 // ─── Custom Protocol ─────────────────────────────────────────────────────────
@@ -215,7 +219,10 @@ module.exports = {
   AUTH_LOGOUT_PATH,
   CANDIDATE_PROFILE_PATH,
   TOKEN_REFRESH_PATH,
-  SCREEN_RECORDING_PATH,
+  VIDEO_UPLOAD_START_PATH,
+  VIDEO_UPLOAD_CHUNK_PATH,
+  VIDEO_UPLOAD_COMPLETE_PATH,
+  VIDEO_UPLOAD_STATUS_PATH,
   VIOLATION_COOLDOWN_MS,
   DETECTION_INTERVAL_MS,
   HEARTBEAT_INTERVAL_MS,

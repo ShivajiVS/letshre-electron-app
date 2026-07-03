@@ -41,7 +41,7 @@ function createWindow(onViolation, startPage = "login") {
   }
 
   win = new BrowserWindow({
-    title: "LetsHyre Secure Interview",
+    title: "",
     width: 1400,
     height: 900,
     autoHideMenuBar: true,

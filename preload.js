@@ -46,6 +46,7 @@ const IPC = {
   // Back navigation
   LOAD_DASHBOARD: "load-dashboard",
   LOAD_SECURITY_CHECK: "load-security-check",
+  LOAD_HOW_IT_WORKS: "load-how-it-works",
 
   // Image proxy: main fetches CDN image → base64 data URL (bypasses renderer CSP)
   FETCH_PROFILE_IMAGE: "fetch-profile-image",
@@ -120,7 +121,7 @@ const ALLOWED_SEND_CHANNELS = [
   IPC.INSTALL_UPDATE, IPC.MINIMIZE_WINDOW, IPC.START_INTERVIEW,
   IPC.INTERVIEW_COMPLETE, IPC.ACK_VIOLATION, IPC.LOAD_PERMISSIONS_PAGE,
   IPC.LOAD_IDENTITY_VERIFICATION, IPC.LOAD_ROLE_SELECTION,
-  IPC.LOAD_DASHBOARD, IPC.LOAD_SECURITY_CHECK,
+  IPC.LOAD_DASHBOARD, IPC.LOAD_SECURITY_CHECK, IPC.LOAD_HOW_IT_WORKS,
   IPC.PROCTORING_STOP,
 ];
 
@@ -215,6 +216,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   /** Identity verification "Begin Interview": navigate to role selection. */
   loadRoleSelection: () => safeSend(IPC.LOAD_ROLE_SELECTION),
+
+  /** Open the how-it-works informational page (login and dashboard). */
+  loadHowItWorks: () => safeSend(IPC.LOAD_HOW_IT_WORKS),
 
   /** Back: navigate to dashboard (from security check). */
   loadDashboard: () => safeSend(IPC.LOAD_DASHBOARD),

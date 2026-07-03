@@ -18,7 +18,7 @@ const logger = require("./logger");
 const appState = require("./appState");
 const { IPC } = require("../shared/constants");
 const { killSingleProcess, killAllProcesses } = require("./processKiller");
-const { lockdownForInterview, storeCandidatePhoto, endInterview, getWindow, minimizeWindow, loadDashboard, loadSecurityCheck, loadPermissionsPage, loadIdentityVerificationPage, loadRoleSelectionPage } = require("./windowManager");
+const { lockdownForInterview, storeCandidatePhoto, endInterview, getWindow, minimizeWindow, loadDashboard, loadSecurityCheck, loadPermissionsPage, loadIdentityVerificationPage, loadRoleSelectionPage, loadHowItWorksPage } = require("./windowManager");
 const { invalidateProcessCache } = require("../detector/mirrorDetector");
 const { getCurrentInterviewUrl, setInterviewSession } = require("./protocolHandler");
 const { ensureAgent } = require("./agentManager");
@@ -141,6 +141,12 @@ function registerIpcHandlers() {
   ipcMain.on(IPC.LOAD_ROLE_SELECTION, () => {
     logger.info("[ipc] load-role-selection");
     loadRoleSelectionPage();
+  });
+
+  // How-it-works page navigation.
+  ipcMain.on(IPC.LOAD_HOW_IT_WORKS, () => {
+    logger.info("[ipc] load-how-it-works");
+    loadHowItWorksPage();
   });
 
   // Role selection — submit role → get skills or clarification suggestions.

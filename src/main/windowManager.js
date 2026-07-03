@@ -14,7 +14,7 @@ const path = require("path");
 const { app, BrowserWindow, session, dialog, nativeImage } = require("electron");
 const logger = require("./logger");
 const appState = require("./appState");
-const { INTERVIEW_BASE_URL } = require("../shared/constants");
+const { INTERVIEW_BASE_URL, IPC } = require("../shared/constants");
 
 /** @type {BrowserWindow | null} */
 let win = null;
@@ -144,10 +144,22 @@ function enforceViolation(reason) {
   win.setFullScreen(false);
   win.setMinimizable(true);
 
-  const encoded = encodeURIComponent(String(reason).slice(0, 200));
-  win.loadURL(`${INTERVIEW_BASE_URL}/electron-violation?reason=${encoded}`);
+  // Retry pushing the violation via IPC — by T+8s the session will have loaded
+  // and the interview page's buffered-violation flush will show the modal.
+  try {
+    win.webContents.send(IPC.PUSH_VIOLATION, {
+      event: String(reason).slice(0, 200),
+      severity: "high",
+      count: 1,
+      isHardBlock: true,
+      source: "electron",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    logger.warn("[window] violation IPC retry failed:", err.message);
+  }
 
-  logger.warn(`[window] self-enforced violation — redirecting to site: ${reason}`);
+  logger.warn(`[window] self-enforced violation — IPC retry sent: ${reason}`);
 }
 
 // ─── Interview Lockdown ──────────────────────────────────────────────────

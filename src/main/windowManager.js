@@ -144,11 +144,10 @@ function enforceViolation(reason) {
   win.setFullScreen(false);
   win.setMinimizable(true);
 
-  win.loadFile(path.join(__dirname, "../../assets/violation.html"), {
-    query: { reason: String(reason).slice(0, 200) },
-  });
+  const encoded = encodeURIComponent(String(reason).slice(0, 200));
+  win.loadURL(`${INTERVIEW_BASE_URL}/electron-violation?reason=${encoded}`);
 
-  logger.warn(`[window] self-enforced violation screen — reason: ${reason}`);
+  logger.warn(`[window] self-enforced violation — redirecting to site: ${reason}`);
 }
 
 // ─── Interview Lockdown ──────────────────────────────────────────────────

@@ -27,7 +27,8 @@ const AGENT_REQUEST_TIMEOUT_MS = 2000;
 // ─── URLs ────────────────────────────────────────────────────────────────────
 
 /** Base URL of the interview web app. */
-const INTERVIEW_BASE_URL = "https://interview.letshyre.com";
+// const INTERVIEW_BASE_URL = "https://interview.letshyre.com";
+const INTERVIEW_BASE_URL = "http://localhost:5173";
 
 /** Base URL of the LetsHyre REST API. Overridable via env for staging / tests. */
 const API_BASE_URL = process.env.API_BASE_URL || "https://api.letshyre.com";

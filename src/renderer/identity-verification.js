@@ -7,7 +7,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   let audioBlob = null;
   let audioMimeType = "";
   let audioURL = null;
-  let audioPlayer = new Audio();
+  const audioPlayer = document.getElementById("iv-audio-player");
   let isPlaying = false;
   let mediaRecorder = null;
   let audioChunks = [];
@@ -209,9 +209,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
       mediaRecorder.onstop = () => {
-        audioBlob = new Blob(audioChunks, { type: mime || "audio/webm" });
-        audioURL  = URL.createObjectURL(audioBlob);
+        // Use the MIME type the browser actually chose (not our guess) so the
+        // blob type always matches the recorded data format.
+        const actualMime = mediaRecorder.mimeType || mime || "audio/webm";
+        audioMimeType = actualMime;
+        audioBlob = new Blob(audioChunks, { type: actualMime });
         stream.getTracks().forEach(t => t.stop());
+
+        console.log("[audio] actualMime:", actualMime, "chunks:", audioChunks.length, "blobSize:", audioBlob.size);
+
+        if (audioURL) URL.revokeObjectURL(audioURL);
+        audioURL = URL.createObjectURL(audioBlob);
         setVoiceState("reviewing");
       };
 
@@ -231,19 +239,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     audioBlob = null;
     isPlaying = false;
     audioPlayer.pause();
+    audioPlayer.src = "";
     setVoiceState("idle");
   }
 
-  function togglePlayback() {
+  async function togglePlayback() {
     if (!audioURL) return;
     if (isPlaying) {
       audioPlayer.pause();
       isPlaying = false;
-    } else {
-      audioPlayer.src = audioURL;
-      audioPlayer.play();
+      updatePlaybackBtn();
+      return;
+    }
+    audioPlayer.src = audioURL;
+    audioPlayer.onended = () => { isPlaying = false; updatePlaybackBtn(); };
+    try {
+      await audioPlayer.play();
       isPlaying = true;
-      audioPlayer.onended = () => { isPlaying = false; updatePlaybackBtn(); };
+    } catch (err) {
+      isPlaying = false;
+      showError("Could not play back audio: " + err.message);
     }
     updatePlaybackBtn();
   }
@@ -455,7 +470,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     stopCamera();
     audioPlayer.pause();
     if (mediaRecorder?.state !== "inactive") mediaRecorder?.stop();
-    if (audioURL) URL.revokeObjectURL(audioURL);
   });
 
   // ── Init ──────────────────────────────────────────────────────────────────

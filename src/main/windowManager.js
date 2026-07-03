@@ -11,7 +11,7 @@
 "use strict";
 
 const path = require("path");
-const { app, BrowserWindow, session, dialog } = require("electron");
+const { app, BrowserWindow, session, dialog, nativeImage } = require("electron");
 const logger = require("./logger");
 const appState = require("./appState");
 const { INTERVIEW_BASE_URL } = require("../shared/constants");
@@ -42,6 +42,7 @@ function createWindow(onViolation, startPage = "login") {
 
   win = new BrowserWindow({
     title: "",
+    icon: nativeImage.createEmpty(),
     width: 1400,
     height: 900,
     autoHideMenuBar: true,

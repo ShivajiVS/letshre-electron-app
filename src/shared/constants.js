@@ -39,12 +39,12 @@ const CANDIDATE_PROFILE_PATH = "/user/v1/candidate_profile/";
 const TOKEN_REFRESH_PATH = "/user/v1/login_refresh/";
 
 /** Screen-recording upload API paths (relative to API_BASE_URL). */
-const VIDEO_UPLOAD_START_PATH    = "/user/v1/candidate_interview/video_upload/start/";
-const VIDEO_UPLOAD_CHUNK_PATH    = "/user/v1/candidate_interview/video_upload/chunk/";
+const VIDEO_UPLOAD_START_PATH = "/user/v1/candidate_interview/video_upload/start/";
+const VIDEO_UPLOAD_CHUNK_PATH = "/user/v1/candidate_interview/video_upload/chunk/";
 const VIDEO_UPLOAD_COMPLETE_PATH = "/user/v1/candidate_interview/video_upload/complete/";
-const VIDEO_UPLOAD_STATUS_PATH   = "/user/v1/candidate_interview/video_upload/status/";
+const VIDEO_UPLOAD_STATUS_PATH = "/user/v1/candidate_interview/video_upload/status/";
 
-// ─── Detection / Violation ───────────────────────────────────────────────────
+// ─── Detection / Violation
 
 /** Minimum ms between repeated reports of the same violation event. */
 const VIOLATION_COOLDOWN_MS = 15000;
@@ -186,19 +186,19 @@ const IPC = {
   STORE_CANDIDATE_PHOTO: "store-candidate-photo",
 
   // Screen recording / proctoring — triggered by interview.letshyre.com
-  PROCTORING_START: "proctoring-start",   // renderer invoke → main
-  PROCTORING_STOP: "proctoring-stop",     // renderer send → main
+  PROCTORING_START: "proctoring-start", // renderer invoke → main
+  PROCTORING_STOP: "proctoring-stop", // renderer send → main
 
   // Push to interview site (main → renderer)
   PUSH_PROCTORING_STARTED: "push-proctoring-started",
   PUSH_PROCTORING_ERROR: "push-proctoring-error",
 
   // Internal: hidden recorder window ↔ main (NOT exposed to interview site)
-  RECORDER_INIT:    "recorder:init",
-  RECORDER_STOP:    "recorder:stop",
-  RECORDER_READY:   "recorder:ready",
-  RECORDER_CHUNK:   "recorder:chunk",
-  RECORDER_ERROR:   "recorder:error",
+  RECORDER_INIT: "recorder:init",
+  RECORDER_STOP: "recorder:stop",
+  RECORDER_READY: "recorder:ready",
+  RECORDER_CHUNK: "recorder:chunk",
+  RECORDER_ERROR: "recorder:error",
   RECORDER_STOPPED: "recorder:stopped", // renderer → main after final chunk flush
 };
 

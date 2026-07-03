@@ -314,8 +314,9 @@ function registerIpcHandlers() {
     // Stop all active detection / polling loops
     if (startDetection.stop) { startDetection.stop(); }
 
-    // Flush final recording chunk and destroy hidden recorder window
-    screenRecorder.stop();
+    // Recording continues until the site sends PROCTORING_STOP (after the
+    // scorecard or termination screen has rendered). Stopping here would cut
+    // the video before the candidate sees their result.
 
     // Lift window lockdown (allows close, minimize, etc.)
     endInterview(safeReason);

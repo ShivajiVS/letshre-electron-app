@@ -52,7 +52,7 @@ function createWebmChunker({ targetMs, onChunk }) {
 
   const emit = (uptoOffset) => {
     const clusters = tail.slice(0, uptoOffset);
-    onChunk(new Blob([init, clusters], { type: "video/webm" }));
+    onChunk(_concat(init, clusters)); // Uint8Array — no Blob, no async conversion
     tail     = tail.slice(uptoOffset);
     lastEmit = Date.now();
   };
@@ -82,7 +82,7 @@ function createWebmChunker({ targetMs, onChunk }) {
 
     flush() {
       if (!init || tail.length === 0) return;
-      onChunk(new Blob([init, tail], { type: "video/webm" }));
+      onChunk(_concat(init, tail)); // Uint8Array — same as emit, no Blob
       tail = new Uint8Array(0);
     },
   };
@@ -145,9 +145,11 @@ window.recorderBridge.onInit(async ({ sourceId }) => {
 
     const chunker = createWebmChunker({
       targetMs: CHUNK_TARGET_MS,
-      onChunk: async (blob) => {
-        const buf = await blob.arrayBuffer();
-        window.recorderBridge.sendChunk(new Uint8Array(buf));
+      // onChunk receives a Uint8Array directly (chunker no longer wraps in Blob).
+      // ipcRenderer.send is synchronous — the message is enqueued immediately,
+      // so no async step and no Promise needed here.
+      onChunk: (uint8Array) => {
+        window.recorderBridge.sendChunk(uint8Array);
       },
     });
 
@@ -163,9 +165,9 @@ window.recorderBridge.onInit(async ({ sourceId }) => {
     };
 
     mediaRecorder.onstop = async () => {
-      await chunkChain;        // ensure all buffered bytes have been processed
-      chunker.flush();         // emit final clusters as the last decodable chunk
-      window.recorderBridge.sendStopped(); // signal main: no more chunks coming
+      await chunkChain;                    // wait for all in-flight push() calls
+      chunker.flush();                     // sendChunk() enqueued synchronously
+      window.recorderBridge.sendStopped(); // arrives at main after all chunks (FIFO)
       _releaseStreams();
     };
 

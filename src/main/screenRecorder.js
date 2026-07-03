@@ -41,6 +41,7 @@ let uploadId     = null;
 let chunkIndex   = 0;
 let chunkBuffer  = []; // holds blobs when /start hasn't resolved yet
 let pumpRunning  = false;
+let pumpPromise  = Promise.resolve(); // tracked so _finalize() can await a running pump
 let chunkQueue   = []; // { index, uint8Array }[]
 let pollTimer    = null;
 
@@ -65,25 +66,31 @@ async function _uploadWithRetry(uint8Array, index) {
   }
 }
 
-async function _pump() {
-  if (pumpRunning || !uploadId) return;
+function _pump() {
+  if (!uploadId) return Promise.resolve();
+  if (pumpRunning) return pumpPromise; // caller awaits the already-running pump
+
   pumpRunning = true;
-  try {
-    while (chunkQueue.length > 0) {
-      const item = chunkQueue[0];
-      try {
-        await _uploadWithRetry(item.uint8Array, item.index);
-        chunkQueue.shift();
-        logger.info(`[recorder] chunk ${item.index} uploaded (${item.uint8Array.byteLength} B)`);
-      } catch (err) {
-        // Sustained failure (likely offline) — stop pumping; resume on "online" event.
-        logger.warn("[recorder] chunk pump paused:", err.message);
-        break;
+  pumpPromise = (async () => {
+    try {
+      while (chunkQueue.length > 0) {
+        const item = chunkQueue[0];
+        try {
+          await _uploadWithRetry(item.uint8Array, item.index);
+          chunkQueue.shift();
+          logger.info(`[recorder] chunk ${item.index} uploaded (${item.uint8Array.byteLength} B)`);
+        } catch (err) {
+          // Sustained failure (likely offline) — stop pumping; resume on "online" event.
+          logger.warn("[recorder] chunk pump paused:", err.message);
+          break;
+        }
       }
+    } finally {
+      pumpRunning = false;
     }
-  } finally {
-    pumpRunning = false;
-  }
+  })();
+
+  return pumpPromise;
 }
 
 function _clearPoll() {
@@ -178,6 +185,7 @@ function _resetState() {
   chunkBuffer = [];
   chunkQueue  = [];
   pumpRunning = false;
+  pumpPromise = Promise.resolve();
   jobMeta     = null;
   _clearPoll();
 }
@@ -238,6 +246,7 @@ async function start(meta = {}) {
 
     recorderWin.webContents.once("did-finish-load", () => {
       if (recorderWin && !recorderWin.isDestroyed()) {
+        // recorderWin.webContents.openDevTools({ mode: "detach" }); // DEBUG — remove before shipping
         recorderWin.webContents.send(IPC.RECORDER_INIT, { sourceId });
       }
     });
@@ -290,14 +299,14 @@ function registerRecorderIpc() {
 
   // Independently-decodable WebM chunk received — queue and pump.
   ipcMain.on(IPC.RECORDER_CHUNK, (_event, uint8Array) => {
-    const index = chunkIndex++;
     if (uploadId) {
-      chunkQueue.push({ index, uint8Array });
+      chunkQueue.push({ index: chunkIndex++, uint8Array });
       _pump();
     } else {
-      // /start hasn't resolved yet — hold for finalization.
+      // /start hasn't resolved yet — buffer; chunkIndex stays 0 so indices are
+      // sequential when the buffer is drained in _finalize().
       chunkBuffer.push(uint8Array);
-      logger.info(`[recorder] buffering chunk ${index} (${uint8Array.byteLength} B) — no uploadId yet`);
+      logger.info(`[recorder] buffering chunk ${chunkBuffer.length - 1} (${uint8Array.byteLength} B) — no uploadId yet`);
     }
   });
 

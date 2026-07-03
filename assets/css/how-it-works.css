@@ -1,0 +1,283 @@
+/* ─── How It Works page ──────────────────────────────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --blue:        #2563eb;
+  --blue-light:  #eff6ff;
+  --blue-mid:    #dbeafe;
+  --text-head:   #0f172a;
+  --text-body:   #475569;
+  --text-muted:  #94a3b8;
+  --border:      #e2e8f0;
+  --bg:          #f8fafc;
+  --white:       #ffffff;
+  --radius:      14px;
+  --shadow:      0 1px 3px rgba(0,0,0,.07), 0 4px 16px rgba(0,0,0,.05);
+}
+
+html, body {
+  height: 100%;
+  font-family: "Inter", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Top bar ─────────────────────────────────────────────────────────────── */
+
+.hiw-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+  padding: 0 40px;
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+}
+
+.hiw-topbar__logo { height: 28px; }
+
+.hiw-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--white);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-body);
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+}
+.hiw-back:hover { background: var(--bg); border-color: #cbd5e1; }
+.hiw-back svg { flex-shrink: 0; }
+
+/* ── Page layout ─────────────────────────────────────────────────────────── */
+
+.hiw-page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 56px 24px 80px;
+}
+
+/* ── Hero ────────────────────────────────────────────────────────────────── */
+
+.hiw-hero {
+  text-align: center;
+  margin-bottom: 56px;
+}
+
+.hiw-hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: var(--blue-mid);
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+
+.hiw-hero__title {
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  color: var(--text-head);
+  line-height: 1.2;
+  margin-bottom: 14px;
+}
+
+.hiw-hero__sub {
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--text-body);
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+/* ── Timeline ────────────────────────────────────────────────────────────── */
+
+.hiw-timeline {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* vertical connecting line */
+.hiw-timeline::before {
+  content: "";
+  position: absolute;
+  left: 23px;
+  top: 48px;
+  bottom: 48px;
+  width: 2px;
+  background: var(--border);
+}
+
+/* ── Step card ───────────────────────────────────────────────────────────── */
+
+.hiw-step {
+  position: relative;
+  display: flex;
+  gap: 24px;
+  padding: 28px 0;
+}
+
+.hiw-step:first-child { padding-top: 0; }
+.hiw-step:last-child  { padding-bottom: 0; }
+
+/* number badge */
+.hiw-step__badge {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--white);
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-muted);
+  position: relative;
+  z-index: 1;
+  transition: background 200ms, border-color 200ms, color 200ms;
+}
+
+.hiw-step--accent .hiw-step__badge {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: var(--white);
+  box-shadow: 0 0 0 4px var(--blue-mid);
+}
+
+/* card body */
+.hiw-step__body {
+  flex: 1;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px 26px;
+  box-shadow: var(--shadow);
+  margin-top: 4px;
+}
+
+.hiw-step--accent .hiw-step__body {
+  border-color: var(--blue-mid);
+  background: var(--blue-light);
+}
+
+.hiw-step__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.hiw-step__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--blue-mid);
+  color: var(--blue);
+  flex-shrink: 0;
+}
+
+.hiw-step--accent .hiw-step__icon {
+  background: rgba(255,255,255,.5);
+}
+
+.hiw-step__title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-head);
+  line-height: 1.3;
+}
+
+.hiw-step--accent .hiw-step__title { color: #1e3a8a; }
+
+.hiw-step__desc {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-body);
+}
+
+.hiw-step--accent .hiw-step__desc { color: #1e40af; }
+
+/* optional tip tag */
+.hiw-step__tip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--blue-mid);
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ── Bottom CTA ──────────────────────────────────────────────────────────── */
+
+.hiw-cta {
+  margin-top: 56px;
+  padding: 32px 36px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.hiw-cta__text { flex: 1; }
+
+.hiw-cta__heading {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-head);
+  margin-bottom: 4px;
+}
+
+.hiw-cta__sub {
+  font-size: 13.5px;
+  color: var(--text-body);
+  line-height: 1.5;
+}
+
+.hiw-cta__btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-radius: 10px;
+  background: var(--blue);
+  color: var(--white);
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: background 150ms, transform 150ms;
+  text-decoration: none;
+}
+.hiw-cta__btn:hover  { background: #1d4ed8; transform: translateY(-1px); }
+.hiw-cta__btn:active { transform: translateY(0); }

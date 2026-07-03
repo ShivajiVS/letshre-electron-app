@@ -408,6 +408,16 @@ function loadRoleSelectionPage() {
   }
 }
 
+/**
+ * Navigates to the how-it-works page. Accessible from login and dashboard —
+ * no auth required, purely informational.
+ */
+function loadHowItWorksPage() {
+  if (win && !win.isDestroyed()) {
+    win.loadFile(path.join(__dirname, "../../assets/how-it-works.html"));
+  }
+}
+
 module.exports = {
   createWindow,
   lockdownForInterview,
@@ -419,6 +429,7 @@ module.exports = {
   loadPermissionsPage,
   loadIdentityVerificationPage,
   loadRoleSelectionPage,
+  loadHowItWorksPage,
   getWindow,
   minimizeWindow,
   getIsInterviewActive,

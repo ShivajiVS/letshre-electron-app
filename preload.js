@@ -216,6 +216,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   /** Identity verification "Begin Interview": navigate to role selection. */
   loadRoleSelection: () => safeSend(IPC.LOAD_ROLE_SELECTION),
 
+  /** Open the how-it-works informational page (login and dashboard). */
+  loadHowItWorks: () => safeSend(IPC.LOAD_HOW_IT_WORKS),
+
   /** Back: navigate to dashboard (from security check). */
   loadDashboard: () => safeSend(IPC.LOAD_DASHBOARD),
 

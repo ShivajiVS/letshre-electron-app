@@ -38,7 +38,13 @@ const AUTH_LOGOUT_PATH = "/user/v1/logout/";
 const CANDIDATE_PROFILE_PATH = "/user/v1/candidate_profile/";
 const TOKEN_REFRESH_PATH = "/user/v1/login_refresh/";
 
-// ─── Detection / Violation ───────────────────────────────────────────────────
+/** Screen-recording upload API paths (relative to API_BASE_URL). */
+const VIDEO_UPLOAD_START_PATH = "/user/v1/candidate_interview/video_upload/start/";
+const VIDEO_UPLOAD_CHUNK_PATH = "/user/v1/candidate_interview/video_upload/chunk/";
+const VIDEO_UPLOAD_COMPLETE_PATH = "/user/v1/candidate_interview/video_upload/complete/";
+const VIDEO_UPLOAD_STATUS_PATH = "/user/v1/candidate_interview/video_upload/status/";
+
+// ─── Detection / Violation
 
 /** Minimum ms between repeated reports of the same violation event. */
 const VIOLATION_COOLDOWN_MS = 15000;
@@ -178,6 +184,22 @@ const IPC = {
   // Identity verification → main: store the captured photo for injection into
   // the interview SPA sessionStorage before React boots.
   STORE_CANDIDATE_PHOTO: "store-candidate-photo",
+
+  // Screen recording / proctoring — triggered by interview.letshyre.com
+  PROCTORING_START: "proctoring-start", // renderer invoke → main
+  PROCTORING_STOP: "proctoring-stop", // renderer send → main
+
+  // Push to interview site (main → renderer)
+  PUSH_PROCTORING_STARTED: "push-proctoring-started",
+  PUSH_PROCTORING_ERROR: "push-proctoring-error",
+
+  // Internal: hidden recorder window ↔ main (NOT exposed to interview site)
+  RECORDER_INIT: "recorder:init",
+  RECORDER_STOP: "recorder:stop",
+  RECORDER_READY: "recorder:ready",
+  RECORDER_CHUNK: "recorder:chunk",
+  RECORDER_ERROR: "recorder:error",
+  RECORDER_STOPPED: "recorder:stopped", // renderer → main after final chunk flush
 };
 
 // ─── Custom Protocol ─────────────────────────────────────────────────────────
@@ -197,6 +219,10 @@ module.exports = {
   AUTH_LOGOUT_PATH,
   CANDIDATE_PROFILE_PATH,
   TOKEN_REFRESH_PATH,
+  VIDEO_UPLOAD_START_PATH,
+  VIDEO_UPLOAD_CHUNK_PATH,
+  VIDEO_UPLOAD_COMPLETE_PATH,
+  VIDEO_UPLOAD_STATUS_PATH,
   VIOLATION_COOLDOWN_MS,
   DETECTION_INTERVAL_MS,
   HEARTBEAT_INTERVAL_MS,

@@ -24,6 +24,7 @@ const { getCurrentInterviewUrl, setInterviewSession } = require("./protocolHandl
 const { ensureAgent } = require("./agentManager");
 const authManager = require("./authManager");
 const startDetection = require("../detector/systemChecks");
+const screenRecorder = require("./screenRecorder");
 const { startPreProceedMonitor, stopPreProceedMonitor } = startDetection;
 
 const { MEETING_APPS, SCREEN_SHARING_APPS, AI_CHEATING_APPS, APP_DISPLAY_NAMES } = require("../shared/appList");
@@ -313,11 +314,33 @@ function registerIpcHandlers() {
     // Stop all active detection / polling loops
     if (startDetection.stop) { startDetection.stop(); }
 
+    // Recording continues until the site sends PROCTORING_STOP (after the
+    // scorecard or termination screen has rendered). Stopping here would cut
+    // the video before the candidate sees their result.
+
     // Lift window lockdown (allows close, minimize, etc.)
     endInterview(safeReason);
 
     // Safe moment to surface any held update / re-check.
     updater.onInterviewEnded();
+  });
+
+  // ── Screen recording / proctoring ────────────────────────────────────────
+  // Register internal recorder↔main IPC (recorder:ready, recorder:chunk, recorder:error).
+  screenRecorder.registerRecorderIpc();
+
+  // interview.letshyre.com → start recording
+  ipcMain.handle(IPC.PROCTORING_START, async (_event, meta = {}) => {
+    const safeSessionId   = typeof meta?.sessionId   === "string" ? meta.sessionId.slice(0, 100)   : null;
+    const safeInterviewId = typeof meta?.interviewId === "string" ? meta.interviewId.slice(0, 100) : null;
+    logger.info("[ipc] proctoring-start", { sessionId: safeSessionId, interviewId: safeInterviewId });
+    return await screenRecorder.start({ sessionId: safeSessionId, interviewId: safeInterviewId });
+  });
+
+  // interview.letshyre.com → stop recording
+  ipcMain.on(IPC.PROCTORING_STOP, () => {
+    logger.info("[ipc] proctoring-stop");
+    screenRecorder.stop();
   });
 
   logger.info("[ipc] all handlers registered");

@@ -23,6 +23,8 @@ const logger = require("./logger");
 const {
   API_BASE_URL, AUTH_LOGIN_PATH, AUTH_LOGOUT_PATH,
   CANDIDATE_PROFILE_PATH, TOKEN_REFRESH_PATH,
+  VIDEO_UPLOAD_START_PATH, VIDEO_UPLOAD_CHUNK_PATH,
+  VIDEO_UPLOAD_COMPLETE_PATH, VIDEO_UPLOAD_STATUS_PATH,
 } = require("../shared/constants");
 
 /** @type {{ accessToken: string, refreshToken: string, user: object } | null} */
@@ -418,6 +420,153 @@ async function verifySession() {
   }
 }
 
+// ─── Screen-recording upload API ─────────────────────────────────────────────
+// Mirrors videoUpload.api.js from the interview site. All calls are
+// authenticated via the main-process Bearer token — tokens never touch the
+// renderer. Each function applies the same 401 → refresh → retry pattern used
+// throughout this module.
+
+/**
+ * Registers a new upload session with the backend.
+ * Must be called before any chunk uploads.
+ * @param {{ interviewId: string, fileName: string }} opts
+ * @returns {Promise<{ ok: boolean, uploadId?: string, error?: string }>}
+ */
+async function startVideoUpload({ interviewId, fileName }) {
+  if (!session?.accessToken) { return { ok: false, error: "Not authenticated." }; }
+
+  const doRequest = () => axios.post(
+    `${API_BASE_URL}${VIDEO_UPLOAD_START_PATH}`,
+    { interview_id: interviewId, file_name: fileName, content_type: "video/webm" },
+    { timeout: 20000, headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.accessToken}` } }
+  );
+
+  try {
+    const res = await doRequest();
+    const uploadId = res.data?.data?.upload_id || res.data?.upload_id || null;
+    if (!uploadId) { return { ok: false, error: "No upload_id in response." }; }
+    return { ok: true, uploadId };
+  } catch (err) {
+    if (err.response?.status === 401) {
+      const refreshed = await _refreshTokens();
+      if (refreshed) {
+        try {
+          const res2 = await doRequest();
+          const uploadId = res2.data?.data?.upload_id || res2.data?.upload_id || null;
+          return uploadId ? { ok: true, uploadId } : { ok: false, error: "No upload_id in response." };
+        } catch (e2) { return { ok: false, error: e2.response?.data?.message || e2.message }; }
+      }
+      return { ok: false, error: "Session expired." };
+    }
+    return { ok: false, error: err.response?.data?.message || err.message || "Start upload failed." };
+  }
+}
+
+/**
+ * Uploads one independently-decodable WebM chunk.
+ * The chunk MUST be a complete initSegment + Clusters blob (produced by
+ * webmChunker) — raw MediaRecorder timeslices are not valid here.
+ *
+ * @param {{ uploadId: string, chunkIndex: number, chunk: Uint8Array }} opts
+ * @returns {Promise<{ ok: boolean, error?: string }>}
+ */
+async function uploadVideoChunk({ uploadId, chunkIndex, chunk }) {
+  if (!session?.accessToken) { return { ok: false, error: "Not authenticated." }; }
+
+  const doRequest = () => {
+    const form = new FormData();
+    form.append("upload_id",   uploadId);
+    form.append("chunk_index", String(chunkIndex));
+    form.append("chunk", new Blob([Buffer.from(chunk)], { type: "video/webm" }), `chunk_${chunkIndex}.webm`);
+    return axios.post(
+      `${API_BASE_URL}${VIDEO_UPLOAD_CHUNK_PATH}`,
+      form,
+      { timeout: 60000, headers: { Authorization: `Bearer ${session.accessToken}` } }
+    );
+  };
+
+  try {
+    await doRequest();
+    return { ok: true };
+  } catch (err) {
+    if (err.response?.status === 401) {
+      const refreshed = await _refreshTokens();
+      if (refreshed) {
+        try { await doRequest(); return { ok: true }; } catch (e2) {
+          return { ok: false, error: e2.response?.data?.message || e2.message };
+        }
+      }
+      return { ok: false, error: "Session expired." };
+    }
+    return { ok: false, error: err.response?.data?.message || err.message || "Chunk upload failed." };
+  }
+}
+
+/**
+ * Signals the backend that all chunks have been uploaded.
+ * The backend responds with 202 and queues an ffmpeg merge job.
+ * @param {string} uploadId
+ * @returns {Promise<{ ok: boolean, error?: string }>}
+ */
+async function completeVideoUpload(uploadId) {
+  if (!session?.accessToken) { return { ok: false, error: "Not authenticated." }; }
+
+  const doRequest = () => axios.post(
+    `${API_BASE_URL}${VIDEO_UPLOAD_COMPLETE_PATH}`,
+    { upload_id: uploadId },
+    { timeout: 20000, headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.accessToken}` } }
+  );
+
+  try {
+    await doRequest();
+    return { ok: true };
+  } catch (err) {
+    if (err.response?.status === 401) {
+      const refreshed = await _refreshTokens();
+      if (refreshed) {
+        try { await doRequest(); return { ok: true }; } catch (e2) {
+          return { ok: false, error: e2.response?.data?.message || e2.message };
+        }
+      }
+      return { ok: false, error: "Session expired." };
+    }
+    return { ok: false, error: err.response?.data?.message || err.message || "Complete upload failed." };
+  }
+}
+
+/**
+ * Polls the merge status of a completed upload.
+ * @param {string} uploadId
+ * @returns {Promise<{ ok: boolean, status?: string, videoUrl?: string, error?: string }>}
+ */
+async function getVideoUploadStatus(uploadId) {
+  if (!session?.accessToken) { return { ok: false, error: "Not authenticated." }; }
+
+  const doRequest = () => axios.get(
+    `${API_BASE_URL}${VIDEO_UPLOAD_STATUS_PATH}${uploadId}/`,
+    { timeout: 15000, headers: { Authorization: `Bearer ${session.accessToken}` } }
+  );
+
+  try {
+    const res = await doRequest();
+    const data = res.data?.data || res.data || {};
+    return { ok: true, status: data.status || null, videoUrl: data.interview?.video_url || null };
+  } catch (err) {
+    if (err.response?.status === 401) {
+      const refreshed = await _refreshTokens();
+      if (refreshed) {
+        try {
+          const res2 = await doRequest();
+          const data2 = res2.data?.data || res2.data || {};
+          return { ok: true, status: data2.status || null, videoUrl: data2.interview?.video_url || null };
+        } catch (e2) { return { ok: false, error: e2.response?.data?.message || e2.message }; }
+      }
+      return { ok: false, error: "Session expired." };
+    }
+    return { ok: false, error: err.response?.data?.message || err.message || "Status check failed." };
+  }
+}
+
 /** Display-safe user object for the renderer (no tokens). */
 function getUser() {
   return session?.user || null;
@@ -433,4 +582,8 @@ function isAuthenticated() {
   return session !== null;
 }
 
-module.exports = { init, verifySession, login, logout, getUser, getTokens, isAuthenticated, getCandidateProfile, fetchProfileImage, submitVoiceSample, submitFaceVerification, submitRole };
+module.exports = {
+  init, verifySession, login, logout, getUser, getTokens, isAuthenticated,
+  getCandidateProfile, fetchProfileImage, submitVoiceSample, submitFaceVerification, submitRole,
+  startVideoUpload, uploadVideoChunk, completeVideoUpload, getVideoUploadStatus,
+};

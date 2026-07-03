@@ -22,15 +22,17 @@ html, body {
   background: var(--bg);
   color: var(--text-body);
   -webkit-font-smoothing: antialiased;
-  /* Base font scales with viewport so all em/rem values follow */
   font-size: clamp(14px, 1.1vw, 20px);
+  padding-top: clamp(56px, 5vw, 80px);
 }
 
 /* ── Top bar ─────────────────────────────────────────────────────────────── */
 
 .hiw-topbar {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 10;
   display: flex;
   align-items: center;

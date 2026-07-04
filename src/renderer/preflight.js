@@ -187,11 +187,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, 6000);
   });
 
-  // Minimize button — lets the user minimize the window to close flagged apps manually
-  document.getElementById("btn-minimize")?.addEventListener("click", () => {
-    window.electronAPI?.minimizeWindow();
-  });
-
   // ── Initial Scan ──────────────────────────────────────────────────────────
   runScans();
 });
@@ -221,8 +216,38 @@ function setLoadingState(btnProceed, btnRescan, finalStatus) {
     if (actionsEl) { actionsEl.innerHTML = ""; }
   });
 
-  // Remove stale agent card
+  // Show the agent card in a pending/scanning state (like the static cards)
+  // until its result arrives. renderAgentCard() replaces it with pass/fail.
+  renderAgentPending();
+}
+
+// ─── Agent Pending State ────────────────────────────────────────────────────
+
+/**
+ * Renders the Deep Scan Agent card in a scanning state, matching the static
+ * cards. Without this the agent card was absent during the scan and popped in
+ * already resolved; now it shows "Scanning" first, then pass/fail.
+ */
+function renderAgentPending() {
   document.getElementById("card-agent")?.remove();
+  const container = document.querySelector(".sc-cards");
+  if (!container) { return; }
+
+  const card = document.createElement("div");
+  card.id = "card-agent";
+  card.className = "sc-card";
+  card.innerHTML = `
+    <div class="sc-card__row">
+      <div class="sc-card__row-left">
+        <div class="sc-card__icon">${ICONS.loading}</div>
+        <div class="sc-card__body">
+          <h3 class="sc-card__title">Deep Scan Agent</h3>
+          <p class="sc-card__desc">Running deep behavioral scan…</p>
+        </div>
+      </div>
+      <div class="sc-badge sc-badge--scanning">Scanning</div>
+    </div>`;
+  container.appendChild(card);
 }
 
 // ─── Results Processing ───────────────────────────────────────────────────────

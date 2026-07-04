@@ -153,6 +153,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (n === 2 && !capturedDataUrl) {
       startCamera();
     }
+
+    // Entering the voice step from any path — ensure the Continue button is not
+    // left in a stale disabled/spinner state (e.g. after a submit + back nav).
+    if (n === 1) {
+      btnContinueVoice.disabled = false;
+      btnContinueVoice.innerHTML = `Continue <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>`;
+    }
   }
 
   // ── Load profile photo ────────────────────────────────────────────────────
@@ -474,6 +481,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // ── Init ──────────────────────────────────────────────────────────────────
 
-  await loadProfile();
+  // Navigate to step 1 immediately. loadProfile() is an async IPC round-trip;
+  // awaiting it here caused a race where a slow profile fetch resolved AFTER the
+  // user had already advanced to step 2, snapping them back to step 1 with the
+  // Continue button stuck in its "Submitting…" state. Fire it and forget — the
+  // profile image binds to the DOM via onload whenever it arrives.
   goToStep(1);
+  loadProfile();
 });

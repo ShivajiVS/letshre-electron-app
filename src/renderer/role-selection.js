@@ -66,6 +66,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   const skillsGrid         = document.getElementById("skills-grid");
   const btnStartInterview  = document.getElementById("btn-start-interview");
 
+  // Error banner (inline display:none/flex — see role-selection.html note)
+  const rsError     = document.getElementById("rs-error");
+  const rsErrorText = document.getElementById("rs-error-text");
+  function showError(msg) { rsErrorText.textContent = msg; rsError.style.display = "flex"; }
+  function hideError() { rsError.style.display = "none"; }
+
   // ── Sidebar copy per step ────────────────────────────────────────────────────
   const SIDEBAR = [
     { title: "Your Selected Role",  desc: "Review the role assigned to you. If it's correct, proceed directly to the interview. Otherwise, enter a different role." },
@@ -81,6 +87,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // ── Step navigation ──────────────────────────────────────────────────────────
   function goToStep(idx) {
+    hideError();
     // Sidebar copy
     sidebarTitle.textContent = SIDEBAR[idx].title;
     sidebarDesc.textContent  = SIDEBAR[idx].desc;
@@ -173,9 +180,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   async function submitRole(role) {
     pendingRole = role;
+    hideError();
+    if (typeof window.electronAPI?.submitRole !== "function") {
+      showError("This action is unavailable. Please restart the app.");
+      setSubmitting(false);
+      return;
+    }
     try {
-      const res = await window.electronAPI?.submitRole?.(role);
+      const res = await window.electronAPI.submitRole(role);
       if (!res?.ok) {
+        showError(res?.error || "Couldn't process that role. Please try again.");
         setSubmitting(false);
         return;
       }
@@ -188,7 +202,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         goToStep(3);
       }
     } catch {
-      // Stay on current step — non-fatal
+      showError("Network error. Check your connection and try again.");
     } finally {
       setSubmitting(false);
     }

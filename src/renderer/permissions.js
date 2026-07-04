@@ -111,14 +111,40 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ── Permission requests ─────────────────────────────────────────────────
+  // Map a getUserMedia rejection to actionable guidance. A plain "Try again" is
+  // a dead-end when the block is permanent (OS-level denial) or the device is
+  // missing / busy — the user needs to know WHAT to do before retrying.
+  const PERM_LABEL = { camera: "Camera", mic: "Microphone", screen: "Screen sharing" };
+  function permissionErrorHint(perm, errName) {
+    const label = PERM_LABEL[perm];
+    const lower = label.toLowerCase();
+    if (errName === "NotAllowedError" || errName === "SecurityError") {
+      return `${label} access is blocked. Enable it in your system Settings › Privacy, then click Try again.`;
+    }
+    if (errName === "NotFoundError" || errName === "OverconstrainedError") {
+      return `No ${lower} device was found. Connect one and click Try again.`;
+    }
+    if (errName === "NotReadableError" || errName === "AbortError") {
+      return `Your ${lower} is in use by another app. Close it and click Try again.`;
+    }
+    return `Could not access ${lower}. Please click Try again.`;
+  }
+
+  // applyState(...) ends by calling syncStartButton(), which rewrites permNote —
+  // so the hint must be set AFTER applyState to win.
+  function denyWithHint(perm, err) {
+    applyState(perm, "denied");
+    permNote.textContent = permissionErrorHint(perm, err?.name);
+  }
+
   async function requestCamera() {
     applyState("camera", "requesting");
     try {
       const s = await navigator.mediaDevices.getUserMedia({ video: true });
       s.getTracks().forEach(t => t.stop());
       applyState("camera", "granted");
-    } catch {
-      applyState("camera", "denied");
+    } catch (err) {
+      denyWithHint("camera", err);
     }
   }
 
@@ -128,8 +154,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const s = await navigator.mediaDevices.getUserMedia({ audio: true });
       s.getTracks().forEach(t => t.stop());
       applyState("mic", "granted");
-    } catch {
-      applyState("mic", "denied");
+    } catch (err) {
+      denyWithHint("mic", err);
     }
   }
 
@@ -141,8 +167,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const s = await navigator.mediaDevices.getDisplayMedia({ video: true });
       s.getTracks().forEach(t => t.stop());
       applyState("screen", "granted");
-    } catch {
-      applyState("screen", "denied");
+    } catch (err) {
+      denyWithHint("screen", err);
     }
   }
 

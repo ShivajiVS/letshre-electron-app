@@ -162,12 +162,29 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   btnRescan.addEventListener("click", runScans);
 
+  const proceedBtnHTML = btnProceed.innerHTML; // capture original for restore
   btnProceed.addEventListener("click", () => {
-    if (window.electronAPI) {
-      btnProceed.disabled = true;
-      btnProceed.innerHTML = `${ICONS.loading} Loading...`;
-      window.electronAPI.loadPermissionsPage();
+    if (btnProceed.disabled) { return; }
+    // Fail loud if the bridge method is missing — never spin forever silently
+    // (synced with the other nav buttons hardened in renderer-production-hardening).
+    if (typeof window.electronAPI?.loadPermissionsPage !== "function") {
+      finalStatus.textContent = "Unable to continue — please restart the app.";
+      finalStatus.className = "sc-status sc-status--fail";
+      return;
     }
+    btnProceed.disabled = true;
+    btnProceed.className = "sc-btn-proceed sc-btn-proceed--loading";
+    btnProceed.innerHTML = `${ICONS.loading} Loading...`;
+    window.electronAPI.loadPermissionsPage();
+    // Watchdog: successful navigation tears down this page (timer dies with it).
+    // If it fires, navigation never happened — restore the button for a retry.
+    setTimeout(() => {
+      btnProceed.innerHTML = proceedBtnHTML;
+      btnProceed.className = PROCEED_ENABLED_CLASS;
+      btnProceed.disabled = false;
+      finalStatus.textContent = "That took too long. Please try again.";
+      finalStatus.className = "sc-status sc-status--fail";
+    }, 6000);
   });
 
   // Minimize button — lets the user minimize the window to close flagged apps manually

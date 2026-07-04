@@ -126,14 +126,23 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // ── Attempt tracker ──────────────────────────────────────────────────
-    const used      = Number(profile.interview_attempts_used)      || 0;
-    const max       = Number(profile.max_interviews_allowed)       || 0;
-    const remaining = Number(profile.interview_attempts_remaining) ?? (max - used);
+    const used = Number(profile.interview_attempts_used) || 0;
+    const max  = Number(profile.max_interviews_allowed)  || 0;
+
+    // interview_attempts_remaining may be absent from the API payload. Number()
+    // of a missing field yields NaN (NOT null/undefined), so `?? fallback` never
+    // fired — leaving remaining = NaN, which broke the "used all attempts" gate
+    // (NaN <= 0 is false) and rendered "NaN of X remaining". Validate explicitly.
+    const rawRemaining = Number(profile.interview_attempts_remaining);
+    const remaining = Number.isFinite(rawRemaining) ? rawRemaining : Math.max(0, max - used);
 
     if (max > 0) {
       attemptTracker.style.display = "";
       attemptDots.innerHTML = "";
-      for (let i = 0; i < max; i++) {
+      // Clamp dot rendering — max comes straight from the API; a bad value
+      // (e.g. 1000) would otherwise flood the DOM.
+      const dotCount = Math.min(max, 10);
+      for (let i = 0; i < dotCount; i++) {
         const dot = document.createElement("span");
         dot.className = "attempt-dot" + (i < used ? " used" : "");
         attemptDots.appendChild(dot);

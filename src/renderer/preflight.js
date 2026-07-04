@@ -378,6 +378,11 @@ function renderKillButtons(container, blockedApps) {
     const row = document.createElement("div");
     row.className = "sc-kill-row";
 
+    // appName is a live OS process name — attacker-influenceable (a candidate
+    // can rename an executable to an HTML payload). Escape before innerHTML.
+    const safeDisplay = escapeHtml(getDisplayName(appName));
+    const safeProcess = escapeHtml(appName);
+
     row.innerHTML = `
       <div class="sc-kill-info-wrap">
         <span class="sc-kill-indicator">
@@ -385,14 +390,14 @@ function renderKillButtons(container, blockedApps) {
           <span class="sc-kill-dot"></span>
         </span>
         <div class="sc-kill-info">
-          <span class="sc-kill-name">${getDisplayName(appName)}</span>
-          <span class="sc-kill-process">${appName}</span>
+          <span class="sc-kill-name">${safeDisplay}</span>
+          <span class="sc-kill-process">${safeProcess}</span>
         </div>
       </div>`;
 
     const btn = document.createElement("button");
     btn.className = "sc-kill-btn";
-    btn.innerHTML = `<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Close ${getDisplayName(appName)}`;
+    btn.innerHTML = `<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Close ${safeDisplay}`;
     btn.addEventListener("click", () => handleKillApp(btn, appName, row));
 
     row.appendChild(btn);
@@ -435,12 +440,12 @@ async function handleKillApp(btn, processName, row) {
       }
     } else {
       btn.className = "sc-kill-btn sc-kill-btn--failed";
-      btn.innerHTML = `❌ Failed — close ${getDisplayName(processName)} manually`;
+      btn.innerHTML = `<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg> Failed — close ${escapeHtml(getDisplayName(processName))} manually`;
       btn.disabled = false;
     }
   } catch {
     btn.className = "sc-kill-btn sc-kill-btn--failed";
-    btn.innerHTML = `❌ Error — close ${getDisplayName(processName)} manually`;
+    btn.innerHTML = `<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg> Error — close ${escapeHtml(getDisplayName(processName))} manually`;
     btn.disabled = false;
   }
 }
@@ -453,10 +458,10 @@ async function handleKillAll(btn, processNames) {
   try {
     await window.electronAPI.killAllProcesses(processNames);
     btn.className = "sc-kill-all-btn sc-kill-all-btn--success";
-    btn.innerHTML = "✅ All apps closed — re-scanning...";
+    btn.innerHTML = `<svg class="sc-icon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg> All apps closed — re-scanning...`;
   } catch {
     btn.className = "sc-kill-all-btn sc-kill-all-btn--failed";
-    btn.innerHTML = "❌ Some apps failed to close";
+    btn.innerHTML = `<svg class="sc-icon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg> Some apps failed to close`;
   }
 
   setTimeout(() => document.getElementById("btn-rescan")?.click(), 2000);
@@ -528,10 +533,10 @@ function renderAgentCard(agent) {
         <span class="sc-kill-dot"></span>
       </span>
       <div class="sc-threat-content">
-        <span class="sc-threat-title">${t.type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</span>
-        <p class="sc-threat-detail">${t.detail}</p>
+        <span class="sc-threat-title">${escapeHtml(t.type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()))}</span>
+        <p class="sc-threat-detail">${escapeHtml(t.detail)}</p>
       </div>
-      <span class="sc-threat-badge sc-threat-badge--${t.severity === "HIGH" ? "high" : "medium"}">${t.severity}</span>
+      <span class="sc-threat-badge sc-threat-badge--${t.severity === "HIGH" ? "high" : "medium"}">${escapeHtml(t.severity)}</span>
     </div>`
     )
     .join("");
@@ -562,7 +567,7 @@ function renderAgentCard(agent) {
 // ─── Mock Fallback (non-Electron preview) ─────────────────────────────────────
 
 function setMockPassedState(finalStatus, btnProceed) {
-  ["hdmi", "meeting", "screen", "wireless"].forEach((id) =>
+  ["hdmi", "meeting", "screen", "wireless", "ai"].forEach((id) =>
     updateCard(id, true, "Check passed (preview mode).")
   );
   finalStatus.textContent = "Preview mode — all checks simulated as passed.";

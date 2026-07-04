@@ -475,7 +475,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const beginBtnHTML = btnBegin.innerHTML; // capture original for restore
   btnBegin.addEventListener("click", async () => {
-    if (btnBegin.disabled) return;
+    if (btnBegin.disabled) { return; }
     // Fail loud if the bridge method is missing — never spin forever silently.
     if (typeof window.electronAPI?.loadRoleSelection !== "function") {
       showError("Unable to continue. Please restart the app.");

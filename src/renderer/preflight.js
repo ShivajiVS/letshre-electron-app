@@ -162,17 +162,29 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   btnRescan.addEventListener("click", runScans);
 
+  const proceedBtnHTML = btnProceed.innerHTML; // capture original for restore
   btnProceed.addEventListener("click", () => {
-    if (window.electronAPI) {
-      btnProceed.disabled = true;
-      btnProceed.innerHTML = `${ICONS.loading} Loading...`;
-      window.electronAPI.loadPermissionsPage();
+    if (btnProceed.disabled) { return; }
+    // Fail loud if the bridge method is missing — never spin forever silently
+    // (synced with the other nav buttons hardened in renderer-production-hardening).
+    if (typeof window.electronAPI?.loadPermissionsPage !== "function") {
+      finalStatus.textContent = "Unable to continue — please restart the app.";
+      finalStatus.className = "sc-status sc-status--fail";
+      return;
     }
-  });
-
-  // Minimize button — lets the user minimize the window to close flagged apps manually
-  document.getElementById("btn-minimize")?.addEventListener("click", () => {
-    window.electronAPI?.minimizeWindow();
+    btnProceed.disabled = true;
+    btnProceed.className = "sc-btn-proceed sc-btn-proceed--loading";
+    btnProceed.innerHTML = `${ICONS.loading} Loading...`;
+    window.electronAPI.loadPermissionsPage();
+    // Watchdog: successful navigation tears down this page (timer dies with it).
+    // If it fires, navigation never happened — restore the button for a retry.
+    setTimeout(() => {
+      btnProceed.innerHTML = proceedBtnHTML;
+      btnProceed.className = PROCEED_ENABLED_CLASS;
+      btnProceed.disabled = false;
+      finalStatus.textContent = "That took too long. Please try again.";
+      finalStatus.className = "sc-status sc-status--fail";
+    }, 6000);
   });
 
   // ── Initial Scan ──────────────────────────────────────────────────────────
@@ -204,8 +216,38 @@ function setLoadingState(btnProceed, btnRescan, finalStatus) {
     if (actionsEl) { actionsEl.innerHTML = ""; }
   });
 
-  // Remove stale agent card
+  // Show the agent card in a pending/scanning state (like the static cards)
+  // until its result arrives. renderAgentCard() replaces it with pass/fail.
+  renderAgentPending();
+}
+
+// ─── Agent Pending State ────────────────────────────────────────────────────
+
+/**
+ * Renders the Deep Scan Agent card in a scanning state, matching the static
+ * cards. Without this the agent card was absent during the scan and popped in
+ * already resolved; now it shows "Scanning" first, then pass/fail.
+ */
+function renderAgentPending() {
   document.getElementById("card-agent")?.remove();
+  const container = document.querySelector(".sc-cards");
+  if (!container) { return; }
+
+  const card = document.createElement("div");
+  card.id = "card-agent";
+  card.className = "sc-card";
+  card.innerHTML = `
+    <div class="sc-card__row">
+      <div class="sc-card__row-left">
+        <div class="sc-card__icon">${ICONS.loading}</div>
+        <div class="sc-card__body">
+          <h3 class="sc-card__title">Deep Scan Agent</h3>
+          <p class="sc-card__desc">Running deep behavioral scan…</p>
+        </div>
+      </div>
+      <div class="sc-badge sc-badge--scanning">Scanning</div>
+    </div>`;
+  container.appendChild(card);
 }
 
 // ─── Results Processing ───────────────────────────────────────────────────────
@@ -220,10 +262,14 @@ function setLoadingState(btnProceed, btnRescan, finalStatus) {
  * @returns {boolean}    - true if this step passed (used by processResults allPassed)
  */
 function applyStepResult(step, result) {
-  if (!result) { return true; }
-
   switch (step) {
     case "hdmi":
+      // Fail-CLOSED: on a security gate a missing result must never count as a
+      // pass. If main omitted this check, surface it and block Proceed.
+      if (!result) {
+        updateCard("hdmi", false, "Could not verify external displays. Click Rescan.");
+        return false;
+      }
       if (result.detected) {
         updateCard("hdmi", false, "Disconnect all external displays/cables.");
         return false;
@@ -232,6 +278,14 @@ function applyStepResult(step, result) {
       return true;
 
     case "mirror": {
+      // Fail-CLOSED: the mirror scan drives the meeting/screen/wireless/ai cards.
+      // A missing result blocks Proceed rather than silently passing all four.
+      if (!result) {
+        ["meeting", "screen", "wireless", "ai"].forEach((c) =>
+          updateCard(c, false, "Could not complete this check. Click Rescan.")
+        );
+        return false;
+      }
       const procs        = result.details?.processes || [];
       remainingBlockedApps = procs.length;
 
@@ -378,6 +432,11 @@ function renderKillButtons(container, blockedApps) {
     const row = document.createElement("div");
     row.className = "sc-kill-row";
 
+    // appName is a live OS process name — attacker-influenceable (a candidate
+    // can rename an executable to an HTML payload). Escape before innerHTML.
+    const safeDisplay = escapeHtml(getDisplayName(appName));
+    const safeProcess = escapeHtml(appName);
+
     row.innerHTML = `
       <div class="sc-kill-info-wrap">
         <span class="sc-kill-indicator">
@@ -385,14 +444,14 @@ function renderKillButtons(container, blockedApps) {
           <span class="sc-kill-dot"></span>
         </span>
         <div class="sc-kill-info">
-          <span class="sc-kill-name">${getDisplayName(appName)}</span>
-          <span class="sc-kill-process">${appName}</span>
+          <span class="sc-kill-name">${safeDisplay}</span>
+          <span class="sc-kill-process">${safeProcess}</span>
         </div>
       </div>`;
 
     const btn = document.createElement("button");
     btn.className = "sc-kill-btn";
-    btn.innerHTML = `<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Close ${getDisplayName(appName)}`;
+    btn.innerHTML = `<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Close ${safeDisplay}`;
     btn.addEventListener("click", () => handleKillApp(btn, appName, row));
 
     row.appendChild(btn);
@@ -435,12 +494,12 @@ async function handleKillApp(btn, processName, row) {
       }
     } else {
       btn.className = "sc-kill-btn sc-kill-btn--failed";
-      btn.innerHTML = `❌ Failed — close ${getDisplayName(processName)} manually`;
+      btn.innerHTML = `<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg> Failed — close ${escapeHtml(getDisplayName(processName))} manually`;
       btn.disabled = false;
     }
   } catch {
     btn.className = "sc-kill-btn sc-kill-btn--failed";
-    btn.innerHTML = `❌ Error — close ${getDisplayName(processName)} manually`;
+    btn.innerHTML = `<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg> Error — close ${escapeHtml(getDisplayName(processName))} manually`;
     btn.disabled = false;
   }
 }
@@ -453,10 +512,10 @@ async function handleKillAll(btn, processNames) {
   try {
     await window.electronAPI.killAllProcesses(processNames);
     btn.className = "sc-kill-all-btn sc-kill-all-btn--success";
-    btn.innerHTML = "✅ All apps closed — re-scanning...";
+    btn.innerHTML = `<svg class="sc-icon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg> All apps closed — re-scanning...`;
   } catch {
     btn.className = "sc-kill-all-btn sc-kill-all-btn--failed";
-    btn.innerHTML = "❌ Some apps failed to close";
+    btn.innerHTML = `<svg class="sc-icon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg> Some apps failed to close`;
   }
 
   setTimeout(() => document.getElementById("btn-rescan")?.click(), 2000);
@@ -528,10 +587,10 @@ function renderAgentCard(agent) {
         <span class="sc-kill-dot"></span>
       </span>
       <div class="sc-threat-content">
-        <span class="sc-threat-title">${t.type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</span>
-        <p class="sc-threat-detail">${t.detail}</p>
+        <span class="sc-threat-title">${escapeHtml(t.type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()))}</span>
+        <p class="sc-threat-detail">${escapeHtml(t.detail)}</p>
       </div>
-      <span class="sc-threat-badge sc-threat-badge--${t.severity === "HIGH" ? "high" : "medium"}">${t.severity}</span>
+      <span class="sc-threat-badge sc-threat-badge--${t.severity === "HIGH" ? "high" : "medium"}">${escapeHtml(t.severity)}</span>
     </div>`
     )
     .join("");
@@ -562,7 +621,7 @@ function renderAgentCard(agent) {
 // ─── Mock Fallback (non-Electron preview) ─────────────────────────────────────
 
 function setMockPassedState(finalStatus, btnProceed) {
-  ["hdmi", "meeting", "screen", "wireless"].forEach((id) =>
+  ["hdmi", "meeting", "screen", "wireless", "ai"].forEach((id) =>
     updateCard(id, true, "Check passed (preview mode).")
   );
   finalStatus.textContent = "Preview mode — all checks simulated as passed.";

@@ -167,11 +167,26 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // ── Take interview ───────────────────────────────────────────────────────
+  const takeBtnHTML = takeBtn.innerHTML; // capture original markup for restore
   takeBtn.addEventListener("click", () => {
     if (takeBtn.disabled) { return; }
+    // Fail loud if the bridge method is missing — never spin forever silently.
+    if (typeof window.electronAPI?.startInterview !== "function") {
+      dashNote.textContent = "Unable to start — please restart the app.";
+      dashNote.classList.add("exhausted-note");
+      return;
+    }
     takeBtn.disabled = true;
     takeBtn.innerHTML = "Starting&hellip;";
-    window.electronAPI?.startInterview?.();
+    window.electronAPI.startInterview();
+    // Watchdog: successful navigation tears down this page (timer dies with it).
+    // If the timer fires, navigation never happened — restore the button.
+    setTimeout(() => {
+      takeBtn.disabled = false;
+      takeBtn.innerHTML = takeBtnHTML;
+      dashNote.textContent = "That took too long. Please try again.";
+      dashNote.classList.add("exhausted-note");
+    }, 6000);
   });
 
   // ── Logout ───────────────────────────────────────────────────────────────

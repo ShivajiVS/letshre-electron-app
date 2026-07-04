@@ -99,8 +99,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ── Start button gate ───────────────────────────────────────────────────
   const btnStart   = document.getElementById("btn-start");
-  const btnLabel   = document.getElementById("btn-start-label");
-  const btnIcon    = document.getElementById("btn-start-icon");
   const permNote   = document.getElementById("perm-note");
 
   function syncStartButton() {
@@ -153,11 +151,25 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btn-mic").addEventListener("click", requestMic);
   document.getElementById("btn-screen").addEventListener("click", requestScreen);
 
+  const startBtnHTML = btnStart.innerHTML; // capture original for restore
   btnStart.addEventListener("click", () => {
     if (btnStart.disabled) { return; }
+    // Fail loud if the bridge method is missing — never spin forever silently.
+    if (typeof window.electronAPI?.loadIdentityVerification !== "function") {
+      permNote.textContent = "Unable to continue — please restart the app.";
+      return;
+    }
     btnStart.disabled = true;
-    btnLabel.textContent = "Starting…";
-    btnIcon.outerHTML = `<svg class="perm-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>`;
-    window.electronAPI?.loadIdentityVerification?.();
+    // Query fresh nodes (restore below replaces these by innerHTML).
+    document.getElementById("btn-start-label").textContent = "Starting…";
+    document.getElementById("btn-start-icon").outerHTML = `<svg class="perm-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>`;
+    window.electronAPI.loadIdentityVerification();
+    // Watchdog: successful navigation tears down this page. If this fires,
+    // navigation never happened — restore the button so the user can retry.
+    setTimeout(() => {
+      btnStart.innerHTML = startBtnHTML;
+      btnStart.disabled = false;
+      permNote.textContent = "That took too long. Please try again.";
+    }, 6000);
   });
 });

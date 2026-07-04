@@ -237,10 +237,14 @@ function setLoadingState(btnProceed, btnRescan, finalStatus) {
  * @returns {boolean}    - true if this step passed (used by processResults allPassed)
  */
 function applyStepResult(step, result) {
-  if (!result) { return true; }
-
   switch (step) {
     case "hdmi":
+      // Fail-CLOSED: on a security gate a missing result must never count as a
+      // pass. If main omitted this check, surface it and block Proceed.
+      if (!result) {
+        updateCard("hdmi", false, "Could not verify external displays. Click Rescan.");
+        return false;
+      }
       if (result.detected) {
         updateCard("hdmi", false, "Disconnect all external displays/cables.");
         return false;
@@ -249,6 +253,14 @@ function applyStepResult(step, result) {
       return true;
 
     case "mirror": {
+      // Fail-CLOSED: the mirror scan drives the meeting/screen/wireless/ai cards.
+      // A missing result blocks Proceed rather than silently passing all four.
+      if (!result) {
+        ["meeting", "screen", "wireless", "ai"].forEach((c) =>
+          updateCard(c, false, "Could not complete this check. Click Rescan.")
+        );
+        return false;
+      }
       const procs        = result.details?.processes || [];
       remainingBlockedApps = procs.length;
 

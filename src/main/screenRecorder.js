@@ -30,6 +30,11 @@ const MAX_CHUNK_RETRIES  = 4;
 const POLL_INTERVAL_MS   = 3000;
 const MAX_POLL_MS        = 5 * 60 * 1000; // 5 min
 
+// Max ms to wait for the hidden recorder window to report RECORDER_READY after
+// creation. If it never does (preload missing, getUserMedia blocked, renderer
+// threw), the recording is dead — surface it instead of failing silently.
+const READY_TIMEOUT_MS   = 10000;
+
 // ─── Module state ─────────────────────────────────────────────────────────────
 
 /** @type {BrowserWindow | null} */
@@ -44,6 +49,7 @@ let pumpRunning  = false;
 let pumpPromise  = Promise.resolve(); // tracked so _finalize() can await a running pump
 let chunkQueue   = []; // { index, uint8Array }[]
 let pollTimer    = null;
+let readyTimer   = null; // watchdog: fires if RECORDER_READY never arrives
 
 // Job meta
 let jobMeta      = null; // { interviewId, fileName }
@@ -95,6 +101,10 @@ function _pump() {
 
 function _clearPoll() {
   if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+}
+
+function _clearReadyWatchdog() {
+  if (readyTimer) { clearTimeout(readyTimer); readyTimer = null; }
 }
 
 function _pollStatus() {
@@ -188,6 +198,7 @@ function _resetState() {
   pumpPromise = Promise.resolve();
   jobMeta     = null;
   _clearPoll();
+  _clearReadyWatchdog();
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -254,6 +265,20 @@ async function start(meta = {}) {
     recorderWin.on("closed", () => { recorderWin = null; });
     recorderWin.loadFile(path.join(__dirname, "../../assets/recorder.html"));
 
+    // Watchdog: the recorder must report RECORDER_READY within READY_TIMEOUT_MS.
+    // If it doesn't, the hidden window is dead (missing preload, blocked
+    // getUserMedia, renderer threw) — no chunks will ever arrive and the
+    // recording would be lost silently. Surface it to the interview page.
+    _clearReadyWatchdog();
+    readyTimer = setTimeout(() => {
+      readyTimer = null;
+      if (!isRecording) { return; } // already stopped/cleaned up
+      logger.error("[recorder] recorder never became ready — recording will not be captured");
+      _pushToInterviewPage(IPC.PUSH_PROCTORING_ERROR, {
+        error: "Screen recording could not start on this device.",
+      });
+    }, READY_TIMEOUT_MS);
+
     logger.info(`[recorder] hidden window created — sourceId: ${sourceId}`);
     return { ok: true };
   } catch (err) {
@@ -293,6 +318,7 @@ function stop() {
 function registerRecorderIpc() {
   // MediaRecorder confirmed started.
   ipcMain.on(IPC.RECORDER_READY, () => {
+    _clearReadyWatchdog();
     logger.info("[recorder] MediaRecorder started — proctoring is live");
     _pushToInterviewPage(IPC.PUSH_PROCTORING_STARTED, {});
   });
@@ -318,6 +344,7 @@ function registerRecorderIpc() {
 
   // Renderer error — log and surface to interview site.
   ipcMain.on(IPC.RECORDER_ERROR, (_event, msg) => {
+    _clearReadyWatchdog();
     logger.error("[recorder] renderer error:", msg);
     isRecording = false;
     _pushToInterviewPage(IPC.PUSH_PROCTORING_ERROR, { error: msg });

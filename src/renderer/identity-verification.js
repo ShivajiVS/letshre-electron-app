@@ -225,9 +225,29 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         console.log("[audio] actualMime:", actualMime, "chunks:", audioChunks.length, "blobSize:", audioBlob.size);
 
+        // Guard: a mid-recording failure (device unplug, OS revoke) can leave
+        // zero captured bytes. Don't advance to review with an empty, unplayable
+        // sample that would fail silently at submit.
+        if (!audioBlob || audioBlob.size === 0) {
+          audioBlob = null;
+          setVoiceState("idle");
+          showError("No audio was captured. Please check your microphone and record again.");
+          return;
+        }
+
         if (audioURL) URL.revokeObjectURL(audioURL);
         audioURL = URL.createObjectURL(audioBlob);
         setVoiceState("reviewing");
+      };
+
+      // Without this, a hardware/permission failure mid-recording is swallowed:
+      // onstop may never fire (or fires with no data) and the UI stays stuck on
+      // the recording state.
+      mediaRecorder.onerror = (e) => {
+        stream.getTracks().forEach(t => t.stop());
+        audioBlob = null;
+        setVoiceState("idle");
+        showError("Recording was interrupted: " + (e.error?.message || "microphone error") + ". Please try again.");
       };
 
       mediaRecorder.start();
@@ -293,7 +313,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ── Voice submit ──────────────────────────────────────────────────────────
 
   async function submitVoice() {
-    if (!audioBlob) { showError("Please record a voice sample first."); return; }
+    if (!audioBlob || audioBlob.size === 0) { showError("Please record a voice sample first."); return; }
     setLoading(btnContinueVoice, true, "Submitting…");
     try {
       const buffer = await audioBlob.arrayBuffer();
@@ -453,13 +473,29 @@ document.addEventListener("DOMContentLoaded", async () => {
     goToStep(1);
   });
 
+  const beginBtnHTML = btnBegin.innerHTML; // capture original for restore
   btnBegin.addEventListener("click", async () => {
+    if (btnBegin.disabled) { return; }
+    // Fail loud if the bridge method is missing — never spin forever silently.
+    if (typeof window.electronAPI?.loadRoleSelection !== "function") {
+      showError("Unable to continue. Please restart the app.");
+      return;
+    }
     btnBegin.disabled = true;
     btnBegin.innerHTML = `<span class="iv-spinner"></span> Loading…`;
     // Hand the verified live photo to the main process so it can inject it into
     // sessionStorage on the interview window before the React SPA boots.
-    await window.electronAPI?.storeCandidatePhoto?.(capturedDataUrl);
-    window.electronAPI?.loadRoleSelection?.();
+    try {
+      await window.electronAPI?.storeCandidatePhoto?.(capturedDataUrl);
+    } catch { /* non-fatal — proceed to role selection regardless */ }
+    window.electronAPI.loadRoleSelection();
+    // Watchdog: successful navigation tears down this page. If this fires,
+    // navigation never happened — restore the button so the user can retry.
+    setTimeout(() => {
+      btnBegin.disabled = false;
+      btnBegin.innerHTML = beginBtnHTML;
+      showError("That took too long. Please try again.");
+    }, 6000);
   });
 
   btnRetryPhoto.addEventListener("click", () => {

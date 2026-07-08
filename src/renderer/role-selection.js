@@ -66,6 +66,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   const skillsGrid         = document.getElementById("skills-grid");
   const btnStartInterview  = document.getElementById("btn-start-interview");
 
+  // Error banner (inline display:none/flex — see role-selection.html note)
+  const rsError     = document.getElementById("rs-error");
+  const rsErrorText = document.getElementById("rs-error-text");
+  function showError(msg) { rsErrorText.textContent = msg; rsError.style.display = "flex"; }
+  function hideError() { rsError.style.display = "none"; }
+
   // ── Sidebar copy per step ────────────────────────────────────────────────────
   const SIDEBAR = [
     { title: "Your Selected Role",  desc: "Review the role assigned to you. If it's correct, proceed directly to the interview. Otherwise, enter a different role." },
@@ -81,6 +87,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // ── Step navigation ──────────────────────────────────────────────────────────
   function goToStep(idx) {
+    hideError();
     // Sidebar copy
     sidebarTitle.textContent = SIDEBAR[idx].title;
     sidebarDesc.textContent  = SIDEBAR[idx].desc;
@@ -163,19 +170,40 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // ── Skills step ──────────────────────────────────────────────────────────────
 
+  const startInterviewHTML = btnStartInterview.innerHTML; // capture for restore
   btnStartInterview.addEventListener("click", () => {
+    if (btnStartInterview.disabled) { return; }
+    // Fail loud if the bridge method is missing — never spin forever silently.
+    if (typeof window.electronAPI?.proceedToInterview !== "function") {
+      showError("Unable to start the interview. Please restart the app.");
+      return;
+    }
     btnStartInterview.disabled = true;
     btnStartInterview.innerHTML = `<span class="rs-spinner"></span> Starting…`;
-    window.electronAPI?.proceedToInterview?.();
+    window.electronAPI.proceedToInterview();
+    // Watchdog: successful navigation tears down this page. If this fires,
+    // navigation never happened — restore the button so the user can retry.
+    setTimeout(() => {
+      btnStartInterview.disabled = false;
+      btnStartInterview.innerHTML = startInterviewHTML;
+      showError("That took too long. Please try again.");
+    }, 6000);
   });
 
   // ── API submission ───────────────────────────────────────────────────────────
 
   async function submitRole(role) {
     pendingRole = role;
+    hideError();
+    if (typeof window.electronAPI?.submitRole !== "function") {
+      showError("This action is unavailable. Please restart the app.");
+      setSubmitting(false);
+      return;
+    }
     try {
-      const res = await window.electronAPI?.submitRole?.(role);
+      const res = await window.electronAPI.submitRole(role);
       if (!res?.ok) {
+        showError(res?.error || "Couldn't process that role. Please try again.");
         setSubmitting(false);
         return;
       }
@@ -188,7 +216,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         goToStep(3);
       }
     } catch {
-      // Stay on current step — non-fatal
+      showError("Network error. Check your connection and try again.");
     } finally {
       setSubmitting(false);
     }

@@ -1,6 +1,6 @@
 {
   "name": "letshyre-secure-interview",
-  "version": "1.1.8",
+  "version": "1.1.9",
   "description": "LetsHyre Secure Interview Application",
   "main": "main.js",
   "author": "LetsHyre",
@@ -63,6 +63,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "preload-recorder.js",
       "src/**/*",
       "assets/**/*",
       "package.json",

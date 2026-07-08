@@ -109,7 +109,17 @@ let micStream     = null;
 
 // ─── Main flow ────────────────────────────────────────────────────────────────
 
-window.recorderBridge.onInit(async ({ sourceId }) => {
+// If the preload never loaded (e.g. preload-recorder.js missing from the packaged
+// asar), window.recorderBridge is undefined and nothing below can run. There is no
+// bridge to report the error over, so bail loudly to the console — the main-side
+// readiness watchdog is the real safety net that surfaces this to the user.
+if (!window.recorderBridge) {
+  console.error(
+    "[recorder] recorderBridge is undefined — preload-recorder.js did not load; recording cannot start"
+  );
+}
+
+window.recorderBridge?.onInit(async ({ sourceId }) => {
   try {
     // Screen video — chromeMediaSource captures the OS-level display silently.
     screenStream = await navigator.mediaDevices.getUserMedia({
@@ -183,7 +193,7 @@ window.recorderBridge.onInit(async ({ sourceId }) => {
   }
 });
 
-window.recorderBridge.onStop(() => {
+window.recorderBridge?.onStop(() => {
   try {
     if (mediaRecorder && mediaRecorder.state !== "inactive") {
       mediaRecorder.stop(); // → ondataavailable (final) → onstop → flush → sendStopped

@@ -18,9 +18,9 @@ const logger = require("./logger");
 const appState = require("./appState");
 const { IPC } = require("../shared/constants");
 const { killSingleProcess, killAllProcesses } = require("./processKiller");
-const { lockdownForInterview, storeCandidatePhoto, endInterview, getWindow, minimizeWindow, loadDashboard, loadSecurityCheck, loadPermissionsPage, loadIdentityVerificationPage, loadRoleSelectionPage, loadHowItWorksPage } = require("./windowManager");
+const { lockdownForInterview, storeCandidatePhoto, clearCandidatePhoto, clearInterviewSessionData, endInterview, getWindow, minimizeWindow, loadDashboard, loadSecurityCheck, loadPermissionsPage, loadIdentityVerificationPage, loadRoleSelectionPage, loadHowItWorksPage } = require("./windowManager");
 const { invalidateProcessCache } = require("../detector/mirrorDetector");
-const { getCurrentInterviewUrl, setInterviewSession } = require("./protocolHandler");
+const { getCurrentInterviewUrl, setInterviewSession, resetInterviewSession } = require("./protocolHandler");
 const { ensureAgent, killAgent } = require("./agentManager");
 const authManager = require("./authManager");
 const startDetection = require("../detector/systemChecks");
@@ -112,7 +112,14 @@ function registerIpcHandlers() {
 
   ipcMain.handle(IPC.AUTH_LOGOUT, async () => {
     logger.info("[ipc] auth-logout received");
-    return await authManager.logout();
+    const result = await authManager.logout();
+    // Wipe all per-user state so the next account starts clean — no stale face
+    // photo, interview tokens, or cached interview-site data from the previous
+    // candidate. The renderer awaits this before navigating to login.
+    clearCandidatePhoto();
+    resetInterviewSession();
+    await clearInterviewSessionData();
+    return result;
   });
 
   ipcMain.handle(IPC.GET_AUTH_USER, () => authManager.getUser());

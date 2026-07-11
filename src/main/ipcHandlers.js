@@ -21,7 +21,7 @@ const { killSingleProcess, killAllProcesses } = require("./processKiller");
 const { lockdownForInterview, storeCandidatePhoto, endInterview, getWindow, minimizeWindow, loadDashboard, loadSecurityCheck, loadPermissionsPage, loadIdentityVerificationPage, loadRoleSelectionPage, loadHowItWorksPage } = require("./windowManager");
 const { invalidateProcessCache } = require("../detector/mirrorDetector");
 const { getCurrentInterviewUrl, setInterviewSession } = require("./protocolHandler");
-const { ensureAgent } = require("./agentManager");
+const { ensureAgent, killAgent } = require("./agentManager");
 const authManager = require("./authManager");
 const startDetection = require("../detector/systemChecks");
 const screenRecorder = require("./screenRecorder");
@@ -47,6 +47,18 @@ function validateProcessName(value) {
   // Strip anything that isn't alphanumeric, dot, dash, space, or underscore
   const safe = value.replace(/[^\w.\- ]/g, "");
   return { valid: safe.length > 0, safe };
+}
+
+/**
+ * Fire-and-forget spawn of the security agent as the security-check page opens,
+ * so it is warming up before the preflight scan pings it. ensureAgent() is
+ * idempotent (pings first, spawns only if dead) and spawnAgent() guards against
+ * concurrent spawns, so this never races the RUN_PREFLIGHT ensureAgent().
+ */
+function prewarmAgent() {
+  ensureAgent().catch((err) =>
+    logger.warn("[ipc] agent pre-warm failed:", err.message)
+  );
 }
 
 /**
@@ -125,6 +137,7 @@ function registerIpcHandlers() {
     }
     logger.info("[ipc] start-interview — entering security check");
     setInterviewSession(tokens.accessToken, tokens.refreshToken);
+    prewarmAgent(); // start the agent as the security-check page opens
     loadSecurityCheck();
   });
 
@@ -157,12 +170,17 @@ function registerIpcHandlers() {
   ipcMain.on(IPC.LOAD_DASHBOARD, () => {
     logger.info("[ipc] load-dashboard (back nav)");
     stopPreProceedMonitor();
+    // Leaving the security-check → interview flow: stop the agent (it is only
+    // needed on the preflight page and during the interview). No-op if already
+    // stopped (e.g. after interview completion).
+    killAgent();
     loadDashboard();
   });
 
   ipcMain.on(IPC.LOAD_SECURITY_CHECK, () => {
     logger.info("[ipc] load-security-check (back nav)");
     stopPreProceedMonitor();
+    prewarmAgent(); // returning to the security-check page — restart the agent
     loadSecurityCheck();
   });
 
@@ -349,6 +367,10 @@ function registerIpcHandlers() {
 
     // Stop all active detection / polling loops
     if (startDetection.stop) { startDetection.stop(); }
+
+    // Interview is over — stop the security agent (deep detection is done; the
+    // post-interview recording uses desktopCapturer, not the agent).
+    killAgent();
 
     // Recording continues until the site sends PROCTORING_STOP (after the
     // scorecard or termination screen has rendered). Stopping here would cut

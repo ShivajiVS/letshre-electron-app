@@ -4,17 +4,21 @@
  * Electron app lifecycle manager.
  *
  * Handles:
- *   - app.whenReady()  → logger init, auto-updater, agent spawn, IPC, window
+ *   - app.whenReady()  → logger init, auth restore, IPC, window, auto-updater
  *   - window-all-closed
  *   - activate (macOS re-open)
  *   - will-quit         → cleanup (shortcuts, agent)
+ *
+ * The security agent is NOT spawned here — it is scoped to the security-check →
+ * interview window (started via ensureAgent() when the preflight page opens,
+ * stopped on interview completion / return to dashboard / app quit).
  */
 
 "use strict";
 
 const { app, globalShortcut, desktopCapturer, session } = require("electron");
 const logger = require("./logger");
-const { spawnAgent, waitForAgent, killAgent } = require("./agentManager");
+const { killAgent } = require("./agentManager");
 const { createWindow, getWindow, getIsInterviewActive } = require("./windowManager");
 const { registerIpcHandlers } = require("./ipcHandlers");
 const { applyArgvDeepLink } = require("./protocolHandler");
@@ -38,7 +42,8 @@ function safeViolation(event, severity) {
 
 /**
  * Initialises the application once Electron is ready.
- * Order: logger → agent → IPC → window → shortcuts → screen capture → updater.
+ * Order: logger → auth restore → IPC → window → shortcuts → screen capture → updater.
+ * The security agent is started later, when the security-check page opens.
  */
 async function onReady() {
   // 0. Initialise file logger now that userData path is available
@@ -47,21 +52,9 @@ async function onReady() {
   // 0b. Restore persisted auth session (safeStorage is ready after app.whenReady)
   authManager.init();
 
-  // 1. Spawn security agent (kills stale orphans first)
-  await spawnAgent();
-
-  // 1b. Verify restored session and wait for agent in parallel — both are
-  //     network/IO operations and have no dependency on each other.
-  const [agentReady, sessionResult] = await Promise.all([
-    waitForAgent(),
-    authManager.verifySession(),
-  ]);
-
-  if (agentReady) {
-    logger.info("[app] security agent ready ✅");
-  } else {
-    logger.warn("[app] agent not responding — continuing without deep detection");
-  }
+  // 1. Verify the restored session. The security agent is intentionally NOT
+  //    spawned here — it is scoped to the security-check → interview window.
+  const sessionResult = await authManager.verifySession();
 
   if (sessionResult.valid) {
     logger.info(`[app] startup auth: valid session${sessionResult.offline ? " (offline grace)" : ""}`);
@@ -69,20 +62,20 @@ async function onReady() {
     logger.info(`[app] startup auth: no valid session (${sessionResult.reason}) — routing to login`);
   }
 
-  // 3. Register all IPC channels
+  // 2. Register all IPC channels
   registerIpcHandlers();
 
-  // 4. Apply Windows argv deep-link (must run before createWindow)
+  // 3. Apply Windows argv deep-link (must run before createWindow)
   if (process.platform === "win32") {
     applyArgvDeepLink(process.argv);
   }
 
-  // 5. Create the main window — open dashboard directly if session is valid,
+  // 4. Create the main window — open dashboard directly if session is valid,
   //    otherwise start at login.
   const startPage = sessionResult.valid ? "dashboard" : "login";
   createWindow(safeViolation, startPage);
 
-  // 6. Register OS-level Alt+F4 global shortcut
+  // 5. Register OS-level Alt+F4 global shortcut
   globalShortcut.register("Alt+F4", () => {
     if (getIsInterviewActive()) {
       safeViolation("Attempted OS level Alt+F4 kill string", "high");
@@ -92,7 +85,7 @@ async function onReady() {
     }
   });
 
-  // 7. Configure screen capture to allow interview webcam/screen share
+  // 6. Configure screen capture to allow interview webcam/screen share
   session.defaultSession.setDisplayMediaRequestHandler(
     async (_request, callback) => {
       try {
@@ -105,7 +98,7 @@ async function onReady() {
     }
   );
 
-  // 8. Auto-updater — initialised LAST so the window exists for early events.
+  // 7. Auto-updater — initialised LAST so the window exists for early events.
   //    Interview-safe: checks/installs are gated on interview state internally.
   updater.init();
 }

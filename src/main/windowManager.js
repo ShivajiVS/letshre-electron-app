@@ -186,39 +186,38 @@ function lockdownForInterview(interviewUrl, tokens = null, roleSelection = null)
   win.setFullScreen(true);
   win.setMinimizable(false);
 
-  const hasTokens = tokens?.accessToken || tokens?.refreshToken;
-  const hasPhoto = Boolean(_candidatePhotoBase64);
-  const hasRole = Boolean(roleSelection);
+  win.webContents.once("dom-ready", () => {
+    // A NEW interview is starting. Wipe any finished session the interview site
+    // left in sessionStorage — Electron reuses one long-lived tab, so a prior
+    // COMPLETED session survives the scorecard → dashboard → new-interview round
+    // trip and would otherwise be restored as a stale scorecard. This runs
+    // before the SPA's first render (same injection path candidate_photo relies
+    // on), so the site starts fresh. Belt-and-suspenders with the site-side
+    // restore guard, and it works even against an older deployed site.
+    const statements = ["sessionStorage.removeItem('interview_session');"];
+    if (tokens?.accessToken) {
+      statements.push(`sessionStorage.setItem('ac', ${JSON.stringify(tokens.accessToken)});`);
+    }
+    if (tokens?.refreshToken) {
+      statements.push(`sessionStorage.setItem('rc', ${JSON.stringify(tokens.refreshToken)});`);
+    }
+    if (_candidatePhotoBase64) {
+      statements.push(
+        `sessionStorage.setItem('candidate_photo', ${JSON.stringify(_candidatePhotoBase64)});`
+      );
+    }
+    if (roleSelection) {
+      // JSON-encode twice: once for the stored value, once to embed it as a
+      // string literal inside the injected executeJavaScript() statement.
+      statements.push(
+        `sessionStorage.setItem('role_selection', ${JSON.stringify(JSON.stringify(roleSelection))});`
+      );
+    }
 
-  if (hasTokens || hasPhoto || hasRole) {
-    win.webContents.once("dom-ready", () => {
-      const statements = [];
-      if (tokens?.accessToken) {
-        statements.push(`sessionStorage.setItem('ac', ${JSON.stringify(tokens.accessToken)});`);
-      }
-      if (tokens?.refreshToken) {
-        statements.push(`sessionStorage.setItem('rc', ${JSON.stringify(tokens.refreshToken)});`);
-      }
-      if (_candidatePhotoBase64) {
-        statements.push(
-          `sessionStorage.setItem('candidate_photo', ${JSON.stringify(_candidatePhotoBase64)});`
-        );
-      }
-      if (roleSelection) {
-        // JSON-encode twice: once for the stored value, once to embed it as a
-        // string literal inside the injected executeJavaScript() statement.
-        statements.push(
-          `sessionStorage.setItem('role_selection', ${JSON.stringify(JSON.stringify(roleSelection))});`
-        );
-      }
-
-      if (statements.length > 0) {
-        win.webContents
-          .executeJavaScript(statements.join("\n"))
-          .catch((err) => logger.warn("[window] sessionStorage injection failed:", err.message));
-      }
-    });
-  }
+    win.webContents
+      .executeJavaScript(statements.join("\n"))
+      .catch((err) => logger.warn("[window] sessionStorage injection failed:", err.message));
+  });
 
   win.loadURL(interviewUrl);
   logger.info("[window] lockdown activated — navigating to interview");

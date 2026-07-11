@@ -287,8 +287,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   runPreflight: () => safeInvoke(IPC.RUN_PREFLIGHT),
 
   // ── Interview flow ─────────────────────────────────────────────────────────
-  /** Activate interview lockdown mode and navigate to the interview URL. */
-  proceedToInterview: () => safeSend(IPC.PROCEED_TO_INTERVIEW),
+  /** Activate interview lockdown mode and navigate to the interview URL.
+   *  payload: { is_custom_role: boolean, selected_role?: string[], manual_skills?: string[] } */
+  proceedToInterview: (payload) => safeSend(IPC.PROCEED_TO_INTERVIEW, payload),
 
   // ── Process management ─────────────────────────────────────────────────────
   /**

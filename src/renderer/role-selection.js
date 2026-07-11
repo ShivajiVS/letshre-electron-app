@@ -85,6 +85,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   let pendingRole         = "";   // last submitted role string
   let selectedClarifyRole = "";   // picked in clarification step
 
+  // Role-decision state, handed to the interview site at Start Interview.
+  //   Yes (keep assigned role) → is_custom_role: false; backend uses the profile role.
+  //   No  (chose a new role)   → is_custom_role: true + selected_role + manual_skills.
+  let isCustomRole = false;       // false = confirmed profile role, true = custom
+  let finalRole    = "";          // the role shown on the skills panel
+  let finalSkills  = [];          // the skills shown on the skills panel
+
   // ── Step navigation ──────────────────────────────────────────────────────────
   function goToStep(idx) {
     hideError();
@@ -138,11 +145,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ── Confirm step ─────────────────────────────────────────────────────────────
 
   btnYes.addEventListener("click", () => {
+    // Keeping the assigned profile role → not a custom role.
+    isCustomRole = false;
     setSubmitting(true);
     submitRole(profileRole);
   });
 
-  btnNo.addEventListener("click", () => goToStep(1));
+  btnNo.addEventListener("click", () => {
+    // Entering a different role → custom-role flow.
+    isCustomRole = true;
+    goToStep(1);
+  });
 
   // ── Input step ───────────────────────────────────────────────────────────────
 
@@ -180,7 +193,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     btnStartInterview.disabled = true;
     btnStartInterview.innerHTML = `<span class="rs-spinner"></span> Starting…`;
-    window.electronAPI.proceedToInterview();
+    // Hand the role decision to the interview site. Yes → is_custom_role:false
+    // only; No → is_custom_role:true with the chosen role + detected skills.
+    const payload = isCustomRole
+      ? { is_custom_role: true, selected_role: [finalRole], manual_skills: finalSkills }
+      : { is_custom_role: false };
+    window.electronAPI.proceedToInterview(payload);
     // Watchdog: successful navigation tears down this page. If this fires,
     // navigation never happened — restore the button so the user can retry.
     setTimeout(() => {
@@ -281,6 +299,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ── Render skills chips ───────────────────────────────────────────────────────
 
   function renderSkills(skills, role) {
+    // Capture the confirmed values — this panel is the single source of the
+    // role + skills sent to the interview site on Start Interview.
+    finalRole   = role;
+    finalSkills = Array.isArray(skills) ? skills : [];
     confirmedRoleLabel.textContent = role;
     skillsGrid.innerHTML = "";
 

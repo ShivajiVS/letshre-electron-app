@@ -49,6 +49,35 @@ function validateProcessName(value) {
   return { valid: safe.length > 0, safe };
 }
 
+/**
+ * Sanitises the role-selection payload sent by the role-selection renderer before
+ * it is injected into the interview site's sessionStorage. Renderer input is
+ * untrusted — coerce types and cap sizes so a malformed/oversized payload can't
+ * reach the site or the start-interview API.
+ * @param {unknown} payload
+ * @returns {{ is_custom_role: boolean, selected_role?: string[], manual_skills?: string[] }}
+ */
+function sanitizeRoleSelection(payload) {
+  const isCustom = payload?.is_custom_role === true;
+  if (!isCustom) {
+    // Confirmed profile role — the backend resolves the role itself.
+    return { is_custom_role: false };
+  }
+  const toStringArray = (arr) =>
+    (Array.isArray(arr) ? arr : [])
+      .filter((s) => typeof s === "string")
+      .map((s) => s.trim().slice(0, 200))
+      .filter((s) => s.length > 0)
+      .slice(0, 50);
+
+  const result = { is_custom_role: true };
+  const roles = toStringArray(payload?.selected_role);
+  const skills = toStringArray(payload?.manual_skills);
+  if (roles.length) { result.selected_role = roles; }
+  if (skills.length) { result.manual_skills = skills; }
+  return result;
+}
+
 // ─── Handler Registration ─────────────────────────────────────────────────────
 
 /**
@@ -228,14 +257,15 @@ function registerIpcHandlers() {
   });
 
   //Interview Flow
-  ipcMain.on(IPC.PROCEED_TO_INTERVIEW, () => {
-    logger.info("[ipc] proceed-to-interview received");
+  ipcMain.on(IPC.PROCEED_TO_INTERVIEW, (_event, payload) => {
+    const roleSelection = sanitizeRoleSelection(payload);
+    logger.info("[ipc] proceed-to-interview received", { is_custom_role: roleSelection.is_custom_role });
     // Stop the pre-proceed watcher — no longer needed once interview starts.
     stopPreProceedMonitor();
 
     const tokens = authManager.getTokens();
     const interviewUrl = getCurrentInterviewUrl();
-    lockdownForInterview(interviewUrl, tokens);
+    lockdownForInterview(interviewUrl, tokens, roleSelection);
 
     try {
       const win = getWindow();

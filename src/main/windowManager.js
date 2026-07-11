@@ -173,8 +173,9 @@ function enforceViolation(reason) {
  *
  * @param {string} interviewUrl
  * @param {{ accessToken: string|null, refreshToken: string|null } | null} tokens
+ * @param {{ is_custom_role: boolean, selected_role?: string[], manual_skills?: string[] } | null} roleSelection
  */
-function lockdownForInterview(interviewUrl, tokens = null) {
+function lockdownForInterview(interviewUrl, tokens = null, roleSelection = null) {
   if (!win) {
     return;
   }
@@ -187,8 +188,9 @@ function lockdownForInterview(interviewUrl, tokens = null) {
 
   const hasTokens = tokens?.accessToken || tokens?.refreshToken;
   const hasPhoto = Boolean(_candidatePhotoBase64);
+  const hasRole = Boolean(roleSelection);
 
-  if (hasTokens || hasPhoto) {
+  if (hasTokens || hasPhoto || hasRole) {
     win.webContents.once("dom-ready", () => {
       const statements = [];
       if (tokens?.accessToken) {
@@ -200,6 +202,13 @@ function lockdownForInterview(interviewUrl, tokens = null) {
       if (_candidatePhotoBase64) {
         statements.push(
           `sessionStorage.setItem('candidate_photo', ${JSON.stringify(_candidatePhotoBase64)});`
+        );
+      }
+      if (roleSelection) {
+        // JSON-encode twice: once for the stored value, once to embed it as a
+        // string literal inside the injected executeJavaScript() statement.
+        statements.push(
+          `sessionStorage.setItem('role_selection', ${JSON.stringify(JSON.stringify(roleSelection))});`
         );
       }
 

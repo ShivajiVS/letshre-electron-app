@@ -116,7 +116,8 @@
   box-shadow:
     0 1px 2px rgba(26, 26, 25, 0.04),
     0 4px 16px -4px rgba(26, 26, 25, 0.08);
-  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .sc-card:hover {
   box-shadow:
@@ -239,7 +240,7 @@
   border-radius: 12px;
   padding: 10px 16px;
   margin-top: 6px;
-  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .sc-kill-row:hover { background: rgba(255, 255, 255, 0.9); }
 .sc-kill-row--closed { opacity: 0.5; pointer-events: none; }
@@ -347,7 +348,6 @@
 
 /* ── Threat rows (agent card) ────────────────────────────────────────────── */
 
-.sc-threat-rows,
 .sc-card__threats { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
 
 .sc-threat-row {
@@ -417,12 +417,13 @@
 .sc-footer__buttons {
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap; /* never overflow the viewport on a narrow window */
   gap: 1rem;
   justify-content: center;
 }
 
 .sc-btn-rescan {
-  width: 256px;
+  width: min(256px, 100%);
   background: var(--surface);
   color: var(--ink);
   font-size: 14px;
@@ -445,7 +446,7 @@
 .sc-btn-rescan:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .sc-btn-proceed {
-  width: 256px;
+  width: min(256px, 100%);
   font-size: 14px;
   font-weight: 600;
   font-family: inherit;
@@ -483,7 +484,6 @@
 .sc-icon    { width: 20px; height: 20px; flex-shrink: 0; }
 .sc-icon-xs { width: 14px; height: 14px; flex-shrink: 0; }
 .sc-icon-sm { width: 16px; height: 16px; flex-shrink: 0; }
-.sc-icon-lg { width: 24px; height: 24px; flex-shrink: 0; }
 
 /* ── Animations ──────────────────────────────────────────────────────────── */
 
@@ -492,7 +492,6 @@
   33%        { transform: translate(25px, -40px) scale(1.08); }
   66%        { transform: translate(-15px, 15px) scale(0.97); }
 }
-.animate-blob { animation: drift 14s ease-in-out infinite; }
 
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
@@ -507,20 +506,9 @@
   0%,  100% { opacity: 1; transform: scale(1); }
   50%        { opacity: 0.75; transform: scale(1.02); }
 }
-.pulse-soft { animation: pulseSoft 2.2s infinite ease-in-out; }
 
 @keyframes ping {
   75%, 100% { transform: scale(2); opacity: 0; }
-}
-
-@keyframes shimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position:  200% 0; }
-}
-.shimmer-bg {
-  background: linear-gradient(90deg, var(--border) 25%, var(--input-border) 50%, var(--border) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
 }
 
 /* ── Auto-update card ────────────────────────────────────────────────────── */
@@ -605,4 +593,24 @@
   color: var(--faint);
   user-select: none;
   pointer-events: none;
+}
+
+/* ── Reduced motion / performance ────────────────────────────────────────── */
+/* Honour prefers-reduced-motion, and cut the continuous GPU load — the drifting
+   blurred blobs and the glow/pulse/ping loops re-composite every frame, which is
+   heavy on the modest kiosk hardware that is already running the camera,
+   recorder, and security agent during preflight. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* Stop the background blobs from compositing their large blur every frame. */
+  .sc-blob {
+    animation: none !important;
+  }
 }

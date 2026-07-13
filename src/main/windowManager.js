@@ -237,6 +237,32 @@ function storeCandidatePhoto(dataUrl) {
   logger.info("[window] candidate photo stored for interview injection");
 }
 
+/**
+ * Clears the in-memory candidate photo. Called on logout so one account's face
+ * capture can never linger into another account's session.
+ */
+function clearCandidatePhoto() {
+  _candidatePhotoBase64 = null;
+}
+
+/**
+ * Wipes the interview site's PERSISTED storage (cookies, localStorage, IndexedDB,
+ * service-worker + cache storage) for INTERVIEW_BASE_URL. Called on logout so a
+ * previous candidate's tokens or cached interview data don't carry into the next
+ * account. sessionStorage is intentionally not covered here — the interview page
+ * isn't loaded at logout, and the next interview re-injects/overwrites it.
+ * @returns {Promise<void>}
+ */
+function clearInterviewSessionData() {
+  return session.defaultSession
+    .clearStorageData({
+      origin: INTERVIEW_BASE_URL,
+      storages: ["cookies", "localstorage", "indexdb", "serviceworkers", "cachestorage"],
+    })
+    .then(() => logger.info("[window] interview site storage cleared"))
+    .catch((err) => logger.warn("[window] clearInterviewSessionData failed:", err.message));
+}
+
 // ─── Internal Hardening ──────────────────────────────────────────────────────
 
 /** Blocks DevTools, Ctrl+Shift+I, Meta+Alt+I, and Alt+F4 key combos. */
@@ -443,6 +469,8 @@ module.exports = {
   createWindow,
   lockdownForInterview,
   storeCandidatePhoto,
+  clearCandidatePhoto,
+  clearInterviewSessionData,
   endInterview,
   enforceViolation,
   loadDashboard,

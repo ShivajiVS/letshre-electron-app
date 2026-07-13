@@ -114,6 +114,17 @@ function setInterviewSession(accessToken, refreshToken) {
 }
 
 /**
+ * Resets the interview session state on logout so a previous account's token or
+ * interview URL can't be reused. The next START_INTERVIEW rebuilds it from the
+ * new login's tokens.
+ */
+function resetInterviewSession() {
+  currentAccessToken = null;
+  currentInterviewUrl = INTERVIEW_BASE_URL;
+  logger.info("[protocol] interview session reset on logout");
+}
+
+/**
  * Applies a deep-link URL from argv on initial Windows launch.
  * @param {string[]} argv
  */
@@ -130,6 +141,7 @@ module.exports = {
   handleIncomingProtocol,
   applyArgvDeepLink,
   setInterviewSession,
+  resetInterviewSession,
   getCurrentInterviewUrl,
   getCurrentAccessToken,
 };

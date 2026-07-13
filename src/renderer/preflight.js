@@ -39,12 +39,55 @@ const ICONS = {
 
 // ─── State ──────────────────────────────────────────────────────────────────────────────
 
-let remainingBlockedApps = 0;
 // True once preflight has fully passed — gates the live pre-proceed watcher.
 let _proceedReady = false;
 
+// Robustness guards (see runScans / showScanError / scheduleAutoRescan):
+//   _scanRetryCount  — consecutive failed scans auto-retried (F2, capped)
+//   _autoRescanCount — consecutive kill→rescan cycles auto-triggered (F3, capped)
+//   _isAutoRescan    — set right before a PROGRAMMATIC rescan so a manual click
+//                      resets the caps while an auto one preserves them
+const SCAN_TIMEOUT_MS = 20000;
+const MAX_SCAN_RETRIES = 3;
+const MAX_AUTO_RESCANS = 3;
+let _scanRetryCount  = 0;
+let _autoRescanCount = 0;
+let _isAutoRescan    = false;
+
 const PROCEED_ENABLED_CLASS  = "sc-btn-proceed sc-btn-proceed--enabled";
 const PROCEED_DISABLED_CLASS = "sc-btn-proceed sc-btn-proceed--disabled";
+
+/** Rejects if `promise` doesn't settle within `ms` — bounds a hung native scan. */
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(label || "Operation timed out")), ms)
+    ),
+  ]);
+}
+
+/**
+ * Schedules a programmatic rescan after a kill, but caps the number of
+ * consecutive auto-rescans so a self-relaunching app (some meeting/updater
+ * apps restart themselves) can't create an endless kill→rescan→kill loop.
+ */
+function scheduleAutoRescan() {
+  const finalStatus = document.getElementById("final-status");
+  if (_autoRescanCount >= MAX_AUTO_RESCANS) {
+    if (finalStatus) {
+      finalStatus.className = "sc-status sc-status--fail";
+      finalStatus.textContent =
+        "Some apps keep reopening. Close them manually, then click Rescan.";
+    }
+    return;
+  }
+  _autoRescanCount += 1;
+  setTimeout(() => {
+    _isAutoRescan = true;
+    document.getElementById("btn-rescan")?.click();
+  }, 2000);
+}
 
 // ─── DOM References ───────────────────────────────────────────────────────────────────
 
@@ -126,6 +169,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ── Scan Lifecycle ──────────────────────────────────────────────────────
 
   async function runScans() {
+    // A manual rescan (user click) is a fresh start — clear the retry/rescan
+    // caps. A programmatic rescan (auto-retry or post-kill) preserves them so
+    // the caps actually bound the loop.
+    if (!_isAutoRescan) {
+      _scanRetryCount = 0;
+      _autoRescanCount = 0;
+    }
+    _isAutoRescan = false;
+
     setLoadingState(btnProceed, btnRescan, finalStatus);
 
     if (!window.electronAPI) {
@@ -144,13 +196,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     try {
-      const results = await window.electronAPI.runPreflight();
+      // F1: bound the scan — a hung native check must never leave the page
+      // stuck on "Scanning" forever with no way out.
+      const results = await withTimeout(
+        window.electronAPI.runPreflight(),
+        SCAN_TIMEOUT_MS,
+        "Security scan timed out"
+      );
       // Cards were already updated via streaming events above.
       // processResults() re-applies them (idempotent) and sets the final button state.
       processResults(results, btnProceed, btnRescan, finalStatus);
+      _scanRetryCount = 0; // a completed scan (pass or fail) breaks the retry chain
     } catch (err) {
       console.error("[preflight] scan error:", err);
-      // IMP-15: Structured error boundary with auto-retry countdown
+      // IMP-15: Structured error boundary with capped auto-retry countdown
       showScanError(finalStatus, btnRescan, err?.message || "Unknown error");
     } finally {
       // Always clean up the listener to prevent leaks on rescan
@@ -287,7 +346,6 @@ function applyStepResult(step, result) {
         return false;
       }
       const procs        = result.details?.processes || [];
-      remainingBlockedApps = procs.length;
 
       const foundMeeting = procs.filter((p) => MEETING_APPS.includes(p));
       const foundScreen  = procs.filter((p) => SCREEN_SHARING_APPS.includes(p));
@@ -355,6 +413,7 @@ function processResults(results, btnProceed, btnRescan, finalStatus) {
   _proceedReady = allPassed;
 
   if (allPassed) {
+    _autoRescanCount = 0; // the kill→rescan loop resolved — re-arm auto-rescan
     finalStatus.textContent = "All security checks passed. You are ready to start.";
     finalStatus.className = "sc-status sc-status--pass";
     btnProceed.disabled = false;
@@ -488,9 +547,13 @@ async function handleKillApp(btn, processName, row) {
       const dot = row.querySelector(".sc-kill-dot");
       if (dot) { dot.className = "sc-kill-dot sc-kill-dot--closed"; }
 
-      remainingBlockedApps = Math.max(0, remainingBlockedApps - 1);
-      if (remainingBlockedApps === 0) {
-        setTimeout(() => document.getElementById("btn-rescan")?.click(), 2000);
+      // F4: derive "all closed" from the live DOM (rows still open across every
+      // card) rather than a running counter that drifts on the fail-closed path.
+      const stillOpen = document.querySelectorAll(
+        ".sc-kill-row:not(.sc-kill-row--closed)"
+      ).length;
+      if (stillOpen === 0) {
+        scheduleAutoRescan();
       }
     } else {
       btn.className = "sc-kill-btn sc-kill-btn--failed";
@@ -518,7 +581,7 @@ async function handleKillAll(btn, processNames) {
     btn.innerHTML = `<svg class="sc-icon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg> Some apps failed to close`;
   }
 
-  setTimeout(() => document.getElementById("btn-rescan")?.click(), 2000);
+  scheduleAutoRescan();
 }
 
 // ─── Agent Card ───────────────────────────────────────────────────────────────
@@ -639,18 +702,31 @@ function setMockPassedState(finalStatus, btnProceed) {
  */
 function showScanError(finalStatus, btnRescan, message) {
   btnRescan.disabled = false;
+
+  // F2: stop the auto-retry storm. After MAX_SCAN_RETRIES consecutive failures
+  // stop counting down and leave a manual Rescan prompt instead of hammering
+  // the backend forever.
+  if (_scanRetryCount >= MAX_SCAN_RETRIES) {
+    finalStatus.className = "sc-status sc-status--fail";
+    finalStatus.textContent = `Diagnostics failed: ${message}. Please click Rescan to try again.`;
+    return;
+  }
+
+  _scanRetryCount += 1;
+  const attempt = `attempt ${_scanRetryCount}/${MAX_SCAN_RETRIES}`;
   let seconds = 5;
 
   finalStatus.className = "sc-status sc-status--warn";
-  finalStatus.textContent = `Diagnostics failed: ${message} — retrying in ${seconds}s…`;
+  finalStatus.textContent = `Diagnostics failed: ${message} — retrying in ${seconds}s… (${attempt})`;
 
   const timer = setInterval(() => {
     seconds -= 1;
     if (seconds <= 0) {
       clearInterval(timer);
+      _isAutoRescan = true; // preserve the retry cap across this programmatic rescan
       btnRescan.click();
     } else {
-      finalStatus.textContent = `Diagnostics failed: ${message} — retrying in ${seconds}s…`;
+      finalStatus.textContent = `Diagnostics failed: ${message} — retrying in ${seconds}s… (${attempt})`;
     }
   }, 1000);
 }

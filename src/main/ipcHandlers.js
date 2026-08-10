@@ -23,6 +23,7 @@ const { invalidateProcessCache } = require("../detector/mirrorDetector");
 const { getCurrentInterviewUrl, setInterviewSession, resetInterviewSession } = require("./protocolHandler");
 const { ensureAgent, killAgent } = require("./agentManager");
 const authManager = require("./authManager");
+const localeManager = require("./localeManager");
 const startDetection = require("../detector/systemChecks");
 const screenRecorder = require("./screenRecorder");
 const { startPreProceedMonitor, stopPreProceedMonitor } = startDetection;
@@ -162,9 +163,11 @@ function registerIpcHandlers() {
   });
 
   // Identity verification — voice sample upload (blob arrives as Uint8Array over IPC).
-  ipcMain.handle(IPC.SUBMIT_VOICE_SAMPLE, async (_event, uint8Array, mimeType) => {
+  // meta.locale/statementText tell the backend which language the candidate read
+  // the attestation in, so STT/voice-match uses the right language model.
+  ipcMain.handle(IPC.SUBMIT_VOICE_SAMPLE, async (_event, uint8Array, mimeType, meta) => {
     logger.info("[ipc] submit-voice-sample");
-    return await authManager.submitVoiceSample(uint8Array, mimeType);
+    return await authManager.submitVoiceSample(uint8Array, mimeType, meta);
   });
 
   // Identity verification — face photo upload (data URL string).
@@ -209,6 +212,30 @@ function registerIpcHandlers() {
     if (!safeRole) { return { ok: false, error: "Role is required." }; }
     logger.info("[ipc] submit-role:", safeRole);
     return await authManager.submitRole(safeRole);
+  });
+
+  // ── Localization ─────────────────────────────────────────────────────────
+
+  ipcMain.handle(IPC.GET_LOCALE, () => localeManager.getPreferred());
+
+  ipcMain.handle(IPC.GET_SUPPORTED_LOCALES, () => localeManager.getSupportedLocales());
+
+  ipcMain.handle(IPC.GET_TRANSLATIONS, (_event, locale) => {
+    const safeLocale = typeof locale === "string" ? locale.slice(0, 20) : undefined;
+    return localeManager.getTranslations(safeLocale || localeManager.getPreferred());
+  });
+
+  ipcMain.handle(IPC.SET_LOCALE, (_event, locale) => {
+    const safeLocale = typeof locale === "string" ? locale.slice(0, 20) : "";
+    const applied = localeManager.setPreferred(safeLocale);
+    logger.info("[ipc] set-locale:", applied);
+    // Broadcast so every open window (there's normally only one, but this is
+    // cheap and future-proof) can re-apply translations without a reload.
+    const win = getWindow();
+    if (win && !win.isDestroyed()) {
+      win.webContents.send(IPC.LOCALE_CHANGED, applied);
+    }
+    return applied;
   });
 
   // ── App Control ──────────────────────────────────────────────────────────

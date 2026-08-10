@@ -62,7 +62,7 @@ function createWindow(onViolation, startPage = "login") {
 
   win.maximize();
 
-  // win.webContents.openDevTools({ mode: "right" }); // DEBUG — remove before shipping
+  win.webContents.openDevTools({ mode: "right" }); // DEBUG — remove before shipping
 
   const pageFiles = { login: "login.html", dashboard: "dashboard.html" };
   const pageFile = pageFiles[startPage] || pageFiles.login;
@@ -368,7 +368,7 @@ function _applyCSPHeaders() {
           "default-src 'self'; " +
             "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com; " +
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com; " +
-            "font-src 'self' https://fonts.gstatic.com data:; " +
+            "font-src 'self' https://fonts.gstatic.com data:; " + // 'self' also serves assets/fonts/*.woff2 (i18n Noto subsets)
             "img-src 'self' data: blob: https://api.letshyre.com; " +
             "media-src 'self' blob:; " +
             "connect-src 'self' http://127.0.0.1:9999;",

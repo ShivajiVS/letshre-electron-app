@@ -203,7 +203,47 @@ const IPC = {
 
   // How-it-works page navigation
   LOAD_HOW_IT_WORKS: "load-how-it-works",
+
+  // Localization (renderer invoke → main)
+  GET_LOCALE: "get-locale",
+  SET_LOCALE: "set-locale",
+  GET_TRANSLATIONS: "get-translations",
+  GET_SUPPORTED_LOCALES: "get-supported-locales",
+
+  // Localization (main → renderer push, broadcast to all windows on change)
+  LOCALE_CHANGED: "locale-changed",
 };
+
+// ─── Localization ────────────────────────────────────────────────────────────
+
+/** Locale used when no preference is stored and the OS locale isn't supported. */
+const DEFAULT_LOCALE = "en";
+
+/**
+ * Supported UI languages. `dir` drives document direction (RTL for Arabic).
+ * Keep in sync with the JSON files under assets/locales/.
+ */
+const SUPPORTED_LOCALES = [
+  { code: "en", name: "English", dir: "ltr" },
+  { code: "hi", name: "हिन्दी", dir: "ltr" },
+  { code: "te", name: "తెలుగు", dir: "ltr" },
+  { code: "ta", name: "தமிழ்", dir: "ltr" },
+  { code: "kn", name: "ಕನ್ನಡ", dir: "ltr" },
+  { code: "ml", name: "മലയാളം", dir: "ltr" },
+  { code: "ja", name: "日本語", dir: "ltr" },
+  { code: "ru", name: "Русский", dir: "ltr" },
+  { code: "ar", name: "العربية", dir: "rtl" },
+  { code: "fr", name: "Français", dir: "ltr" },
+  { code: "ur", name: "اردو", dir: "rtl" },
+  { code: "bn", name: "বাংলা", dir: "ltr" },
+  { code: "es", name: "Español", dir: "ltr" },
+  { code: "de", name: "Deutsch", dir: "ltr" },
+  { code: "pt", name: "Português", dir: "ltr" },
+  { code: "it", name: "Italiano", dir: "ltr" },
+  { code: "nl", name: "Nederlands", dir: "ltr" },
+  { code: "ko", name: "한국어", dir: "ltr" },
+  { code: "id", name: "Bahasa Indonesia", dir: "ltr" },
+];
 
 // ─── Custom Protocol ─────────────────────────────────────────────────────────
 
@@ -234,4 +274,6 @@ module.exports = {
   HARD_BLOCK_GRACE_MS,
   IPC,
   PROTOCOL_SCHEME,
+  DEFAULT_LOCALE,
+  SUPPORTED_LOCALES,
 };

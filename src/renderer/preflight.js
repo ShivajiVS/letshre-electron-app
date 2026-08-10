@@ -23,6 +23,11 @@ function getDisplayName(processName) {
   return APP_DISPLAY_NAMES[processName] || processName;
 }
 
+/** Translate with an English fallback for the non-Electron preview (window.t absent). */
+function tr(key, fallback, params) {
+  return window.t ? window.t(key, params) : fallback;
+}
+
 // ─── Icon Templates ───────────────────────────────────────────────────────────
 
 const ICONS = {
@@ -78,7 +83,7 @@ function scheduleAutoRescan() {
     if (finalStatus) {
       finalStatus.className = "sc-status sc-status--fail";
       finalStatus.textContent =
-        "Some apps keep reopening. Close them manually, then click Rescan.";
+        tr("preflightResults.appsReopening", "Some apps keep reopening. Close them manually, then click Rescan.");
     }
     return;
   }
@@ -227,13 +232,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Fail loud if the bridge method is missing — never spin forever silently
     // (synced with the other nav buttons hardened in renderer-production-hardening).
     if (typeof window.electronAPI?.loadPermissionsPage !== "function") {
-      finalStatus.textContent = "Unable to continue — please restart the app.";
+      finalStatus.textContent = tr("preflightResults.restartApp", "Unable to continue — please restart the app.");
       finalStatus.className = "sc-status sc-status--fail";
       return;
     }
     btnProceed.disabled = true;
     btnProceed.className = "sc-btn-proceed sc-btn-proceed--loading";
-    btnProceed.innerHTML = `${ICONS.loading} Loading...`;
+    btnProceed.innerHTML = `${ICONS.loading} ${tr("preflightResults.loading", "Loading...")}`;
     window.electronAPI.loadPermissionsPage();
     // Watchdog: successful navigation tears down this page (timer dies with it).
     // If it fires, navigation never happened — restore the button for a retry.
@@ -241,7 +246,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       btnProceed.innerHTML = proceedBtnHTML;
       btnProceed.className = PROCEED_ENABLED_CLASS;
       btnProceed.disabled = false;
-      finalStatus.textContent = "That took too long. Please try again.";
+      finalStatus.textContent = tr("preflightResults.tooLong", "That took too long. Please try again.");
       finalStatus.className = "sc-status sc-status--fail";
     }, 6000);
   });
@@ -256,7 +261,7 @@ function setLoadingState(btnProceed, btnRescan, finalStatus) {
   btnProceed.disabled = true;
   btnProceed.className = "sc-btn-proceed sc-btn-proceed--loading";
   btnRescan.disabled = true;
-  finalStatus.textContent = "Running security diagnostics...";
+  finalStatus.textContent = tr("preflight.runningDiagnostics", "Running security diagnostics...");
   finalStatus.className = "sc-status";
 
   ["hdmi", "meeting", "screen", "wireless", "ai"].forEach((id) => {
@@ -270,7 +275,7 @@ function setLoadingState(btnProceed, btnRescan, finalStatus) {
     }
     if (badgeEl) {
       badgeEl.className = "sc-badge sc-badge--scanning";
-      badgeEl.textContent = "Scanning";
+      badgeEl.textContent = tr("preflightResults.scanning", "Scanning");
     }
     if (actionsEl) { actionsEl.innerHTML = ""; }
   });
@@ -300,11 +305,11 @@ function renderAgentPending() {
       <div class="sc-card__row-left">
         <div class="sc-card__icon">${ICONS.loading}</div>
         <div class="sc-card__body">
-          <h3 class="sc-card__title">Deep Scan Agent</h3>
-          <p class="sc-card__desc">Running deep behavioral scan…</p>
+          <h3 class="sc-card__title">${tr("preflightResults.agentTitle", "Deep Scan Agent")}</h3>
+          <p class="sc-card__desc">${tr("preflightResults.runningDeepScan", "Running deep behavioral scan…")}</p>
         </div>
       </div>
-      <div class="sc-badge sc-badge--scanning">Scanning</div>
+      <div class="sc-badge sc-badge--scanning">${tr("preflightResults.scanning", "Scanning")}</div>
     </div>`;
   container.appendChild(card);
 }
@@ -326,14 +331,14 @@ function applyStepResult(step, result) {
       // Fail-CLOSED: on a security gate a missing result must never count as a
       // pass. If main omitted this check, surface it and block Proceed.
       if (!result) {
-        updateCard("hdmi", false, "Could not verify external displays. Click Rescan.");
+        updateCard("hdmi", false, tr("preflightResults.hdmiUnverified", "Could not verify external displays. Click Rescan."));
         return false;
       }
       if (result.detected) {
-        updateCard("hdmi", false, "Disconnect all external displays/cables.");
+        updateCard("hdmi", false, tr("preflightResults.hdmiDetected", "Disconnect all external displays/cables."));
         return false;
       }
-      updateCard("hdmi", true, "No external display detected.");
+      updateCard("hdmi", true, tr("preflightResults.hdmiClear", "No external display detected."));
       return true;
 
     case "mirror": {
@@ -341,7 +346,7 @@ function applyStepResult(step, result) {
       // A missing result blocks Proceed rather than silently passing all four.
       if (!result) {
         ["meeting", "screen", "wireless", "ai"].forEach((c) =>
-          updateCard(c, false, "Could not complete this check. Click Rescan.")
+          updateCard(c, false, tr("preflightResults.checkFailed", "Could not complete this check. Click Rescan."))
         );
         return false;
       }
@@ -353,21 +358,21 @@ function applyStepResult(step, result) {
       const foundOther   = procs.filter((p) => !MEETING_APPS.includes(p) && !SCREEN_SHARING_APPS.includes(p) && !AI_CHEATING_APPS.includes(p));
 
       if (foundMeeting.length > 0) {
-        updateCard("meeting", false, "These meeting apps are still running:", foundMeeting);
+        updateCard("meeting", false, tr("preflightResults.meetingRunning", "These meeting apps are still running:"), foundMeeting);
       } else {
-        updateCard("meeting", true, "No meeting apps detected.");
+        updateCard("meeting", true, tr("preflightResults.meetingClear", "No meeting apps detected."));
       }
 
       if (foundScreen.length > 0) {
-        updateCard("screen", false, "These screen sharing apps are still running:", foundScreen);
+        updateCard("screen", false, tr("preflightResults.screenRunning", "These screen sharing apps are still running:"), foundScreen);
       } else {
-        updateCard("screen", true, "No screen sharing detected.");
+        updateCard("screen", true, tr("preflightResults.screenClear", "No screen sharing detected."));
       }
 
       if (foundAi.length > 0) {
-        updateCard("ai", false, "These AI copilot tools are still running:", foundAi);
+        updateCard("ai", false, tr("preflightResults.aiRunning", "These AI copilot tools are still running:"), foundAi);
       } else {
-        updateCard("ai", true, "No AI cheating tools detected.");
+        updateCard("ai", true, tr("preflightResults.aiClear", "No AI cheating tools detected."));
       }
 
       const wirelessFailed =
@@ -376,12 +381,12 @@ function applyStepResult(step, result) {
 
       if (wirelessFailed) {
         if (foundOther.length > 0) {
-          updateCard("wireless", false, "These remote/casting apps are still running:", foundOther);
+          updateCard("wireless", false, tr("preflightResults.wirelessRunning", "These remote/casting apps are still running:"), foundOther);
         } else {
-          updateCard("wireless", false, "Suspicious resolution detected — possible screen mirroring.");
+          updateCard("wireless", false, tr("preflightResults.wirelessSuspicious", "Suspicious resolution detected — possible screen mirroring."));
         }
       } else {
-        updateCard("wireless", true, "No casting/mirroring detected.");
+        updateCard("wireless", true, tr("preflightResults.wirelessClear", "No casting/mirroring detected."));
       }
 
       return !(foundMeeting.length > 0 || foundScreen.length > 0 || foundAi.length > 0 || wirelessFailed);
@@ -414,12 +419,12 @@ function processResults(results, btnProceed, btnRescan, finalStatus) {
 
   if (allPassed) {
     _autoRescanCount = 0; // the kill→rescan loop resolved — re-arm auto-rescan
-    finalStatus.textContent = "All security checks passed. You are ready to start.";
+    finalStatus.textContent = tr("preflightResults.allPassed", "All security checks passed. You are ready to start.");
     finalStatus.className = "sc-status sc-status--pass";
     btnProceed.disabled = false;
     btnProceed.className = PROCEED_ENABLED_CLASS;
   } else {
-    finalStatus.textContent = "Please resolve the security alerts above to proceed.";
+    finalStatus.textContent = tr("preflightResults.resolveAlerts", "Please resolve the security alerts above to proceed.");
     finalStatus.className = "sc-status sc-status--fail";
     btnProceed.disabled = true;
     btnProceed.className = PROCEED_DISABLED_CLASS;
@@ -433,13 +438,17 @@ function processResults(results, btnProceed, btnRescan, finalStatus) {
  */
 function applyLiveProceedStatus(clean, apps, btnProceed, finalStatus) {
   if (clean) {
-    finalStatus.textContent = "All security checks passed. You are ready to start.";
+    finalStatus.textContent = tr("preflightResults.allPassed", "All security checks passed. You are ready to start.");
     finalStatus.className = "sc-status sc-status--pass";
     btnProceed.disabled = false;
     btnProceed.className = PROCEED_ENABLED_CLASS;
   } else {
     const names = apps.map((p) => getDisplayName(p)).join(", ");
-    finalStatus.textContent = `A blocked app was launched: ${names}. Close it to proceed.`;
+    finalStatus.textContent = tr(
+      "preflightResults.blockedAppLaunched",
+      `A blocked app was launched: ${names}. Close it to proceed.`,
+      { names }
+    );
     finalStatus.className = "sc-status sc-status--fail";
     btnProceed.disabled = true;
     btnProceed.className = PROCEED_DISABLED_CLASS;
@@ -465,7 +474,7 @@ function updateCard(id, passed, msg, blockedApps = []) {
     descEl.className = "sc-card__desc";
     if (badgeEl) {
       badgeEl.className = "sc-badge sc-badge--pass";
-      badgeEl.textContent = "Ready";
+      badgeEl.textContent = tr("preflightResults.ready", "Ready");
     }
   } else {
     cardEl.className = "sc-card sc-card--fail";
@@ -475,7 +484,7 @@ function updateCard(id, passed, msg, blockedApps = []) {
     descEl.className = "sc-card__desc sc-card__desc--fail";
     if (badgeEl) {
       badgeEl.className = "sc-badge sc-badge--fail";
-      badgeEl.textContent = "Action Required";
+      badgeEl.textContent = tr("preflightResults.actionRequired", "Action Required");
     }
 
     if (blockedApps.length > 0) {
@@ -510,7 +519,7 @@ function renderKillButtons(container, blockedApps) {
 
     const btn = document.createElement("button");
     btn.className = "sc-kill-btn";
-    btn.innerHTML = `<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> Close ${safeDisplay}`;
+    btn.innerHTML = `<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> ${tr("preflightResults.closeApp", `Close ${safeDisplay}`, { name: safeDisplay })}`;
     btn.addEventListener("click", () => handleKillApp(btn, appName, row));
 
     row.appendChild(btn);
@@ -520,7 +529,7 @@ function renderKillButtons(container, blockedApps) {
   if (blockedApps.length > 1) {
     const closeAllBtn = document.createElement("button");
     closeAllBtn.className = "sc-kill-all-btn";
-    closeAllBtn.innerHTML = `<svg class="sc-icon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Close All & Re-scan`;
+    closeAllBtn.innerHTML = `<svg class="sc-icon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> ${tr("preflightResults.closeAllRescan", "Close All & Re-scan")}`;
     closeAllBtn.addEventListener("click", () =>
       handleKillAll(closeAllBtn, blockedApps)
     );
@@ -533,14 +542,14 @@ function renderKillButtons(container, blockedApps) {
 async function handleKillApp(btn, processName, row) {
   btn.disabled = true;
   btn.className = "sc-kill-btn sc-kill-btn--killing";
-  btn.innerHTML = `<svg class="sc-icon-xs spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Closing...`;
+  btn.innerHTML = `<svg class="sc-icon-xs spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> ${tr("preflightResults.closing", "Closing...")}`;
 
   try {
     const result = await window.electronAPI.killProcess(processName);
 
     if (result.success) {
       btn.className = "sc-kill-btn sc-kill-btn--killed";
-      btn.innerHTML = `<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg> Closed`;
+      btn.innerHTML = `<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg> ${tr("preflightResults.closed", "Closed")}`;
 
       row.classList.add("sc-kill-row--closed");
       row.querySelector(".sc-kill-ping")?.remove();
@@ -557,12 +566,12 @@ async function handleKillApp(btn, processName, row) {
       }
     } else {
       btn.className = "sc-kill-btn sc-kill-btn--failed";
-      btn.innerHTML = `<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg> Failed — close ${escapeHtml(getDisplayName(processName))} manually`;
+      btn.innerHTML = `<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg> ${tr("preflightResults.closeFailedManual", `Failed — close ${escapeHtml(getDisplayName(processName))} manually`, { name: escapeHtml(getDisplayName(processName)) })}`;
       btn.disabled = false;
     }
   } catch {
     btn.className = "sc-kill-btn sc-kill-btn--failed";
-    btn.innerHTML = `<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg> Error — close ${escapeHtml(getDisplayName(processName))} manually`;
+    btn.innerHTML = `<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg> ${tr("preflightResults.closeErrorManual", `Error — close ${escapeHtml(getDisplayName(processName))} manually`, { name: escapeHtml(getDisplayName(processName)) })}`;
     btn.disabled = false;
   }
 }
@@ -570,15 +579,15 @@ async function handleKillApp(btn, processName, row) {
 async function handleKillAll(btn, processNames) {
   btn.disabled = true;
   btn.className = "sc-kill-all-btn sc-kill-all-btn--killing";
-  btn.innerHTML = `<svg class="sc-icon-sm spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Closing all apps...`;
+  btn.innerHTML = `<svg class="sc-icon-sm spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> ${tr("preflightResults.closingAll", "Closing all apps...")}`;
 
   try {
     await window.electronAPI.killAllProcesses(processNames);
     btn.className = "sc-kill-all-btn sc-kill-all-btn--success";
-    btn.innerHTML = `<svg class="sc-icon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg> All apps closed — re-scanning...`;
+    btn.innerHTML = `<svg class="sc-icon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg> ${tr("preflightResults.allClosedRescanning", "All apps closed — re-scanning...")}`;
   } catch {
     btn.className = "sc-kill-all-btn sc-kill-all-btn--failed";
-    btn.innerHTML = `<svg class="sc-icon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg> Some apps failed to close`;
+    btn.innerHTML = `<svg class="sc-icon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg> ${tr("preflightResults.someFailedToClose", "Some apps failed to close")}`;
   }
 
   scheduleAutoRescan();
@@ -606,11 +615,11 @@ function renderAgentCard(agent) {
             </svg>
           </div>
           <div class="sc-card__body">
-            <h3 class="sc-card__title">Deep Scan Agent</h3>
-            <p class="sc-card__desc sc-card__desc--fail">Security agent failed to start — it is required to continue. Click Re-scan to retry.</p>
+            <h3 class="sc-card__title">${tr("preflightResults.agentTitle", "Deep Scan Agent")}</h3>
+            <p class="sc-card__desc sc-card__desc--fail">${tr("preflightResults.agentFailedStart", "Security agent failed to start — it is required to continue. Click Re-scan to retry.")}</p>
           </div>
         </div>
-        <div class="sc-badge sc-badge--fail">Required</div>
+        <div class="sc-badge sc-badge--fail">${tr("preflightResults.required", "Required")}</div>
       </div>`;
     container.appendChild(card);
     return false;
@@ -629,11 +638,11 @@ function renderAgentCard(agent) {
             </svg>
           </div>
           <div class="sc-card__body">
-            <h3 class="sc-card__title">Deep Scan Agent</h3>
-            <p class="sc-card__desc">No AI tools, network anomalies, or automation frameworks detected.</p>
+            <h3 class="sc-card__title">${tr("preflightResults.agentTitle", "Deep Scan Agent")}</h3>
+            <p class="sc-card__desc">${tr("preflightResults.agentClear", "No AI tools, network anomalies, or automation frameworks detected.")}</p>
           </div>
         </div>
-        <div class="sc-badge sc-badge--pass">Ready</div>
+        <div class="sc-badge sc-badge--pass">${tr("preflightResults.ready", "Ready")}</div>
       </div>`;
     container.appendChild(card);
     return true;
@@ -667,13 +676,13 @@ function renderAgentCard(agent) {
           </svg>
         </div>
         <div class="sc-card__body">
-          <h3 class="sc-card__title">Deep Scan Agent</h3>
+          <h3 class="sc-card__title">${tr("preflightResults.agentTitle", "Deep Scan Agent")}</h3>
           <p class="sc-card__desc sc-card__desc--fail">
-            ${threats.length} behavioral threat${threats.length > 1 ? "s" : ""} detected. Close the applications below and rescan.
+            ${tr("preflightResults.agentThreatsDetected", `${threats.length} behavioral threat${threats.length > 1 ? "s" : ""} detected. Close the applications below and rescan.`, { n: threats.length })}
           </p>
         </div>
       </div>
-      <div class="sc-badge sc-badge--fail">Action Required</div>
+      <div class="sc-badge sc-badge--fail">${tr("preflightResults.actionRequired", "Action Required")}</div>
     </div>
     <div class="sc-card__threats">${threatRows}</div>`;
 
@@ -708,16 +717,31 @@ function showScanError(finalStatus, btnRescan, message) {
   // the backend forever.
   if (_scanRetryCount >= MAX_SCAN_RETRIES) {
     finalStatus.className = "sc-status sc-status--fail";
-    finalStatus.textContent = `Diagnostics failed: ${message}. Please click Rescan to try again.`;
+    finalStatus.textContent = tr(
+      "preflightResults.diagnosticsFailedRetry",
+      `Diagnostics failed: ${message}. Please click Rescan to try again.`,
+      { message }
+    );
     return;
   }
 
   _scanRetryCount += 1;
-  const attempt = `attempt ${_scanRetryCount}/${MAX_SCAN_RETRIES}`;
+  const attempt = tr(
+    "preflightResults.attempt",
+    `attempt ${_scanRetryCount}/${MAX_SCAN_RETRIES}`,
+    { current: _scanRetryCount, max: MAX_SCAN_RETRIES }
+  );
   let seconds = 5;
 
+  const renderCountdown = () =>
+    tr(
+      "preflightResults.diagnosticsFailedCountdown",
+      `Diagnostics failed: ${message} — retrying in ${seconds}s… (${attempt})`,
+      { message, seconds, attempt }
+    );
+
   finalStatus.className = "sc-status sc-status--warn";
-  finalStatus.textContent = `Diagnostics failed: ${message} — retrying in ${seconds}s… (${attempt})`;
+  finalStatus.textContent = renderCountdown();
 
   const timer = setInterval(() => {
     seconds -= 1;
@@ -726,7 +750,7 @@ function showScanError(finalStatus, btnRescan, message) {
       _isAutoRescan = true; // preserve the retry cap across this programmatic rescan
       btnRescan.click();
     } else {
-      finalStatus.textContent = `Diagnostics failed: ${message} — retrying in ${seconds}s… (${attempt})`;
+      finalStatus.textContent = renderCountdown();
     }
   }, 1000);
 }

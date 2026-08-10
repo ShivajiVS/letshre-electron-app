@@ -1,0 +1,72 @@
+/* assets/css/i18n.css
+ * Language switcher styling + RTL overrides + no-FOUC + local font faces.
+ * Included on every native page alongside i18n.js.
+ */
+
+/* ─── No-FOUC ─────────────────────────────────────────────────────────── */
+html.i18n-pending body {
+  visibility: hidden;
+}
+
+/* ─── Language switcher ──────────────────────────────────────────────── */
+#lang-switcher {
+  display: inline-flex;
+  align-items: center;
+  margin-inline-start: 12px;
+}
+
+.lang-switcher__select {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: #3a3a38;
+  background: #fff;
+  border: 1px solid #e8e3d9;
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.lang-switcher__select:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+/* ─── RTL ─────────────────────────────────────────────────────────────── */
+html[dir="rtl"] {
+  text-align: right;
+}
+
+html[dir="rtl"] .btn-back-nav .back-icon,
+html[dir="rtl"] .hiw-back svg {
+  transform: scaleX(-1);
+}
+
+/* Icon-plus-text rows (back buttons, CTA buttons) rely on horizontal flex
+   gaps that read correctly in RTL automatically via logical properties;
+   explicit start/end margins used elsewhere in this stylesheet already
+   flip correctly because they use margin-inline-*. */
+
+/* ─── Fonts for non-Latin scripts ─────────────────────────────────────────
+ * TODO(i18n-fonts): self-host Noto Sans subsets under assets/fonts/ and
+ * restore @font-face rules here (with unicode-range so only the glyphs
+ * actually used download). Deliberately NOT declared yet — pointing
+ * @font-face at files that don't exist on disk produces a 404 + console
+ * error per page load, so until the binaries are added this instead falls
+ * through to whatever script-appropriate font each OS ships (Windows/macOS
+ * both bundle Devanagari/CJK/Arabic-capable system fonts), which is a
+ * degraded-but-error-free interim state.
+ *
+ * Needed before shipping: Devanagari (hi), Telugu (te), Tamil (ta),
+ * Kannada (kn), Malayalam (ml), Bengali (bn), Japanese (ja), Korean (ko),
+ * Arabic (ar, ur — Urdu commonly wants Nastaliq rather than Naskh, confirm
+ * with a native speaker during translation review).
+ */
+body {
+  font-family:
+    Inter,
+    "Noto Sans",
+    "Segoe UI",
+    system-ui,
+    sans-serif;
+}

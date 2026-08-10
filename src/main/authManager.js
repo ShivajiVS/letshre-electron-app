@@ -261,12 +261,19 @@ async function fetchProfileImage(url) {
 
 /**
  * Submits a voice sample blob to the API for identity verification.
+ * Also sends the candidate's UI locale and the exact attestation text they
+ * were shown, so backend STT/voice-match can use the right language model
+ * instead of assuming English.
  * @param {Uint8Array} uint8Array
  * @param {string} mimeType
+ * @param {{ locale?: string, statementText?: string }} [meta]
  * @returns {Promise<{ ok: boolean, error?: string }>}
  */
-async function submitVoiceSample(uint8Array, mimeType) {
+async function submitVoiceSample(uint8Array, mimeType, meta = {}) {
   if (!session?.accessToken) { return { ok: false, error: "Not authenticated." }; }
+
+  const safeLocale = typeof meta?.locale === "string" ? meta.locale.slice(0, 20) : undefined;
+  const safeStatement = typeof meta?.statementText === "string" ? meta.statementText.slice(0, 500) : undefined;
 
   const doRequest = () => {
     const buf = Buffer.from(uint8Array);
@@ -278,6 +285,8 @@ async function submitVoiceSample(uint8Array, mimeType) {
     const form = new FormData();
     const blob = new Blob([buf], { type: mimeType || "audio/webm" });
     form.append("voice_sample", blob, `voice_sample.${ext}`);
+    if (safeLocale) form.append("locale", safeLocale);
+    if (safeStatement) form.append("statement_text", safeStatement);
 
     return axios.post(
       `${API_BASE_URL}/user/v1/candidate/interview/voice_sample/`,

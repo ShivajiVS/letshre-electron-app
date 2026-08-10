@@ -317,7 +317,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     setLoading(btnContinueVoice, true, "Submitting…");
     try {
       const buffer = await audioBlob.arrayBuffer();
-      const result = await window.electronAPI?.submitVoiceSample?.(new Uint8Array(buffer), audioMimeType);
+      // Send the active locale + the exact attestation text the candidate read
+      // aloud, so backend STT/voice-match uses the right language model.
+      const statementText = document.getElementById("attestation-text")?.textContent?.trim();
+      const meta = { locale: window.i18n?.getLocale?.(), statementText };
+      const result = await window.electronAPI?.submitVoiceSample?.(new Uint8Array(buffer), audioMimeType, meta);
       if (result?.ok) {
         goToStep(2);
       } else {

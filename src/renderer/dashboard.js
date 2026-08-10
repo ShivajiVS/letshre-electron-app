@@ -9,6 +9,11 @@
 "use strict";
 
 document.addEventListener("DOMContentLoaded", async () => {
+  // Ensure the i18n bundle is loaded before we build any dynamic strings
+  // below (window.t exists immediately, but reads against an empty bundle
+  // until this resolves).
+  if (window.i18n?.ready) { await window.i18n.ready; }
+
   const welcomeEl       = document.getElementById("welcome");
   const takeBtn         = document.getElementById("take-interview-btn");
   const logoutBtn       = document.getElementById("logout-btn");
@@ -147,14 +152,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         dot.className = "attempt-dot" + (i < used ? " used" : "");
         attemptDots.appendChild(dot);
       }
-      attemptCount.textContent = `${remaining} of ${max} remaining`;
+      attemptCount.textContent = window.t
+        ? window.t("dashboard.attemptsRemaining", { remaining, max })
+        : `${remaining} of ${max} remaining`;
       if (remaining <= 0) { attemptCount.classList.add("exhausted"); }
     }
 
     // ── Gate the button ──────────────────────────────────────────────────
     if (remaining <= 0) {
       takeBtn.disabled = true;
-      dashNote.textContent = "You've used all your interview attempts. Contact support if you need more.";
+      dashNote.textContent = window.t
+        ? window.t("dashboard.attemptsExhausted")
+        : "You've used all your interview attempts. Contact support if you need more.";
       dashNote.classList.add("exhausted-note");
     }
 

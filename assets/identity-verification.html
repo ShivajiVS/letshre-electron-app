@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="i18n-pending">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="./css/base.css" />
     <link rel="stylesheet" href="./css/components.css" />
     <link rel="stylesheet" href="./css/identity-verification.css" />
+    <link rel="stylesheet" href="./css/i18n.css" />
   </head>
   <body class="iv-body">
     <!-- Header -->
@@ -36,8 +37,9 @@
           <path d="M19 12H5" />
           <path d="M12 19l-7-7 7-7" />
         </svg>
-        Back
+        <span data-i18n="common.back">Back</span>
       </button>
+      <div id="lang-switcher"></div>
     </header>
 
     <!-- Main -->
@@ -47,7 +49,7 @@
         <div class="iv-card__header">
           <div>
             <h1 class="iv-card__title">
-              Identity <span class="iv-card__title-accent">Check</span>
+              <span data-i18n="identity.titleMain">Identity</span> <span class="iv-card__title-accent" data-i18n="identity.titleAccent">Check</span>
             </h1>
             <div class="iv-card__title-bar"></div>
           </div>
@@ -55,17 +57,17 @@
           <div class="iv-steps" id="iv-steps">
             <div class="iv-step iv-step--active" id="step-pill-1">
               <div class="iv-step__dot" id="step-dot-1">1</div>
-              <span class="iv-step__label">Voice</span>
+              <span class="iv-step__label" data-i18n="identity.stepVoice">Voice</span>
             </div>
             <div class="iv-step__line" id="step-line-1"></div>
             <div class="iv-step" id="step-pill-2">
               <div class="iv-step__dot" id="step-dot-2">2</div>
-              <span class="iv-step__label">Photo</span>
+              <span class="iv-step__label" data-i18n="identity.stepPhoto">Photo</span>
             </div>
             <div class="iv-step__line" id="step-line-2"></div>
             <div class="iv-step" id="step-pill-3">
               <div class="iv-step__dot" id="step-dot-3">3</div>
-              <span class="iv-step__label">Result</span>
+              <span class="iv-step__label" data-i18n="identity.stepResult">Result</span>
             </div>
           </div>
         </div>
@@ -130,8 +132,8 @@
                 />
               </svg>
             </div>
-            <h3 class="iv-sidebar__title" id="sidebar-title">Voice Verification</h3>
-            <p class="iv-sidebar__desc" id="sidebar-desc">
+            <h3 class="iv-sidebar__title" id="sidebar-title" data-i18n="identity.sidebarVoiceTitle">Voice Verification</h3>
+            <p class="iv-sidebar__desc" id="sidebar-desc" data-i18n="identity.sidebarVoiceDesc">
               We need a short audio sample to verify your identity and ensure a secure session.
             </p>
           </aside>
@@ -160,16 +162,19 @@
                 </div>
                 <div>
                   <p class="iv-voice__label">
-                    Voice Recording <span class="iv-required">(Required)</span>
+                    <span data-i18n="identity.voiceLabel">Voice Recording</span> <span class="iv-required">(<span data-i18n="common.required">Required</span>)</span>
                   </p>
-                  <p class="iv-voice__sub">
+                  <p class="iv-voice__sub" data-i18n="identity.voiceSub">
                     Read the statement clearly so we can verify your identity.
                   </p>
                 </div>
               </div>
 
               <div class="iv-statement" id="iv-statement">
-                <p class="iv-statement__text">
+                <!-- The read-aloud attestation. This is a legal statement and drives
+                     voice/STT matching on the backend — always render it from
+                     attestation.statement, never hardcode a translation here. -->
+                <p class="iv-statement__text" id="attestation-text" data-i18n="attestation.statement">
                   "I confirm that I am the person taking this interview, and I will follow the
                   instructions."
                 </p>
@@ -214,7 +219,7 @@
                     <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
                     <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
                   </svg>
-                  Start Recording
+                  <span data-i18n="identity.startRecording">Start Recording</span>
                 </button>
               </div>
 
@@ -227,7 +232,7 @@
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                     <rect x="3" y="3" width="18" height="18" rx="2" />
                   </svg>
-                  Stop Recording
+                  <span data-i18n="identity.stopRecording">Stop Recording</span>
                 </button>
               </div>
 
@@ -248,7 +253,7 @@
                     >
                       <polygon points="5 3 19 12 5 21 5 3" />
                     </svg>
-                    <span id="playback-label">Listen back</span>
+                    <span id="playback-label" data-i18n="identity.listenBack">Listen back</span>
                   </button>
                   <div class="iv-playback-divider"></div>
                   <button class="iv-btn iv-btn--ghost" id="btn-retake-voice">
@@ -265,11 +270,11 @@
                       <polyline points="1 4 1 10 7 10" />
                       <path d="M3.51 15a9 9 0 1 0 .49-3.2" />
                     </svg>
-                    Retake
+                    <span data-i18n="identity.retake">Retake</span>
                   </button>
                 </div>
                 <button class="iv-btn iv-btn--primary iv-btn--lg" id="btn-continue-voice">
-                  Continue
+                  <span data-i18n="common.continue">Continue</span>
                   <svg
                     width="18"
                     height="18"
@@ -291,7 +296,7 @@
               <div class="iv-photo-grid">
                 <!-- Registered -->
                 <div class="iv-photo-col">
-                  <span class="iv-photo-label">Registered Image</span>
+                  <span class="iv-photo-label" data-i18n="identity.registeredImage">Registered Image</span>
                   <div class="iv-photo-frame iv-photo-frame--ref" style="background: #f0ede6">
                     <!-- img hidden until JS sets a valid src -->
                     <img
@@ -325,12 +330,12 @@
                         <circle cx="12" cy="7" r="4" />
                       </svg>
                     </div>
-                    <div class="iv-photo-frame__badge">REFERENCE PHOTO</div>
+                    <div class="iv-photo-frame__badge" data-i18n="identity.referencePhoto">REFERENCE PHOTO</div>
                   </div>
                 </div>
                 <!-- Live -->
                 <div class="iv-photo-col">
-                  <span class="iv-photo-label iv-photo-label--live">Live Camera</span>
+                  <span class="iv-photo-label iv-photo-label--live" data-i18n="identity.liveCamera">Live Camera</span>
                   <div class="iv-photo-frame iv-photo-frame--live" id="live-frame">
                     <video
                       id="iv-video"
@@ -341,7 +346,7 @@
                     ></video>
                     <img id="iv-captured" class="iv-photo-frame__img" alt="Captured" hidden />
                     <canvas id="iv-canvas" hidden></canvas>
-                    <div class="iv-photo-frame__badge iv-photo-frame__badge--live" id="live-badge">
+                    <div class="iv-photo-frame__badge iv-photo-frame__badge--live" id="live-badge" data-i18n="identity.positionFace">
                       POSITION YOUR FACE
                     </div>
                   </div>
@@ -365,7 +370,7 @@
                     />
                     <circle cx="12" cy="13" r="4" />
                   </svg>
-                  Capture Image
+                  <span data-i18n="identity.captureImage">Capture Image</span>
                 </button>
               </div>
 
@@ -384,7 +389,7 @@
                     <polyline points="1 4 1 10 7 10" />
                     <path d="M3.51 15a9 9 0 1 0 .49-3.2" />
                   </svg>
-                  Retake
+                  <span data-i18n="identity.retake">Retake</span>
                 </button>
                 <button class="iv-btn iv-btn--primary iv-btn--lg" id="btn-submit-photo">
                   <svg
@@ -401,7 +406,7 @@
                     <polyline points="16 3 12 7 8 3" />
                     <line x1="12" y1="3" x2="12" y2="15" />
                   </svg>
-                  Confirm &amp; Submit
+                  <span data-i18n="identity.confirmSubmit">Confirm &amp; Submit</span>
                 </button>
               </div>
 
@@ -418,7 +423,7 @@
                 >
                   <path d="M15 18l-6-6 6-6" />
                 </svg>
-                Back to Voice Step
+                <span data-i18n="identity.backToVoice">Back to Voice Step</span>
               </button>
             </section>
 
@@ -432,7 +437,7 @@
                     alt="Registered"
                     class="iv-result-photo__img iv-result-photo__img--ref"
                   />
-                  <span class="iv-result-photo__tag">REGISTERED</span>
+                  <span class="iv-result-photo__tag" data-i18n="identity.registered">REGISTERED</span>
                 </div>
 
                 <div class="iv-result-match" id="result-match-badge">
@@ -446,7 +451,7 @@
                     alt="Live capture"
                     class="iv-result-photo__img"
                   />
-                  <span class="iv-result-photo__tag">LIVE CAPTURE</span>
+                  <span class="iv-result-photo__tag" data-i18n="identity.liveCapture">LIVE CAPTURE</span>
                 </div>
               </div>
 
@@ -458,7 +463,7 @@
 
               <div class="iv-result-cta">
                 <button class="iv-btn iv-btn--primary iv-btn--lg" id="btn-begin-interview" hidden>
-                  Continue
+                  <span data-i18n="common.continue">Continue</span>
                   <svg
                     width="20"
                     height="20"
@@ -486,10 +491,10 @@
                     <polyline points="1 4 1 10 7 10" />
                     <path d="M3.51 15a9 9 0 1 0 .49-3.2" />
                   </svg>
-                  Try Again
+                  <span data-i18n="identity.tryAgain">Try Again</span>
                 </button>
                 <p class="iv-result-tip" id="result-tip" hidden>
-                  Professional tip: <span>Remove glasses or masks for better accuracy.</span>
+                  <span data-i18n="identity.professionalTip">Professional tip:</span> <span data-i18n="identity.tipRemoveGlasses">Remove glasses or masks for better accuracy.</span>
                 </p>
               </div>
             </section>
@@ -502,6 +507,8 @@
     </main>
 
     <audio id="iv-audio-player"></audio>
+    <script src="./js/i18n.js"></script>
+    <script src="../src/renderer/languageSwitcher.js"></script>
     <script src="../src/renderer/identity-verification.js"></script>
   </body>
 </html>

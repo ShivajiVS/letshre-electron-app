@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="i18n-pending">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="./css/base.css" />
     <link rel="stylesheet" href="./css/components.css" />
     <link rel="stylesheet" href="./css/preflight.css" />
+    <link rel="stylesheet" href="./css/i18n.css" />
   </head>
   <body class="sc-body">
     <!-- Background blobs -->
@@ -39,16 +40,17 @@
           <path d="M19 12H5" />
           <path d="M12 19l-7-7 7-7" />
         </svg>
-        Back
+        <span data-i18n="common.back">Back</span>
       </button>
+      <div id="lang-switcher"></div>
     </header>
 
     <!-- Main Content -->
     <main class="sc-main animate-fade-in" style="animation-delay: 0.1s; opacity: 0">
       <!-- Intro (centered title + subtitle, synced with perm-intro) -->
       <div class="sc-intro">
-        <h1 class="sc-intro__title">Security Checks</h1>
-        <p class="sc-intro__sub">
+        <h1 class="sc-intro__title" data-i18n="preflight.title">Security Checks</h1>
+        <p class="sc-intro__sub" data-i18n="preflight.sub">
           Environment Compliance Required — close all unauthorized screens, apps, or browsers to
           proceed
         </p>
@@ -71,13 +73,13 @@
                 </svg>
               </div>
               <div class="sc-card__body">
-                <h3 class="sc-card__title">HDMI Connection</h3>
-                <p id="desc-hdmi" class="sc-card__desc">
+                <h3 class="sc-card__title" data-i18n="preflight.hdmiTitle">HDMI Connection</h3>
+                <p id="desc-hdmi" class="sc-card__desc" data-i18n="preflight.hdmiScanning">
                   Scanning for external display connections...
                 </p>
               </div>
             </div>
-            <div id="badge-hdmi" class="sc-badge sc-badge--scanning">Scanning</div>
+            <div id="badge-hdmi" class="sc-badge sc-badge--scanning" data-i18n="preflight.scanningBadge">Scanning</div>
           </div>
           <div id="actions-hdmi" class="sc-card__actions"></div>
         </div>
@@ -97,13 +99,13 @@
                 </svg>
               </div>
               <div class="sc-card__body">
-                <h3 class="sc-card__title">Active Meetings</h3>
-                <p id="desc-meeting" class="sc-card__desc">
+                <h3 class="sc-card__title" data-i18n="preflight.meetingTitle">Active Meetings</h3>
+                <p id="desc-meeting" class="sc-card__desc" data-i18n="preflight.meetingScanning">
                   Scanning for active communication software...
                 </p>
               </div>
             </div>
-            <div id="badge-meeting" class="sc-badge sc-badge--scanning">Scanning</div>
+            <div id="badge-meeting" class="sc-badge sc-badge--scanning" data-i18n="preflight.scanningBadge">Scanning</div>
           </div>
           <div id="actions-meeting" class="sc-card__actions"></div>
         </div>
@@ -123,13 +125,13 @@
                 </svg>
               </div>
               <div class="sc-card__body">
-                <h3 class="sc-card__title">Screen Capture &amp; Recording</h3>
-                <p id="desc-screen" class="sc-card__desc">
+                <h3 class="sc-card__title" data-i18n="preflight.screenTitle">Screen Capture &amp; Recording</h3>
+                <p id="desc-screen" class="sc-card__desc" data-i18n="preflight.screenScanning">
                   Scanning for recording or streaming applications...
                 </p>
               </div>
             </div>
-            <div id="badge-screen" class="sc-badge sc-badge--scanning">Scanning</div>
+            <div id="badge-screen" class="sc-badge sc-badge--scanning" data-i18n="preflight.scanningBadge">Scanning</div>
           </div>
           <div id="actions-screen" class="sc-card__actions"></div>
         </div>
@@ -149,13 +151,13 @@
                 </svg>
               </div>
               <div class="sc-card__body">
-                <h3 class="sc-card__title">Wireless Mirroring &amp; Browsers</h3>
-                <p id="desc-wireless" class="sc-card__desc">
+                <h3 class="sc-card__title" data-i18n="preflight.wirelessTitle">Wireless Mirroring &amp; Browsers</h3>
+                <p id="desc-wireless" class="sc-card__desc" data-i18n="preflight.wirelessScanning">
                   Scanning for wireless casting or browser activity...
                 </p>
               </div>
             </div>
-            <div id="badge-wireless" class="sc-badge sc-badge--scanning">Scanning</div>
+            <div id="badge-wireless" class="sc-badge sc-badge--scanning" data-i18n="preflight.scanningBadge">Scanning</div>
           </div>
           <div id="actions-wireless" class="sc-card__actions"></div>
         </div>
@@ -175,13 +177,13 @@
                 </svg>
               </div>
               <div class="sc-card__body">
-                <h3 class="sc-card__title">AI Assistant Detection</h3>
-                <p id="desc-ai" class="sc-card__desc">
+                <h3 class="sc-card__title" data-i18n="preflight.aiTitle">AI Assistant Detection</h3>
+                <p id="desc-ai" class="sc-card__desc" data-i18n="preflight.aiScanning">
                   Scanning for interview copilots and cheating tools...
                 </p>
               </div>
             </div>
-            <div id="badge-ai" class="sc-badge sc-badge--scanning">Scanning</div>
+            <div id="badge-ai" class="sc-badge sc-badge--scanning" data-i18n="preflight.scanningBadge">Scanning</div>
           </div>
           <div id="actions-ai" class="sc-card__actions"></div>
         </div>
@@ -190,7 +192,7 @@
 
       <!-- Footer -->
       <div class="sc-footer">
-        <p id="final-status" class="sc-status" role="status" aria-live="polite">
+        <p id="final-status" class="sc-status" role="status" aria-live="polite" data-i18n="preflight.runningDiagnostics">
           Running security diagnostics...
         </p>
         <div class="sc-footer__buttons">
@@ -203,10 +205,10 @@
                 d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
               ></path>
             </svg>
-            Rescan
+            <span data-i18n="preflight.rescan">Rescan</span>
           </button>
           <button id="btn-proceed" disabled class="sc-btn-proceed sc-btn-proceed--disabled">
-            Continue
+            <span data-i18n="common.continue">Continue</span>
             <svg class="sc-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 stroke-linecap="round"
@@ -221,6 +223,8 @@
     </main>
 
     <div id="app-version" class="app-version"></div>
+    <script src="./js/i18n.js"></script>
+    <script src="../src/renderer/languageSwitcher.js"></script>
     <script src="../src/renderer/preflight.js"></script>
   </body>
 </html>

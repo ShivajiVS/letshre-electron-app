@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="i18n-pending">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="./css/base.css" />
     <link rel="stylesheet" href="./css/components.css" />
     <link rel="stylesheet" href="./css/role-selection.css" />
+    <link rel="stylesheet" href="./css/i18n.css" />
   </head>
   <body class="rs-body">
 
@@ -18,8 +19,9 @@
         <svg class="back-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
         </svg>
-        Back
+        <span data-i18n="common.back">Back</span>
       </button>
+      <div id="lang-switcher"></div>
     </header>
 
     <!-- Main -->
@@ -29,7 +31,7 @@
         <!-- ── Card header ─────────────────────────────────────────────── -->
         <div class="rs-card__header">
           <div>
-            <h1 class="rs-card__title">Role <span class="rs-card__title-accent">Selection</span></h1>
+            <h1 class="rs-card__title"><span data-i18n="role.titleMain">Role</span> <span class="rs-card__title-accent" data-i18n="role.titleAccent">Selection</span></h1>
             <div class="rs-card__title-bar"></div>
           </div>
 
@@ -37,22 +39,22 @@
           <div class="rs-steps">
             <div class="rs-step rs-step--active" id="step-pill-confirm">
               <div class="rs-step__dot">1</div>
-              <span class="rs-step__label">Confirm</span>
+              <span class="rs-step__label" data-i18n="role.stepConfirm">Confirm</span>
             </div>
             <div class="rs-step__line" id="line-1"></div>
             <div class="rs-step" id="step-pill-input">
               <div class="rs-step__dot">2</div>
-              <span class="rs-step__label">Role</span>
+              <span class="rs-step__label" data-i18n="role.stepRole">Role</span>
             </div>
             <div class="rs-step__line" id="line-2"></div>
             <div class="rs-step" id="step-pill-clarify">
               <div class="rs-step__dot">3</div>
-              <span class="rs-step__label">Clarify</span>
+              <span class="rs-step__label" data-i18n="role.stepClarify">Clarify</span>
             </div>
             <div class="rs-step__line" id="line-3"></div>
             <div class="rs-step" id="step-pill-skills">
               <div class="rs-step__dot">4</div>
-              <span class="rs-step__label">Skills</span>
+              <span class="rs-step__label" data-i18n="role.stepSkills">Skills</span>
             </div>
           </div>
         </div>
@@ -84,8 +86,8 @@
                 <line x1="10" y1="14" x2="14" y2="14"/>
               </svg>
             </div>
-            <h3 class="rs-sidebar__title" id="sidebar-title">Your Selected Role</h3>
-            <p class="rs-sidebar__desc" id="sidebar-desc">Review the role assigned to you. If it's correct, proceed directly to the interview. Otherwise, enter a different role.</p>
+            <h3 class="rs-sidebar__title" id="sidebar-title" data-i18n="role.sidebarTitle">Your Selected Role</h3>
+            <p class="rs-sidebar__desc" id="sidebar-desc" data-i18n="role.sidebarDesc">Review the role assigned to you. If it's correct, proceed directly to the interview. Otherwise, enter a different role.</p>
             <div class="rs-sidebar__dots">
               <span class="rs-sidebar__dot rs-sidebar__dot--active" id="dot-1"></span>
               <span class="rs-sidebar__dot" id="dot-2"></span>
@@ -122,22 +124,22 @@
                       <line x1="10" y1="14" x2="14" y2="14"/>
                     </svg>
                   </div>
-                  <p class="rs-confirm__badge-label">Selected Role</p>
+                  <p class="rs-confirm__badge-label" data-i18n="role.confirmBadgeLabel">Selected Role</p>
                   <h2 class="rs-confirm__role-name" id="confirm-role-name">–</h2>
                   <div class="rs-confirm__role-bar"></div>
                 </div>
 
                 <div class="rs-confirm__question">
-                  <p>You have been assigned <strong id="confirm-role-inline">–</strong>. Do you want to continue to the interview with this role?</p>
+                  <p><span data-i18n="role.confirmQuestionPrefix">You have been assigned</span> <strong id="confirm-role-inline">–</strong>. <span data-i18n="role.confirmQuestionSuffix">Do you want to continue to the interview with this role?</span></p>
                 </div>
 
                 <div class="rs-confirm__actions">
                   <button class="rs-btn rs-btn--outline" id="btn-no" type="button">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                    No, change role
+                    <span data-i18n="role.no">No, change role</span>
                   </button>
                   <button class="rs-btn rs-btn--primary" id="btn-yes" type="button">
-                    Yes, continue
+                    <span data-i18n="role.yes">Yes, continue</span>
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
                   </button>
                 </div>
@@ -147,23 +149,23 @@
             <!-- ── Panel 2: Input ──────────────────────────────────────── -->
             <div class="rs-panel" id="panel-input" hidden>
               <div class="rs-panel__header">
-                <p class="rs-panel__eyebrow">Interview Setup</p>
-                <h3 class="rs-panel__title">What role are you interviewing for?</h3>
-                <p class="rs-panel__sub">Enter your job title and we'll personalise your interview experience.</p>
+                <p class="rs-panel__eyebrow" data-i18n="role.eyebrowSetup">Interview Setup</p>
+                <h3 class="rs-panel__title" data-i18n="role.inputTitle">What role are you interviewing for?</h3>
+                <p class="rs-panel__sub" data-i18n="role.inputSub">Enter your job title and we'll personalise your interview experience.</p>
               </div>
 
               <div class="rs-input-wrap">
-                <label class="rs-input-label" for="role-input">Job Title / Role</label>
+                <label class="rs-input-label" for="role-input" data-i18n="role.inputLabel">Job Title / Role</label>
                 <div class="rs-input-field">
                   <svg class="rs-input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
                   </svg>
-                  <input type="text" id="role-input" placeholder="e.g. Frontend Developer, Product Manager…" autocomplete="off" />
+                  <input type="text" id="role-input" placeholder="e.g. Frontend Developer, Product Manager…" autocomplete="off" data-i18n-attr="placeholder:role.inputPlaceholder" />
                 </div>
               </div>
 
               <button class="rs-btn rs-btn--primary rs-btn--full rs-btn--lg" id="btn-submit-role" type="button" disabled>
-                Continue to Interview
+                <span data-i18n="role.continueToInterview">Continue to Interview</span>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
               </button>
             </div>
@@ -171,15 +173,15 @@
             <!-- ── Panel 3: Clarification ──────────────────────────────── -->
             <div class="rs-panel" id="panel-clarify" hidden>
               <div class="rs-panel__header">
-                <p class="rs-panel__eyebrow">Clarification Needed</p>
-                <h3 class="rs-panel__title">Which type of <span id="ambiguous-role-label" class="rs-panel__title-accent">role</span> are you?</h3>
-                <p class="rs-panel__sub">Select the option that best describes your specialisation.</p>
+                <p class="rs-panel__eyebrow" data-i18n="role.eyebrowClarify">Clarification Needed</p>
+                <h3 class="rs-panel__title"><span data-i18n="role.clarifyTitlePrefix">Which type of</span> <span id="ambiguous-role-label" class="rs-panel__title-accent">role</span> <span data-i18n="role.clarifyTitleSuffix">are you?</span></h3>
+                <p class="rs-panel__sub" data-i18n="role.clarifySub">Select the option that best describes your specialisation.</p>
               </div>
 
               <div class="rs-role-cards" id="role-cards"></div>
 
               <button class="rs-btn rs-btn--primary rs-btn--full rs-btn--lg" id="btn-confirm-clarify" type="button" disabled>
-                Confirm selection
+                <span data-i18n="role.confirmSelection">Confirm selection</span>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
               </button>
             </div>
@@ -187,16 +189,16 @@
             <!-- ── Panel 4: Skills ─────────────────────────────────────── -->
             <div class="rs-panel" id="panel-skills" hidden>
               <div class="rs-panel__header">
-                <p class="rs-panel__eyebrow">Ready to Begin</p>
-                <h3 class="rs-panel__title">Skills for <span id="confirmed-role-label" class="rs-panel__title-accent">–</span></h3>
-                <p class="rs-panel__sub">Here are the key areas we'll cover in your interview. Review them and start when you're ready.</p>
+                <p class="rs-panel__eyebrow" data-i18n="role.eyebrowReady">Ready to Begin</p>
+                <h3 class="rs-panel__title"><span data-i18n="role.skillsTitlePrefix">Skills for</span> <span id="confirmed-role-label" class="rs-panel__title-accent">–</span></h3>
+                <p class="rs-panel__sub" data-i18n="role.skillsSub">Here are the key areas we'll cover in your interview. Review them and start when you're ready.</p>
               </div>
 
               <div class="rs-skills-grid" id="skills-grid"></div>
               <div class="rs-skills-divider"></div>
 
               <button class="rs-btn rs-btn--begin rs-btn--full" id="btn-start-interview" type="button">
-                Start Interview
+                <span data-i18n="role.startInterview">Start Interview</span>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
               </button>
             </div>
@@ -206,6 +208,8 @@
       </div><!-- /rs-card -->
     </main>
 
+    <script src="./js/i18n.js"></script>
+    <script src="../src/renderer/languageSwitcher.js"></script>
     <script src="../src/renderer/role-selection.js"></script>
   </body>
 </html>

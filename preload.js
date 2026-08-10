@@ -113,6 +113,13 @@ const IPC = {
   PROCTORING_STOP: "proctoring-stop",
   PUSH_PROCTORING_STARTED: "push-proctoring-started",
   PUSH_PROCTORING_ERROR: "push-proctoring-error",
+
+  // Localization
+  GET_LOCALE: "get-locale",
+  SET_LOCALE: "set-locale",
+  GET_TRANSLATIONS: "get-translations",
+  GET_SUPPORTED_LOCALES: "get-supported-locales",
+  LOCALE_CHANGED: "locale-changed",
 };
 
 // Hardened IPC wrapper — only whitelisted channels are allowed
@@ -134,6 +141,7 @@ const ALLOWED_INVOKE_CHANNELS = [
   IPC.FETCH_PROFILE_IMAGE, IPC.SUBMIT_ROLE,
   IPC.STORE_CANDIDATE_PHOTO,
   IPC.PROCTORING_START,
+  IPC.GET_LOCALE, IPC.SET_LOCALE, IPC.GET_TRANSLATIONS, IPC.GET_SUPPORTED_LOCALES,
 ];
 
 const ALLOWED_RECEIVE_CHANNELS = [
@@ -142,6 +150,7 @@ const ALLOWED_RECEIVE_CHANNELS = [
   IPC.PUSH_WARNING, IPC.PREFLIGHT_PROGRESS, IPC.PUSH_VIOLATION,
   IPC.PUSH_PRE_PROCEED_STATUS,
   IPC.PUSH_PROCTORING_STARTED, IPC.PUSH_PROCTORING_ERROR,
+  IPC.LOCALE_CHANGED,
 ];
 
 function safeSend(channel, ...args) {
@@ -247,9 +256,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
    * handles the multipart POST with the Bearer token.
    * @param {Uint8Array} uint8Array
    * @param {string} mimeType
+   * @param {{ locale?: string, statementText?: string }} [meta] — active locale
+   *   and the exact attestation text shown, so backend STT/voice-match uses
+   *   the right language model.
    */
-  submitVoiceSample: (uint8Array, mimeType) =>
-    safeInvoke(IPC.SUBMIT_VOICE_SAMPLE, uint8Array, mimeType),
+  submitVoiceSample: (uint8Array, mimeType, meta) =>
+    safeInvoke(IPC.SUBMIT_VOICE_SAMPLE, uint8Array, mimeType, meta),
 
   /**
    * Submit a captured photo (canvas dataURL) for face verification.
@@ -552,6 +564,31 @@ contextBridge.exposeInMainWorld("electronAPI", {
   /** Unsubscribe when leaving the preflight screen. */
   removePreProceedStatusListener: () => {
     ipcRenderer.removeAllListeners(IPC.PUSH_PRE_PROCEED_STATUS);
+  },
+
+  // ── Localization ───────────────────────────────────────────────────────────
+  /** Returns the candidate's active locale code (persisted pref or OS default). */
+  getLocale: () => safeInvoke(IPC.GET_LOCALE),
+
+  /** Sets and persists the candidate's chosen locale; broadcasts the change. */
+  setLocale: (locale) => safeInvoke(IPC.SET_LOCALE, locale),
+
+  /** Fetches the translation bundle (flat key → string map) for a locale. */
+  getTranslations: (locale) => safeInvoke(IPC.GET_TRANSLATIONS, locale),
+
+  /** Returns the list of supported locales: [{ code, name, dir }]. */
+  getSupportedLocales: () => safeInvoke(IPC.GET_SUPPORTED_LOCALES),
+
+  /**
+   * Subscribe to locale changes broadcast from other windows/instances.
+   * @param {(locale: string) => void} callback
+   */
+  onLocaleChanged: (callback) => {
+    ipcRenderer.removeAllListeners(IPC.LOCALE_CHANGED);
+    safeOn(IPC.LOCALE_CHANGED, (_e, locale) => callback(locale));
+  },
+  removeLocaleChangedListener: () => {
+    ipcRenderer.removeAllListeners(IPC.LOCALE_CHANGED);
   },
 });
 

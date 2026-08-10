@@ -97,6 +97,8 @@ function scheduleAutoRescan() {
 // ─── DOM References ───────────────────────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", async () => {
+  if (window.i18n?.ready) { await window.i18n.ready; }
+
   const btnRescan  = document.getElementById("btn-rescan");
   const btnProceed = document.getElementById("btn-proceed");
   const finalStatus = document.getElementById("final-status");

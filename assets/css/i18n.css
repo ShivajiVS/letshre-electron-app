@@ -12,7 +12,7 @@ html.i18n-pending body {
 #lang-switcher {
   display: inline-flex;
   align-items: center;
-  margin-inline-start: 12px;
+  margin-inline-start: auto;
 }
 
 .lang-switcher__select {

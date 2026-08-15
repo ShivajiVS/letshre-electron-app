@@ -371,6 +371,52 @@
 }
 .sc-kill-all-btn--success { background: var(--success); }
 .sc-kill-all-btn--failed  { background: var(--danger); }
+.sc-kill-all-btn--partial { background: var(--warn); }
+
+/* ── Kill outcome states ─────────────────────────────────────────────────────
+   A close that did not work is not one thing. "It restarted itself", "it needs
+   admin rights" and "it is still shutting down" need different actions from the
+   candidate, so they get different affordances: the first two disable the
+   button (clicking again cannot help) while the third stays clickable. */
+
+.sc-kill-btn--respawned {
+  background: var(--warn-soft);
+  color: var(--warn);
+  border-color: var(--warn-border);
+  cursor: not-allowed;
+}
+.sc-kill-btn--blocked {
+  background: rgba(26, 26, 25, 0.05);
+  color: var(--faint);
+  border-color: var(--border);
+  cursor: not-allowed;
+}
+.sc-kill-btn--retry {
+  background: var(--warn-soft);
+  color: var(--warn);
+  border-color: var(--warn-border);
+}
+.sc-kill-btn--retry:hover:not(:disabled) { background: var(--warn-border); }
+
+/* The row itself stays "open" (it is still a blocker) but is tinted so the
+   unresolved ones are scannable at a glance. */
+.sc-kill-row--respawned { border-color: var(--warn-border); background: var(--warn-soft); }
+.sc-kill-row--blocked   { border-color: var(--border); background: rgba(26, 26, 25, 0.04); }
+
+/* Explanatory line under a row. Sits flush beneath it so the two read as one
+   block, and is never inside the row (which becomes pointer-events:none once
+   the app is closed). */
+.sc-kill-hint {
+  margin: 4px 0 2px;
+  padding: 0 16px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  font-weight: 500;
+  color: var(--faint);
+}
+.sc-kill-hint--respawned { color: var(--warn); }
+.sc-kill-hint--pending   { color: var(--warn); }
+.sc-kill-hint--blocked   { color: var(--danger); }
 
 /* ── Threat rows (agent card) ────────────────────────────────────────────── */
 

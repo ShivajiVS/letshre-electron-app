@@ -132,6 +132,85 @@ const ALL_BLOCKED_APPS = [
   ...AI_CHEATING_APPS,
 ];
 
+// ─── Companion / Relauncher Processes ────────────────────────────────────────
+
+/**
+ * Processes that can RELAUNCH a blocked app, or that keep it running in the
+ * background after its window closes. Keyed by the blocked app's main image
+ * name (lowercase, as it appears in ALL_BLOCKED_APPS). Values are lowercase
+ * image names. These are KILL targets only — they are deliberately NOT added to
+ * the detection blocklist, because a stray helper alone must not fail a scan.
+ *
+ * Safety rule for anyone extending this map: a companion must be EXCLUSIVE to
+ * one vendor's product. Never add shared runtime/host processes (webview,
+ * broker, shell, generic Squirrel/electron `update.exe`, crash handlers) —
+ * killing those breaks unrelated software on the candidate's machine.
+ */
+const APP_COMPANIONS = {
+  // ── Zoom ──
+  // zoomlauncher: protocol/URL launcher that re-spawns zoom.exe.
+  // cpthost + airhost: sharing/AirPlay hosts that survive the main window.
+  "zoom.exe": ["zoomlauncher.exe", "cpthost.exe", "airhost.exe"],
+
+  // ── Microsoft Teams ──
+  // ms-teamsupdate: the new Teams updater, invoked by ms-teams.exe; it can
+  // reinstall/relaunch the client. Classic Teams only ships the shared Squirrel
+  // `update.exe`, which is intentionally omitted (not vendor-exclusive).
+  "teams.exe": ["ms-teamsupdate.exe"],
+  "ms-teams.exe": ["ms-teamsupdate.exe"],
+  "msteams.exe": ["ms-teamsupdate.exe"],
+
+  // ── Cisco Webex ──
+  // ciscowebexstart: relauncher. webexhost/ciscocollabhost: persistent hosts
+  // that pre-warm and re-open the meeting UI. atmgr/washost/wmlhost/ptoneclk:
+  // tray + meeting helpers that keep running after the meeting window closes.
+  "webex.exe": [
+    "ciscowebexstart.exe",
+    "webexhost.exe",
+    "ciscocollabhost.exe",
+    "atmgr.exe",
+    "washost.exe",
+    "wmlhost.exe",
+    "ptoneclk.exe",
+  ],
+
+  // ── Skype ──
+  // Background/host/bridge components of the packaged Skype app; the background
+  // host re-activates the foreground app.
+  "skype.exe": ["skypeapp.exe", "skypebackgroundhost.exe", "skypehost.exe", "skypebridge.exe"],
+
+  // ── GoToMeeting ──
+  // g2mlauncher: relauncher. g2mcomm: persistent comm service that reopens the
+  // session UI. g2mui: meeting UI process.
+  "gotomeeting.exe": ["g2mlauncher.exe", "g2mcomm.exe", "g2mui.exe"],
+
+  // ── TeamViewer ──
+  // teamviewer_service: Windows service that restarts teamviewer.exe on kill.
+  // tv_w32 / tv_x64 / teamviewer_desktop: session hosts that keep accepting
+  // incoming remote connections without the main window.
+  "teamviewer.exe": ["teamviewer_service.exe", "tv_w32.exe", "tv_x64.exe", "teamviewer_desktop.exe"],
+
+  // ── Snagit (TechSmith) ──
+  // Editor + privileged helper that keep capture alive after the tray app exits.
+  "snagit.exe": ["snagiteditor.exe", "snagpriv.exe"],
+};
+
+/**
+ * Returns the known companion processes for a blocked app.
+ * @param {string} processName
+ * @returns {string[]} lowercase companion image names, [] if none known
+ */
+function getCompanions(processName) {
+  if (typeof processName !== "string") {
+    return [];
+  }
+  const key = processName.toLowerCase();
+  if (!Object.prototype.hasOwnProperty.call(APP_COMPANIONS, key)) {
+    return [];
+  }
+  return [...APP_COMPANIONS[key]];
+}
+
 // ─── Display Name Lookup ─────────────────────────────────────────────────────
 
 /** Maps process executable names to human-friendly display names. */
@@ -246,4 +325,6 @@ module.exports = {
   ALL_BLOCKED_APPS,
   APP_DISPLAY_NAMES,
   getDisplayName,
+  APP_COMPANIONS,
+  getCompanions,
 };

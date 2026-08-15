@@ -112,6 +112,32 @@ const PREFLIGHT_RENDERER_TIMEOUT_MS = 15000;
 /** Results older than this are considered stale and will not enable Proceed. */
 const PREFLIGHT_RESULT_MAX_AGE_MS = 60000;
 
+// ─── Process termination budget ──────────────────────────────────────────────
+// One killSingleProcess() call spends at most:
+//   enumeration (KILL_ENUM_TIMEOUT_MS) + kill spawns + verification
+//   (KILL_VERIFY_TIMEOUT_MS) + relaunch watch (KILL_RELAUNCH_WATCH_MS)
+// ≈ 12s absolute worst case, ~1–2s in the common "it just closed" path.
+// killAllProcesses() runs apps concurrently, so N apps cost the same as one.
+
+/** Max ms for a single process-enumeration / taskkill helper invocation. */
+const KILL_ENUM_TIMEOUT_MS = 5000;
+
+/** How long to keep re-checking that a killed app's PIDs are actually gone. */
+const KILL_VERIFY_TIMEOUT_MS = 3000;
+
+/** Interval between those verification polls. */
+const KILL_VERIFY_POLL_MS = 400;
+
+/**
+ * After the app goes clear, how long to keep watching for it to come back.
+ * A launcher/updater that survived will typically respawn within ~1–2s; a
+ * reappearance inside this window is reported as outcome "respawned".
+ */
+const KILL_RELAUNCH_WATCH_MS = 3000;
+
+/** Interval between relaunch-watch polls. */
+const KILL_RELAUNCH_POLL_MS = 600;
+
 // ─── IPC Channel Names ───────────────────────────────────────────────────────
 // Keep these in sync with preload.js exposures and ipcHandlers.js registrations.
 //
@@ -310,6 +336,11 @@ module.exports = {
   PREFLIGHT_GLOBAL_DEADLINE_MS,
   PREFLIGHT_RENDERER_TIMEOUT_MS,
   PREFLIGHT_RESULT_MAX_AGE_MS,
+  KILL_ENUM_TIMEOUT_MS,
+  KILL_VERIFY_TIMEOUT_MS,
+  KILL_VERIFY_POLL_MS,
+  KILL_RELAUNCH_WATCH_MS,
+  KILL_RELAUNCH_POLL_MS,
   IPC,
   PROTOCOL_SCHEME,
   DEFAULT_LOCALE,

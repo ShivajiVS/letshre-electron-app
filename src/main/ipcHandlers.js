@@ -376,7 +376,14 @@ function registerIpcHandlers() {
     const { valid, safe } = validateProcessName(processName);
     if (!valid) {
       logger.warn("[ipc] kill-blocked-app rejected — invalid processName:", processName);
-      return { success: false, error: "Invalid process name", processName: String(processName).slice(0, 40) };
+      // Carries `outcome` like every other path so the renderer has one shape
+      // to switch on rather than a special case for the validation reject.
+      return {
+        success: false,
+        outcome: "not-blocked",
+        error: "Invalid process name",
+        processName: String(processName).slice(0, 40),
+      };
     }
     logger.info("[ipc] kill-blocked-app:", safe);
     const result = await killSingleProcess(safe);
@@ -392,14 +399,35 @@ function registerIpcHandlers() {
       logger.warn("[ipc] kill-all-blocked-apps rejected — not an array");
       return [];
     }
-    const validNames = processNames
-      .map((n) => validateProcessName(n))
-      .filter((r) => r.valid)
-      .map((r) => r.safe);
+    // Validation used to FILTER the list before killing, so the returned array
+    // was aligned with the surviving names rather than with what the renderer
+    // sent — one rejected name silently shifted every later result onto the
+    // wrong app's row. Now every requested name gets exactly one result at its
+    // original index, and a rejected name reports itself rather than vanishing.
+    const validated = processNames.map((n) => ({ ...validateProcessName(n), original: n }));
+    const validNames = validated.filter((r) => r.valid).map((r) => r.safe);
 
     logger.info("[ipc] kill-all-blocked-apps:", validNames);
-    const results = await killAllProcesses(validNames);
+    const killed = await killAllProcesses(validNames);
     invalidateProcessCache(); // refresh cache so killed apps clear immediately
+
+    // Re-expand to the caller's original shape, in order.
+    const byName = new Map(killed.map((r) => [r.processName, r]));
+    const results = validated.map((r) =>
+      r.valid
+        ? byName.get(r.safe) || {
+            processName: r.safe,
+            success: false,
+            outcome: "spawn-error",
+            error: "No result returned for this process",
+          }
+        : {
+            processName: String(r.original).slice(0, 40),
+            success: false,
+            outcome: "not-blocked",
+            error: "Invalid process name",
+          }
+    );
     return results;
   });
 

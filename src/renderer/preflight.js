@@ -142,12 +142,51 @@ function withTimeout(promise, ms, label) {
 }
 
 /**
- * Schedules a programmatic rescan after a kill, but caps the number of
- * consecutive auto-rescans so a self-relaunching app (some meeting/updater
- * apps restart themselves) can't create an endless kill→rescan→kill loop.
+ * Schedules a programmatic rescan after a kill.
+ *
+ * Two independent brakes:
+ *
+ *  1. EVIDENCE (preferred). When the kill layer has told us WHY an app is still
+ *     there, re-scanning is pointless — a `respawned` app will be back before
+ *     the scan finishes and an `access-denied` app will never go away without
+ *     admin rights. Both name the offending apps and stop, instead of burning
+ *     retries and ending on the generic "Some apps keep reopening" line.
+ *  2. The blind counter (MAX_AUTO_RESCANS), still the fallback for the case
+ *     where we have no outcome detail at all (older kill backend, or a kill
+ *     that reported success but the app came back between scans).
+ *
+ * @param {{respawned?: string[], accessDenied?: string[]}} [evidence]
+ *        DISPLAY names (not raw process names) — this text goes to textContent.
  */
-function scheduleAutoRescan() {
+function scheduleAutoRescan(evidence) {
   const finalStatus = document.getElementById("final-status");
+  const respawned = evidence?.respawned || [];
+  const accessDenied = evidence?.accessDenied || [];
+
+  const halt = (key, fallback, names) => {
+    if (!finalStatus) { return; }
+    finalStatus.className = "sc-status sc-status--fail";
+    finalStatus.textContent = tr(key, fallback, { names: names.join(", ") });
+  };
+
+  if (respawned.length > 0) {
+    halt(
+      "preflightResults.appsRespawnedStop",
+      `These apps restarted themselves: ${respawned.join(", ")}. Turn off their auto-start or sign out of their desktop apps, then click Rescan.`,
+      respawned
+    );
+    return;
+  }
+
+  if (accessDenied.length > 0) {
+    halt(
+      "preflightResults.appsNeedAdminStop",
+      `These apps need administrator rights to close: ${accessDenied.join(", ")}. Close them manually, then click Rescan.`,
+      accessDenied
+    );
+    return;
+  }
+
   if (_autoRescanCount >= MAX_AUTO_RESCANS) {
     if (finalStatus) {
       finalStatus.className = "sc-status sc-status--fail";
@@ -567,10 +606,26 @@ function updateCard(id, status, msg, blockedApps = []) {
 
 // ─── Kill Buttons ─────────────────────────────────────────────────────────────
 
+// Small inline icons for the kill row/button states. Defined once so the
+// per-outcome branches below stay readable.
+const KILL_ICON = {
+  x: '<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>',
+  check: '<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>',
+  spin: '<svg class="sc-icon-xs spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>',
+  // Same glyph as the spinner but static — "this came back on its own".
+  reopen: '<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>',
+  lock: '<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>',
+  clock: '<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>',
+};
+
 function renderKillButtons(container, blockedApps) {
   blockedApps.forEach((appName) => {
     const row = document.createElement("div");
     row.className = "sc-kill-row";
+    // Lets handleKillAll map a per-app KillResult back onto its own row.
+    // Read via dataset comparison, never interpolated into a selector — the
+    // process name is attacker-influenceable.
+    row.dataset.process = appName;
 
     // appName is a live OS process name — attacker-influenceable (a candidate
     // can rename an executable to an HTML payload). Escape before innerHTML.
@@ -609,60 +664,333 @@ function renderKillButtons(container, blockedApps) {
   }
 }
 
+// ─── Kill Result Contract ─────────────────────────────────────────────────────
+//
+// killProcess(name) / killAllProcesses(names) resolve to KillResult /
+// KillResult[]:
+//   { processName, success, outcome, error?, companionsKilled?, pidsKilled? }
+// where outcome ∈ closed | already-gone | access-denied | respawned |
+//                still-running | not-blocked | own-process | spawn-error |
+//                unsupported
+//
+// `error` is a technical string for diagnostics — it is deliberately never read
+// here, so an OS error message can never reach the candidate's screen.
+//
+// The renderer treats `outcome` as OPTIONAL: an older kill backend that returns
+// only `{ success }` still works, degrading to the previous binary messaging
+// rather than rendering "undefined".
+
+const SUCCESS_KILL_OUTCOMES = new Set(["closed", "already-gone"]);
+const KNOWN_KILL_OUTCOMES = new Set([
+  "closed", "already-gone", "access-denied", "respawned", "still-running",
+  "not-blocked", "own-process", "spawn-error", "unsupported",
+]);
+
+/**
+ * Coerces whatever the kill IPC returned into a shape this file can trust.
+ *
+ * When a recognised `outcome` is present it is AUTHORITATIVE for success:
+ * `success` is derived from it rather than believed. That is the fix for the
+ * reported bug — a backend that reports success:true alongside `respawned`
+ * must not be allowed to tell the candidate the app is closed.
+ *
+ * @param {any} raw
+ * @param {string} processName fallback identity if the payload omits it
+ * @returns {{processName: string, success: boolean, outcome: string|null}}
+ */
+function normalizeKillResult(raw, processName) {
+  const outcome =
+    typeof raw?.outcome === "string" && KNOWN_KILL_OUTCOMES.has(raw.outcome)
+      ? raw.outcome
+      : null;
+  return {
+    processName: typeof raw?.processName === "string" ? raw.processName : processName,
+    success: outcome ? SUCCESS_KILL_OUTCOMES.has(outcome) : raw?.success === true,
+    outcome,
+  };
+}
+
+/**
+ * Writes (or replaces) the explanatory line under a kill row.
+ * Uses textContent, so the display name is passed through UNESCAPED here —
+ * escaping is only needed on the innerHTML button paths.
+ */
+function setKillHint(row, text, tone) {
+  let hint = row.nextElementSibling;
+  if (!hint || !hint.classList?.contains("sc-kill-hint")) {
+    hint = document.createElement("p");
+    hint.setAttribute("role", "status");
+    row.insertAdjacentElement("afterend", hint);
+  }
+  hint.className = `sc-kill-hint sc-kill-hint--${tone}`;
+  hint.textContent = text;
+}
+
+function clearKillHint(row) {
+  const hint = row.nextElementSibling;
+  if (hint?.classList?.contains("sc-kill-hint")) { hint.remove(); }
+}
+
+/**
+ * Paints one kill row from its KillResult and returns a coarse category the
+ * callers aggregate on: "closed" | "respawned" | "access-denied" |
+ * "still-running" | "failed".
+ *
+ * Every non-success outcome gets its own copy, because "it needs admin",
+ * "it restarted itself" and "it is still shutting down" call for three
+ * completely different actions from the candidate.
+ */
+function applyKillOutcome(row, btn, processName, norm) {
+  const display = getDisplayName(processName);
+  const safeName = escapeHtml(display);
+
+  row.classList.remove(
+    "sc-kill-row--closed", "sc-kill-row--respawned", "sc-kill-row--blocked"
+  );
+
+  if (norm.success) {
+    clearKillHint(row);
+    btn.disabled = true;
+    btn.className = "sc-kill-btn sc-kill-btn--killed";
+    btn.innerHTML = `${KILL_ICON.check} ${
+      norm.outcome === "already-gone"
+        ? tr("preflightResults.alreadyClosed", "Already closed")
+        : tr("preflightResults.closed", "Closed")
+    }`;
+    row.classList.add("sc-kill-row--closed");
+    row.querySelector(".sc-kill-ping")?.remove();
+    const dot = row.querySelector(".sc-kill-dot");
+    if (dot) { dot.className = "sc-kill-dot sc-kill-dot--closed"; }
+    return "closed";
+  }
+
+  // THE headline case: clicking Close again just restarts the loop, so the
+  // button stops offering it and the hint points at the actual fix.
+  if (norm.outcome === "respawned") {
+    row.classList.add("sc-kill-row--respawned");
+    btn.disabled = true;
+    btn.className = "sc-kill-btn sc-kill-btn--respawned";
+    btn.innerHTML = `${KILL_ICON.reopen} ${tr("preflightResults.killRespawnedBtn", "Reopened itself")}`;
+    setKillHint(
+      row,
+      tr(
+        "preflightResults.killRespawnedHint",
+        `${display} restarted itself after closing. Turn off its auto-start (or sign out of its desktop app), then click Rescan.`,
+        { name: display }
+      ),
+      "respawned"
+    );
+    return "respawned";
+  }
+
+  if (norm.outcome === "access-denied") {
+    row.classList.add("sc-kill-row--blocked");
+    btn.disabled = true;
+    btn.className = "sc-kill-btn sc-kill-btn--blocked";
+    btn.innerHTML = `${KILL_ICON.lock} ${tr("preflightResults.killAdminBtn", "Needs admin rights")}`;
+    setKillHint(
+      row,
+      tr(
+        "preflightResults.killAdminHint",
+        `${display} needs administrator rights to close. Close it yourself from its own window, then click Rescan.`,
+        { name: display }
+      ),
+      "blocked"
+    );
+    return "access-denied";
+  }
+
+  // Genuinely worth another click in a moment.
+  if (norm.outcome === "still-running") {
+    btn.disabled = false;
+    btn.className = "sc-kill-btn sc-kill-btn--retry";
+    btn.innerHTML = `${KILL_ICON.clock} ${tr("preflightResults.killStillClosingBtn", "Still closing — try again")}`;
+    setKillHint(
+      row,
+      tr(
+        "preflightResults.killStillClosingHint",
+        `${display} is still shutting down. Wait a few seconds, then click Close again.`,
+        { name: display }
+      ),
+      "pending"
+    );
+    return "still-running";
+  }
+
+  // not-blocked / own-process / spawn-error / unsupported / unknown / legacy
+  // boolean failure. One safe generic message — the raw `error` never surfaces.
+  btn.disabled = false;
+  btn.className = "sc-kill-btn sc-kill-btn--failed";
+  btn.innerHTML = `${KILL_ICON.x} ${tr("preflightResults.closeFailedManual", `Failed — close ${safeName} manually`, { name: safeName })}`;
+  if (norm.outcome) {
+    setKillHint(
+      row,
+      tr(
+        "preflightResults.killGenericHint",
+        `${display} could not be closed automatically. Close it yourself, then click Rescan.`,
+        { name: display }
+      ),
+      "blocked"
+    );
+  }
+  return "failed";
+}
+
 // ─── Kill Handlers ────────────────────────────────────────────────────────────
 
 async function handleKillApp(btn, processName, row) {
   btn.disabled = true;
   btn.className = "sc-kill-btn sc-kill-btn--killing";
-  btn.innerHTML = `<svg class="sc-icon-xs spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> ${tr("preflightResults.closing", "Closing...")}`;
+  btn.innerHTML = `${KILL_ICON.spin} ${tr("preflightResults.closing", "Closing...")}`;
 
+  let raw;
   try {
-    const result = await window.electronAPI.killProcess(processName);
-
-    if (result.success) {
-      btn.className = "sc-kill-btn sc-kill-btn--killed";
-      btn.innerHTML = `<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg> ${tr("preflightResults.closed", "Closed")}`;
-
-      row.classList.add("sc-kill-row--closed");
-      row.querySelector(".sc-kill-ping")?.remove();
-      const dot = row.querySelector(".sc-kill-dot");
-      if (dot) { dot.className = "sc-kill-dot sc-kill-dot--closed"; }
-
-      // F4: derive "all closed" from the live DOM (rows still open across every
-      // card) rather than a running counter that drifts on the fail-closed path.
-      const stillOpen = document.querySelectorAll(
-        ".sc-kill-row:not(.sc-kill-row--closed)"
-      ).length;
-      if (stillOpen === 0) {
-        scheduleAutoRescan();
-      }
-    } else {
-      btn.className = "sc-kill-btn sc-kill-btn--failed";
-      btn.innerHTML = `<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg> ${tr("preflightResults.closeFailedManual", `Failed — close ${escapeHtml(getDisplayName(processName))} manually`, { name: escapeHtml(getDisplayName(processName)) })}`;
-      btn.disabled = false;
-    }
+    raw = await window.electronAPI.killProcess(processName);
   } catch {
+    clearKillHint(row);
     btn.className = "sc-kill-btn sc-kill-btn--failed";
-    btn.innerHTML = `<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg> ${tr("preflightResults.closeErrorManual", `Error — close ${escapeHtml(getDisplayName(processName))} manually`, { name: escapeHtml(getDisplayName(processName)) })}`;
+    const safeName = escapeHtml(getDisplayName(processName));
+    btn.innerHTML = `${KILL_ICON.x} ${tr("preflightResults.closeErrorManual", `Error — close ${safeName} manually`, { name: safeName })}`;
     btn.disabled = false;
+    return;
+  }
+
+  const category = applyKillOutcome(row, btn, processName, normalizeKillResult(raw, processName));
+  const display = getDisplayName(processName);
+
+  if (category === "closed") {
+    // F4: derive "all closed" from the live DOM (rows still open across every
+    // card) rather than a running counter that drifts on the fail-closed path.
+    const stillOpen = document.querySelectorAll(
+      ".sc-kill-row:not(.sc-kill-row--closed)"
+    ).length;
+    if (stillOpen === 0) { scheduleAutoRescan(); }
+  } else if (category === "respawned") {
+    scheduleAutoRescan({ respawned: [display] });
+  } else if (category === "access-denied") {
+    scheduleAutoRescan({ accessDenied: [display] });
   }
 }
 
+/**
+ * MIRRORS validateProcessName() in src/main/ipcHandlers.js — that is where the
+ * name is stripped before the kill, so a KillResult can come back under the
+ * stripped spelling. Used only to pair a result with its row, never to display.
+ */
+function sanitiseProcessKey(name) {
+  return String(name || "").replace(/[^\w.\- ]/g, "");
+}
+
+/** Finds the rendered row for a process name without building a CSS selector. */
+function findKillRow(container, processName) {
+  const rows = container ? container.querySelectorAll(".sc-kill-row") : [];
+  for (const row of rows) {
+    if (row.dataset.process === processName) {
+      return { row, btn: row.querySelector(".sc-kill-btn") };
+    }
+  }
+  return null;
+}
+
 async function handleKillAll(btn, processNames) {
+  const container = btn.parentElement;
   btn.disabled = true;
   btn.className = "sc-kill-all-btn sc-kill-all-btn--killing";
   btn.innerHTML = `<svg class="sc-icon-sm spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> ${tr("preflightResults.closingAll", "Closing all apps...")}`;
 
+  const setSummary = (variant, icon, label) => {
+    btn.className = `sc-kill-all-btn sc-kill-all-btn--${variant}`;
+    btn.innerHTML = `<svg class="sc-icon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24">${icon}</svg> ${label}`;
+  };
+  const CHECK_PATH = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>';
+  const X_PATH = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>';
+
+  let results;
   try {
-    await window.electronAPI.killAllProcesses(processNames);
-    btn.className = "sc-kill-all-btn sc-kill-all-btn--success";
-    btn.innerHTML = `<svg class="sc-icon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg> ${tr("preflightResults.allClosedRescanning", "All apps closed — re-scanning...")}`;
+    results = await window.electronAPI.killAllProcesses(processNames);
   } catch {
-    btn.className = "sc-kill-all-btn sc-kill-all-btn--failed";
-    btn.innerHTML = `<svg class="sc-icon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg> ${tr("preflightResults.someFailedToClose", "Some apps failed to close")}`;
+    setSummary("failed", X_PATH, tr("preflightResults.someFailedToClose", "Some apps failed to close"));
+    scheduleAutoRescan();
+    return;
   }
 
-  scheduleAutoRescan();
+  // Older backend (or a bridge that resolves with nothing): no per-app truth is
+  // available, so fall back to the previous behaviour rather than inventing one.
+  if (!Array.isArray(results)) {
+    setSummary("success", CHECK_PATH, tr("preflightResults.allClosedRescanning", "All apps closed — re-scanning..."));
+    scheduleAutoRescan();
+    return;
+  }
+
+  // Per-app truth: reflect each result on its OWN row. A missing entry is a
+  // failure, not a success — fail-closed, exactly like the verdict path.
+  //
+  // Results come back keyed by the SANITISED name (the IPC layer strips
+  // characters outside [\w.- ] before killing), which for a renamed executable
+  // is not byte-identical to the name we rendered. Index both ways so such a
+  // row still shows its true outcome; the sanitised index only holds keys that
+  // are unambiguous, so a collision can never cross-apply an outcome.
+  const byName = new Map();
+  const bySanitised = new Map();
+  const collided = new Set();
+  results.forEach((r) => {
+    if (!r || typeof r.processName !== "string") { return; }
+    byName.set(r.processName, r);
+    const key = sanitiseProcessKey(r.processName);
+    if (bySanitised.has(key)) { collided.add(key); } else { bySanitised.set(key, r); }
+  });
+  collided.forEach((key) => bySanitised.delete(key));
+
+  const lookup = (name) => {
+    if (byName.has(name)) { return byName.get(name); }
+    return bySanitised.get(sanitiseProcessKey(name));
+  };
+
+  const evidence = { respawned: [], accessDenied: [] };
+  let closedCount = 0;
+  let retryableCount = 0;
+
+  processNames.forEach((name) => {
+    const found = findKillRow(container, name);
+    if (!found || !found.btn) { return; }
+    const category = applyKillOutcome(
+      found.row, found.btn, name, normalizeKillResult(lookup(name), name)
+    );
+    if (category === "closed") { closedCount += 1; }
+    else if (category === "respawned") { evidence.respawned.push(getDisplayName(name)); }
+    else if (category === "access-denied") { evidence.accessDenied.push(getDisplayName(name)); }
+    else if (category === "still-running") { retryableCount += 1; }
+  });
+
+  const total = processNames.length;
+
+  if (closedCount === total) {
+    setSummary("success", CHECK_PATH, tr("preflightResults.allClosedRescanning", "All apps closed — re-scanning..."));
+    scheduleAutoRescan();
+    return;
+  }
+
+  if (evidence.respawned.length > 0) {
+    setSummary("failed", X_PATH, tr("preflightResults.killAllReopened", "Some apps reopened themselves"));
+  } else if (closedCount === 0) {
+    setSummary("failed", X_PATH, tr("preflightResults.someFailedToClose", "Some apps failed to close"));
+  } else {
+    setSummary(
+      "partial", X_PATH,
+      tr("preflightResults.killAllPartial", `${closedCount} of ${total} closed — close the rest manually`,
+        { closed: closedCount, total })
+    );
+  }
+
+  if (evidence.respawned.length > 0 || evidence.accessDenied.length > 0) {
+    // Naming the culprit beats spending three rescans to reach a generic line.
+    scheduleAutoRescan(evidence);
+  } else if (closedCount > 0 || retryableCount > 0) {
+    // Real progress (or an app mid-shutdown) — a rescan can still resolve this.
+    scheduleAutoRescan();
+  }
+  // Otherwise: nothing closed and nothing pending. The rows now each carry
+  // their own manual-close instruction; a rescan would only repaint them.
 }
 
 // ─── Agent Card ───────────────────────────────────────────────────────────────

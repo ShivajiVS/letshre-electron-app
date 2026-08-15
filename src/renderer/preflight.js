@@ -108,7 +108,7 @@ let _proceedReady = false;
 // reliably aborted a scan that was progressing normally and kicked off the
 // retry storm. Main is now bounded to PREFLIGHT_GLOBAL_DEADLINE_MS (10s), which
 // this must exceed.
-const SCAN_TIMEOUT_MS = 15000;
+const SCAN_TIMEOUT_MS = 27000;
 const MAX_SCAN_RETRIES = 3;
 const MAX_AUTO_RESCANS = 3;
 let _scanRetryCount  = 0;

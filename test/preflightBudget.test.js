@@ -25,8 +25,10 @@ const {
   PREFLIGHT_HDMI_DEADLINE_MS,
   PREFLIGHT_PROCESS_DEADLINE_MS,
   PREFLIGHT_AGENT_DEADLINE_MS,
+  PREFLIGHT_AGENT_SCAN_RESERVE_MS,
   PREFLIGHT_GLOBAL_DEADLINE_MS,
   PREFLIGHT_RENDERER_TIMEOUT_MS,
+  AGENT_POLL_INTERVAL_MS,
 } = require("../src/shared/constants");
 
 test("every per-check deadline fits inside the global deadline", () => {
@@ -50,6 +52,32 @@ test("the renderer aborts strictly AFTER main's global deadline", () => {
     PREFLIGHT_RENDERER_TIMEOUT_MS > PREFLIGHT_GLOBAL_DEADLINE_MS,
     `renderer timeout (${PREFLIGHT_RENDERER_TIMEOUT_MS}ms) must exceed ` +
       `the global deadline (${PREFLIGHT_GLOBAL_DEADLINE_MS}ms)`
+  );
+});
+
+test("the agent budget leaves real time BOTH to wait for spawn and to scan", () => {
+  // scanAgent() splits its budget: it polls for the agent to exist until
+  // (deadline - RESERVE), then spends the reserve running the deep scan. If the
+  // reserve ever grew to consume the whole budget, the liveness wait would be
+  // zero or negative and we would be straight back to the original bug — an
+  // instant "Security agent failed to start" while the agent was still spawning.
+  const livenessWindow = PREFLIGHT_AGENT_DEADLINE_MS - PREFLIGHT_AGENT_SCAN_RESERVE_MS;
+  assert.ok(
+    livenessWindow > 0,
+    `scan reserve (${PREFLIGHT_AGENT_SCAN_RESERVE_MS}ms) must leave time to wait ` +
+      `for the agent within the ${PREFLIGHT_AGENT_DEADLINE_MS}ms budget`
+  );
+  // A cold spawn costs killStaleAgent (~1.5-2.5s) plus a PyInstaller unpack
+  // (2-5s), so the wait window has to comfortably clear that or the first scan
+  // after launch fails on a slow machine.
+  assert.ok(
+    livenessWindow >= 8000,
+    `only ${livenessWindow}ms to wait for a cold agent spawn — too tight`
+  );
+  // And the wait must fit several poll attempts, not just one.
+  assert.ok(
+    livenessWindow / AGENT_POLL_INTERVAL_MS >= 4,
+    "the liveness wait should allow multiple poll attempts"
   );
 });
 

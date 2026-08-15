@@ -553,19 +553,24 @@
 .sc-footer__buttons {
   display: flex;
   flex-direction: row;
-  flex-wrap: wrap; /* never overflow the viewport on a narrow window */
+  flex-wrap: nowrap; /* Rescan and Continue always stay side by side */
   gap: 1rem;
   justify-content: center;
+  width: 100%;
+  max-width: 528px; /* two 256px buttons + the gap between them */
+  margin: 0 auto;
 }
 
 .sc-btn-rescan {
-  width: min(256px, 100%);
+  flex: 1 1 0;
+  min-width: 120px; /* floor so the label never gets crushed on a tiny window */
+  width: auto;
   background: var(--surface);
   color: var(--ink);
   font-size: 14px;
   font-weight: 600;
   font-family: inherit;
-  padding: 12px 0;
+  padding: 12px 10px;
   border-radius: 12px;
   border: 1px solid var(--border);
   cursor: pointer;
@@ -574,6 +579,8 @@
   justify-content: center;
   gap: 10px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   box-shadow: 0 1px 2px rgba(26, 26, 25, 0.04);
   transition: all 0.2s ease;
 }
@@ -582,11 +589,13 @@
 .sc-btn-rescan:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .sc-btn-proceed {
-  width: min(256px, 100%);
+  flex: 1 1 0;
+  min-width: 120px; /* floor so the label never gets crushed on a tiny window */
+  width: auto;
   font-size: 14px;
   font-weight: 600;
   font-family: inherit;
-  padding: 12px 0;
+  padding: 12px 10px;
   border-radius: 12px;
   border: none;
   display: inline-flex;
@@ -594,6 +603,8 @@
   justify-content: center;
   gap: 10px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   transition: all 0.2s ease;
 }
 .sc-btn-proceed--loading,

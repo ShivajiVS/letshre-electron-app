@@ -98,16 +98,26 @@ const PREFLIGHT_HDMI_DEADLINE_MS = 1000;
 /** Deadline for the blocked-process scan (tasklist / ps). */
 const PREFLIGHT_PROCESS_DEADLINE_MS = 4000;
 
-/** Deadline for the agent deep scan. The agent is pre-warmed on page load, so
- *  this no longer has to absorb a cold agent spawn. */
-const PREFLIGHT_AGENT_DEADLINE_MS = 8000;
+/**
+ * Deadline for the agent probe. This DOES have to absorb a cold agent spawn:
+ * pre-warming starts the agent as the page opens, but the preflight's probe runs
+ * milliseconds later, and spawning costs killStaleAgent() (taskkill + a
+ * PowerShell probe, ~1.5-2.5s) plus a cold PyInstaller unpack (2-5s). Sized to
+ * cover that on a slow/AV-scanned machine. A warm agent still answers in ~200ms,
+ * so this ceiling is only ever paid on the first scan after launch.
+ */
+const PREFLIGHT_AGENT_DEADLINE_MS = 20000;
+
+/** Time reserved at the end of the agent budget for the deep scan itself, once
+ *  the agent answers. The rest of the budget is spent waiting for it to exist. */
+const PREFLIGHT_AGENT_SCAN_RESERVE_MS = 6000;
 
 /** Ceiling for one whole preflight pass in the main process. */
-const PREFLIGHT_GLOBAL_DEADLINE_MS = 10000;
+const PREFLIGHT_GLOBAL_DEADLINE_MS = 22000;
 
 /** Renderer-side abort. Must exceed the global deadline so the main process is
  *  always the component that decides a scan is over. */
-const PREFLIGHT_RENDERER_TIMEOUT_MS = 15000;
+const PREFLIGHT_RENDERER_TIMEOUT_MS = 27000;
 
 /** Results older than this are considered stale and will not enable Proceed. */
 const PREFLIGHT_RESULT_MAX_AGE_MS = 60000;
@@ -345,6 +355,7 @@ module.exports = {
   PREFLIGHT_HDMI_DEADLINE_MS,
   PREFLIGHT_PROCESS_DEADLINE_MS,
   PREFLIGHT_AGENT_DEADLINE_MS,
+  PREFLIGHT_AGENT_SCAN_RESERVE_MS,
   PREFLIGHT_GLOBAL_DEADLINE_MS,
   PREFLIGHT_RENDERER_TIMEOUT_MS,
   PREFLIGHT_RESULT_MAX_AGE_MS,

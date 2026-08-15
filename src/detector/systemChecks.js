@@ -9,6 +9,8 @@ const {
   PREFLIGHT_HDMI_DEADLINE_MS,
   PREFLIGHT_PROCESS_DEADLINE_MS,
   PREFLIGHT_AGENT_DEADLINE_MS,
+  PREFLIGHT_AGENT_SCAN_RESERVE_MS,
+  AGENT_POLL_INTERVAL_MS,
   PREFLIGHT_GLOBAL_DEADLINE_MS,
   PREFLIGHT_RESULT_MAX_AGE_MS,
 } = require("../shared/constants");
@@ -506,13 +508,37 @@ const agentUnreachable = () => ({ alive: false, status: null });
  *
  * @returns {Promise<{alive: boolean, status: object|null}>}
  */
-async function scanAgent() {
-  const status = await triggerAgentScan();
-  if (status && !status.error) {
-    return { alive: true, status };
+async function scanAgent(budgetMs = PREFLIGHT_AGENT_DEADLINE_MS) {
+  // WAIT for the agent to come up rather than asking once.
+  //
+  // sendAgentCommand() resolves null SYNCHRONOUSLY when no agent process exists
+  // yet — it does not wait and does not time out. The agent is spawned by
+  // prewarmAgent() as the security-check page opens, but spawning costs
+  // killStaleAgent() (taskkill + a PowerShell probe, ~1.5-2.5s) plus a cold
+  // PyInstaller unpack (2-5s). The preflight's agent probe runs milliseconds
+  // after the page loads, so it used to get an instant "no agent" and report
+  // "Security agent failed to start" — never once using its multi-second
+  // budget. Clicking Re-scan then succeeded purely because the agent had
+  // finished starting in the meantime, which is exactly the reported symptom.
+  //
+  // We now poll for liveness inside the budget, reserving time at the end for
+  // the scan itself. A genuinely dead agent still fails, just at the deadline
+  // instead of immediately.
+  const deadline = Date.now() + budgetMs;
+  const livenessDeadline = deadline - PREFLIGHT_AGENT_SCAN_RESERVE_MS;
+
+  let alive = await pingAgent();
+  while (!alive && Date.now() < livenessDeadline) {
+    await new Promise((r) => setTimeout(r, AGENT_POLL_INTERVAL_MS));
+    alive = await pingAgent();
   }
-  const alive = await pingAgent();
-  return { alive, status: null };
+
+  if (!alive) {
+    return { alive: false, status: null };
+  }
+
+  const status = await triggerAgentScan();
+  return { alive: true, status: status && !status.error ? status : null };
 }
 
 /**

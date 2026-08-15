@@ -221,6 +221,22 @@ scan_results = {
     "physical_monitors": None,
 }
 scan_lock = threading.Lock()
+
+# Serializes EXECUTION of run_full_scan() — separate from scan_lock, which only
+# protects the shared scan_results VARIABLE. background_scanner() runs its first
+# scan immediately at startup; if Electron's on-demand "scan" command (the
+# preflight's deep-scan probe) lands around the same moment — which it reliably
+# does, since prewarmAgent() spawns the agent and the preflight page requests a
+# scan within a second or two of that — both the background thread and the
+# stdio thread end up inside run_full_scan() AT THE SAME TIME, each spawning its
+# own PowerShell/tasklist/WMI subprocesses. That contention is what made the
+# very first scan slow enough to blow the preflight's 8s agent deadline (report
+# "agent failed to start") while every later scan — never colliding with a
+# background iteration once the two fell out of lockstep — came back quickly.
+# Holding this lock for the whole call turns "two scans fighting for the same
+# OS resources" into "one scan, then the other," which is what made Rescan
+# appear to fix it: by then the collision window had simply passed.
+scan_run_lock = threading.Lock()
 event_log = []
 
 # ─────────────────────────────────────────────
@@ -939,37 +955,44 @@ def run_full_scan():
     """
     global scan_results, event_log
 
-    threats = []
-    checks = {}
+    # See scan_run_lock's own comment: this serializes against
+    # background_scanner()'s periodic scan so the two can never spawn their
+    # PowerShell/tasklist/WMI subprocesses concurrently and slow each other
+    # down. A caller that lands mid-scan simply waits for that scan to finish —
+    # one full scan's worth of latency at worst, not two contending for the
+    # same OS resources.
+    with scan_run_lock:
+        threats = []
+        checks = {}
 
-    # 1. Window title scan (Win32 / AppleScript / wmctrl)
-    _run_check("window_titles", scan_window_titles, checks, threats)
+        # 1. Window title scan (Win32 / AppleScript / wmctrl)
+        _run_check("window_titles", scan_window_titles, checks, threats)
 
-    # 2. Network connections to AI/cheating APIs (cross-platform psutil)
-    _run_check("network", detect_suspicious_network_activity, checks, threats)
+        # 2. Network connections to AI/cheating APIs (cross-platform psutil)
+        _run_check("network", detect_suspicious_network_activity, checks, threats)
 
-    # 3. DLL / loaded-module signatures (Windows, batched)
-    _run_check("memory_patterns", detect_suspicious_memory_patterns, checks, threats)
+        # 3. DLL / loaded-module signatures (Windows, batched)
+        _run_check("memory_patterns", detect_suspicious_memory_patterns, checks, threats)
 
-    # 4. Browser automation tools — ChromeDriver, Selenium, etc.
-    _run_check("browser_automation", detect_suspicious_file_access, checks, threats)
+        # 4. Browser automation tools — ChromeDriver, Selenium, etc.
+        _run_check("browser_automation", detect_suspicious_file_access, checks, threats)
 
-    # 5. Suspicious Win32 window class names
-    _run_check("window_classes", detect_suspicious_window_properties, checks, threats)
+        # 5. Suspicious Win32 window class names
+        _run_check("window_classes", detect_suspicious_window_properties, checks, threats)
 
-    # 6. AI interview cheating tools (process name/path/cmdline)
-    _run_check("ai_tools", detect_ai_cheating_tools, checks, threats)
+        # 6. AI interview cheating tools (process name/path/cmdline)
+        _run_check("ai_tools", detect_ai_cheating_tools, checks, threats)
 
-    # 7. Transparent overlay windows (Win32 WS_EX flags)
-    _run_check("overlay_windows", detect_overlay_windows, checks, threats)
+        # 7. Transparent overlay windows (Win32 WS_EX flags)
+        _run_check("overlay_windows", detect_overlay_windows, checks, threats)
 
-    # 8. Virtual audio devices (VB-Cable, Voicemeeter, etc.)
-    _run_check("virtual_audio", detect_virtual_audio_devices, checks, threats)
+        # 8. Virtual audio devices (VB-Cable, Voicemeeter, etc.)
+        _run_check("virtual_audio", detect_virtual_audio_devices, checks, threats)
 
-    # Physical monitor count is not a threat check, but a silent failure there
-    # hides a mirrored projector — so it reports its own outcome too.
-    monitors = count_physical_monitors()
-    checks["physical_monitors"] = "error" if monitors is None else "ok"
+        # Physical monitor count is not a threat check, but a silent failure there
+        # hides a mirrored projector — so it reports its own outcome too.
+        monitors = count_physical_monitors()
+        checks["physical_monitors"] = "error" if monitors is None else "ok"
 
     # ── Compile result ───────────────────────────────────────
     failed    = sorted(n for n, outcome in checks.items() if outcome != "ok")

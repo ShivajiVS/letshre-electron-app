@@ -14,9 +14,10 @@
 // bundler. For now it mirrors shared/appList.js directly.
 // If you add a bundler (e.g. esbuild), replace with: require('../shared/appList')
 
-let MEETING_APPS = [];
-let SCREEN_SHARING_APPS = [];
-let AI_CHEATING_APPS = [];
+// Only the display-name map is needed here now. Deciding WHICH category a
+// running process falls into moved to src/detector/preflightVerdict.js in main,
+// because that decision feeds `canProceed` — the renderer must not be the
+// component that determines whether the machine is clean.
 let APP_DISPLAY_NAMES = {};
 
 function getDisplayName(processName) {
@@ -40,7 +41,53 @@ const ICONS = {
   error:
     '<svg class="sc-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>',
+  // "Unverified" — deliberately a question mark, not a warning triangle. This
+  // state means "we could not establish this", which is not the candidate's
+  // fault; the triangle reads as an accusation.
+  unknown:
+    '<svg class="sc-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
+    '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>',
 };
+
+// ─── Verdict contract ─────────────────────────────────────────────────────────
+// Card state comes from main as { id, status, reasonKey, reasonParams,
+// blockedApps, threats }. `unverified` blocks Proceed exactly like `fail` — the
+// renderer never decides that an unestablished check is a pass.
+// `fail` is the fallthrough branch in both card renderers, so it needs no
+// constant here — but it is never the DEFAULT: an unrecognised status lands in
+// the fail branch, which blocks Proceed. Fail-closed by construction.
+const PASS = "pass";
+const UNVERIFIED = "unverified";
+
+/**
+ * English fallbacks for verdict reason keys, used only when window.t is absent
+ * (the non-Electron browser preview). In the app these always resolve through
+ * i18n — main sends keys, not prose, so translations cannot drift from logic.
+ */
+const REASON_FALLBACK = {
+  "preflightResults.hdmiClear": "No external display detected.",
+  "preflightResults.hdmiDetected": "Disconnect all external displays/cables.",
+  "preflightResults.hdmiUnverified": "Could not verify external displays. Click Re-scan.",
+  "preflightResults.meetingClear": "No meeting apps detected.",
+  "preflightResults.meetingRunning": "These meeting apps are still running:",
+  "preflightResults.screenClear": "No screen sharing detected.",
+  "preflightResults.screenRunning": "These screen sharing apps are still running:",
+  "preflightResults.wirelessClear": "No casting/mirroring detected.",
+  "preflightResults.wirelessRunning": "These remote/casting apps are still running:",
+  "preflightResults.aiClear": "No AI cheating tools detected.",
+  "preflightResults.aiRunning": "These AI copilot tools are still running:",
+  "preflightResults.checkUnverified": "Could not verify this check. Click Re-scan.",
+  "preflightResults.agentClear": "No AI tools, network anomalies, or automation frameworks detected.",
+  "preflightResults.agentFailedStart": "Security agent failed to start — it is required to continue. Click Re-scan to retry.",
+  "preflightResults.agentUnverified": "Deep scan did not complete — this device could not be verified. Click Re-scan.",
+  "preflightResults.agentDegraded": "Deep scan finished with errors — this device could not be fully verified. Click Re-scan.",
+  "preflightResults.agentThreatsDetected": "Behavioral threats detected. Close the applications below and rescan.",
+};
+
+/** Renders a verdict's reason through i18n, falling back to English in preview. */
+function verdictText(v) {
+  return tr(v.reasonKey, REASON_FALLBACK[v.reasonKey] || v.reasonKey, v.reasonParams);
+}
 
 // ─── State ──────────────────────────────────────────────────────────────────────────────
 
@@ -52,12 +99,23 @@ let _proceedReady = false;
 //   _autoRescanCount — consecutive kill→rescan cycles auto-triggered (F3, capped)
 //   _isAutoRescan    — set right before a PROGRAMMATIC rescan so a manual click
 //                      resets the caps while an auto one preserves them
-const SCAN_TIMEOUT_MS = 20000;
+// Renderer-side abort. MIRRORS PREFLIGHT_RENDERER_TIMEOUT_MS in
+// src/shared/constants.js — keep the two in sync (preload is sandboxed and
+// cannot require local modules, same reason the IPC names are mirrored there).
+// test/preflightBudget.test.js asserts they still match.
+//
+// This was 20000 while main's worst case was ~31s, so a cold agent spawn
+// reliably aborted a scan that was progressing normally and kicked off the
+// retry storm. Main is now bounded to PREFLIGHT_GLOBAL_DEADLINE_MS (10s), which
+// this must exceed.
+const SCAN_TIMEOUT_MS = 15000;
 const MAX_SCAN_RETRIES = 3;
 const MAX_AUTO_RESCANS = 3;
 let _scanRetryCount  = 0;
 let _autoRescanCount = 0;
 let _isAutoRescan    = false;
+/** Incremented per scan; progress events from older generations are ignored. */
+let _scanGeneration  = 0;
 
 const PROCEED_ENABLED_CLASS  = "sc-btn-proceed sc-btn-proceed--enabled";
 const PROCEED_DISABLED_CLASS = "sc-btn-proceed sc-btn-proceed--disabled";
@@ -106,9 +164,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (window.electronAPI) {
     try {
       const appList = await window.electronAPI.getAppList();
-      MEETING_APPS = appList.meetingApps;
-      SCREEN_SHARING_APPS = appList.screenSharingApps;
-      AI_CHEATING_APPS = appList.aiCheatingApps || [];
       APP_DISPLAY_NAMES = appList.displayNames;
     } catch (e) {
       console.error("Failed to load app list", e);
@@ -193,28 +248,35 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
 
-    // ADD-02: Subscribe to per-step progress before invoking the scan.
-    // Each card updates as soon as its check finishes — not all at the end.
-    window.electronAPI.onPreflightProgress(({ step, status, result }) => {
-      if (status === "done") {
-        applyStepResult(step, result);
-      }
-      // 'running' — cards already show shimmer from setLoadingState; no action needed
+    // Generation guard. A renderer-side timeout abandons its invoke but cannot
+    // cancel the work in main, so the abandoned scan keeps streaming progress
+    // events. Without this they repaint the NEW scan's cards with stale results.
+    const myGeneration = ++_scanGeneration;
+
+    // Subscribe to per-verdict progress before invoking the scan, so each card
+    // updates the moment its own check lands rather than all at the end.
+    window.electronAPI.onPreflightProgress((verdict) => {
+      if (myGeneration !== _scanGeneration) { return; } // superseded — drop it
+      applyVerdict(verdict);
     });
 
     try {
-      // F1: bound the scan — a hung native check must never leave the page
-      // stuck on "Scanning" forever with no way out.
+      // Bound the scan so a hung native check can never leave the page stuck on
+      // "Scanning" with no way out. This budget MUST stay larger than main's
+      // PREFLIGHT_GLOBAL_DEADLINE_MS so that main is always the component which
+      // decides a scan is over — see the invariant in src/shared/constants.js.
       const results = await withTimeout(
         window.electronAPI.runPreflight(),
         SCAN_TIMEOUT_MS,
         "Security scan timed out"
       );
+      if (myGeneration !== _scanGeneration) { return; } // a newer scan owns the UI
       // Cards were already updated via streaming events above.
       // processResults() re-applies them (idempotent) and sets the final button state.
       processResults(results, btnProceed, btnRescan, finalStatus);
       _scanRetryCount = 0; // a completed scan (pass or fail) breaks the retry chain
     } catch (err) {
+      if (myGeneration !== _scanGeneration) { return; }
       console.error("[preflight] scan error:", err);
       // IMP-15: Structured error boundary with capped auto-retry countdown
       showScanError(finalStatus, btnRescan, err?.message || "Unknown error");
@@ -319,101 +381,38 @@ function renderAgentPending() {
 // ─── Results Processing ───────────────────────────────────────────────────────
 
 /**
- * ADD-02: Apply a single step's result to its cards immediately.
- * Called both from the streaming progress listener AND from processResults()
- * (idempotent — calling twice with the same data is harmless).
+ * Renders one verdict onto its card. Called both from the streaming progress
+ * listener and again from processResults() — idempotent, keyed by card id, so a
+ * re-emit (e.g. the physical-monitor cross-check upgrading the HDMI verdict)
+ * simply replaces the earlier render.
  *
- * @param {string} step  - 'hdmi' | 'mirror' | 'agent'
- * @param {object} result - the result object for that step
- * @returns {boolean}    - true if this step passed (used by processResults allPassed)
+ * @param {{id: string, status: string, reasonKey: string, reasonParams?: object,
+ *          blockedApps?: string[], threats?: object[]}} v
  */
-function applyStepResult(step, result) {
-  switch (step) {
-    case "hdmi":
-      // Fail-CLOSED: on a security gate a missing result must never count as a
-      // pass. If main omitted this check, surface it and block Proceed.
-      if (!result) {
-        updateCard("hdmi", false, tr("preflightResults.hdmiUnverified", "Could not verify external displays. Click Rescan."));
-        return false;
-      }
-      if (result.detected) {
-        updateCard("hdmi", false, tr("preflightResults.hdmiDetected", "Disconnect all external displays/cables."));
-        return false;
-      }
-      updateCard("hdmi", true, tr("preflightResults.hdmiClear", "No external display detected."));
-      return true;
-
-    case "mirror": {
-      // Fail-CLOSED: the mirror scan drives the meeting/screen/wireless/ai cards.
-      // A missing result blocks Proceed rather than silently passing all four.
-      if (!result) {
-        ["meeting", "screen", "wireless", "ai"].forEach((c) =>
-          updateCard(c, false, tr("preflightResults.checkFailed", "Could not complete this check. Click Rescan."))
-        );
-        return false;
-      }
-      const procs        = result.details?.processes || [];
-
-      const foundMeeting = procs.filter((p) => MEETING_APPS.includes(p));
-      const foundScreen  = procs.filter((p) => SCREEN_SHARING_APPS.includes(p));
-      const foundAi      = procs.filter((p) => AI_CHEATING_APPS.includes(p));
-      const foundOther   = procs.filter((p) => !MEETING_APPS.includes(p) && !SCREEN_SHARING_APPS.includes(p) && !AI_CHEATING_APPS.includes(p));
-
-      if (foundMeeting.length > 0) {
-        updateCard("meeting", false, tr("preflightResults.meetingRunning", "These meeting apps are still running:"), foundMeeting);
-      } else {
-        updateCard("meeting", true, tr("preflightResults.meetingClear", "No meeting apps detected."));
-      }
-
-      if (foundScreen.length > 0) {
-        updateCard("screen", false, tr("preflightResults.screenRunning", "These screen sharing apps are still running:"), foundScreen);
-      } else {
-        updateCard("screen", true, tr("preflightResults.screenClear", "No screen sharing detected."));
-      }
-
-      if (foundAi.length > 0) {
-        updateCard("ai", false, tr("preflightResults.aiRunning", "These AI copilot tools are still running:"), foundAi);
-      } else {
-        updateCard("ai", true, tr("preflightResults.aiClear", "No AI cheating tools detected."));
-      }
-
-      const wirelessFailed =
-        foundOther.length > 0 ||
-        (result.detected && foundMeeting.length === 0 && foundScreen.length === 0 && foundAi.length === 0);
-
-      if (wirelessFailed) {
-        if (foundOther.length > 0) {
-          updateCard("wireless", false, tr("preflightResults.wirelessRunning", "These remote/casting apps are still running:"), foundOther);
-        } else {
-          updateCard("wireless", false, tr("preflightResults.wirelessSuspicious", "Suspicious resolution detected — possible screen mirroring."));
-        }
-      } else {
-        updateCard("wireless", true, tr("preflightResults.wirelessClear", "No casting/mirroring detected."));
-      }
-
-      return !(foundMeeting.length > 0 || foundScreen.length > 0 || foundAi.length > 0 || wirelessFailed);
-    }
-
-    case "agent":
-      return renderAgentCard(result);
-
-    default:
-      return true;
+function applyVerdict(v) {
+  if (!v || !v.id) { return; }
+  if (v.id === "agent") {
+    renderAgentCard(v);
+    return;
   }
+  updateCard(v.id, v.status, verdictText(v), v.blockedApps || []);
 }
 
 /**
- * Called once all checks are complete. Applies step results (idempotent with
- * streaming) and sets the final proceed button + status message.
+ * Called once the scan completes. Re-applies every verdict (idempotent with the
+ * streamed ones) and sets the final button + status.
+ *
+ * The Proceed gate is `results.canProceed`, computed in the MAIN process. The
+ * renderer no longer derives it: main re-verifies the same value when the button
+ * is actually clicked, so the two must come from one source.
  */
 function processResults(results, btnProceed, btnRescan, finalStatus) {
-  // Apply each step (cards may already be updated via streaming — idempotent)
-  const hdmiPassed    = applyStepResult("hdmi",   results.hdmi);
-  const mirrorPassed  = applyStepResult("mirror", results.mirror);
-  const agentPassed   = applyStepResult("agent",  results.agent);
+  const verdicts = Array.isArray(results?.verdicts) ? results.verdicts : [];
+  verdicts.forEach(applyVerdict);
 
-  // Since mirror handles meeting, screen, AI, and wireless, we just check mirrorPassed
-  const allPassed = hdmiPassed && mirrorPassed && agentPassed;
+  // Fail-CLOSED: a malformed or empty response never opens the gate.
+  const allPassed = results?.canProceed === true && verdicts.length > 0;
+  const anyUnverified = verdicts.some((v) => v.status === UNVERIFIED);
 
   btnRescan.disabled = false;
   // Gate the live pre-proceed watcher: only react to it once preflight passed.
@@ -426,7 +425,13 @@ function processResults(results, btnProceed, btnRescan, finalStatus) {
     btnProceed.disabled = false;
     btnProceed.className = PROCEED_ENABLED_CLASS;
   } else {
-    finalStatus.textContent = tr("preflightResults.resolveAlerts", "Please resolve the security alerts above to proceed.");
+    // Distinguish "you have something to close" from "we could not check".
+    // Only the first is actionable by the candidate; telling someone to
+    // "resolve the security alerts" when a probe failed sends them hunting for
+    // a problem that isn't theirs.
+    finalStatus.textContent = anyUnverified
+      ? tr("preflightResults.someUnverified", "Some checks could not be verified. Click Re-scan to try again.")
+      : tr("preflightResults.resolveAlerts", "Please resolve the security alerts above to proceed.");
     finalStatus.className = "sc-status sc-status--fail";
     btnProceed.disabled = true;
     btnProceed.className = PROCEED_DISABLED_CLASS;
@@ -459,39 +464,64 @@ function applyLiveProceedStatus(clean, apps, btnProceed, finalStatus) {
 
 // ─── Card Updates ─────────────────────────────────────────────────────────────
 
-function updateCard(id, passed, msg, blockedApps = []) {
+/**
+ * Paints one static card in one of three states.
+ *
+ * `unverified` is visually distinct from `fail` on purpose: it blocks Proceed
+ * just as hard, but it means "we could not establish this", not "you did
+ * something wrong". It also carries no kill buttons — there is nothing for the
+ * candidate to close, the check simply did not complete.
+ *
+ * @param {string} id
+ * @param {"pass"|"fail"|"unverified"} status
+ * @param {string} msg
+ * @param {string[]} [blockedApps]
+ */
+function updateCard(id, status, msg, blockedApps = []) {
   const cardEl = document.getElementById(`card-${id}`);
   const iconEl = document.getElementById(`icon-${id}`);
   const descEl = document.getElementById(`desc-${id}`);
   const actionsEl = document.getElementById(`actions-${id}`);
   const badgeEl = document.getElementById(`badge-${id}`);
+  if (!cardEl || !iconEl || !descEl) { return; }
 
   if (actionsEl) {actionsEl.innerHTML = "";}
+  descEl.textContent = msg;
 
-  if (passed) {
+  if (status === PASS) {
     cardEl.className = "sc-card";
     iconEl.innerHTML = ICONS.success;
     iconEl.className = "sc-card__icon sc-card__icon--pass";
-    descEl.textContent = msg;
     descEl.className = "sc-card__desc";
     if (badgeEl) {
       badgeEl.className = "sc-badge sc-badge--pass";
       badgeEl.textContent = tr("preflightResults.ready", "Ready");
     }
-  } else {
-    cardEl.className = "sc-card sc-card--fail";
-    iconEl.innerHTML = ICONS.error;
-    iconEl.className = "sc-card__icon sc-card__icon--fail";
-    descEl.textContent = msg;
-    descEl.className = "sc-card__desc sc-card__desc--fail";
-    if (badgeEl) {
-      badgeEl.className = "sc-badge sc-badge--fail";
-      badgeEl.textContent = tr("preflightResults.actionRequired", "Action Required");
-    }
+    return;
+  }
 
-    if (blockedApps.length > 0) {
-      renderKillButtons(actionsEl, blockedApps);
+  if (status === UNVERIFIED) {
+    cardEl.className = "sc-card sc-card--unverified";
+    iconEl.innerHTML = ICONS.unknown;
+    iconEl.className = "sc-card__icon sc-card__icon--unverified";
+    descEl.className = "sc-card__desc sc-card__desc--unverified";
+    if (badgeEl) {
+      badgeEl.className = "sc-badge sc-badge--unverified";
+      badgeEl.textContent = tr("preflightResults.unverified", "Unverified");
     }
+    return;
+  }
+
+  cardEl.className = "sc-card sc-card--fail";
+  iconEl.innerHTML = ICONS.error;
+  iconEl.className = "sc-card__icon sc-card__icon--fail";
+  descEl.className = "sc-card__desc sc-card__desc--fail";
+  if (badgeEl) {
+    badgeEl.className = "sc-badge sc-badge--fail";
+    badgeEl.textContent = tr("preflightResults.actionRequired", "Action Required");
+  }
+  if (blockedApps.length > 0) {
+    renderKillButtons(actionsEl, blockedApps);
   }
 }
 
@@ -597,15 +627,68 @@ async function handleKillAll(btn, processNames) {
 
 // ─── Agent Card ───────────────────────────────────────────────────────────────
 
-function renderAgentCard(agent) {
+/**
+ * Renders the Deep Scan Agent card from its verdict.
+ *
+ * Note the three distinct non-pass states, which the previous implementation
+ * collapsed into two: an agent that answered ping but returned no scan used to
+ * fall through to the "no threats" branch and render a green "Ready" badge,
+ * claiming a clean device on the strength of a scan that never ran.
+ *
+ * @param {{status: string, reasonKey: string, reasonParams?: object, threats?: object[]}} v
+ */
+function renderAgentCard(v) {
   document.getElementById("card-agent")?.remove();
   const container = document.querySelector(".sc-cards");
-  if (!container) { return true; }
+  if (!container) { return; }
 
+  const title = tr("preflightResults.agentTitle", "Deep Scan Agent");
+  const desc = verdictText(v);
   const card = document.createElement("div");
   card.id = "card-agent";
 
-  if (!agent || !agent.alive) {
+  if (v.status === UNVERIFIED) {
+    card.className = "sc-card sc-card--unverified";
+    card.innerHTML = `
+      <div class="sc-card__row">
+        <div class="sc-card__row-left">
+          <div class="sc-card__icon sc-card__icon--unverified">${ICONS.unknown}</div>
+          <div class="sc-card__body">
+            <h3 class="sc-card__title">${title}</h3>
+            <p class="sc-card__desc sc-card__desc--unverified">${escapeHtml(desc)}</p>
+          </div>
+        </div>
+        <div class="sc-badge sc-badge--unverified">${tr("preflightResults.unverified", "Unverified")}</div>
+      </div>`;
+    container.appendChild(card);
+    return;
+  }
+
+  if (v.status === PASS) {
+    card.className = "sc-card";
+    card.innerHTML = `
+      <div class="sc-card__row">
+        <div class="sc-card__row-left">
+          <div class="sc-card__icon sc-card__icon--pass">
+            <svg class="sc-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+            </svg>
+          </div>
+          <div class="sc-card__body">
+            <h3 class="sc-card__title">${title}</h3>
+            <p class="sc-card__desc">${escapeHtml(desc)}</p>
+          </div>
+        </div>
+        <div class="sc-badge sc-badge--pass">${tr("preflightResults.ready", "Ready")}</div>
+      </div>`;
+    container.appendChild(card);
+    return;
+  }
+
+  const threats = v.threats || [];
+
+  // Agent down: mandatory, and Re-scan respawns it.
+  if (threats.length === 0) {
     card.className = "sc-card sc-card--fail";
     card.innerHTML = `
       <div class="sc-card__row">
@@ -617,37 +700,14 @@ function renderAgentCard(agent) {
             </svg>
           </div>
           <div class="sc-card__body">
-            <h3 class="sc-card__title">${tr("preflightResults.agentTitle", "Deep Scan Agent")}</h3>
-            <p class="sc-card__desc sc-card__desc--fail">${tr("preflightResults.agentFailedStart", "Security agent failed to start — it is required to continue. Click Re-scan to retry.")}</p>
+            <h3 class="sc-card__title">${title}</h3>
+            <p class="sc-card__desc sc-card__desc--fail">${escapeHtml(desc)}</p>
           </div>
         </div>
         <div class="sc-badge sc-badge--fail">${tr("preflightResults.required", "Required")}</div>
       </div>`;
     container.appendChild(card);
-    return false;
-  }
-
-  const threats = agent.status?.threats || [];
-
-  if (threats.length === 0) {
-    card.className = "sc-card";
-    card.innerHTML = `
-      <div class="sc-card__row">
-        <div class="sc-card__row-left">
-          <div class="sc-card__icon sc-card__icon--pass">
-            <svg class="sc-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-            </svg>
-          </div>
-          <div class="sc-card__body">
-            <h3 class="sc-card__title">${tr("preflightResults.agentTitle", "Deep Scan Agent")}</h3>
-            <p class="sc-card__desc">${tr("preflightResults.agentClear", "No AI tools, network anomalies, or automation frameworks detected.")}</p>
-          </div>
-        </div>
-        <div class="sc-badge sc-badge--pass">${tr("preflightResults.ready", "Ready")}</div>
-      </div>`;
-    container.appendChild(card);
-    return true;
+    return;
   }
 
   card.className = "sc-card sc-card--fail";
@@ -678,10 +738,8 @@ function renderAgentCard(agent) {
           </svg>
         </div>
         <div class="sc-card__body">
-          <h3 class="sc-card__title">${tr("preflightResults.agentTitle", "Deep Scan Agent")}</h3>
-          <p class="sc-card__desc sc-card__desc--fail">
-            ${tr("preflightResults.agentThreatsDetected", `${threats.length} behavioral threat${threats.length > 1 ? "s" : ""} detected. Close the applications below and rescan.`, { n: threats.length })}
-          </p>
+          <h3 class="sc-card__title">${title}</h3>
+          <p class="sc-card__desc sc-card__desc--fail">${escapeHtml(desc)}</p>
         </div>
       </div>
       <div class="sc-badge sc-badge--fail">${tr("preflightResults.actionRequired", "Action Required")}</div>
@@ -689,14 +747,13 @@ function renderAgentCard(agent) {
     <div class="sc-card__threats">${threatRows}</div>`;
 
   container.appendChild(card);
-  return false;
 }
 
 // ─── Mock Fallback (non-Electron preview) ─────────────────────────────────────
 
 function setMockPassedState(finalStatus, btnProceed) {
   ["hdmi", "meeting", "screen", "wireless", "ai"].forEach((id) =>
-    updateCard(id, true, "Check passed (preview mode).")
+    updateCard(id, PASS, "Check passed (preview mode).")
   );
   finalStatus.textContent = "Preview mode — all checks simulated as passed.";
   btnProceed.disabled = false;

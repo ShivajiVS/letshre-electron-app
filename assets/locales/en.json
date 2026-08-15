@@ -163,7 +163,6 @@
     "aiRunning": "These AI copilot tools are still running:",
     "aiClear": "No AI cheating tools detected.",
     "wirelessRunning": "These remote/casting apps are still running:",
-    "wirelessSuspicious": "Suspicious resolution detected — possible screen mirroring.",
     "wirelessClear": "No casting/mirroring detected.",
     "allPassed": "All security checks passed. You are ready to start.",
     "resolveAlerts": "Please resolve the security alerts above to proceed.",
@@ -186,7 +185,12 @@
     "attempt": "attempt {current}/{max}",
     "tooLong": "That took too long. Please try again.",
     "restartApp": "Unable to continue — please restart the app.",
-    "loading": "Loading..."
+    "loading": "Loading...",
+    "unverified": "Unverified",
+    "checkUnverified": "Could not verify this check. Click Re-scan.",
+    "agentUnverified": "Deep scan did not complete — this device could not be verified. Click Re-scan.",
+    "agentDegraded": "Deep scan finished with errors — this device could not be fully verified. Click Re-scan.",
+    "someUnverified": "Some checks could not be verified. Click Re-scan to try again."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

@@ -1,6 +1,15 @@
 {
-  "_meta": { "locale": "nl", "name": "Nederlands", "dir": "ltr", "note": "Certified-review pending — see attestation.statement before release." },
-  "common": { "back": "Terug", "continue": "Doorgaan", "required": "Vereist" },
+  "_meta": {
+    "locale": "nl",
+    "name": "Nederlands",
+    "dir": "ltr",
+    "note": "Certified-review pending — see attestation.statement before release."
+  },
+  "common": {
+    "back": "Terug",
+    "continue": "Doorgaan",
+    "required": "Vereist"
+  },
   "login": {
     "title": "Inloggen",
     "subtitle": "Log in om toegang te krijgen tot je dashboard en je sollicitatiegesprek te starten.",
@@ -154,7 +163,6 @@
     "aiRunning": "Deze AI-copilottools draaien nog:",
     "aiClear": "Geen AI-fraudetools gedetecteerd.",
     "wirelessRunning": "Deze externe toegang/castingapps draaien nog:",
-    "wirelessSuspicious": "Verdachte resolutie gedetecteerd — mogelijk schermspiegeling.",
     "wirelessClear": "Geen casting/spiegeling gedetecteerd.",
     "allPassed": "Alle beveiligingscontroles geslaagd. Je bent klaar om te beginnen.",
     "resolveAlerts": "Los de bovenstaande beveiligingswaarschuwingen op om door te gaan.",
@@ -177,12 +185,19 @@
     "attempt": "poging {current}/{max}",
     "tooLong": "Dit duurde te lang. Probeer het opnieuw.",
     "restartApp": "Kan niet doorgaan — start de app opnieuw.",
-    "loading": "Bezig met laden..."
+    "loading": "Bezig met laden...",
+    "unverified": "Niet geverifieerd",
+    "checkUnverified": "Deze controle kon niet worden geverifieerd. Klik op Opnieuw scannen.",
+    "agentUnverified": "De diepe scan is niet voltooid — dit apparaat kon niet worden geverifieerd. Klik op Opnieuw scannen.",
+    "agentDegraded": "De diepe scan is met fouten geëindigd — dit apparaat kon niet volledig worden geverifieerd. Klik op Opnieuw scannen.",
+    "someUnverified": "Sommige controles konden niet worden geverifieerd. Klik op Opnieuw scannen om het opnieuw te proberen."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,
     "_reason": "Read aloud by the candidate for voice verification and treated as a binding statement. Every translation of this key must be reviewed and signed off by a certified human translator before release — do not ship a machine-translated or unreviewed change to this key.",
     "statement": "Ik bevestig dat ik de persoon ben die dit gesprek voert, en dat ik de instructies zal volgen."
   },
-  "langSwitcher": { "label": "Taal" }
+  "langSwitcher": {
+    "label": "Taal"
+  }
 }

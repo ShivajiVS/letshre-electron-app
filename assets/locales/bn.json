@@ -1,6 +1,15 @@
 {
-  "_meta": { "locale": "bn", "name": "বাংলা", "dir": "ltr", "note": "Certified-review pending — see attestation.statement before release." },
-  "common": { "back": "পিছনে", "continue": "চালিয়ে যান", "required": "প্রয়োজনীয়" },
+  "_meta": {
+    "locale": "bn",
+    "name": "বাংলা",
+    "dir": "ltr",
+    "note": "Certified-review pending — see attestation.statement before release."
+  },
+  "common": {
+    "back": "পিছনে",
+    "continue": "চালিয়ে যান",
+    "required": "প্রয়োজনীয়"
+  },
   "login": {
     "title": "সাইন ইন করুন",
     "subtitle": "আপনার ড্যাশবোর্ড অ্যাক্সেস করতে এবং ইন্টারভিউ শুরু করতে লগ ইন করুন।",
@@ -154,7 +163,6 @@
     "aiRunning": "এই AI কোপাইলট টুলগুলো এখনও চলছে:",
     "aiClear": "কোনো AI প্রতারণা টুল পাওয়া যায়নি।",
     "wirelessRunning": "এই রিমোট/কাস্টিং অ্যাপগুলো এখনও চলছে:",
-    "wirelessSuspicious": "সন্দেহজনক রেজোলিউশন সনাক্ত হয়েছে — সম্ভবত স্ক্রিন মিররিং।",
     "wirelessClear": "কোনো কাস্টিং/মিররিং পাওয়া যায়নি।",
     "allPassed": "সমস্ত নিরাপত্তা পরীক্ষা সফল হয়েছে। আপনি শুরু করার জন্য প্রস্তুত।",
     "resolveAlerts": "চালিয়ে যেতে অনুগ্রহ করে উপরের নিরাপত্তা সতর্কতাগুলো সমাধান করুন।",
@@ -177,12 +185,19 @@
     "attempt": "প্রচেষ্টা {current}/{max}",
     "tooLong": "এটি অনেক বেশি সময় নিয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।",
     "restartApp": "চালিয়ে যাওয়া যায়নি — অনুগ্রহ করে অ্যাপ পুনরায় চালু করুন।",
-    "loading": "লোড হচ্ছে..."
+    "loading": "লোড হচ্ছে...",
+    "unverified": "যাচাই করা হয়নি",
+    "checkUnverified": "এই পরীক্ষাটি যাচাই করা যায়নি। পুনরায় স্ক্যান ক্লিক করুন।",
+    "agentUnverified": "ডিপ স্ক্যান সম্পূর্ণ হয়নি — এই ডিভাইসটি যাচাই করা যায়নি। পুনরায় স্ক্যান ক্লিক করুন।",
+    "agentDegraded": "ডিপ স্ক্যান ত্রুটিসহ শেষ হয়েছে — এই ডিভাইসটি সম্পূর্ণ যাচাই করা যায়নি। পুনরায় স্ক্যান ক্লিক করুন।",
+    "someUnverified": "কিছু পরীক্ষা যাচাই করা যায়নি। আবার চেষ্টা করতে পুনরায় স্ক্যান ক্লিক করুন।"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,
     "_reason": "Read aloud by the candidate for voice verification and treated as a binding statement. Every translation of this key must be reviewed and signed off by a certified human translator before release — do not ship a machine-translated or unreviewed change to this key.",
     "statement": "আমি নিশ্চিত করছি যে এই ইন্টারভিউ প্রদানকারী ব্যক্তি আমিই, এবং আমি নির্দেশাবলী মেনে চলব।"
   },
-  "langSwitcher": { "label": "ভাষা" }
+  "langSwitcher": {
+    "label": "ভাষা"
+  }
 }

@@ -1,6 +1,15 @@
 {
-  "_meta": { "locale": "ur", "name": "اردو", "dir": "rtl", "note": "Certified-review pending — see attestation.statement before release." },
-  "common": { "back": "پیچھے", "continue": "جاری رکھیں", "required": "درکار" },
+  "_meta": {
+    "locale": "ur",
+    "name": "اردو",
+    "dir": "rtl",
+    "note": "Certified-review pending — see attestation.statement before release."
+  },
+  "common": {
+    "back": "پیچھے",
+    "continue": "جاری رکھیں",
+    "required": "درکار"
+  },
   "login": {
     "title": "سائن ان کریں",
     "subtitle": "اپنے ڈیش بورڈ تک رسائی اور انٹرویو شروع کرنے کے لیے لاگ ان کریں۔",
@@ -154,7 +163,6 @@
     "aiRunning": "یہ AI کوپائلٹ ٹولز ابھی بھی چل رہے ہیں:",
     "aiClear": "کوئی AI دھوکہ دہی کا ٹول نہیں ملا۔",
     "wirelessRunning": "یہ ریموٹ/کاسٹنگ ایپس ابھی بھی چل رہی ہیں:",
-    "wirelessSuspicious": "مشتبہ ریزولوشن کا پتہ چلا — ممکنہ اسکرین مررنگ۔",
     "wirelessClear": "کوئی کاسٹنگ/مررنگ نہیں ملی۔",
     "allPassed": "تمام سیکیورٹی چیکس کامیاب رہیں۔ آپ شروع کرنے کے لیے تیار ہیں۔",
     "resolveAlerts": "جاری رکھنے کے لیے براہ کرم اوپر دیے گئے سیکیورٹی انتباہات کو حل کریں۔",
@@ -177,12 +185,19 @@
     "attempt": "کوشش {current}/{max}",
     "tooLong": "اس میں بہت زیادہ وقت لگا۔ براہ کرم دوبارہ کوشش کریں۔",
     "restartApp": "جاری رکھنے میں ناکام — براہ کرم ایپ دوبارہ شروع کریں۔",
-    "loading": "لوڈ ہو رہا ہے..."
+    "loading": "لوڈ ہو رہا ہے...",
+    "unverified": "غیر تصدیق شدہ",
+    "checkUnverified": "اس جانچ کی تصدیق نہیں ہو سکی۔ دوبارہ اسکین پر کلک کریں۔",
+    "agentUnverified": "ڈیپ اسکین مکمل نہیں ہوا — اس ڈیوائس کی تصدیق نہیں ہو سکی۔ دوبارہ اسکین پر کلک کریں۔",
+    "agentDegraded": "ڈیپ اسکین خرابیوں کے ساتھ ختم ہوا — اس ڈیوائس کی مکمل تصدیق نہیں ہو سکی۔ دوبارہ اسکین پر کلک کریں۔",
+    "someUnverified": "کچھ جانچوں کی تصدیق نہیں ہو سکی۔ دوبارہ کوشش کے لیے دوبارہ اسکین پر کلک کریں۔"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,
     "_reason": "Read aloud by the candidate for voice verification and treated as a binding statement. Every translation of this key must be reviewed and signed off by a certified human translator before release — do not ship a machine-translated or unreviewed change to this key.",
     "statement": "میں تصدیق کرتا/کرتی ہوں کہ یہ انٹرویو دینے والا شخص میں ہی ہوں، اور میں ہدایات پر عمل کروں گا/گی۔"
   },
-  "langSwitcher": { "label": "زبان" }
+  "langSwitcher": {
+    "label": "زبان"
+  }
 }

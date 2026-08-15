@@ -1,6 +1,15 @@
 {
-  "_meta": { "locale": "fr", "name": "Français", "dir": "ltr", "note": "Certified-review pending — see attestation.statement before release." },
-  "common": { "back": "Retour", "continue": "Continuer", "required": "Requis" },
+  "_meta": {
+    "locale": "fr",
+    "name": "Français",
+    "dir": "ltr",
+    "note": "Certified-review pending — see attestation.statement before release."
+  },
+  "common": {
+    "back": "Retour",
+    "continue": "Continuer",
+    "required": "Requis"
+  },
   "login": {
     "title": "Connexion",
     "subtitle": "Connectez-vous pour accéder à votre tableau de bord et commencer votre entretien.",
@@ -154,7 +163,6 @@
     "aiRunning": "Ces outils copilotes IA sont toujours en cours d'exécution :",
     "aiClear": "Aucun outil de triche IA détecté.",
     "wirelessRunning": "Ces applications de diffusion/contrôle à distance sont toujours en cours d'exécution :",
-    "wirelessSuspicious": "Résolution suspecte détectée — possible mise en miroir de l'écran.",
     "wirelessClear": "Aucune diffusion/mise en miroir détectée.",
     "allPassed": "Toutes les vérifications de sécurité sont réussies. Vous êtes prêt à commencer.",
     "resolveAlerts": "Pour continuer, veuillez résoudre les alertes de sécurité ci-dessus.",
@@ -177,12 +185,19 @@
     "attempt": "tentative {current}/{max}",
     "tooLong": "Cela a pris trop de temps. Veuillez réessayer.",
     "restartApp": "Impossible de continuer — veuillez redémarrer l'application.",
-    "loading": "Chargement..."
+    "loading": "Chargement...",
+    "unverified": "Non vérifié",
+    "checkUnverified": "Impossible de vérifier ce contrôle. Cliquez sur Relancer l'analyse.",
+    "agentUnverified": "L'analyse approfondie ne s'est pas terminée — cet appareil n'a pas pu être vérifié. Cliquez sur Relancer l'analyse.",
+    "agentDegraded": "L'analyse approfondie s'est terminée avec des erreurs — cet appareil n'a pas pu être entièrement vérifié. Cliquez sur Relancer l'analyse.",
+    "someUnverified": "Certains contrôles n'ont pas pu être vérifiés. Cliquez sur Relancer l'analyse pour réessayer."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,
     "_reason": "Read aloud by the candidate for voice verification and treated as a binding statement. Every translation of this key must be reviewed and signed off by a certified human translator before release — do not ship a machine-translated or unreviewed change to this key.",
     "statement": "Je confirme être la personne qui passe cet entretien, et je m'engage à suivre les instructions."
   },
-  "langSwitcher": { "label": "Langue" }
+  "langSwitcher": {
+    "label": "Langue"
+  }
 }

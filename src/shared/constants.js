@@ -80,6 +80,38 @@ const INDETERMINATE_ESCALATION_THRESHOLD = 3;
  */
 const HARD_BLOCK_GRACE_MS = 8000;
 
+// ─── Preflight scan budget ───────────────────────────────────────────────────
+// The preflight runs its checks CONCURRENTLY, each under its own deadline. A
+// check that misses its deadline is reported "unverified" (fail-closed: it
+// blocks Proceed) instead of failing the whole scan — partial results beat
+// all-or-nothing.
+//
+// INVARIANT: PREFLIGHT_RENDERER_TIMEOUT_MS > PREFLIGHT_GLOBAL_DEADLINE_MS.
+// These previously lived apart (renderer 20s vs. a main-side worst case of
+// ~31s), so on a cold start the renderer aborted a scan that was still
+// progressing normally and entered a retry storm. Both sides now derive their
+// budget from here so they cannot drift apart again.
+
+/** Deadline for the native display probe (Electron screen API — effectively instant). */
+const PREFLIGHT_HDMI_DEADLINE_MS = 1000;
+
+/** Deadline for the blocked-process scan (tasklist / ps). */
+const PREFLIGHT_PROCESS_DEADLINE_MS = 4000;
+
+/** Deadline for the agent deep scan. The agent is pre-warmed on page load, so
+ *  this no longer has to absorb a cold agent spawn. */
+const PREFLIGHT_AGENT_DEADLINE_MS = 8000;
+
+/** Ceiling for one whole preflight pass in the main process. */
+const PREFLIGHT_GLOBAL_DEADLINE_MS = 10000;
+
+/** Renderer-side abort. Must exceed the global deadline so the main process is
+ *  always the component that decides a scan is over. */
+const PREFLIGHT_RENDERER_TIMEOUT_MS = 15000;
+
+/** Results older than this are considered stale and will not enable Proceed. */
+const PREFLIGHT_RESULT_MAX_AGE_MS = 60000;
+
 // ─── IPC Channel Names ───────────────────────────────────────────────────────
 // Keep these in sync with preload.js exposures and ipcHandlers.js registrations.
 //
@@ -272,6 +304,12 @@ module.exports = {
   UPDATE_CHECK_INTERVAL_MS,
   INDETERMINATE_ESCALATION_THRESHOLD,
   HARD_BLOCK_GRACE_MS,
+  PREFLIGHT_HDMI_DEADLINE_MS,
+  PREFLIGHT_PROCESS_DEADLINE_MS,
+  PREFLIGHT_AGENT_DEADLINE_MS,
+  PREFLIGHT_GLOBAL_DEADLINE_MS,
+  PREFLIGHT_RENDERER_TIMEOUT_MS,
+  PREFLIGHT_RESULT_MAX_AGE_MS,
   IPC,
   PROTOCOL_SCHEME,
   DEFAULT_LOCALE,

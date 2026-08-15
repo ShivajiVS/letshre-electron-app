@@ -1,6 +1,15 @@
 {
-  "_meta": { "locale": "ml", "name": "മലയാളം", "dir": "ltr", "note": "Certified-review pending — see attestation.statement before release." },
-  "common": { "back": "തിരികെ", "continue": "തുടരുക", "required": "ആവശ്യമാണ്" },
+  "_meta": {
+    "locale": "ml",
+    "name": "മലയാളം",
+    "dir": "ltr",
+    "note": "Certified-review pending — see attestation.statement before release."
+  },
+  "common": {
+    "back": "തിരികെ",
+    "continue": "തുടരുക",
+    "required": "ആവശ്യമാണ്"
+  },
   "login": {
     "title": "സൈൻ ഇൻ ചെയ്യുക",
     "subtitle": "നിങ്ങളുടെ ഡാഷ്‌ബോർഡ് ആക്‌സസ് ചെയ്യാനും ഇന്റർവ്യൂ ആരംഭിക്കാനും ലോഗിൻ ചെയ്യുക.",
@@ -154,7 +163,6 @@
     "aiRunning": "ഈ AI കോപൈലറ്റ് ടൂളുകൾ ഇപ്പോഴും പ്രവർത്തിക്കുന്നു:",
     "aiClear": "AI വഞ്ചന ടൂളുകൾ കണ്ടെത്തിയില്ല.",
     "wirelessRunning": "ഈ റിമോട്ട്/കാസ്റ്റിംഗ് ആപ്പുകൾ ഇപ്പോഴും പ്രവർത്തിക്കുന്നു:",
-    "wirelessSuspicious": "സംശയാസ്പദമായ റെസല്യൂഷൻ കണ്ടെത്തി — സ്ക്രീൻ മിററിംഗ് ആകാം.",
     "wirelessClear": "കാസ്റ്റിംഗ്/മിററിംഗ് കണ്ടെത്തിയില്ല.",
     "allPassed": "എല്ലാ സുരക്ഷാ പരിശോധനകളും വിജയിച്ചു. നിങ്ങൾ ആരംഭിക്കാൻ തയ്യാറാണ്.",
     "resolveAlerts": "തുടരാൻ മുകളിലുള്ള സുരക്ഷാ മുന്നറിയിപ്പുകൾ പരിഹരിക്കുക.",
@@ -177,12 +185,19 @@
     "attempt": "ശ്രമം {current}/{max}",
     "tooLong": "ഇത് വളരെയധികം സമയമെടുത്തു. വീണ്ടും ശ്രമിക്കുക.",
     "restartApp": "തുടരാൻ കഴിഞ്ഞില്ല — ആപ്പ് പുനരാരംഭിക്കുക.",
-    "loading": "ലോഡ് ചെയ്യുന്നു..."
+    "loading": "ലോഡ് ചെയ്യുന്നു...",
+    "unverified": "പരിശോധിച്ചിട്ടില്ല",
+    "checkUnverified": "ഈ പരിശോധന സ്ഥിരീകരിക്കാനായില്ല. വീണ്ടും സ്കാൻ ക്ലിക്ക് ചെയ്യുക.",
+    "agentUnverified": "ഡീപ് സ്കാൻ പൂർത്തിയായില്ല — ഈ ഉപകരണം പരിശോധിക്കാനായില്ല. വീണ്ടും സ്കാൻ ക്ലിക്ക് ചെയ്യുക.",
+    "agentDegraded": "ഡീപ് സ്കാൻ പിശകുകളോടെ അവസാനിച്ചു — ഈ ഉപകരണം പൂർണ്ണമായി പരിശോധിക്കാനായില്ല. വീണ്ടും സ്കാൻ ക്ലിക്ക് ചെയ്യുക.",
+    "someUnverified": "ചില പരിശോധനകൾ സ്ഥിരീകരിക്കാനായില്ല. വീണ്ടും ശ്രമിക്കാൻ വീണ്ടും സ്കാൻ ക്ലിക്ക് ചെയ്യുക."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,
     "_reason": "Read aloud by the candidate for voice verification and treated as a binding statement. Every translation of this key must be reviewed and signed off by a certified human translator before release — do not ship a machine-translated or unreviewed change to this key.",
     "statement": "ഈ ഇന്റർവ്യൂ നൽകുന്നത് ഞാൻ തന്നെയാണെന്ന് ഞാൻ സ്ഥിരീകരിക്കുന്നു, കൂടാതെ ഞാൻ നിർദ്ദേശങ്ങൾ പാലിക്കും."
   },
-  "langSwitcher": { "label": "ഭാഷ" }
+  "langSwitcher": {
+    "label": "ഭാഷ"
+  }
 }

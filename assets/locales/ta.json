@@ -1,6 +1,15 @@
 {
-  "_meta": { "locale": "ta", "name": "தமிழ்", "dir": "ltr", "note": "Certified-review pending — see attestation.statement before release." },
-  "common": { "back": "பின்னால்", "continue": "தொடரவும்", "required": "தேவை" },
+  "_meta": {
+    "locale": "ta",
+    "name": "தமிழ்",
+    "dir": "ltr",
+    "note": "Certified-review pending — see attestation.statement before release."
+  },
+  "common": {
+    "back": "பின்னால்",
+    "continue": "தொடரவும்",
+    "required": "தேவை"
+  },
   "login": {
     "title": "உள்நுழையவும்",
     "subtitle": "உங்கள் டாஷ்போர்டை அணுகவும் உங்கள் நேர்காணலைத் தொடங்கவும் உள்நுழையவும்.",
@@ -154,7 +163,6 @@
     "aiRunning": "இந்த AI கோபைலட் கருவிகள் இன்னும் இயங்குகின்றன:",
     "aiClear": "AI ஏமாற்று கருவிகள் கண்டறியப்படவில்லை.",
     "wirelessRunning": "இந்த ரிமோட்/காஸ்டிங் ஆப்கள் இன்னும் இயங்குகின்றன:",
-    "wirelessSuspicious": "சந்தேகத்திற்குரிய தெளிவுத்திறன் கண்டறியப்பட்டது — திரை மிரரிங் இருக்கலாம்.",
     "wirelessClear": "காஸ்டிங்/மிரரிங் கண்டறியப்படவில்லை.",
     "allPassed": "அனைத்து பாதுகாப்பு சரிபார்ப்புகளும் தேர்ச்சி பெற்றன. நீங்கள் தொடங்க தயார்.",
     "resolveAlerts": "தொடர தயவுசெய்து மேலே உள்ள பாதுகாப்பு எச்சரிக்கைகளை தீர்க்கவும்.",
@@ -177,12 +185,19 @@
     "attempt": "முயற்சி {current}/{max}",
     "tooLong": "இது மிக அதிக நேரம் எடுத்துக்கொண்டது. தயவுசெய்து மீண்டும் முயற்சிக்கவும்.",
     "restartApp": "தொடர முடியவில்லை — தயவுசெய்து ஆப்பை மறுதொடக்கம் செய்யவும்.",
-    "loading": "ஏற்றுகிறது..."
+    "loading": "ஏற்றுகிறது...",
+    "unverified": "சரிபார்க்கப்படவில்லை",
+    "checkUnverified": "இந்தச் சோதனையைச் சரிபார்க்க முடியவில்லை. மீண்டும் ஸ்கேன் என்பதைக் கிளிக் செய்யவும்.",
+    "agentUnverified": "ஆழ்ந்த ஸ்கேன் முடியவில்லை — இந்தச் சாதனத்தைச் சரிபார்க்க முடியவில்லை. மீண்டும் ஸ்கேன் என்பதைக் கிளிக் செய்யவும்.",
+    "agentDegraded": "ஆழ்ந்த ஸ்கேன் பிழைகளுடன் முடிந்தது — இந்தச் சாதனத்தை முழுமையாகச் சரிபார்க்க முடியவில்லை. மீண்டும் ஸ்கேன் என்பதைக் கிளிக் செய்யவும்.",
+    "someUnverified": "சில சோதனைகளைச் சரிபார்க்க முடியவில்லை. மீண்டும் முயற்சிக்க மீண்டும் ஸ்கேன் என்பதைக் கிளிக் செய்யவும்."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,
     "_reason": "Read aloud by the candidate for voice verification and treated as a binding statement. Every translation of this key must be reviewed and signed off by a certified human translator before release — do not ship a machine-translated or unreviewed change to this key.",
     "statement": "இந்த நேர்காணலை மேற்கொள்பவன்/மேற்கொள்பவள் நான்தான் என்பதை உறுதிப்படுத்துகிறேன், மேலும் நான் வழிமுறைகளைப் பின்பற்றுவேன்."
   },
-  "langSwitcher": { "label": "மொழி" }
+  "langSwitcher": {
+    "label": "மொழி"
+  }
 }

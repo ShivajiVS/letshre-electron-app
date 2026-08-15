@@ -153,6 +153,19 @@ function registerIpcHandlers() {
   // the OS needs to present native mic/camera/screen dialogs).
   ipcMain.on(IPC.LOAD_PERMISSIONS_PAGE, () => {
     logger.info("[ipc] load-permissions-page");
+
+    // This is the security-check page's Proceed button — the authoritative
+    // preflight gate. The renderer enabling its own button is UX only; main
+    // re-verifies that the last scan actually passed and is still fresh, so a
+    // renderer bug (or devtools) cannot walk past every check. A stale pass is
+    // treated as no pass: the candidate cannot sit on a green screen, launch a
+    // blocked app, and then continue.
+    const gate = startDetection.verifyProceedAllowed();
+    if (!gate.ok) {
+      logger.warn(`[ipc] load-permissions-page REFUSED — ${gate.reason}`);
+      loadSecurityCheck(); // bounce back to a fresh scan
+      return;
+    }
     loadPermissionsPage();
   });
 
@@ -270,28 +283,45 @@ function registerIpcHandlers() {
 
   // ── Preflight ────────────────────────────────────────────────────────────
 
+  // In-flight preflight, shared by concurrent callers. A renderer-side timeout
+  // used to abandon its invoke and immediately fire another, stacking two full
+  // scans (and two agent respawns) on top of each other while the abandoned
+  // one's progress events still repainted the new scan's cards.
+  let _preflightInFlight = null;
+
   ipcMain.handle(IPC.RUN_PREFLIGHT, async (event) => {
+    if (_preflightInFlight) {
+      logger.info("[ipc] run-preflight-scans — joining in-flight scan");
+      return await _preflightInFlight;
+    }
     logger.info("[ipc] run-preflight-scans invoked");
 
-    // Self-heal: respawn the agent if it has died, so a transient failure is
-    // recoverable by re-scanning rather than permanently blocking Proceed.
-    try {
-      await ensureAgent();
-    } catch (err) {
-      logger.warn("[ipc] ensureAgent failed:", err.message);
-    }
+    // NOTE: ensureAgent() is deliberately NOT awaited here. It can block for up
+    // to AGENT_PING_TIMEOUT_MS (15s) waiting on a cold spawn, which used to run
+    // BEFORE the first card could resolve and blew the renderer's scan budget on
+    // slow machines. The agent is pre-warmed when the page loads (prewarmAgent),
+    // and a still-unavailable agent now degrades to a single "unverified" agent
+    // card while the other five checks resolve normally. We still kick a
+    // self-heal off in the background so the next Re-scan finds it alive.
+    ensureAgent().catch((err) => logger.warn("[ipc] ensureAgent failed:", err.message));
 
-    // ADD-02: Streaming preflight — push progress for each step as it completes.
+    // Streaming preflight: each verdict is pushed the moment its check lands.
     // event.sender.send() is safe to call from within an ipcMain.handle() handler.
-    const onProgress = (step, status, result) => {
+    const onProgress = (verdict) => {
       try {
-        event.sender.send(IPC.PREFLIGHT_PROGRESS, { step, status, result });
+        event.sender.send(IPC.PREFLIGHT_PROGRESS, verdict);
       } catch {
         // Renderer was destroyed before the scan finished — ignore
       }
     };
 
-    const result = await startDetection.runChecksOnce(onProgress);
+    _preflightInFlight = startDetection
+      .runChecksOnce(onProgress)
+      .finally(() => {
+        _preflightInFlight = null;
+      });
+
+    const result = await _preflightInFlight;
 
     // Start the background pre-proceed watcher as soon as preflight is done.
     // It polls checkProcesses() every 2s and pushes { clean, apps } to the
@@ -312,6 +342,19 @@ function registerIpcHandlers() {
   ipcMain.on(IPC.PROCEED_TO_INTERVIEW, (_event, payload) => {
     const roleSelection = sanitizeRoleSelection(payload);
     logger.info("[ipc] proceed-to-interview received", { is_custom_role: roleSelection.is_custom_role });
+
+    // Backstop gate. Freshness is NOT required here — the candidate has since
+    // walked through permissions, identity verification and role selection, so
+    // the preflight is legitimately minutes old by now, and live detection takes
+    // over the moment the interview starts. What we still refuse is entering the
+    // interview when no preflight ever passed.
+    const gate = startDetection.verifyProceedAllowed({ requireFresh: false });
+    if (!gate.ok) {
+      logger.warn(`[ipc] proceed-to-interview REFUSED — ${gate.reason}`);
+      loadSecurityCheck();
+      return;
+    }
+
     // Stop the pre-proceed watcher — no longer needed once interview starts.
     stopPreProceedMonitor();
 

@@ -1,6 +1,15 @@
 {
-  "_meta": { "locale": "kn", "name": "ಕನ್ನಡ", "dir": "ltr", "note": "Certified-review pending — see attestation.statement before release." },
-  "common": { "back": "ಹಿಂದೆ", "continue": "ಮುಂದುವರಿಸಿ", "required": "ಅಗತ್ಯವಿದೆ" },
+  "_meta": {
+    "locale": "kn",
+    "name": "ಕನ್ನಡ",
+    "dir": "ltr",
+    "note": "Certified-review pending — see attestation.statement before release."
+  },
+  "common": {
+    "back": "ಹಿಂದೆ",
+    "continue": "ಮುಂದುವರಿಸಿ",
+    "required": "ಅಗತ್ಯವಿದೆ"
+  },
   "login": {
     "title": "ಸೈನ್ ಇನ್ ಮಾಡಿ",
     "subtitle": "ನಿಮ್ಮ ಡ್ಯಾಶ್‌ಬೋರ್ಡ್ ಅನ್ನು ಪ್ರವೇಶಿಸಲು ಮತ್ತು ನಿಮ್ಮ ಸಂದರ್ಶನವನ್ನು ಪ್ರಾರಂಭಿಸಲು ಲಾಗಿನ್ ಮಾಡಿ.",
@@ -154,7 +163,6 @@
     "aiRunning": "ಈ AI ಕೋಪೈಲಟ್ ಪರಿಕರಗಳು ಇನ್ನೂ ಚಾಲನೆಯಲ್ಲಿವೆ:",
     "aiClear": "AI ಮೋಸದ ಪರಿಕರಗಳು ಪತ್ತೆಯಾಗಿಲ್ಲ.",
     "wirelessRunning": "ಈ ರಿಮೋಟ್/ಕಾಸ್ಟಿಂಗ್ ಅಪ್ಲಿಕೇಶನ್‌ಗಳು ಇನ್ನೂ ಚಾಲನೆಯಲ್ಲಿವೆ:",
-    "wirelessSuspicious": "ಅನುಮಾನಾಸ್ಪದ ರೆಸಲ್ಯೂಶನ್ ಪತ್ತೆಯಾಗಿದೆ — ಪರದೆ ಮಿರರಿಂಗ್ ಆಗಿರಬಹುದು.",
     "wirelessClear": "ಕಾಸ್ಟಿಂಗ್/ಮಿರರಿಂಗ್ ಪತ್ತೆಯಾಗಿಲ್ಲ.",
     "allPassed": "ಎಲ್ಲಾ ಭದ್ರತಾ ಪರಿಶೀಲನೆಗಳು ಉತ್ತೀರ್ಣವಾಗಿವೆ. ನೀವು ಪ್ರಾರಂಭಿಸಲು ಸಿದ್ಧರಿದ್ದೀರಿ.",
     "resolveAlerts": "ಮುಂದುವರಿಯಲು ದಯವಿಟ್ಟು ಮೇಲಿನ ಭದ್ರತಾ ಎಚ್ಚರಿಕೆಗಳನ್ನು ಪರಿಹರಿಸಿ.",
@@ -177,12 +185,19 @@
     "attempt": "ಪ್ರಯತ್ನ {current}/{max}",
     "tooLong": "ಇದು ತುಂಬಾ ಸಮಯ ತೆಗೆದುಕೊಂಡಿತು. ದಯವಿಟ್ಟು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
     "restartApp": "ಮುಂದುವರಿಯಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ — ದಯವಿಟ್ಟು ಅಪ್ಲಿಕೇಶನ್ ಅನ್ನು ಮರುಪ್ರಾರಂಭಿಸಿ.",
-    "loading": "ಲೋಡ್ ಆಗುತ್ತಿದೆ..."
+    "loading": "ಲೋಡ್ ಆಗುತ್ತಿದೆ...",
+    "unverified": "ಪರಿಶೀಲಿಸಲಾಗಿಲ್ಲ",
+    "checkUnverified": "ಈ ಪರಿಶೀಲನೆಯನ್ನು ಖಚಿತಪಡಿಸಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ. ಮತ್ತೆ ಸ್ಕ್ಯಾನ್ ಕ್ಲಿಕ್ ಮಾಡಿ.",
+    "agentUnverified": "ಡೀಪ್ ಸ್ಕ್ಯಾನ್ ಪೂರ್ಣಗೊಳ್ಳಲಿಲ್ಲ — ಈ ಸಾಧನವನ್ನು ಪರಿಶೀಲಿಸಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ. ಮತ್ತೆ ಸ್ಕ್ಯಾನ್ ಕ್ಲಿಕ್ ಮಾಡಿ.",
+    "agentDegraded": "ಡೀಪ್ ಸ್ಕ್ಯಾನ್ ದೋಷಗಳೊಂದಿಗೆ ಮುಗಿಯಿತು — ಈ ಸಾಧನವನ್ನು ಸಂಪೂರ್ಣವಾಗಿ ಪರಿಶೀಲಿಸಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ. ಮತ್ತೆ ಸ್ಕ್ಯಾನ್ ಕ್ಲಿಕ್ ಮಾಡಿ.",
+    "someUnverified": "ಕೆಲವು ಪರಿಶೀಲನೆಗಳನ್ನು ಖಚಿತಪಡಿಸಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ. ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಲು ಮತ್ತೆ ಸ್ಕ್ಯಾನ್ ಕ್ಲಿಕ್ ಮಾಡಿ."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,
     "_reason": "Read aloud by the candidate for voice verification and treated as a binding statement. Every translation of this key must be reviewed and signed off by a certified human translator before release — do not ship a machine-translated or unreviewed change to this key.",
     "statement": "ಈ ಸಂದರ್ಶನ ನೀಡುತ್ತಿರುವ ವ್ಯಕ್ತಿ ನಾನೇ ಎಂದು ನಾನು ದೃಢೀಕರಿಸುತ್ತೇನೆ, ಮತ್ತು ನಾನು ಸೂಚನೆಗಳನ್ನು ಪಾಲಿಸುತ್ತೇನೆ."
   },
-  "langSwitcher": { "label": "ಭಾಷೆ" }
+  "langSwitcher": {
+    "label": "ಭಾಷೆ"
+  }
 }

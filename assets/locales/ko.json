@@ -1,6 +1,15 @@
 {
-  "_meta": { "locale": "ko", "name": "한국어", "dir": "ltr", "note": "Certified-review pending — see attestation.statement before release." },
-  "common": { "back": "뒤로", "continue": "계속", "required": "필수" },
+  "_meta": {
+    "locale": "ko",
+    "name": "한국어",
+    "dir": "ltr",
+    "note": "Certified-review pending — see attestation.statement before release."
+  },
+  "common": {
+    "back": "뒤로",
+    "continue": "계속",
+    "required": "필수"
+  },
   "login": {
     "title": "로그인",
     "subtitle": "대시보드에 접속하여 면접을 시작하려면 로그인하세요.",
@@ -154,7 +163,6 @@
     "aiRunning": "다음 AI 코파일럿 도구가 여전히 실행 중입니다:",
     "aiClear": "AI 부정행위 도구가 감지되지 않았습니다.",
     "wirelessRunning": "다음 원격/캐스팅 앱이 여전히 실행 중입니다:",
-    "wirelessSuspicious": "의심스러운 해상도가 감지되었습니다 — 화면 미러링일 수 있습니다.",
     "wirelessClear": "캐스팅/미러링이 감지되지 않았습니다.",
     "allPassed": "모든 보안 검사를 통과했습니다. 시작할 준비가 되었습니다.",
     "resolveAlerts": "계속하려면 위의 보안 경고를 해결하세요.",
@@ -177,12 +185,19 @@
     "attempt": "시도 {current}/{max}",
     "tooLong": "시간이 너무 오래 걸렸습니다. 다시 시도하세요.",
     "restartApp": "계속할 수 없습니다 — 앱을 다시 시작하세요.",
-    "loading": "로딩 중..."
+    "loading": "로딩 중...",
+    "unverified": "확인되지 않음",
+    "checkUnverified": "이 검사를 확인할 수 없습니다. 다시 검사를 클릭하세요.",
+    "agentUnverified": "정밀 검사가 완료되지 않았습니다. 이 기기를 확인할 수 없습니다. 다시 검사를 클릭하세요.",
+    "agentDegraded": "정밀 검사가 오류와 함께 종료되었습니다. 이 기기를 완전히 확인할 수 없습니다. 다시 검사를 클릭하세요.",
+    "someUnverified": "일부 검사를 확인할 수 없습니다. 다시 검사를 클릭해 재시도하세요."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,
     "_reason": "Read aloud by the candidate for voice verification and treated as a binding statement. Every translation of this key must be reviewed and signed off by a certified human translator before release — do not ship a machine-translated or unreviewed change to this key.",
     "statement": "저는 이 면접을 보고 있는 본인임을 확인하며, 안내 사항을 따를 것을 약속합니다."
   },
-  "langSwitcher": { "label": "언어" }
+  "langSwitcher": {
+    "label": "언어"
+  }
 }

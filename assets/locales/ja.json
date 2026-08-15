@@ -1,6 +1,15 @@
 {
-  "_meta": { "locale": "ja", "name": "日本語", "dir": "ltr", "note": "Certified-review pending — see attestation.statement before release." },
-  "common": { "back": "戻る", "continue": "続ける", "required": "必須" },
+  "_meta": {
+    "locale": "ja",
+    "name": "日本語",
+    "dir": "ltr",
+    "note": "Certified-review pending — see attestation.statement before release."
+  },
+  "common": {
+    "back": "戻る",
+    "continue": "続ける",
+    "required": "必須"
+  },
   "login": {
     "title": "サインイン",
     "subtitle": "ダッシュボードにアクセスして面接を開始するにはログインしてください。",
@@ -154,7 +163,6 @@
     "aiRunning": "次のAIコパイロットツールがまだ実行中です:",
     "aiClear": "AI不正ツールは検出されませんでした。",
     "wirelessRunning": "次のリモート/キャストアプリがまだ実行中です:",
-    "wirelessSuspicious": "不審な解像度が検出されました — 画面ミラーリングの可能性があります。",
     "wirelessClear": "キャスト/ミラーリングは検出されませんでした。",
     "allPassed": "すべてのセキュリティチェックに合格しました。開始できます。",
     "resolveAlerts": "続行するには、上記のセキュリティ警告を解決してください。",
@@ -177,12 +185,19 @@
     "attempt": "試行 {current}/{max}",
     "tooLong": "時間がかかりすぎました。もう一度お試しください。",
     "restartApp": "続行できません — アプリを再起動してください。",
-    "loading": "読み込み中..."
+    "loading": "読み込み中...",
+    "unverified": "未確認",
+    "checkUnverified": "このチェックを確認できませんでした。「再スキャン」をクリックしてください。",
+    "agentUnverified": "ディープスキャンが完了しませんでした。このデバイスを確認できません。「再スキャン」をクリックしてください。",
+    "agentDegraded": "ディープスキャンがエラーで終了しました。このデバイスを完全に確認できません。「再スキャン」をクリックしてください。",
+    "someUnverified": "一部のチェックを確認できませんでした。「再スキャン」をクリックして再試行してください。"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,
     "_reason": "Read aloud by the candidate for voice verification and treated as a binding statement. Every translation of this key must be reviewed and signed off by a certified human translator before release — do not ship a machine-translated or unreviewed change to this key.",
     "statement": "私はこの面接を受けている本人であることを確認し、指示に従うことを誓います。"
   },
-  "langSwitcher": { "label": "言語" }
+  "langSwitcher": {
+    "label": "言語"
+  }
 }

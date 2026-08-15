@@ -1,6 +1,15 @@
 {
-  "_meta": { "locale": "ru", "name": "Русский", "dir": "ltr", "note": "Certified-review pending — see attestation.statement before release." },
-  "common": { "back": "Назад", "continue": "Продолжить", "required": "Обязательно" },
+  "_meta": {
+    "locale": "ru",
+    "name": "Русский",
+    "dir": "ltr",
+    "note": "Certified-review pending — see attestation.statement before release."
+  },
+  "common": {
+    "back": "Назад",
+    "continue": "Продолжить",
+    "required": "Обязательно"
+  },
   "login": {
     "title": "Вход",
     "subtitle": "Войдите, чтобы получить доступ к панели управления и начать собеседование.",
@@ -154,7 +163,6 @@
     "aiRunning": "Эти ИИ-помощники всё ещё запущены:",
     "aiClear": "Инструменты обмана на базе ИИ не обнаружены.",
     "wirelessRunning": "Эти приложения удалённого доступа/трансляции всё ещё запущены:",
-    "wirelessSuspicious": "Обнаружено подозрительное разрешение экрана — возможно зеркалирование экрана.",
     "wirelessClear": "Трансляция/зеркалирование не обнаружены.",
     "allPassed": "Все проверки безопасности пройдены. Вы готовы начать.",
     "resolveAlerts": "Чтобы продолжить, устраните указанные выше предупреждения безопасности.",
@@ -177,12 +185,19 @@
     "attempt": "попытка {current}/{max}",
     "tooLong": "Это заняло слишком много времени. Попробуйте снова.",
     "restartApp": "Не удалось продолжить — перезапустите приложение.",
-    "loading": "Загрузка..."
+    "loading": "Загрузка...",
+    "unverified": "Не проверено",
+    "checkUnverified": "Не удалось выполнить эту проверку. Нажмите «Повторить сканирование».",
+    "agentUnverified": "Глубокое сканирование не завершено — устройство не проверено. Нажмите «Повторить сканирование».",
+    "agentDegraded": "Глубокое сканирование завершилось с ошибками — устройство проверено не полностью. Нажмите «Повторить сканирование».",
+    "someUnverified": "Некоторые проверки не удалось выполнить. Нажмите «Повторить сканирование»."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,
     "_reason": "Read aloud by the candidate for voice verification and treated as a binding statement. Every translation of this key must be reviewed and signed off by a certified human translator before release — do not ship a machine-translated or unreviewed change to this key.",
     "statement": "Я подтверждаю, что именно я прохожу это собеседование, и я буду следовать инструкциям."
   },
-  "langSwitcher": { "label": "Язык" }
+  "langSwitcher": {
+    "label": "Язык"
+  }
 }

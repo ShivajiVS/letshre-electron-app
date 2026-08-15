@@ -138,6 +138,17 @@
   50%       { box-shadow: 0 0 12px 2px rgba(180, 69, 44, 0.1), 0 1px 2px rgba(26,26,25,0.04); }
 }
 
+/* "Unverified" — the check could not be established either way. It blocks
+   Proceed exactly like a failure, but is amber rather than red and does not
+   pulse: there is nothing for the candidate to fix, so the card should read as
+   "we couldn't confirm this", not as an accusation. */
+.sc-card--unverified {
+  border-color: rgba(180, 128, 44, 0.32);
+  box-shadow:
+    0 1px 2px rgba(26, 26, 25, 0.04),
+    0 4px 16px -4px rgba(180, 128, 44, 0.08);
+}
+
 /* ── Card inner layout ───────────────────────────────────────────────────── */
 
 .sc-card__row {
@@ -177,6 +188,12 @@
   border-color: rgba(180, 69, 44, 0.3);
   box-shadow: 0 1px 4px rgba(180, 69, 44, 0.12);
 }
+.sc-card__icon--unverified {
+  background: rgba(180, 128, 44, 0.08);
+  color: #96681f;
+  border-color: rgba(180, 128, 44, 0.3);
+  box-shadow: 0 1px 4px rgba(180, 128, 44, 0.12);
+}
 
 .sc-card__body { flex: 1; }
 
@@ -196,6 +213,10 @@
 }
 .sc-card__desc--fail {
   color: var(--danger);
+  font-weight: 600;
+}
+.sc-card__desc--unverified {
+  color: #96681f;
   font-weight: 600;
 }
 
@@ -227,6 +248,11 @@
   color: var(--danger);
   border: 1px solid rgba(180, 69, 44, 0.25);
   animation: pulseSoft 2.2s infinite ease-in-out;
+}
+.sc-badge--unverified {
+  background: rgba(180, 128, 44, 0.08);
+  color: #96681f;
+  border: 1px solid rgba(180, 128, 44, 0.25);
 }
 
 /* ── Kill buttons ────────────────────────────────────────────────────────── */

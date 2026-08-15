@@ -1,6 +1,15 @@
 {
-  "_meta": { "locale": "es", "name": "Español", "dir": "ltr", "note": "Certified-review pending — see attestation.statement before release." },
-  "common": { "back": "Atrás", "continue": "Continuar", "required": "Obligatorio" },
+  "_meta": {
+    "locale": "es",
+    "name": "Español",
+    "dir": "ltr",
+    "note": "Certified-review pending — see attestation.statement before release."
+  },
+  "common": {
+    "back": "Atrás",
+    "continue": "Continuar",
+    "required": "Obligatorio"
+  },
   "login": {
     "title": "Iniciar sesión",
     "subtitle": "Inicia sesión para acceder a tu panel y comenzar tu entrevista.",
@@ -154,7 +163,6 @@
     "aiRunning": "Estas herramientas copiloto de IA siguen en ejecución:",
     "aiClear": "No se detectaron herramientas de trampa con IA.",
     "wirelessRunning": "Estas aplicaciones de control remoto/transmisión siguen en ejecución:",
-    "wirelessSuspicious": "Se detectó una resolución sospechosa — posible duplicación de pantalla.",
     "wirelessClear": "No se detectó transmisión ni duplicación de pantalla.",
     "allPassed": "Todas las verificaciones de seguridad se han superado. Estás listo para comenzar.",
     "resolveAlerts": "Para continuar, resuelve las alertas de seguridad anteriores.",
@@ -177,12 +185,19 @@
     "attempt": "intento {current}/{max}",
     "tooLong": "Esto tardó demasiado. Inténtalo de nuevo.",
     "restartApp": "No se pudo continuar — reinicia la aplicación.",
-    "loading": "Cargando..."
+    "loading": "Cargando...",
+    "unverified": "Sin verificar",
+    "checkUnverified": "No se pudo verificar esta comprobación. Haz clic en Volver a analizar.",
+    "agentUnverified": "El análisis profundo no se completó: no se pudo verificar este dispositivo. Haz clic en Volver a analizar.",
+    "agentDegraded": "El análisis profundo terminó con errores: no se pudo verificar por completo este dispositivo. Haz clic en Volver a analizar.",
+    "someUnverified": "Algunas comprobaciones no se pudieron verificar. Haz clic en Volver a analizar para reintentar."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,
     "_reason": "Read aloud by the candidate for voice verification and treated as a binding statement. Every translation of this key must be reviewed and signed off by a certified human translator before release — do not ship a machine-translated or unreviewed change to this key.",
     "statement": "Confirmo que soy la persona que realiza esta entrevista y que seguiré las instrucciones."
   },
-  "langSwitcher": { "label": "Idioma" }
+  "langSwitcher": {
+    "label": "Idioma"
+  }
 }

@@ -1,6 +1,15 @@
 {
-  "_meta": { "locale": "te", "name": "తెలుగు", "dir": "ltr", "note": "Certified-review pending — see attestation.statement before release." },
-  "common": { "back": "వెనుకకు", "continue": "కొనసాగించండి", "required": "అవసరం" },
+  "_meta": {
+    "locale": "te",
+    "name": "తెలుగు",
+    "dir": "ltr",
+    "note": "Certified-review pending — see attestation.statement before release."
+  },
+  "common": {
+    "back": "వెనుకకు",
+    "continue": "కొనసాగించండి",
+    "required": "అవసరం"
+  },
   "login": {
     "title": "సైన్ ఇన్ చేయండి",
     "subtitle": "మీ డాష్‌బోర్డ్‌ను యాక్సెస్ చేయడానికి మరియు మీ ఇంటర్వ్యూను ప్రారంభించడానికి లాగిన్ చేయండి.",
@@ -154,7 +163,6 @@
     "aiRunning": "ఈ AI కోపైలట్ టూల్స్ ఇప్పటికీ నడుస్తున్నాయి:",
     "aiClear": "AI చీటింగ్ టూల్స్ కనుగొనబడలేదు.",
     "wirelessRunning": "ఈ రిమోట్/కాస్టింగ్ యాప్‌లు ఇప్పటికీ నడుస్తున్నాయి:",
-    "wirelessSuspicious": "అనుమానాస్పద రిజల్యూషన్ కనుగొనబడింది — స్క్రీన్ మిర్రరింగ్ కావచ్చు.",
     "wirelessClear": "కాస్టింగ్/మిర్రరింగ్ కనుగొనబడలేదు.",
     "allPassed": "అన్ని భద్రతా తనిఖీలు ఉత్తీర్ణమయ్యాయి. మీరు ప్రారంభించడానికి సిద్ధంగా ఉన్నారు.",
     "resolveAlerts": "కొనసాగడానికి దయచేసి పైన ఉన్న భద్రతా హెచ్చరికలను పరిష్కరించండి.",
@@ -177,12 +185,19 @@
     "attempt": "ప్రయత్నం {current}/{max}",
     "tooLong": "ఇది చాలా సమయం తీసుకుంది. దయచేసి మళ్లీ ప్రయత్నించండి.",
     "restartApp": "కొనసాగించలేకపోయాము — దయచేసి యాప్‌ను పునఃప్రారంభించండి.",
-    "loading": "లోడ్ అవుతోంది..."
+    "loading": "లోడ్ అవుతోంది...",
+    "unverified": "ధృవీకరించబడలేదు",
+    "checkUnverified": "ఈ తనిఖీని ధృవీకరించలేకపోయాము. మళ్లీ స్కాన్ క్లిక్ చేయండి.",
+    "agentUnverified": "డీప్ స్కాన్ పూర్తి కాలేదు — ఈ పరికరాన్ని ధృవీకరించలేకపోయాము. మళ్లీ స్కాన్ క్లిక్ చేయండి.",
+    "agentDegraded": "డీప్ స్కాన్ లోపాలతో ముగిసింది — ఈ పరికరాన్ని పూర్తిగా ధృవీకరించలేకపోయాము. మళ్లీ స్కాన్ క్లిక్ చేయండి.",
+    "someUnverified": "కొన్ని తనిఖీలను ధృవీకరించలేకపోయాము. మళ్లీ ప్రయత్నించడానికి మళ్లీ స్కాన్ క్లిక్ చేయండి."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,
     "_reason": "Read aloud by the candidate for voice verification and treated as a binding statement. Every translation of this key must be reviewed and signed off by a certified human translator before release — do not ship a machine-translated or unreviewed change to this key.",
     "statement": "ఈ ఇంటర్వ్యూ ఇస్తున్నది నేనేనని నేను ధృవీకరిస్తున్నాను, మరియు నేను సూచనలను పాటిస్తాను."
   },
-  "langSwitcher": { "label": "భాష" }
+  "langSwitcher": {
+    "label": "భాష"
+  }
 }

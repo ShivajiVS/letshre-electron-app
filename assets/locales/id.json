@@ -1,6 +1,15 @@
 {
-  "_meta": { "locale": "id", "name": "Bahasa Indonesia", "dir": "ltr", "note": "Certified-review pending — see attestation.statement before release." },
-  "common": { "back": "Kembali", "continue": "Lanjutkan", "required": "Wajib" },
+  "_meta": {
+    "locale": "id",
+    "name": "Bahasa Indonesia",
+    "dir": "ltr",
+    "note": "Certified-review pending — see attestation.statement before release."
+  },
+  "common": {
+    "back": "Kembali",
+    "continue": "Lanjutkan",
+    "required": "Wajib"
+  },
   "login": {
     "title": "Masuk",
     "subtitle": "Masuk untuk mengakses dasbor Anda dan memulai wawancara.",
@@ -154,7 +163,6 @@
     "aiRunning": "Alat copilot AI berikut masih berjalan:",
     "aiClear": "Tidak ada alat kecurangan AI terdeteksi.",
     "wirelessRunning": "Aplikasi jarak jauh/casting berikut masih berjalan:",
-    "wirelessSuspicious": "Resolusi mencurigakan terdeteksi — kemungkinan mirroring layar.",
     "wirelessClear": "Tidak ada casting/mirroring terdeteksi.",
     "allPassed": "Semua pemeriksaan keamanan berhasil dilewati. Anda siap untuk memulai.",
     "resolveAlerts": "Untuk melanjutkan, selesaikan peringatan keamanan di atas.",
@@ -177,12 +185,19 @@
     "attempt": "percobaan {current}/{max}",
     "tooLong": "Ini memakan waktu terlalu lama. Silakan coba lagi.",
     "restartApp": "Tidak dapat melanjutkan — silakan mulai ulang aplikasi.",
-    "loading": "Memuat..."
+    "loading": "Memuat...",
+    "unverified": "Belum terverifikasi",
+    "checkUnverified": "Pemeriksaan ini tidak dapat diverifikasi. Klik Pindai Ulang.",
+    "agentUnverified": "Pemindaian mendalam tidak selesai — perangkat ini tidak dapat diverifikasi. Klik Pindai Ulang.",
+    "agentDegraded": "Pemindaian mendalam selesai dengan kesalahan — perangkat ini tidak dapat diverifikasi sepenuhnya. Klik Pindai Ulang.",
+    "someUnverified": "Beberapa pemeriksaan tidak dapat diverifikasi. Klik Pindai Ulang untuk mencoba lagi."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,
     "_reason": "Read aloud by the candidate for voice verification and treated as a binding statement. Every translation of this key must be reviewed and signed off by a certified human translator before release — do not ship a machine-translated or unreviewed change to this key.",
     "statement": "Saya menegaskan bahwa saya adalah orang yang mengikuti wawancara ini, dan saya akan mengikuti semua instruksi."
   },
-  "langSwitcher": { "label": "Bahasa" }
+  "langSwitcher": {
+    "label": "Bahasa"
+  }
 }

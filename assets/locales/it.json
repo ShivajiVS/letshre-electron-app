@@ -1,6 +1,15 @@
 {
-  "_meta": { "locale": "it", "name": "Italiano", "dir": "ltr", "note": "Certified-review pending — see attestation.statement before release." },
-  "common": { "back": "Indietro", "continue": "Continua", "required": "Obbligatorio" },
+  "_meta": {
+    "locale": "it",
+    "name": "Italiano",
+    "dir": "ltr",
+    "note": "Certified-review pending — see attestation.statement before release."
+  },
+  "common": {
+    "back": "Indietro",
+    "continue": "Continua",
+    "required": "Obbligatorio"
+  },
   "login": {
     "title": "Accedi",
     "subtitle": "Accedi per raggiungere la tua dashboard e iniziare il colloquio.",
@@ -154,7 +163,6 @@
     "aiRunning": "Questi strumenti copilota IA sono ancora in esecuzione:",
     "aiClear": "Nessuno strumento di imbroglio IA rilevato.",
     "wirelessRunning": "Queste app di controllo remoto/casting sono ancora in esecuzione:",
-    "wirelessSuspicious": "Rilevata risoluzione sospetta — possibile mirroring dello schermo.",
     "wirelessClear": "Nessun casting/mirroring rilevato.",
     "allPassed": "Tutti i controlli di sicurezza sono stati superati. Sei pronto per iniziare.",
     "resolveAlerts": "Per continuare, risolvi gli avvisi di sicurezza sopra indicati.",
@@ -177,12 +185,19 @@
     "attempt": "tentativo {current}/{max}",
     "tooLong": "L'operazione ha richiesto troppo tempo. Riprova.",
     "restartApp": "Impossibile continuare — riavvia l'app.",
-    "loading": "Caricamento in corso..."
+    "loading": "Caricamento in corso...",
+    "unverified": "Non verificato",
+    "checkUnverified": "Impossibile verificare questo controllo. Fai clic su Ripeti scansione.",
+    "agentUnverified": "La scansione approfondita non è stata completata: impossibile verificare questo dispositivo. Fai clic su Ripeti scansione.",
+    "agentDegraded": "La scansione approfondita è terminata con errori: impossibile verificare completamente questo dispositivo. Fai clic su Ripeti scansione.",
+    "someUnverified": "Alcuni controlli non è stato possibile verificarli. Fai clic su Ripeti scansione per riprovare."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,
     "_reason": "Read aloud by the candidate for voice verification and treated as a binding statement. Every translation of this key must be reviewed and signed off by a certified human translator before release — do not ship a machine-translated or unreviewed change to this key.",
     "statement": "Confermo di essere la persona che sta sostenendo questo colloquio e che seguirò le istruzioni."
   },
-  "langSwitcher": { "label": "Lingua" }
+  "langSwitcher": {
+    "label": "Lingua"
+  }
 }

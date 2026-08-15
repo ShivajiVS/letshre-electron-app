@@ -17,7 +17,12 @@ const updater = require("./updater");
 const logger = require("./logger");
 const appState = require("./appState");
 const { IPC } = require("../shared/constants");
-const { killSingleProcess, killAllProcesses } = require("./processKiller");
+const {
+  killSingleProcess,
+  killAllProcesses,
+  killSingleProcessElevated,
+  canElevate,
+} = require("./processKiller");
 const { lockdownForInterview, storeCandidatePhoto, clearCandidatePhoto, clearInterviewSessionData, endInterview, getWindow, minimizeWindow, loadDashboard, loadSecurityCheck, loadPermissionsPage, loadIdentityVerificationPage, loadRoleSelectionPage, loadHowItWorksPage } = require("./windowManager");
 const { invalidateProcessCache } = require("../detector/mirrorDetector");
 const { getCurrentInterviewUrl, setInterviewSession, resetInterviewSession } = require("./protocolHandler");
@@ -389,6 +394,50 @@ function registerIpcHandlers() {
     const result = await killSingleProcess(safe);
     // Drop the 3s process cache so the next scan reflects the kill immediately
     // (otherwise the just-killed app shows as still running until the TTL).
+    invalidateProcessCache();
+    return result;
+  });
+
+  // Phase 5: does the candidate even have an admin account? Offering an elevated
+  // retry to a standard user just produces a credential prompt they cannot
+  // satisfy, which reads as the app being broken.
+  ipcMain.handle(IPC.CAN_ELEVATE, async () => {
+    try {
+      return await canElevate();
+    } catch (err) {
+      logger.warn("[ipc] can-elevate probe failed:", err.message);
+      return false;
+    }
+  });
+
+  ipcMain.handle(IPC.KILL_BLOCKED_APP_ELEVATED, async (_event, processName) => {
+    const { valid, safe } = validateProcessName(processName);
+    if (!valid) {
+      logger.warn("[ipc] kill-blocked-app-elevated rejected — invalid processName:", processName);
+      return {
+        success: false,
+        outcome: "not-blocked",
+        error: "Invalid process name",
+        processName: String(processName).slice(0, 40),
+      };
+    }
+
+    // Elevation raises a SYSTEM-MODAL consent dialog. During a live interview
+    // that would cover the proctored screen and hand the candidate a system
+    // surface mid-session, so it is preflight-only — refused outright once the
+    // session is active, regardless of what the renderer asks for.
+    if (startDetection.isSessionActive?.()) {
+      logger.warn("[ipc] kill-blocked-app-elevated REFUSED — interview session is active");
+      return {
+        success: false,
+        outcome: "access-denied",
+        error: "Elevation is not available during an interview",
+        processName: safe,
+      };
+    }
+
+    logger.info("[ipc] kill-blocked-app-elevated:", safe);
+    const result = await killSingleProcessElevated(safe);
     invalidateProcessCache();
     return result;
   });

@@ -205,7 +205,10 @@
     "someUnverified": "Certains contrôles n'ont pas pu être vérifiés. Cliquez sur Relancer l'analyse pour réessayer.",
     "copyDiagnostics": "Copier le diagnostic",
     "diagnosticsCopied": "Diagnostic copié. Collez-le dans votre message au support.",
-    "diagnosticsCopyFailed": "Copie automatique impossible. Sélectionnez le texte ci-dessous et copiez-le."
+    "diagnosticsCopyFailed": "Copie automatique impossible. Sélectionnez le texte ci-dessous et copiez-le.",
+    "killElevateBtn": "Fermer avec les droits administrateur",
+    "killElevateHint": "{name} nécessite des droits administrateur. Votre système vous demandera de confirmer avant la fermeture.",
+    "killElevateWaiting": "En attente d'autorisation..."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

@@ -205,7 +205,10 @@
     "someUnverified": "تعذّر التحقق من بعض الفحوصات. انقر على إعادة الفحص للمحاولة مرة أخرى.",
     "copyDiagnostics": "نسخ بيانات التشخيص",
     "diagnosticsCopied": "تم نسخ بيانات التشخيص. الصقها في رسالتك إلى الدعم.",
-    "diagnosticsCopyFailed": "تعذّر النسخ تلقائيًا. حدّد النص أدناه وانسخه."
+    "diagnosticsCopyFailed": "تعذّر النسخ تلقائيًا. حدّد النص أدناه وانسخه.",
+    "killElevateBtn": "الإغلاق بصلاحيات المسؤول",
+    "killElevateHint": "يحتاج {name} إلى صلاحيات المسؤول. سيطلب منك النظام التأكيد قبل الإغلاق.",
+    "killElevateWaiting": "في انتظار الإذن..."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

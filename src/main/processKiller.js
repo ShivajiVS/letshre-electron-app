@@ -52,6 +52,7 @@ const {
   KILL_VERIFY_POLL_MS,
   KILL_RELAUNCH_WATCH_MS,
   KILL_RELAUNCH_POLL_MS,
+  KILL_ELEVATE_TIMEOUT_MS,
 } = require("../shared/constants");
 
 /**
@@ -92,6 +93,7 @@ const DEFAULT_TIMING = {
   verifyPollMs: KILL_VERIFY_POLL_MS,
   relaunchWatchMs: KILL_RELAUNCH_WATCH_MS,
   relaunchPollMs: KILL_RELAUNCH_POLL_MS,
+  elevateTimeoutMs: KILL_ELEVATE_TIMEOUT_MS,
 };
 
 // ─── Self-Protection Guard (by name) ─────────────────────────────────────────
@@ -262,6 +264,7 @@ function parseWindowsProcessCsv(text) {
         pid: pidIdx,
         ppid: lower.indexOf("parentprocessid"),
         name: lower.indexOf("name"),
+        path: lower.indexOf("executablepath"),
         created: lower.findIndex((c) => c === "created" || c === "creationdate"),
       };
       continue;
@@ -272,11 +275,16 @@ function parseWindowsProcessCsv(text) {
 
     const ppidRaw = cols.ppid >= 0 ? Number(fields[cols.ppid]) : NaN;
     const created = cols.created >= 0 ? parseCreated(fields[cols.created]) : NaN;
+    // Absent for protected/system processes and on the wmic fallback. Left as
+    // "" rather than guessed — a path-scoped companion must FAIL to match when
+    // the path is unknown, never fall back to an image-name-only match.
+    const path = cols.path >= 0 ? String(fields[cols.path] || "").replace(/^"|"$/g, "") : "";
 
     procs.push({
       pid,
       ppid: Number.isInteger(ppidRaw) ? ppidRaw : null,
       name: baseName(fields[cols.name] || ""),
+      path,
       created,
     });
   }
@@ -323,10 +331,19 @@ function parseUnixProcessTable(text) {
  * @param {NodeJS.Platform|string} platform
  * @returns {boolean}
  */
-function matchesImageName(proc, targetName, platform) {
+function matchesImageName(proc, targetName, platform, scope = null) {
   const target = String(targetName || "").toLowerCase();
   if (!target || !proc) {return false;}
   const name = String(proc.name || "").toLowerCase();
+
+  // Path scope for companions whose image name is shared across vendors (the
+  // Squirrel `update.exe`). FAIL-CLOSED: no path means no match. Killing every
+  // update.exe on the machine would take down unrelated software, so an
+  // unverifiable path must never degrade into an image-name-only kill.
+  if (scope) {
+    const fullPath = String(proc.path || proc.command || "").toLowerCase();
+    if (!fullPath || !fullPath.includes(String(scope).toLowerCase())) {return false;}
+  }
 
   if (platform !== "darwin") {return name === target;}
 
@@ -532,6 +549,42 @@ function getCompanionsSafe(processName) {
   }
 }
 
+/**
+ * Required install-path fragment for a companion, or null. Defaults to null on
+ * any failure — safe, because a null scope combined with requiresPathScopeSafe()
+ * makes the engine DROP the candidate rather than kill it unscoped.
+ * @param {string} processName
+ * @param {string} companionName
+ * @returns {string|null}
+ */
+function getCompanionScopeSafe(processName, companionName) {
+  try {
+    const appList = require("../shared/appList");
+    if (typeof appList.getCompanionScope !== "function") {return null;}
+    return appList.getCompanionScope(processName, companionName) || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * True if this image name is shared across vendors and may only ever be killed
+ * inside a path scope. Defaults to TRUE on failure is NOT appropriate here —
+ * an unknown name is an ordinary vendor-exclusive companion — but a THROW while
+ * checking is, so the catch returns true to fail closed.
+ * @param {string} companionName
+ * @returns {boolean}
+ */
+function requiresPathScopeSafe(companionName) {
+  try {
+    const appList = require("../shared/appList");
+    if (typeof appList.requiresPathScope !== "function") {return false;}
+    return appList.requiresPathScope(companionName) === true;
+  } catch {
+    return true; // cannot verify the rule → refuse the kill
+  }
+}
+
 // ─── Outcome classification (pure, unit-tested) ──────────────────────────────
 
 /**
@@ -608,7 +661,9 @@ async function listProcessTableReal(platform, timeoutMs) {
 
   const psArgs = [
     "-NoProfile", "-NonInteractive", "-Command",
-    "Get-CimInstance Win32_Process | Select-Object Name,ProcessId,ParentProcessId,"
+    // ExecutablePath is needed for path-scoped companions (the shared Squirrel
+    // update.exe), and costs nothing extra on a query we already run.
+    "Get-CimInstance Win32_Process | Select-Object Name,ProcessId,ParentProcessId,ExecutablePath,"
       + "@{n='Created';e={$_.CreationDate.Ticks}} | ConvertTo-Csv -NoTypeInformation",
   ];
   const ps = await runCommand("powershell.exe", psArgs, timeoutMs);
@@ -670,6 +725,103 @@ async function killPidReal(pid, platform, timeoutMs) {
   return classifyPidKill(r);
 }
 
+// ─── Phase 5: elevation ──────────────────────────────────────────────────────
+
+/**
+ * Whether the CURRENT USER could satisfy an elevation prompt.
+ *
+ * This is deliberately "is the user an administrator", not "are we already
+ * elevated". On Windows an admin running unelevated has a filtered token: the
+ * BUILTIN\Administrators SID is still present (marked deny-only), and UAC will
+ * show a simple consent prompt. A NON-admin instead gets a prompt demanding
+ * credentials they do not have — a dead end that reads as the app being broken.
+ * So we only ever offer the elevated retry to users who can actually complete it.
+ *
+ * Cached: group membership cannot change within a session, and this runs on a
+ * user-facing path.
+ *
+ * @param {object} [deps]
+ * @returns {Promise<boolean>}
+ */
+let _canElevateCache = null;
+async function canElevate(deps = null) {
+  const d = deps || createDefaultDeps();
+  if (_canElevateCache !== null && !deps) {return _canElevateCache;}
+
+  let result = false;
+  try {
+    if (d.platform === "win32") {
+      // S-1-5-32-544 = BUILTIN\Administrators. Matching the SID rather than the
+      // localised group name keeps this working on non-English Windows.
+      const r = await d.runProbe("whoami", ["/groups"], d.timing.enumTimeoutMs);
+      result = /S-1-5-32-544/i.test(r.stdout || "");
+    } else if (d.platform === "darwin") {
+      const r = await d.runProbe("id", ["-Gn"], d.timing.enumTimeoutMs);
+      result = /\badmin\b/.test(r.stdout || "");
+    }
+  } catch (err) {
+    logger.warn("[processKiller] canElevate probe failed:", err.message);
+    result = false; // cannot prove they can elevate → do not offer it
+  }
+
+  if (!deps) {_canElevateCache = result;}
+  return result;
+}
+
+/**
+ * Terminates a set of PIDs through ONE elevation prompt.
+ *
+ * One prompt for the whole set, never one per PID — a candidate faced with six
+ * consecutive UAC dialogs will cancel, and a per-PID prompt would also let the
+ * app's relauncher win the race between dialogs.
+ *
+ * @param {number[]} pids
+ * @param {object} deps
+ * @returns {Promise<{status: string, detail?: string}>}
+ */
+async function killPidsElevatedReal(pids, deps) {
+  // Injection guard: these reach a shell-interpreted command string, so accept
+  // nothing but positive integers. They come from our own enumeration, but the
+  // validation is what makes that guarantee local and auditable.
+  const safe = pids.filter((p) => Number.isInteger(p) && p > 0);
+  if (safe.length === 0) {return { status: "error", detail: "no valid PIDs" };}
+  if (safe.length !== pids.length) {
+    return { status: "error", detail: "refusing to elevate with a malformed PID list" };
+  }
+
+  if (deps.platform === "win32") {
+    const argList = ["'/F'", ...safe.flatMap((p) => ["'/PID'", `'${p}'`])].join(",");
+    const r = await deps.runProbe(
+      "powershell.exe",
+      [
+        "-NoProfile", "-NonInteractive", "-Command",
+        `Start-Process -FilePath taskkill.exe -ArgumentList ${argList} ` +
+          "-Verb RunAs -Wait -WindowStyle Hidden",
+      ],
+      deps.timing.elevateTimeoutMs
+    );
+    const text = `${r.stdout || ""} ${r.stderr || ""}`;
+    // The user declining UAC surfaces as a "canceled by the user" error.
+    if (/cancel/i.test(text)) {return { status: "cancelled", detail: "elevation declined" };}
+    if (r.code === 0) {return { status: "killed" };}
+    return { status: "error", detail: (r.stderr || "").trim() || `exit ${r.code}` };
+  }
+
+  if (deps.platform === "darwin") {
+    const r = await deps.runProbe(
+      "osascript",
+      ["-e", `do shell script "kill -9 ${safe.join(" ")}" with administrator privileges`],
+      deps.timing.elevateTimeoutMs
+    );
+    const text = `${r.stdout || ""} ${r.stderr || ""}`;
+    if (/User canceled|-128/i.test(text)) {return { status: "cancelled", detail: "elevation declined" };}
+    if (r.code === 0) {return { status: "killed" };}
+    return { status: "error", detail: (r.stderr || "").trim() || `exit ${r.code}` };
+  }
+
+  return { status: "error", detail: `elevation unsupported on ${deps.platform}` };
+}
+
 /** Builds the default (real-OS) dependency set. Tests inject fakes instead. */
 function createDefaultDeps() {
   const platform = process.platform;
@@ -680,10 +832,14 @@ function createDefaultDeps() {
     timing,
     isBlocked: (name) => ALL_BLOCKED_APPS.includes(name),
     getCompanions: getCompanionsSafe,
+    getCompanionScope: getCompanionScopeSafe,
+    requiresPathScope: requiresPathScopeSafe,
     listProcessTable: () => listProcessTableReal(platform, timing.enumTimeoutMs),
     findPidsByName: (name) => findPidsByNameReal(name, platform, timing.enumTimeoutMs),
     killPid: (pid) => killPidReal(pid, platform, timing.enumTimeoutMs),
     sleep: sleepReal,
+    runProbe: runCommand,
+    killPidsElevated: (pids, deps) => killPidsElevatedReal(pids, deps),
   };
 }
 
@@ -750,7 +906,18 @@ async function killSingleProcess(processName, overrides) {
   let found = 0;
   let protectedMatches = 0;
   const groups = targetNames.map((targetName) => {
-    const matches = procs.filter((p) => matchesImageName(p, targetName, deps.platform));
+    // A companion whose image name is shared across vendors is only killable
+    // inside its owning app's install directory. If it declares a scope
+    // requirement but we have no scope for THIS app, drop it entirely rather
+    // than killing by name — see APP_COMPANION_SCOPES in shared/appList.js.
+    const scope = deps.getCompanionScope(name, targetName);
+    if (!scope && targetName !== name && deps.requiresPathScope(targetName)) {
+      logger.warn(
+        `[processKiller] refusing to kill shared companion "${targetName}" — no path scope for ${name}`
+      );
+      return { name: targetName, procs: [] };
+    }
+    const matches = procs.filter((p) => matchesImageName(p, targetName, deps.platform, scope));
     const killable = matches.filter((p) => !excluded.has(p.pid));
     found += matches.length;
     protectedMatches += matches.length - killable.length;
@@ -780,19 +947,44 @@ async function killSingleProcess(processName, overrides) {
   let lastError = "";
   const companionsKilled = [];
 
-  for (const group of groups) {
-    if (!group.procs.length) {continue;}
-    let groupKilled = 0;
-    for (const level of planKillLevels(group.procs, byPid)) {
-      const results = await Promise.all(level.map((pid) => deps.killPid(pid)));
-      for (const r of results) {
-        if (r.status === "killed") { killed++; groupKilled++; }
-        else if (r.status === "denied") { denied++; lastError = r.detail || "access denied"; }
-        else if (r.status === "error") { spawnErrors++; lastError = r.detail || "kill failed"; }
-        // "gone" — the PID exited between snapshot and kill; not an error.
+  if (deps.elevated) {
+    // Phase 5: ONE elevation prompt for every PID across every group. Prompting
+    // per PID (or per group) would make a candidate accept up to a dozen UAC
+    // dialogs, and would give the app's relauncher a window to win between them.
+    // Ordering within the elevated call still matters less than atomicity here:
+    // taskkill receives the whole set at once.
+    const allPids = groups.flatMap((g) => planKillLevels(g.procs, byPid).flat());
+    const r = await deps.killPidsElevated(allPids, { ...deps, timing });
+    if (r.status === "killed") {
+      killed = allPids.length;
+      for (const g of groups) {
+        if (g.procs.length && g.name !== name) {companionsKilled.push(g.name);}
       }
+    } else if (r.status === "cancelled") {
+      // The candidate declined the prompt. That is a deliberate choice, not a
+      // failure of ours — report it as still-denied so the UI keeps offering the
+      // manual route rather than looping the prompt.
+      denied = allPids.length;
+      lastError = r.detail || "elevation declined";
+    } else {
+      spawnErrors = allPids.length;
+      lastError = r.detail || "elevated kill failed";
     }
-    if (groupKilled > 0 && group.name !== name) {companionsKilled.push(group.name);}
+  } else {
+    for (const group of groups) {
+      if (!group.procs.length) {continue;}
+      let groupKilled = 0;
+      for (const level of planKillLevels(group.procs, byPid)) {
+        const results = await Promise.all(level.map((pid) => deps.killPid(pid)));
+        for (const r of results) {
+          if (r.status === "killed") { killed++; groupKilled++; }
+          else if (r.status === "denied") { denied++; lastError = r.detail || "access denied"; }
+          else if (r.status === "error") { spawnErrors++; lastError = r.detail || "kill failed"; }
+          // "gone" — the PID exited between snapshot and kill; not an error.
+        }
+      }
+      if (groupKilled > 0 && group.name !== name) {companionsKilled.push(group.name);}
+    }
   }
 
   // ── Verification: poll until no target PID remains, or the budget expires ──
@@ -872,9 +1064,31 @@ async function killAllProcesses(processNames, overrides) {
   return await Promise.all(names.map((name) => killSingleProcess(name, overrides)));
 }
 
+/**
+ * Phase 5: retry a kill with elevated privileges, behind ONE consent prompt.
+ *
+ * Deliberately a separate entry point rather than an automatic fallback inside
+ * killSingleProcess(). Elevation shows the candidate a system dialog, so it must
+ * only ever happen because they explicitly asked for it — never as a silent
+ * retry, and never in a loop. The caller is responsible for offering it only
+ * when canElevate() is true and only outside an active interview.
+ *
+ * Every guard from the normal path still applies: name whitelist, self-process
+ * protection, PID exclusion set, companion path scoping.
+ *
+ * @param {string} processName
+ * @param {object} [overrides] - test injection seam
+ * @returns {Promise<KillResult>}
+ */
+async function killSingleProcessElevated(processName, overrides) {
+  return await killSingleProcess(processName, { ...(overrides || {}), elevated: true });
+}
+
 module.exports = {
   killSingleProcess,
   killAllProcesses,
+  killSingleProcessElevated,
+  canElevate,
   isOwnProcess,
   // Exported for unit tests — pure decision logic, no OS access.
   _internal: {
@@ -888,6 +1102,9 @@ module.exports = {
     planTargetNames,
     isKillableName,
     getCompanionsSafe,
+    getCompanionScopeSafe,
+    requiresPathScopeSafe,
+    killPidsElevatedReal,
     classifyPidKill,
     classifyKillOutcome,
     describeFailure,

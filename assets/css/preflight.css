@@ -249,6 +249,20 @@
   border: 1px solid rgba(180, 69, 44, 0.25);
   animation: pulseSoft 2.2s infinite ease-in-out;
 }
+/* Phase 5: the elevated-retry button. Offered only when the candidate can
+   actually satisfy the prompt, so it must read as an available action — not as
+   the greyed-out "blocked" state it replaces. */
+.sc-kill-btn--elevate {
+  background: rgba(180, 128, 44, 0.08);
+  color: #96681f;
+  border: 1px solid rgba(180, 128, 44, 0.35);
+  cursor: pointer;
+}
+.sc-kill-btn--elevate:hover {
+  background: rgba(180, 128, 44, 0.14);
+  border-color: rgba(180, 128, 44, 0.5);
+}
+
 .sc-badge--unverified {
   background: rgba(180, 128, 44, 0.08);
   color: #96681f;

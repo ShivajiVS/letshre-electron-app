@@ -850,6 +850,9 @@ module.exports = {
   sendViolation,
   resetState,
   runChecksOnce,
+  /** True while an interview is live. Used to refuse actions that show system
+   *  UI (e.g. the elevated-kill consent prompt) during a proctored session. */
+  isSessionActive: () => isSessionActive,
   verifyProceedAllowed,
   clearPreflightGate,
   getAuditLog,

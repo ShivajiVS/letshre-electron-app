@@ -205,7 +205,10 @@
     "someUnverified": "Sommige controles konden niet worden geverifieerd. Klik op Opnieuw scannen om het opnieuw te proberen.",
     "copyDiagnostics": "Diagnostiek kopiëren",
     "diagnosticsCopied": "Diagnostiek gekopieerd. Plak deze in je bericht aan de support.",
-    "diagnosticsCopyFailed": "Automatisch kopiëren is mislukt. Selecteer de tekst hieronder en kopieer deze."
+    "diagnosticsCopyFailed": "Automatisch kopiëren is mislukt. Selecteer de tekst hieronder en kopieer deze.",
+    "killElevateBtn": "Sluiten met beheerdersrechten",
+    "killElevateHint": "{name} heeft beheerdersrechten nodig. Uw systeem vraagt om bevestiging voordat het wordt gesloten.",
+    "killElevateWaiting": "Wachten op toestemming..."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

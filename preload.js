@@ -63,6 +63,8 @@ const IPC = {
   // Process management
   KILL_BLOCKED_APP: "kill-blocked-app",
   KILL_ALL_BLOCKED_APPS: "kill-all-blocked-apps",
+  KILL_BLOCKED_APP_ELEVATED: "kill-blocked-app-elevated",
+  CAN_ELEVATE: "can-elevate",
 
   // Auto-updater — push events (main → renderer)
   PUSH_UPDATE_AVAILABLE: "push-update-available",
@@ -134,7 +136,8 @@ const ALLOWED_SEND_CHANNELS = [
 
 const ALLOWED_INVOKE_CHANNELS = [
   IPC.RUN_PREFLIGHT, IPC.KILL_BLOCKED_APP,
-  IPC.KILL_ALL_BLOCKED_APPS, IPC.GET_AUDIT_LOG, IPC.GET_APP_LIST,
+  IPC.KILL_ALL_BLOCKED_APPS, IPC.KILL_BLOCKED_APP_ELEVATED, IPC.CAN_ELEVATE,
+  IPC.GET_AUDIT_LOG, IPC.GET_APP_LIST,
   IPC.GET_APP_VERSION, IPC.GET_UPDATE_STATE,
   IPC.AUTH_LOGIN, IPC.AUTH_LOGOUT, IPC.GET_AUTH_USER, IPC.GET_CANDIDATE_PROFILE,
   IPC.SUBMIT_VOICE_SAMPLE, IPC.SUBMIT_FACE_VERIFICATION,
@@ -317,6 +320,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
    */
   killAllProcesses: (processNames) =>
     safeInvoke(IPC.KILL_ALL_BLOCKED_APPS, processNames),
+
+  /** Phase 5: can the current user actually satisfy an elevation prompt?
+   *  False for standard users, so the UI can withhold an offer that would
+   *  only produce a credential dialog they cannot complete. */
+  canElevate: () => safeInvoke(IPC.CAN_ELEVATE),
+
+  /** Phase 5: explicit, user-initiated elevated retry. Shows a system consent
+   *  prompt, so main refuses it outright during an active interview. */
+  killProcessElevated: (processName) =>
+    safeInvoke(IPC.KILL_BLOCKED_APP_ELEVATED, processName),
 
   // ── Auto-updater (ADD-01) ──────────────────────────────────────────────────
   /**

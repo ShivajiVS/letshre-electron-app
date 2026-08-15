@@ -205,7 +205,10 @@
     "someUnverified": "Some checks could not be verified. Click Re-scan to try again.",
     "copyDiagnostics": "Copy diagnostics",
     "diagnosticsCopied": "Diagnostics copied. Paste them in your message to support.",
-    "diagnosticsCopyFailed": "Could not copy automatically. Select the text below and copy it."
+    "diagnosticsCopyFailed": "Could not copy automatically. Select the text below and copy it.",
+    "killElevateBtn": "Close with admin rights",
+    "killElevateHint": "{name} needs administrator rights. Your system will ask you to confirm before it closes.",
+    "killElevateWaiting": "Waiting for permission..."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

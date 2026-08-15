@@ -132,7 +132,7 @@ test("parseWindowsProcessCsv reads PowerShell Get-CimInstance output", () => {
 
   const procs = parseWindowsProcessCsv(csv);
   assert.strictEqual(procs.length, 2);
-  assert.deepStrictEqual(procs[0], { pid: 4242, ppid: 1500, name: "chrome.exe", created: 638000000000000000 });
+  assert.deepStrictEqual(procs[0], { pid: 4242, ppid: 1500, name: "chrome.exe", path: "", created: 638000000000000000 });
   assert.strictEqual(procs[1].name, "Weird, Name.exe");
   assert.ok(Number.isNaN(procs[1].created));
 });
@@ -146,7 +146,7 @@ test("parseWindowsProcessCsv reads the wmic CSV fallback shape (Node column firs
   ].join("\r\n");
 
   const procs = parseWindowsProcessCsv(csv);
-  assert.deepStrictEqual(procs, [{ pid: 4321, ppid: 900, name: "zoom.exe", created: 20260815181828 }]);
+  assert.deepStrictEqual(procs, [{ pid: 4321, ppid: 900, name: "zoom.exe", path: "", created: 20260815181828 }]);
 });
 
 test("parseWindowsProcessCsv tolerates blank lines, short rows and junk PIDs", () => {
@@ -160,7 +160,7 @@ test("parseWindowsProcessCsv tolerates blank lines, short rows and junk PIDs", (
   ].join("\n");
 
   const procs = parseWindowsProcessCsv(csv);
-  assert.deepStrictEqual(procs, [{ pid: 5, ppid: null, name: "ok.exe", created: NaN }]);
+  assert.deepStrictEqual(procs, [{ pid: 5, ppid: null, name: "ok.exe", path: "", created: NaN }]);
 });
 
 test("parseWindowsProcessCsv returns nothing when no header row is present", () => {
@@ -556,4 +556,152 @@ test("isOwnProcess is exported and case-insensitive", () => {
   assert.ok(isOwnProcess("LetsHyre Secure Interview 2.0.0.exe"));
   assert.ok(!isOwnProcess("chrome.exe"));
   assert.ok(!isOwnProcess(""));
+});
+
+// ─── Phase 5: elevation ──────────────────────────────────────────────────────
+
+const { canElevate, killSingleProcessElevated, _internal: _t5 } = require("../src/main/processKiller");
+
+function elevateDeps(overrides = {}) {
+  return {
+    platform: "win32",
+    timing: { enumTimeoutMs: 100, elevateTimeoutMs: 100 },
+    runProbe: async () => ({ code: 0, stdout: "", stderr: "" }),
+    ...overrides,
+  };
+}
+
+test("canElevate: true when the Administrators SID is present", async () => {
+  const deps = elevateDeps({
+    runProbe: async () => ({ code: 0, stdout: "BUILTIN\\Administrators S-1-5-32-544 Group", stderr: "" }),
+  });
+  assert.strictEqual(await canElevate(deps), true);
+});
+
+test("canElevate: matches the SID, not a localised group name", async () => {
+  // Non-English Windows renders the group name differently; the SID is stable.
+  const deps = elevateDeps({
+    runProbe: async () => ({ code: 0, stdout: "VORDEFINIERT\\Administratoren S-1-5-32-544", stderr: "" }),
+  });
+  assert.strictEqual(await canElevate(deps), true);
+});
+
+test("canElevate: false for a standard user", async () => {
+  const deps = elevateDeps({
+    runProbe: async () => ({ code: 0, stdout: "BUILTIN\\Users S-1-5-32-545", stderr: "" }),
+  });
+  assert.strictEqual(await canElevate(deps), false);
+});
+
+test("canElevate: false when the probe throws — never offer what we cannot confirm", async () => {
+  const deps = elevateDeps({ runProbe: async () => { throw new Error("nope"); } });
+  assert.strictEqual(await canElevate(deps), false);
+});
+
+test("canElevate: macOS admin group membership", async () => {
+  assert.strictEqual(
+    await canElevate(elevateDeps({
+      platform: "darwin",
+      runProbe: async () => ({ code: 0, stdout: "staff admin everyone", stderr: "" }),
+    })),
+    true
+  );
+  assert.strictEqual(
+    await canElevate(elevateDeps({
+      platform: "darwin",
+      runProbe: async () => ({ code: 0, stdout: "staff everyone", stderr: "" }),
+    })),
+    false
+  );
+});
+
+test("elevated kill: refuses a malformed PID list rather than interpolating it", async () => {
+  // These PIDs reach a shell-interpreted command string, so anything that is not
+  // a positive integer must abort the whole call — not be filtered and ignored.
+  const r = await _t5.killPidsElevatedReal([123, "456; rm -rf /"], elevateDeps());
+  assert.strictEqual(r.status, "error");
+  assert.match(r.detail, /malformed/);
+});
+
+test("elevated kill: rejects an empty PID set", async () => {
+  const r = await _t5.killPidsElevatedReal([], elevateDeps());
+  assert.strictEqual(r.status, "error");
+});
+
+test("elevated kill: issues ONE prompt covering every PID", async () => {
+  const calls = [];
+  const deps = elevateDeps({
+    runProbe: async (cmd, args) => { calls.push(args.join(" ")); return { code: 0, stdout: "", stderr: "" }; },
+  });
+  const r = await _t5.killPidsElevatedReal([11, 22, 33], deps);
+  assert.strictEqual(r.status, "killed");
+  assert.strictEqual(calls.length, 1, "a second prompt would make the candidate accept multiple dialogs");
+  assert.match(calls[0], /'11'/);
+  assert.match(calls[0], /'33'/);
+});
+
+test("elevated kill: a declined prompt reports cancelled, not a generic error", async () => {
+  const deps = elevateDeps({
+    runProbe: async () => ({ code: 1, stdout: "", stderr: "The operation was canceled by the user." }),
+  });
+  const r = await _t5.killPidsElevatedReal([11], deps);
+  assert.strictEqual(r.status, "cancelled");
+});
+
+test("elevated kill: unsupported platform is reported, not attempted", async () => {
+  const r = await _t5.killPidsElevatedReal([11], elevateDeps({ platform: "linux" }));
+  assert.strictEqual(r.status, "error");
+  assert.match(r.detail, /unsupported/);
+});
+
+test("killSingleProcessElevated still enforces the blocklist guard", async () => {
+  const r = await killSingleProcessElevated("explorer.exe");
+  assert.strictEqual(r.success, false);
+  assert.strictEqual(r.outcome, "not-blocked");
+});
+
+test("killSingleProcessElevated still refuses to kill our own process", async () => {
+  const r = await killSingleProcessElevated("agent.exe");
+  assert.strictEqual(r.success, false);
+  assert.strictEqual(r.outcome, "own-process");
+});
+
+// ─── Path-scoped companions (Squirrel update.exe) ────────────────────────────
+
+test("path scope: update.exe matches only inside its own app directory", () => {
+  const inDiscord = { pid: 1, name: "update.exe", path: String.raw`C:\Users\me\AppData\Local\Discord\Update.exe` };
+  const inSlack = { pid: 2, name: "update.exe", path: String.raw`C:\Users\me\AppData\Local\slack\Update.exe` };
+  const discordScope = "\\discord\\";
+
+  assert.strictEqual(_t5.matchesImageName(inDiscord, "update.exe", "win32", discordScope), true);
+  assert.strictEqual(
+    _t5.matchesImageName(inSlack, "update.exe", "win32", discordScope), false,
+    "Slack's updater must never be killed while closing Discord"
+  );
+});
+
+test("path scope: FAILS CLOSED when the executable path is unknown", () => {
+  // Protected/system processes report no ExecutablePath, and the wmic fallback
+  // omits it entirely. An unknown path must never degrade to a name-only kill.
+  const scope = "\\discord\\";
+  const noPath = { pid: 3, name: "update.exe", path: "" };
+  assert.strictEqual(_t5.matchesImageName(noPath, "update.exe", "win32", scope), false);
+  assert.strictEqual(_t5.matchesImageName({ pid: 4, name: "update.exe" }, "update.exe", "win32", scope), false);
+});
+
+test("path scope: an unscoped target is unaffected by the new parameter", () => {
+  const zoom = { pid: 5, name: "zoom.exe", path: String.raw`C:\Program Files\Zoom\zoom.exe` };
+  assert.strictEqual(_t5.matchesImageName(zoom, "zoom.exe", "win32", null), true);
+  assert.strictEqual(_t5.matchesImageName(zoom, "zoom.exe", "win32"), true);
+});
+
+test("requiresPathScopeSafe reports shared names and ignores ordinary companions", () => {
+  assert.strictEqual(_t5.requiresPathScopeSafe("update.exe"), true);
+  assert.strictEqual(_t5.requiresPathScopeSafe("zoomlauncher.exe"), false);
+  assert.strictEqual(_t5.requiresPathScopeSafe("UPDATE.EXE"), true);
+});
+
+test("getCompanionScopeSafe is target-specific", () => {
+  assert.strictEqual(_t5.getCompanionScopeSafe("discord.exe", "update.exe"), "\\discord\\");
+  assert.strictEqual(_t5.getCompanionScopeSafe("zoom.exe", "update.exe"), null);
 });

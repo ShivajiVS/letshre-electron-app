@@ -117,6 +117,14 @@ let _isAutoRescan    = false;
 /** Incremented per scan; progress events from older generations are ignored. */
 let _scanGeneration  = 0;
 
+// ── Phase 5: elevated retry ──────────────────────────────────────────────────
+// Whether the candidate could actually satisfy an elevation prompt. Resolved
+// once at page load and defaults to FALSE, so both a standard user and an older
+// bridge without the probe simply never get offered it.
+let _canElevate = false;
+/** Process names already retried with elevation — the offer is strictly one-shot. */
+const _elevationTried = new Set();
+
 // ── Diagnostics capture (Phase E) ────────────────────────────────────────────
 // Enough context to answer "the security check didn't work" without asking the
 // candidate to find a log file. Populated as scans run; exported on demand by
@@ -228,6 +236,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (el && v) { el.textContent = `v${v}`; }
     }).catch(() => {});
   }
+
+  // ── Phase 5: can this user satisfy an elevation prompt? ────────────────────
+  // Probed once, up front, so the access-denied path can decide instantly
+  // whether to offer an elevated retry or go straight to manual instructions.
+  // Any failure leaves it false — we never offer what we cannot confirm.
+  window.electronAPI?.canElevate?.()
+    .then((ok) => { _canElevate = ok === true; })
+    .catch(() => { _canElevate = false; });
 
   // ── Auto-updater card (consent-first; interview-safe — main gates everything) ─
   if (window.electronAPI?.onUpdateAvailable) {
@@ -785,6 +801,30 @@ function applyKillOutcome(row, btn, processName, norm) {
 
   if (norm.outcome === "access-denied") {
     row.classList.add("sc-kill-row--blocked");
+
+    // Phase 5: offer an elevated retry ONLY when the candidate could actually
+    // complete it, and only once. A standard user gets a credential prompt they
+    // cannot satisfy, so for them we never mention admin rights as an action —
+    // we go straight to the manual route. `_canElevate` is resolved once at page
+    // load; it defaults to false, so an older bridge without the probe simply
+    // never sees this branch.
+    if (_canElevate && !_elevationTried.has(processName)) {
+      btn.disabled = false;
+      btn.dataset.mode = "elevate";
+      btn.className = "sc-kill-btn sc-kill-btn--elevate";
+      btn.innerHTML = `${KILL_ICON.lock} ${tr("preflightResults.killElevateBtn", "Close with admin rights")}`;
+      setKillHint(
+        row,
+        tr(
+          "preflightResults.killElevateHint",
+          `${display} needs administrator rights. Your system will ask you to confirm before it closes.`,
+          { name: display }
+        ),
+        "blocked"
+      );
+      return "access-denied";
+    }
+
     btn.disabled = true;
     btn.className = "sc-kill-btn sc-kill-btn--blocked";
     btn.innerHTML = `${KILL_ICON.lock} ${tr("preflightResults.killAdminBtn", "Needs admin rights")}`;
@@ -843,9 +883,22 @@ async function handleKillApp(btn, processName, row) {
   btn.className = "sc-kill-btn sc-kill-btn--killing";
   btn.innerHTML = `${KILL_ICON.spin} ${tr("preflightResults.closing", "Closing...")}`;
 
+  // Phase 5: this click is the candidate's EXPLICIT consent to elevate — the
+  // button was relabelled for it. Elevation is never an automatic fallback, and
+  // never repeats: the name is recorded either way so a failed or declined
+  // prompt cannot be re-offered in a loop.
+  const elevated = btn.dataset.mode === "elevate";
+  if (elevated) {
+    delete btn.dataset.mode;
+    _elevationTried.add(processName);
+    btn.innerHTML = `${KILL_ICON.spin} ${tr("preflightResults.killElevateWaiting", "Waiting for permission...")}`;
+  }
+
   let raw;
   try {
-    raw = await window.electronAPI.killProcess(processName);
+    raw = elevated
+      ? await window.electronAPI.killProcessElevated?.(processName)
+      : await window.electronAPI.killProcess(processName);
   } catch {
     clearKillHint(row);
     btn.className = "sc-kill-btn sc-kill-btn--failed";

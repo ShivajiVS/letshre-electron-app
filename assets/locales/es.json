@@ -205,7 +205,10 @@
     "someUnverified": "Algunas comprobaciones no se pudieron verificar. Haz clic en Volver a analizar para reintentar.",
     "copyDiagnostics": "Copiar diagnóstico",
     "diagnosticsCopied": "Diagnóstico copiado. Pégalo en tu mensaje al soporte.",
-    "diagnosticsCopyFailed": "No se pudo copiar automáticamente. Selecciona el texto de abajo y cópialo."
+    "diagnosticsCopyFailed": "No se pudo copiar automáticamente. Selecciona el texto de abajo y cópialo.",
+    "killElevateBtn": "Cerrar con permisos de administrador",
+    "killElevateHint": "{name} necesita permisos de administrador. Tu sistema te pedirá confirmación antes de cerrarlo.",
+    "killElevateWaiting": "Esperando permiso..."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

@@ -205,7 +205,10 @@
     "someUnverified": "일부 검사를 확인할 수 없습니다. 다시 검사를 클릭해 재시도하세요.",
     "copyDiagnostics": "진단 정보 복사",
     "diagnosticsCopied": "진단 정보를 복사했습니다. 고객 지원에 보내는 메시지에 붙여넣으세요.",
-    "diagnosticsCopyFailed": "자동으로 복사하지 못했습니다. 아래 텍스트를 선택해 복사하세요."
+    "diagnosticsCopyFailed": "자동으로 복사하지 못했습니다. 아래 텍스트를 선택해 복사하세요.",
+    "killElevateBtn": "관리자 권한으로 종료",
+    "killElevateHint": "{name}에는 관리자 권한이 필요합니다. 종료하기 전에 시스템에서 확인을 요청합니다.",
+    "killElevateWaiting": "권한을 기다리는 중..."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

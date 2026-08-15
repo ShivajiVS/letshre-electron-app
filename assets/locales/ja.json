@@ -205,7 +205,10 @@
     "someUnverified": "一部のチェックを確認できませんでした。「再スキャン」をクリックして再試行してください。",
     "copyDiagnostics": "診断情報をコピー",
     "diagnosticsCopied": "診断情報をコピーしました。サポートへのメッセージに貼り付けてください。",
-    "diagnosticsCopyFailed": "自動でコピーできませんでした。下のテキストを選択してコピーしてください。"
+    "diagnosticsCopyFailed": "自動でコピーできませんでした。下のテキストを選択してコピーしてください。",
+    "killElevateBtn": "管理者権限で終了",
+    "killElevateHint": "{name} には管理者権限が必要です。終了する前にシステムが確認を求めます。",
+    "killElevateWaiting": "許可を待っています..."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

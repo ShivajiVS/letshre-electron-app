@@ -138,6 +138,14 @@ const KILL_RELAUNCH_WATCH_MS = 3000;
 /** Interval between relaunch-watch polls. */
 const KILL_RELAUNCH_POLL_MS = 600;
 
+/**
+ * Budget for an ELEVATED kill (Phase 5). Generous because it spans a UAC /
+ * osascript prompt that a human has to read and accept — the clock is on the
+ * candidate, not the machine. Still bounded so a prompt left untouched (or
+ * rendered behind another window) cannot wedge the preflight forever.
+ */
+const KILL_ELEVATE_TIMEOUT_MS = 60000;
+
 // ─── IPC Channel Names ───────────────────────────────────────────────────────
 // Keep these in sync with preload.js exposures and ipcHandlers.js registrations.
 //
@@ -189,6 +197,10 @@ const IPC = {
   // Process management
   KILL_BLOCKED_APP: "kill-blocked-app",
   KILL_ALL_BLOCKED_APPS: "kill-all-blocked-apps",
+  /** Phase 5: explicit, user-initiated elevated retry (shows a consent prompt). */
+  KILL_BLOCKED_APP_ELEVATED: "kill-blocked-app-elevated",
+  /** Whether the current user could actually satisfy an elevation prompt. */
+  CAN_ELEVATE: "can-elevate",
 
   // Auto-updater (main → renderer push)
   PUSH_UPDATE_AVAILABLE: "push-update-available",
@@ -337,6 +349,7 @@ module.exports = {
   PREFLIGHT_RENDERER_TIMEOUT_MS,
   PREFLIGHT_RESULT_MAX_AGE_MS,
   KILL_ENUM_TIMEOUT_MS,
+  KILL_ELEVATE_TIMEOUT_MS,
   KILL_VERIFY_TIMEOUT_MS,
   KILL_VERIFY_POLL_MS,
   KILL_RELAUNCH_WATCH_MS,

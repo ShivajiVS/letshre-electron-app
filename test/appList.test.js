@@ -112,13 +112,87 @@ test("companions are kill-only — none appear in the detection blocklist", () =
   }
 });
 
-test("no companion is a shared/system process", () => {
+test("no companion is a shared/system process, unless it is path-scoped", () => {
+  // Shared image names are banned as kill targets because terminating them
+  // damages unrelated software. The ONE permitted exception is a name that is
+  // pinned to its owning app's install directory — the companion-scope tests
+  // below then prove every app listing it actually supplies that scope.
+  const { requiresPathScope } = require("../src/shared/appList");
   for (const companion of ALL_COMPANIONS) {
+    const name = companion.toLowerCase();
+    if (!FORBIDDEN_SHARED_PROCESSES.includes(name)) { continue; }
     assert.ok(
-      !FORBIDDEN_SHARED_PROCESSES.includes(companion.toLowerCase()),
-      `${companion} is a shared/system process and must never be a kill target`,
+      requiresPathScope(name),
+      `${companion} is a shared/system process and must never be a kill target ` +
+        `unless it is registered in APP_COMPANION_SCOPES`,
     );
   }
+});
+
+// ─── Path-scoped companions ──────────────────────────────────────────────────
+// `update.exe` is Squirrel's relauncher and IS what brings Discord/Slack/classic
+// Teams back after a kill — but every Squirrel app ships one under that same
+// name. It is allowed as a kill target ONLY because it is pinned to its owning
+// app's install directory. These tests encode that exception so it cannot be
+// widened by accident into "kill every update.exe on the machine".
+
+const {
+  APP_COMPANION_SCOPES,
+  getCompanionScope,
+  requiresPathScope,
+} = require("../src/shared/appList");
+
+test("every scoped companion is declared as requiring a path scope", () => {
+  for (const scopes of Object.values(APP_COMPANION_SCOPES)) {
+    for (const companion of Object.keys(scopes)) {
+      assert.ok(
+        requiresPathScope(companion),
+        `${companion} has a scope entry but requiresPathScope() does not report it`,
+      );
+    }
+  }
+});
+
+test("every app listing a scope-requiring companion supplies a scope for it", () => {
+  // This is the invariant that keeps the exception safe. A shared name listed as
+  // a companion WITHOUT a scope would be killed by image name alone.
+  for (const [app, companions] of Object.entries(APP_COMPANIONS)) {
+    for (const companion of companions) {
+      if (!requiresPathScope(companion)) { continue; }
+      const scope = getCompanionScope(app, companion);
+      assert.ok(
+        scope && scope.length > 0,
+        `${app} lists shared companion ${companion} with no path scope — it would be killed by name alone`,
+      );
+    }
+  }
+});
+
+test("every APP_COMPANION_SCOPES key is a real blocked app, and lists that companion", () => {
+  for (const [app, scopes] of Object.entries(APP_COMPANION_SCOPES)) {
+    assert.ok(ALL_BLOCKED_APPS.includes(app), `${app} should be in ALL_BLOCKED_APPS`);
+    for (const companion of Object.keys(scopes)) {
+      assert.ok(
+        (APP_COMPANIONS[app] || []).includes(companion),
+        `${app} has a scope for ${companion} but does not list it as a companion (dead entry)`,
+      );
+    }
+  }
+});
+
+test("getCompanionScope is case-insensitive and returns null when no scope applies", () => {
+  assert.strictEqual(getCompanionScope("DISCORD.EXE", "UPDATE.EXE"), "\\discord\\");
+  assert.strictEqual(getCompanionScope("discord.exe", "zoomlauncher.exe"), null);
+  assert.strictEqual(getCompanionScope("zoom.exe", "update.exe"), null);
+  assert.strictEqual(getCompanionScope("unknown.exe", "update.exe"), null);
+});
+
+test("scopes are vendor-distinct — one app's scope never matches another's path", () => {
+  const discord = getCompanionScope("discord.exe", "update.exe");
+  const slack = getCompanionScope("slack.exe", "update.exe");
+  assert.notStrictEqual(discord, slack);
+  assert.ok(!`c:\\users\\x\\appdata\\local\\slack\\update.exe`.includes(discord));
+  assert.ok(!`c:\\users\\x\\appdata\\local\\discord\\update.exe`.includes(slack));
 });
 
 test("no companion targets our own app or agent", () => {

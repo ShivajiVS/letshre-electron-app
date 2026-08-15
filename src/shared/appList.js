@@ -156,9 +156,18 @@ const APP_COMPANIONS = {
   // ms-teamsupdate: the new Teams updater, invoked by ms-teams.exe; it can
   // reinstall/relaunch the client. Classic Teams only ships the shared Squirrel
   // `update.exe`, which is intentionally omitted (not vendor-exclusive).
-  "teams.exe": ["ms-teamsupdate.exe"],
+  // Classic Teams also ships the shared Squirrel `update.exe`; it is listed here
+  // ONLY because APP_COMPANION_SCOPES pins it to Teams' own install directory.
+  // Never add a shared image name here without a matching scope entry.
+  "teams.exe": ["ms-teamsupdate.exe", "update.exe"],
   "ms-teams.exe": ["ms-teamsupdate.exe"],
   "msteams.exe": ["ms-teamsupdate.exe"],
+
+  // ── Squirrel-based Electron apps ──
+  // `update.exe` IS the relauncher for these, but the name is shared across
+  // every Squirrel app, so both entries are path-scoped in APP_COMPANION_SCOPES.
+  "discord.exe": ["update.exe"],
+  "slack.exe": ["update.exe"],
 
   // ── Cisco Webex ──
   // ciscowebexstart: relauncher. webexhost/ciscocollabhost: persistent hosts
@@ -209,6 +218,71 @@ function getCompanions(processName) {
     return [];
   }
   return [...APP_COMPANIONS[key]];
+}
+
+// ─── Path-scoped companions ──────────────────────────────────────────────────
+
+/**
+ * Some relaunchers CANNOT be identified by image name alone because several
+ * unrelated vendors ship the exact same one. The Squirrel installer framework is
+ * the big case: Discord, Slack, classic Teams and most Electron apps all ship an
+ * `Update.exe`, and that process is precisely what brings the app back after it
+ * is killed. Terminating every `Update.exe` on the machine would take down
+ * unrelated software the candidate depends on.
+ *
+ * These companions are therefore matched on image name AND install location: the
+ * process's executable path must sit under the owning app's own directory.
+ *
+ * Keyed by blocked app → { companion image name → required path fragment }.
+ * Fragments are lowercase and matched as a substring of the executable path, so
+ * they are installation-root agnostic (works under %LOCALAPPDATA%, Program
+ * Files, or a portable install).
+ *
+ * FAIL-CLOSED CONTRACT: a companion listed here must NEVER be killed when the
+ * executable path is unavailable or does not contain the fragment. The engine
+ * enforces this — see matchesImageName() in src/main/processKiller.js.
+ */
+const APP_COMPANION_SCOPES = {
+  // Squirrel updater/relauncher, scoped to each vendor's own install directory.
+  "discord.exe": { "update.exe": "\\discord\\" },
+  "slack.exe": { "update.exe": "\\slack\\" },
+  // Classic Teams (the new client uses ms-teamsupdate.exe, handled above).
+  "teams.exe": { "update.exe": "\\microsoft\\teams\\" },
+};
+
+/**
+ * Companion image names that are only safe to kill within a path scope.
+ * Derived from APP_COMPANION_SCOPES so the two cannot drift.
+ */
+const SCOPED_COMPANION_NAMES = new Set(
+  Object.values(APP_COMPANION_SCOPES).flatMap((m) => Object.keys(m))
+);
+
+/**
+ * Required executable-path fragment for a companion of a given app.
+ * @param {string} processName - the blocked app being closed
+ * @param {string} companionName - the companion about to be terminated
+ * @returns {string|null} lowercase path fragment, or null if no scope applies
+ */
+function getCompanionScope(processName, companionName) {
+  const app = String(processName || "").toLowerCase();
+  const companion = String(companionName || "").toLowerCase();
+  if (!Object.prototype.hasOwnProperty.call(APP_COMPANION_SCOPES, app)) {
+    return null;
+  }
+  const scopes = APP_COMPANION_SCOPES[app];
+  return Object.prototype.hasOwnProperty.call(scopes, companion) ? scopes[companion] : null;
+}
+
+/**
+ * True if this image name may ONLY be killed inside a path scope. Used by the
+ * engine to refuse a kill when it has a scoped name but no path to check it
+ * against, rather than falling back to an unscoped image-name kill.
+ * @param {string} companionName
+ * @returns {boolean}
+ */
+function requiresPathScope(companionName) {
+  return SCOPED_COMPANION_NAMES.has(String(companionName || "").toLowerCase());
 }
 
 // ─── Display Name Lookup ─────────────────────────────────────────────────────
@@ -327,4 +401,7 @@ module.exports = {
   getDisplayName,
   APP_COMPANIONS,
   getCompanions,
+  APP_COMPANION_SCOPES,
+  getCompanionScope,
+  requiresPathScope,
 };

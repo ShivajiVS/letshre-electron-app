@@ -205,7 +205,10 @@
     "someUnverified": "Beberapa pemeriksaan tidak dapat diverifikasi. Klik Pindai Ulang untuk mencoba lagi.",
     "copyDiagnostics": "Salin diagnostik",
     "diagnosticsCopied": "Diagnostik disalin. Tempelkan di pesan Anda ke tim dukungan.",
-    "diagnosticsCopyFailed": "Tidak dapat menyalin otomatis. Pilih teks di bawah ini lalu salin."
+    "diagnosticsCopyFailed": "Tidak dapat menyalin otomatis. Pilih teks di bawah ini lalu salin.",
+    "killElevateBtn": "Tutup dengan hak administrator",
+    "killElevateHint": "{name} memerlukan hak administrator. Sistem Anda akan meminta konfirmasi sebelum menutupnya.",
+    "killElevateWaiting": "Menunggu izin..."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

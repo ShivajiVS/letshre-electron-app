@@ -205,7 +205,10 @@
     "someUnverified": "Alcuni controlli non è stato possibile verificarli. Fai clic su Ripeti scansione per riprovare.",
     "copyDiagnostics": "Copia diagnostica",
     "diagnosticsCopied": "Diagnostica copiata. Incollala nel messaggio all'assistenza.",
-    "diagnosticsCopyFailed": "Copia automatica non riuscita. Seleziona il testo qui sotto e copialo."
+    "diagnosticsCopyFailed": "Copia automatica non riuscita. Seleziona il testo qui sotto e copialo.",
+    "killElevateBtn": "Chiudi con diritti di amministratore",
+    "killElevateHint": "{name} richiede i diritti di amministratore. Il sistema chiederà conferma prima di chiuderlo.",
+    "killElevateWaiting": "In attesa dell'autorizzazione..."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

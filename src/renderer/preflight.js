@@ -117,6 +117,17 @@ let _isAutoRescan    = false;
 /** Incremented per scan; progress events from older generations are ignored. */
 let _scanGeneration  = 0;
 
+// ── Diagnostics capture (Phase E) ────────────────────────────────────────────
+// Enough context to answer "the security check didn't work" without asking the
+// candidate to find a log file. Populated as scans run; exported on demand by
+// the Copy-diagnostics control that appears once the retry cap is hit.
+let _appVersion   = null;
+let _lastScanId   = null;
+let _lastTimings  = null;   // per-probe { durationMs, deadlineMs, outcome }
+let _lastVerdicts = [];     // [{ id, status, reasonKey }]
+let _lastCanProceed = null;
+let _lastScanError  = null;
+
 const PROCEED_ENABLED_CLASS  = "sc-btn-proceed sc-btn-proceed--enabled";
 const PROCEED_DISABLED_CLASS = "sc-btn-proceed sc-btn-proceed--disabled";
 
@@ -173,6 +184,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ── App version footer ─────────────────────────────────────────────────────
   if (window.electronAPI?.getAppVersion) {
     window.electronAPI.getAppVersion().then((v) => {
+      _appVersion = v || null;
       const el = document.getElementById("app-version");
       if (el && v) { el.textContent = `v${v}`; }
     }).catch(() => {});
@@ -322,6 +334,18 @@ document.addEventListener("DOMContentLoaded", async () => {
 // ─── Loading State ────────────────────────────────────────────────────────────
 
 function setLoadingState(btnProceed, btnRescan, finalStatus) {
+  // A scan is starting — the previous pass no longer authorises anything.
+  //
+  // Without this, _proceedReady stayed true across a Re-scan (it is only ever
+  // assigned in processResults), so a PUSH_PRE_PROCEED_STATUS with clean:true
+  // arriving while the cards were still resolving would run
+  // applyLiveProceedStatus() and re-enable Proceed on the strength of a
+  // process-only poll — no display check, no agent deep scan. Main now also
+  // pauses that monitor for the duration of a scan (systemChecks
+  // pausePreProceedMonitor), so this is the second of two independent guards.
+  _proceedReady = false;
+  _lastVerdicts = []; // rebuilt from this scan's streamed verdicts
+
   btnProceed.disabled = true;
   btnProceed.className = "sc-btn-proceed sc-btn-proceed--loading";
   btnRescan.disabled = true;
@@ -391,6 +415,14 @@ function renderAgentPending() {
  */
 function applyVerdict(v) {
   if (!v || !v.id) { return; }
+  // Record it for diagnostics too. Streamed verdicts are the ONLY per-check
+  // state we get when the scan later times out, which is exactly the case a
+  // stuck candidate needs to report.
+  if (v.scanId) { _lastScanId = v.scanId; }
+  const at = _lastVerdicts.findIndex((x) => x.id === v.id);
+  const row = { id: v.id, status: v.status, reasonKey: v.reasonKey };
+  if (at >= 0) { _lastVerdicts[at] = row; } else { _lastVerdicts.push(row); }
+
   if (v.id === "agent") {
     renderAgentCard(v);
     return;
@@ -409,6 +441,14 @@ function applyVerdict(v) {
 function processResults(results, btnProceed, btnRescan, finalStatus) {
   const verdicts = Array.isArray(results?.verdicts) ? results.verdicts : [];
   verdicts.forEach(applyVerdict);
+
+  // Diagnostics capture — a scan that COMPLETED supersedes any earlier failure.
+  _lastScanId = results?.scanId ?? null;
+  _lastTimings = results?.timings ?? null;
+  _lastCanProceed = results?.canProceed === true;
+  _lastVerdicts = verdicts.map((v) => ({ id: v.id, status: v.status, reasonKey: v.reasonKey }));
+  _lastScanError = null;
+  removeDiagnosticsControl();
 
   // Fail-CLOSED: a malformed or empty response never opens the gate.
   const allPassed = results?.canProceed === true && verdicts.length > 0;
@@ -770,6 +810,7 @@ function setMockPassedState(finalStatus, btnProceed) {
  */
 function showScanError(finalStatus, btnRescan, message) {
   btnRescan.disabled = false;
+  _lastScanError = message;
 
   // F2: stop the auto-retry storm. After MAX_SCAN_RETRIES consecutive failures
   // stop counting down and leave a manual Rescan prompt instead of hammering
@@ -781,6 +822,10 @@ function showScanError(finalStatus, btnRescan, message) {
       `Diagnostics failed: ${message}. Please click Rescan to try again.`,
       { message }
     );
+    // The candidate is now genuinely stuck. Give them something to send support
+    // instead of a screenshot of a red line — this is the only point in the flow
+    // where the export is offered, so it never becomes ambient UI noise.
+    showDiagnosticsControl();
     return;
   }
 
@@ -812,6 +857,229 @@ function showScanError(finalStatus, btnRescan, message) {
       finalStatus.textContent = renderCountdown();
     }
   }, 1000);
+}
+
+// ─── Diagnostics Export (Phase E) ────────────────────────────────────────────
+// "The security check didn't work" is unactionable on its own. This produces a
+// compact, paste-able text blob describing WHICH probe failed and HOW LONG it
+// took — the per-check durations are what make a blown deadline distinguishable
+// from an instant error, which is exactly what the original timeout bug hid.
+//
+// PRIVACY: the blob is assembled from an explicit allow-list of fields. It
+// carries no tokens, no file paths, no user identity, and no process list
+// beyond the blocked-app names the candidate is already looking at on screen.
+// Audit entries are re-projected field by field rather than dumped, so a future
+// audit field cannot silently start leaking into a support paste.
+
+const MAX_DIAGNOSTIC_AUDIT_ENTRIES = 15;
+
+/** Fixed-width left pad for the plain-text tables in the blob. */
+function pad(text, width) {
+  const s = String(text ?? "");
+  return s.length >= width ? s : s + " ".repeat(width - s.length);
+}
+
+/** One timing row: "process    4001ms  timeout  (deadline 4000ms)". */
+function formatTimingRows(timings) {
+  const entries = Object.entries(timings || {});
+  if (entries.length === 0) { return ["  (none recorded)"]; }
+  return entries.map(([key, t]) =>
+    `  ${pad(key, 10)}${pad(`${t?.durationMs ?? "?"}ms`, 9)}` +
+    `${pad(t?.outcome ?? "?", 9)}(deadline ${t?.deadlineMs ?? "?"}ms)`
+  );
+}
+
+/**
+ * Projects one audit entry onto the small set of fields that are safe to share
+ * and actually diagnostic. Anything not named here is dropped.
+ * @returns {string|null} a single log line, or null if the entry isn't relevant
+ */
+function projectAuditEntry(entry) {
+  const ts = String(entry?.timestamp || "").replace("T", " ").replace(/\..*$/, "");
+  const d = entry?.data || {};
+
+  if (entry?.type === "scan" && d.phase === "preflight") {
+    const verdicts = Array.isArray(d.verdicts)
+      ? d.verdicts.map((v) => `${v.id}:${v.status}`).join(" ")
+      : "";
+    const timings = Object.entries(d.timings || {})
+      .map(([k, t]) => `${k}=${t?.durationMs}ms/${t?.outcome}`)
+      .join(" ");
+    return `  ${ts} preflight scan=${d.scanId} ${d.durationMs}ms ` +
+      `canProceed=${d.canProceed} [${verdicts}] ${timings}`;
+  }
+
+  if (entry?.type === "scan") {
+    // Live-interview tick. blockedApps are the same names rendered as kill
+    // buttons on this page; nothing else from the tick is included.
+    const apps = Array.isArray(d.blockedApps) ? d.blockedApps.join(",") : "";
+    return `  ${ts} tick display=${d.hdmiStatus} process=${d.processStatus} ` +
+      `agentReachable=${d.agentReachable} blockedApps=[${apps}]`;
+  }
+
+  if (entry?.type === "violation") {
+    // Severity/counters only — the `event` string is free text assembled from
+    // agent threat details, so it stays out of a blob the candidate pastes.
+    return `  ${ts} violation severity=${d.severity} count=${d.count} hardBlock=${d.isHardBlock}`;
+  }
+
+  return null;
+}
+
+/** Newest preflight audit entry, used to recover the agent version. */
+function findAgentVersion(auditEntries) {
+  for (let i = auditEntries.length - 1; i >= 0; i -= 1) {
+    const v = auditEntries[i]?.data?.agentVersion;
+    if (v) { return v; }
+  }
+  return null;
+}
+
+/**
+ * Assembles the diagnostics blob.
+ * @returns {Promise<string>}
+ */
+async function buildDiagnosticsText() {
+  let audit = [];
+  try {
+    audit = (await window.electronAPI?.getAuditLog?.()) || [];
+  } catch {
+    audit = [];
+  }
+
+  const auditLines = audit
+    .slice(-MAX_DIAGNOSTIC_AUDIT_ENTRIES)
+    .map(projectAuditEntry)
+    .filter(Boolean);
+
+  const checkLines = _lastVerdicts.length > 0
+    ? _lastVerdicts.map((v) => `  ${pad(v.id, 10)}${pad(v.status, 12)}${v.reasonKey || ""}`)
+    : ["  (no check completed)"];
+
+  return [
+    "LetsHyre preflight diagnostics",
+    `generated:     ${new Date().toISOString()}`,
+    `appVersion:    ${_appVersion || "unknown"}`,
+    `agentVersion:  ${findAgentVersion(audit) || "unknown"}`,
+    `platform:      ${navigator.platform || "unknown"}`,
+    `locale:        ${window.i18n?.getLocale?.() || document.documentElement.lang || "unknown"}`,
+    `scanId:        ${_lastScanId || "none"}`,
+    `canProceed:    ${_lastCanProceed === null ? "unknown" : _lastCanProceed}`,
+    `consecutiveScanFailures: ${_scanRetryCount}`,
+    `lastError:     ${_lastScanError || "none"}`,
+    "",
+    "checks:",
+    ...checkLines,
+    "",
+    "probe timings:",
+    ...formatTimingRows(_lastTimings),
+    "",
+    `recent audit (${auditLines.length}):`,
+    ...(auditLines.length > 0 ? auditLines : ["  (empty)"]),
+  ].join("\n");
+}
+
+/**
+ * Copies text to the clipboard, degrading gracefully.
+ *
+ * navigator.clipboard requires a secure context and this page is loaded over
+ * file://, so the async API is not guaranteed to exist here — execCommand is
+ * the working fallback, and if BOTH fail the caller shows the text for manual
+ * selection rather than silently doing nothing.
+ * @returns {Promise<boolean>}
+ */
+async function copyToClipboard(text) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // fall through to execCommand
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Removes the diagnostics control and any fallback textarea. */
+function removeDiagnosticsControl() {
+  document.getElementById("diagnostics-wrap")?.remove();
+}
+
+/**
+ * Renders the "Copy diagnostics" control under the footer status line.
+ * Idempotent — repeated failed scans re-enter showScanError but must not stack
+ * up duplicate buttons.
+ */
+function showDiagnosticsControl() {
+  if (document.getElementById("diagnostics-wrap")) { return; }
+  const footer = document.querySelector(".sc-footer");
+  if (!footer) { return; }
+
+  const wrap = document.createElement("div");
+  wrap.id = "diagnostics-wrap";
+  wrap.className = "sc-diagnostics";
+
+  const btn = document.createElement("button");
+  btn.id = "btn-diagnostics";
+  btn.type = "button";
+  btn.className = "sc-btn-diagnostics";
+  btn.textContent = tr("preflightResults.copyDiagnostics", "Copy diagnostics");
+
+  const note = document.createElement("p");
+  note.className = "sc-diagnostics__note";
+  note.setAttribute("role", "status");
+  note.setAttribute("aria-live", "polite");
+
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    let text = "";
+    try {
+      text = await buildDiagnosticsText();
+    } catch (e) {
+      console.error("[preflight] diagnostics build failed:", e);
+    }
+    const copied = text ? await copyToClipboard(text) : false;
+    if (copied) {
+      note.textContent = tr(
+        "preflightResults.diagnosticsCopied",
+        "Diagnostics copied. Paste them in your message to support."
+      );
+      wrap.querySelector("textarea")?.remove();
+    } else {
+      note.textContent = tr(
+        "preflightResults.diagnosticsCopyFailed",
+        "Could not copy automatically. Select the text below and copy it."
+      );
+      let ta = wrap.querySelector("textarea");
+      if (!ta) {
+        ta = document.createElement("textarea");
+        ta.className = "sc-diagnostics__text";
+        ta.setAttribute("readonly", "");
+        ta.rows = 8;
+        wrap.appendChild(ta);
+      }
+      ta.value = text;
+      ta.select();
+    }
+    btn.disabled = false;
+  });
+
+  wrap.appendChild(btn);
+  wrap.appendChild(note);
+  footer.appendChild(wrap);
 }
 
 // ─── Auto-Updater Card ────────────────────────────────────────────────────────

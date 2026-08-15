@@ -190,7 +190,10 @@
     "checkUnverified": "Could not verify this check. Click Re-scan.",
     "agentUnverified": "Deep scan did not complete — this device could not be verified. Click Re-scan.",
     "agentDegraded": "Deep scan finished with errors — this device could not be fully verified. Click Re-scan.",
-    "someUnverified": "Some checks could not be verified. Click Re-scan to try again."
+    "someUnverified": "Some checks could not be verified. Click Re-scan to try again.",
+    "copyDiagnostics": "Copy diagnostics",
+    "diagnosticsCopied": "Diagnostics copied. Paste them in your message to support.",
+    "diagnosticsCopyFailed": "Could not copy automatically. Select the text below and copy it."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

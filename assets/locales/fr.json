@@ -190,7 +190,10 @@
     "checkUnverified": "Impossible de vérifier ce contrôle. Cliquez sur Relancer l'analyse.",
     "agentUnverified": "L'analyse approfondie ne s'est pas terminée — cet appareil n'a pas pu être vérifié. Cliquez sur Relancer l'analyse.",
     "agentDegraded": "L'analyse approfondie s'est terminée avec des erreurs — cet appareil n'a pas pu être entièrement vérifié. Cliquez sur Relancer l'analyse.",
-    "someUnverified": "Certains contrôles n'ont pas pu être vérifiés. Cliquez sur Relancer l'analyse pour réessayer."
+    "someUnverified": "Certains contrôles n'ont pas pu être vérifiés. Cliquez sur Relancer l'analyse pour réessayer.",
+    "copyDiagnostics": "Copier le diagnostic",
+    "diagnosticsCopied": "Diagnostic copié. Collez-le dans votre message au support.",
+    "diagnosticsCopyFailed": "Copie automatique impossible. Sélectionnez le texte ci-dessous et copiez-le."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

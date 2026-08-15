@@ -139,6 +139,69 @@ test("mapAgent: an older agent build without the new fields still passes when cl
   assert.strictEqual(v.status, PASS);
 });
 
+// ─── Cross-language contract with agent.py ───────────────────────────────────
+// These fixtures are REAL output captured from `agent.py` contract v2 (verified
+// by running run_full_scan() directly). agent.py ships as a PyInstaller binary
+// that is gitignored and rebuilt separately, so nothing else in this repo checks
+// that the two sides still agree — if someone changes the Python result shape,
+// these are what catch it.
+
+const AGENT_V2_CLEAN = {
+  status: "CLEAR",
+  os: "Windows",
+  threats: [],
+  safe_to_proceed: true,
+  scan_count: 1,
+  agent_version: "1.0.0",
+  physical_monitors: 1,
+  contract_version: 2,
+  checks: {
+    window_titles: "ok", network: "ok", memory_patterns: "ok",
+    browser_automation: "ok", window_classes: "ok", ai_tools: "ok",
+    overlay_windows: "ok", virtual_audio: "ok", physical_monitors: "ok",
+  },
+  degraded: false,
+};
+
+test("agent contract v2: a clean scan passes", () => {
+  assert.strictEqual(mapAgent({ alive: true, status: AGENT_V2_CLEAN }).status, PASS);
+});
+
+test("agent contract v2: a degraded scan is unverified, not a pass", () => {
+  // Some of the agent's own checks errored, so it cannot vouch for the machine
+  // even though it found nothing. safe_to_proceed goes false alongside degraded.
+  const degraded = {
+    ...AGENT_V2_CLEAN,
+    checks: { ...AGENT_V2_CLEAN.checks, window_titles: "error", overlay_windows: "error" },
+    degraded: true,
+    safe_to_proceed: false,
+  };
+  assert.strictEqual(mapAgent({ alive: true, status: degraded }).status, UNVERIFIED);
+});
+
+test("agent contract v2: an unreadable monitor count does not read as 'no mirror'", () => {
+  // count_physical_monitors() returns null (not 0) when it fails, and marks its
+  // own check errored -> degraded -> unverified. 0 is legitimate on macOS/Linux.
+  const cantCount = {
+    ...AGENT_V2_CLEAN,
+    physical_monitors: null,
+    checks: { ...AGENT_V2_CLEAN.checks, physical_monitors: "error" },
+    degraded: true,
+    safe_to_proceed: false,
+  };
+  assert.strictEqual(mapAgent({ alive: true, status: cantCount }).status, UNVERIFIED);
+  // And the value itself must never coerce into a "clear" mirror check.
+  assert.strictEqual(cantCount.physical_monitors > 1, false);
+  assert.strictEqual((cantCount.physical_monitors || 0) > 1, false);
+});
+
+test("agent contract v1 (stale agent.exe): still passes when genuinely clean", () => {
+  // resources/agent.exe is gitignored and may lag the Python source, so a build
+  // predating contract v2 must not wedge the gate shut.
+  const v1 = { status: "CLEAR", threats: [], safe_to_proceed: true, physical_monitors: 1 };
+  assert.strictEqual(mapAgent({ alive: true, status: v1 }).status, PASS);
+});
+
 // ─── Gate ────────────────────────────────────────────────────────────────────
 
 const cleanRaw = {

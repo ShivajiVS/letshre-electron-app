@@ -49,6 +49,18 @@ let _processCheckCache = null;   // { found: string[], status: string }
 let _processCheckTime  = 0;       // Date.now() of last successful run
 const PROCESS_CACHE_TTL_MS = 3000;
 
+// Cache epoch. Incremented by invalidateProcessCache(). A probe records the
+// epoch it started under and refuses to publish its result if the epoch has
+// moved on since — i.e. someone invalidated the cache while it was in flight.
+//
+// WHY: the pre-proceed monitor polls every 2s, so a tasklist spawn it started a
+// moment before a preflight scan began could land AFTER the scan's
+// invalidateProcessCache() and silently re-seed the cache with a pre-scan
+// snapshot. The scan would then "freshly" read data captured before the
+// candidate closed the offending app. Without the epoch, invalidation is only
+// advisory; with it, "invalidate then read" genuinely means uncached data.
+let _cacheEpoch = 0;
+
 /**
  * Phase 4: row-anchored process matching to cut false positives.
  *
@@ -72,13 +84,20 @@ function checkProcesses() {
   if (_processCheckCache && now - _processCheckTime < PROCESS_CACHE_TTL_MS) {
     return Promise.resolve(_processCheckCache); // instant cache hit
   }
+  const startedEpoch = _cacheEpoch;
   return new Promise((resolve) => {
     const { execFile } = require("child_process");
 
     const finish = (found) => {
-      _processCheckCache = { found, status: "clear" };
-      _processCheckTime = Date.now();
-      resolve(_processCheckCache);
+      const result = { found, status: "clear" };
+      // Only publish to the cache if nobody invalidated while we were probing —
+      // otherwise this snapshot predates the invalidation and must not be served
+      // to whoever asked for fresh data.
+      if (startedEpoch === _cacheEpoch) {
+        _processCheckCache = result;
+        _processCheckTime = Date.now();
+      }
+      resolve(result);
     };
 
     if (process.platform === "darwin") {
@@ -123,10 +142,14 @@ function checkProcesses() {
 /**
  * Clears the process-check cache so the next call always runs a fresh scan.
  * Call this when the user triggers a Recheck so the preflight gets live data.
+ *
+ * Bumping the epoch also invalidates any probe that is CURRENTLY in flight, so a
+ * concurrent poller cannot re-seed the cache with a pre-invalidation snapshot.
  */
 function invalidateProcessCache() {
   _processCheckCache = null;
   _processCheckTime  = 0;
+  _cacheEpoch += 1;
 }
 
 module.exports = detectMirroring;

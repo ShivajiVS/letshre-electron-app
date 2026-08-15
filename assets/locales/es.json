@@ -190,7 +190,10 @@
     "checkUnverified": "No se pudo verificar esta comprobación. Haz clic en Volver a analizar.",
     "agentUnverified": "El análisis profundo no se completó: no se pudo verificar este dispositivo. Haz clic en Volver a analizar.",
     "agentDegraded": "El análisis profundo terminó con errores: no se pudo verificar por completo este dispositivo. Haz clic en Volver a analizar.",
-    "someUnverified": "Algunas comprobaciones no se pudieron verificar. Haz clic en Volver a analizar para reintentar."
+    "someUnverified": "Algunas comprobaciones no se pudieron verificar. Haz clic en Volver a analizar para reintentar.",
+    "copyDiagnostics": "Copiar diagnóstico",
+    "diagnosticsCopied": "Diagnóstico copiado. Pégalo en tu mensaje al soporte.",
+    "diagnosticsCopyFailed": "No se pudo copiar automáticamente. Selecciona el texto de abajo y cópialo."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

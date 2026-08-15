@@ -83,6 +83,57 @@ test("checkProcesses: serves cache within TTL until invalidated", async () => {
   assert.deepStrictEqual(c.found, [], "fresh probe after invalidation");
 });
 
+// ── Cache epoch (Phase C) ────────────────────────────────────────────────────
+// The pre-proceed monitor polls every 2s while a preflight scan calls
+// invalidateProcessCache() and then reads. Without the epoch guard, a probe the
+// MONITOR started just before the invalidation could land afterwards and
+// re-seed the cache with a pre-invalidation snapshot — so the scan's "fresh"
+// read would return data captured before the candidate closed the app.
+
+/** execFile stub whose callback fires only when the returned trigger is called. */
+function stubDeferredExecFile(stdout) {
+  let fire;
+  childProcess.execFile = (_bin, _args, cb) => {
+    fire = () => cb(null, stdout);
+  };
+  return () => fire();
+}
+
+test("checkProcesses: an in-flight probe does not re-seed the cache after invalidation", async () => {
+  invalidateProcessCache();
+
+  // 1. A poller starts a probe that will report chrome.exe (the stale world).
+  const finishStale = stubDeferredExecFile(CSV_WITH_CHROME);
+  const stalePromise = checkProcesses();
+
+  // 2. A scan begins: it invalidates the cache mid-probe.
+  invalidateProcessCache();
+
+  // 3. The poller's probe now lands. It may resolve its own caller, but it must
+  //    NOT become the cached answer for anyone who asked after the invalidation.
+  finishStale();
+  const stale = await stalePromise;
+  assert.ok(stale.found.includes("chrome.exe"), "the poller still gets its own result");
+
+  // 4. The scan reads. It must re-probe rather than serve the poller's snapshot.
+  stubExecFile(null, CSV_CLEAN);
+  const fresh = await checkProcesses();
+  assert.deepStrictEqual(fresh.found, [], "scan must see live data, not the poller's snapshot");
+});
+
+test("checkProcesses: still caches normally when no invalidation intervenes", async () => {
+  invalidateProcessCache();
+  const finish = stubDeferredExecFile(CSV_WITH_CHROME);
+  const p = checkProcesses();
+  finish();
+  await p;
+
+  // No invalidation happened, so the in-flight result was published as usual.
+  stubExecFile(null, CSV_CLEAN);
+  const cached = await checkProcesses();
+  assert.ok(cached.found.includes("chrome.exe"), "result should have been cached");
+});
+
 test("detectMirroring: violation + reason when a blocked app is running", async () => {
   invalidateProcessCache();
   stubExecFile(null, CSV_WITH_CHROME);

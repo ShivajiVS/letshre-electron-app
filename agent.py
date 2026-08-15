@@ -48,6 +48,17 @@ SCAN_INTERVAL = 3  # seconds between scans
 # Previously there were 3 different version strings in the codebase.
 AGENT_VERSION = os.environ.get("APP_VERSION", "1.0.0")
 
+# Protocol/contract version of the scan RESULT SHAPE — deliberately separate from
+# AGENT_VERSION (which tracks the Electron app's release version and changes on
+# every release). Bump this ONLY when the scan result's fields change, so the
+# Electron side can detect a stale bundled agent.exe that predates a field it
+# depends on.
+#   1 — status/timestamp/os/threats/safe_to_proceed/scan_count/agent_version/
+#       physical_monitors
+#   2 — adds checks{} / degraded / contract_version; safe_to_proceed now also
+#       requires that no check errored (fail-CLOSED on unrunnable checks)
+CONTRACT_VERSION = 2
+
 # IMP-08: Write logs to AGENT_LOG_DIR env var (set to userData by Electron).
 # Falls back to the OS temp directory so packaged builds never hit a read-only CWD.
 LOG_FILE = os.path.join(
@@ -201,10 +212,68 @@ scan_results = {
     "threats": [],
     "safe_to_proceed": False,
     "scan_count": 0,
-    "agent_version": AGENT_VERSION  # IMP-12: uses single constant
+    "agent_version": AGENT_VERSION,  # IMP-12: uses single constant
+    "contract_version": CONTRACT_VERSION,
+    # Before the first scan completes nothing has been verified — say so, so a
+    # "status" query that races the first scan cannot read as clean.
+    "checks": {},
+    "degraded": True,
+    "physical_monitors": None,
 }
 scan_lock = threading.Lock()
 event_log = []
+
+# ─────────────────────────────────────────────
+#  CHECK OUTCOME REPORTING (contract v2)
+# ─────────────────────────────────────────────
+# Every detector used to swallow its own fatal errors and return an empty threat
+# list, which the compiler then read as "nothing found" → status CLEAR →
+# safe_to_proceed True. On a machine where Win32 enumeration, tasklist or
+# PowerShell is blocked by policy/AV, several checks silently contributed zero
+# threats and the agent confidently reported a clean device.
+#
+# Detectors now raise CheckError when an error ABORTS the check. Errors that only
+# skip one process/window (psutil.NoSuchProcess, AccessDenied, a malformed CSV
+# row) are still handled locally and do NOT mark the check as failed — those are
+# expected on any healthy machine.
+#
+# _run_check() turns that into a per-check "ok"/"error" outcome. Threats found
+# BEFORE the abort are preserved via CheckError.partial, so a check that finds
+# something and then dies still reports what it saw.
+
+
+class CheckError(Exception):
+    """Raised by a detector when an error prevented the check from completing."""
+
+    def __init__(self, message, partial=None):
+        super().__init__(message)
+        self.partial = partial or []
+
+
+def _run_check(name, fn, checks, threats):
+    """
+    Run one detector, record its outcome in `checks`, and append its threats.
+
+    Args:
+        name:    stable check id used as the key in the result's `checks` dict
+        fn:      zero-arg detector returning a list of threat dicts
+        checks:  dict mutated in place with name -> "ok" | "error"
+        threats: list mutated in place with whatever the detector found
+    """
+    try:
+        found = fn()
+        checks[name] = "ok"
+    except CheckError as e:
+        logger.warning(f"[CHECK FAILED] {name}: {e}")
+        checks[name] = "error"
+        found = e.partial
+    except Exception as e:
+        # A detector that raises something unexpected must also count as failed,
+        # never as "clean" — this is the fail-CLOSED backstop.
+        logger.warning(f"[CHECK FAILED] {name}: unexpected error: {e}")
+        checks[name] = "error"
+        found = []
+    threats.extend(found)
 
 # ─────────────────────────────────────────────
 #  BEHAVIORAL DETECTION 1: WINDOW TITLE SCAN
@@ -224,8 +293,8 @@ def scan_window_titles():
         elif OS_NAME == "Linux":
             titles = _get_all_window_titles_linux()
     except Exception as e:
-        logger.warning(f"Window title scan error: {e}")
-        return threats
+        # Enumeration failed entirely — we know nothing about open windows.
+        raise CheckError(f"Window title scan error: {e}") from e
 
     for title in titles:
         title_lower = title.lower()
@@ -280,30 +349,37 @@ def _get_all_window_titles_mac():
         return winList
     end tell
     '''
-    try:
-        result = subprocess.run(
-            ["osascript", "-e", script],
-            capture_output=True, text=True, timeout=5
+    # No try/except here on purpose: a failure to enumerate must reach
+    # scan_window_titles() so the check is reported as "error", not as an empty
+    # (and therefore apparently clean) window list.
+    result = subprocess.run(
+        ["osascript", "-e", script],
+        capture_output=True, text=True, timeout=5
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"osascript exited {result.returncode}: {result.stderr.strip()[:200]}"
         )
-        raw = result.stdout.strip()
-        return [t.strip() for t in raw.split(",") if t.strip()]
-    except Exception:
-        return []
+    raw = result.stdout.strip()
+    return [t.strip() for t in raw.split(",") if t.strip()]
 
 def _get_all_window_titles_linux():
     """Get all window titles on Linux via wmctrl."""
-    try:
-        result = subprocess.run(
-            ["wmctrl", "-l"], capture_output=True, text=True, timeout=5
+    # As above: wmctrl missing / X11 unavailable must surface as a failed check
+    # rather than as "no windows open".
+    result = subprocess.run(
+        ["wmctrl", "-l"], capture_output=True, text=True, timeout=5
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"wmctrl exited {result.returncode}: {result.stderr.strip()[:200]}"
         )
-        titles = []
-        for line in result.stdout.strip().split("\n"):
-            parts = line.split(None, 3)
-            if len(parts) >= 4:
-                titles.append(parts[3])
-        return titles
-    except Exception:
-        return []
+    titles = []
+    for line in result.stdout.strip().split("\n"):
+        parts = line.split(None, 3)
+        if len(parts) >= 4:
+            titles.append(parts[3])
+    return titles
 
 # ─────────────────────────────────────────────
 #  CLIPBOARD MONITOR
@@ -383,7 +459,9 @@ def detect_suspicious_network_activity():
                     break
 
     except Exception as e:
-        logger.warning(f"Network detection error: {e}")
+        # psutil.net_connections() needs elevated rights on some platforms; when
+        # it fails we have not inspected ANY connection.
+        raise CheckError(f"Network detection error: {e}", threats) from e
 
     return threats
 
@@ -410,6 +488,13 @@ def detect_suspicious_memory_patterns():
             ["tasklist", "/M", "/FO", "CSV"],
             capture_output=True, text=True, timeout=10
         )
+
+        # A non-zero exit (blocked by policy/AV) leaves stdout empty, which would
+        # otherwise read as "no suspicious modules loaded".
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"tasklist exited {result.returncode}: {result.stderr.strip()[:200]}"
+            )
 
         for line in result.stdout.splitlines():
             line_lower = line.lower()
@@ -445,7 +530,9 @@ def detect_suspicious_memory_patterns():
                     break  # one threat per process line
 
     except Exception as e:
-        logger.warning(f"Memory pattern detection error: {e}")
+        # NOTE: the per-row `except: continue` inside the loop above stays local —
+        # one malformed CSV row must not invalidate the whole check.
+        raise CheckError(f"Memory pattern detection error: {e}", threats) from e
 
     return threats
 
@@ -483,7 +570,9 @@ def detect_suspicious_file_access():
                 continue
 
     except Exception as e:
-        logger.warning(f"Browser automation detection error: {e}")
+        # Only a failure of process_iter() itself lands here; the per-process
+        # NoSuchProcess/AccessDenied above is handled locally and is normal.
+        raise CheckError(f"Browser automation detection error: {e}", threats) from e
 
     return threats
 
@@ -544,7 +633,8 @@ def detect_suspicious_window_properties():
                     break
 
     except Exception as e:
-        logger.warning(f"Window class detection error: {e}")
+        # EnumWindows blocked (policy / AV hooking) → no classes inspected at all.
+        raise CheckError(f"Window class detection error: {e}", threats) from e
 
     return threats
 
@@ -630,7 +720,9 @@ def detect_ai_cheating_tools():
                 continue
 
     except Exception as e:
-        logger.warning(f"AI cheating tool detection error: {e}")
+        # Per-process NoSuchProcess/AccessDenied is handled inside the loop and is
+        # expected; reaching here means the enumeration itself broke.
+        raise CheckError(f"AI cheating tool detection error: {e}", threats) from e
 
     return threats
 
@@ -712,7 +804,9 @@ def detect_overlay_windows():
                 continue
 
     except Exception as e:
-        logger.warning(f"Overlay window detection error: {e}")
+        # The per-PID NoSuchProcess/AccessDenied above is handled locally; an
+        # abort here means no overlay window was inspected.
+        raise CheckError(f"Overlay window detection error: {e}", threats) from e
 
     return threats
 
@@ -726,6 +820,12 @@ def detect_virtual_audio_devices():
     Detect virtual audio cables that could be used to pipe
     AI-generated answers to earpieces.  Windows only —
     queries PnP audio endpoint devices via PowerShell.
+
+    Timeout is 20s, not 5s: a cold `powershell.exe` start plus Get-PnpDevice
+    measured 4.3–5.1s on a normal idle machine, so the old 5s limit tripped
+    intermittently. That used to be invisible (the check just returned no
+    threats); now it would mark every such scan degraded, so the limit has to
+    have real headroom.
     """
     if OS_NAME != "Windows":
         return []
@@ -735,8 +835,15 @@ def detect_virtual_audio_devices():
         result = subprocess.run(
             ["powershell", "-NoProfile", "-NonInteractive", "-Command",
              "Get-PnpDevice -Class AudioEndpoint -Status OK | Select-Object FriendlyName | Format-List"],
-            capture_output=True, text=True, timeout=5
+            capture_output=True, text=True, timeout=20
         )
+        # PowerShell blocked by execution policy / AV returns empty stdout, which
+        # would otherwise read as "no virtual audio devices present".
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Get-PnpDevice exited {result.returncode}: "
+                f"{result.stderr.strip()[:200]}"
+            )
         output = result.stdout.lower()
         for kw in VIRTUAL_AUDIO_KEYWORDS:
             if kw in output:
@@ -748,7 +855,7 @@ def detect_virtual_audio_devices():
                 break  # one alert is enough
 
     except Exception as e:
-        logger.warning(f"Virtual audio detection error: {e}")
+        raise CheckError(f"Virtual audio detection error: {e}", threats) from e
 
     return threats
 
@@ -760,7 +867,16 @@ def detect_virtual_audio_devices():
 #  projector detection that the logical-display count alone would miss.
 # ─────────────────────────────────────────────
 def count_physical_monitors():
-    """Return the number of active, non-mirror-driver physical monitors (Windows)."""
+    """
+    Return the number of active, non-mirror-driver physical monitors (Windows).
+
+    Returns None when the enumeration FAILED, so the caller can tell "could not
+    count" apart from a real count. It previously returned 0 on error, which the
+    Node side (`agentStatus.physical_monitors || 0`) read as "no extra monitor" —
+    i.e. a mirrored projector went undetected whenever EnumDisplayDevices was
+    blocked. 0 is still returned on non-Windows, where the check does not apply
+    and the Electron screen API is authoritative.
+    """
     if OS_NAME != "Windows":
         return 0
     try:
@@ -806,7 +922,7 @@ def count_physical_monitors():
         return count
     except Exception as e:
         logger.warning(f"Physical monitor count error: {e}")
-        return 0
+        return None
 
 # ─────────────────────────────────────────────
 #  MAIN SCAN ORCHESTRATOR
@@ -816,38 +932,53 @@ def run_full_scan():
     Run all 8 behavioral deep-detection checks and compile results.
     Process/display/screen-sharing checks are handled by the Electron
     preflight (Node.js) and are intentionally excluded here.
+
+    Contract v2: every check reports "ok" or "error" in result["checks"], and a
+    scan with ANY errored check is `degraded` and NOT safe_to_proceed. An empty
+    threat list is only trustworthy when all checks actually ran.
     """
     global scan_results, event_log
 
     threats = []
+    checks = {}
 
     # 1. Window title scan (Win32 / AppleScript / wmctrl)
-    threats.extend(scan_window_titles())
+    _run_check("window_titles", scan_window_titles, checks, threats)
 
     # 2. Network connections to AI/cheating APIs (cross-platform psutil)
-    threats.extend(detect_suspicious_network_activity())
+    _run_check("network", detect_suspicious_network_activity, checks, threats)
 
     # 3. DLL / loaded-module signatures (Windows, batched)
-    threats.extend(detect_suspicious_memory_patterns())
+    _run_check("memory_patterns", detect_suspicious_memory_patterns, checks, threats)
 
     # 4. Browser automation tools — ChromeDriver, Selenium, etc.
-    threats.extend(detect_suspicious_file_access())
+    _run_check("browser_automation", detect_suspicious_file_access, checks, threats)
 
     # 5. Suspicious Win32 window class names
-    threats.extend(detect_suspicious_window_properties())
+    _run_check("window_classes", detect_suspicious_window_properties, checks, threats)
 
     # 6. AI interview cheating tools (process name/path/cmdline)
-    threats.extend(detect_ai_cheating_tools())
+    _run_check("ai_tools", detect_ai_cheating_tools, checks, threats)
 
     # 7. Transparent overlay windows (Win32 WS_EX flags)
-    threats.extend(detect_overlay_windows())
+    _run_check("overlay_windows", detect_overlay_windows, checks, threats)
 
     # 8. Virtual audio devices (VB-Cable, Voicemeeter, etc.)
-    threats.extend(detect_virtual_audio_devices())
+    _run_check("virtual_audio", detect_virtual_audio_devices, checks, threats)
+
+    # Physical monitor count is not a threat check, but a silent failure there
+    # hides a mirrored projector — so it reports its own outcome too.
+    monitors = count_physical_monitors()
+    checks["physical_monitors"] = "error" if monitors is None else "ok"
 
     # ── Compile result ───────────────────────────────────────
-    safe      = len(threats) == 0
-    status    = "CLEAR" if safe else "THREAT_DETECTED"
+    failed    = sorted(n for n, outcome in checks.items() if outcome != "ok")
+    degraded  = len(failed) > 0
+    # `status` keeps its original two-state meaning (did we FIND anything) — the
+    # Node side reads it as-is. "Could not look" lives in degraded, not here.
+    status    = "CLEAR" if len(threats) == 0 else "THREAT_DETECTED"
+    # Fail CLOSED: a clean result only counts as safe when every check ran.
+    safe      = len(threats) == 0 and not degraded
     timestamp = datetime.now().isoformat()
 
     result = {
@@ -861,14 +992,28 @@ def run_full_scan():
         # Phase 4: physical monitor count for duplicate/mirror-mode detection
         # (the Node screen API only sees logical displays). Cross-checked in
         # Node; not itself a threat here to avoid double-counting extend mode.
-        "physical_monitors": count_physical_monitors(),
+        # None means "could not count" — see checks["physical_monitors"].
+        "physical_monitors": monitors,
+        # ── contract v2 additions ────────────────────────────
+        "contract_version": CONTRACT_VERSION,
+        "checks": checks,
+        "degraded": degraded,
     }
+
+    if degraded:
+        logger.warning(
+            f"[SCAN #{result['scan_count']}] DEGRADED — {len(failed)} of "
+            f"{len(checks)} checks could not complete: {', '.join(failed)}. "
+            f"Reporting safe_to_proceed=False; this device was NOT fully verified."
+        )
 
     # ── Persist event log ────────────────────────────────────
     log_entry = {
         "timestamp": timestamp,
         "threat_count": len(threats),
         "safe": safe,
+        "degraded": degraded,
+        "failed_checks": failed,
         "threats": [t["detail"] for t in threats]
     }
     event_log.append(log_entry)
@@ -881,8 +1026,11 @@ def run_full_scan():
     if threats:
         for t in threats:
             logger.warning(f"[THREAT] {t['detail']}")
-    else:
-        logger.info(f"[SCAN #{result['scan_count']}] CLEAR — no behavioral threats detected.")
+    elif not degraded:
+        logger.info(
+            f"[SCAN #{result['scan_count']}] CLEAR — all {len(checks)} checks ran, "
+            f"no behavioral threats detected."
+        )
 
     with scan_lock:
         scan_results = result
@@ -956,6 +1104,7 @@ class AgentHandler(BaseHTTPRequestHandler):
                 "alive": True,
                 "agent": f"Interview Security Agent v{AGENT_VERSION}",  # IMP-12
                 "version": AGENT_VERSION,
+                "contract_version": CONTRACT_VERSION,
                 "os": OS_NAME,
                 "port": PORT
             }).encode())
@@ -1010,7 +1159,13 @@ def _write_response(obj):
 def _handle_command(cmd):
     """Dispatch a single command to its handler and return the result dict."""
     if cmd == "ping":
-        return {"alive": True, "agent_version": AGENT_VERSION, "os": OS_NAME, "port": PORT}
+        return {
+            "alive": True,
+            "agent_version": AGENT_VERSION,
+            "contract_version": CONTRACT_VERSION,
+            "os": OS_NAME,
+            "port": PORT,
+        }
     if cmd == "status":
         with scan_lock:
             return dict(scan_results)

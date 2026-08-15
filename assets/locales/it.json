@@ -190,7 +190,10 @@
     "checkUnverified": "Impossibile verificare questo controllo. Fai clic su Ripeti scansione.",
     "agentUnverified": "La scansione approfondita non è stata completata: impossibile verificare questo dispositivo. Fai clic su Ripeti scansione.",
     "agentDegraded": "La scansione approfondita è terminata con errori: impossibile verificare completamente questo dispositivo. Fai clic su Ripeti scansione.",
-    "someUnverified": "Alcuni controlli non è stato possibile verificarli. Fai clic su Ripeti scansione per riprovare."
+    "someUnverified": "Alcuni controlli non è stato possibile verificarli. Fai clic su Ripeti scansione per riprovare.",
+    "copyDiagnostics": "Copia diagnostica",
+    "diagnosticsCopied": "Diagnostica copiata. Incollala nel messaggio all'assistenza.",
+    "diagnosticsCopyFailed": "Copia automatica non riuscita. Seleziona il testo qui sotto e copialo."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

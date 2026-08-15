@@ -190,7 +190,10 @@
     "checkUnverified": "이 검사를 확인할 수 없습니다. 다시 검사를 클릭하세요.",
     "agentUnverified": "정밀 검사가 완료되지 않았습니다. 이 기기를 확인할 수 없습니다. 다시 검사를 클릭하세요.",
     "agentDegraded": "정밀 검사가 오류와 함께 종료되었습니다. 이 기기를 완전히 확인할 수 없습니다. 다시 검사를 클릭하세요.",
-    "someUnverified": "일부 검사를 확인할 수 없습니다. 다시 검사를 클릭해 재시도하세요."
+    "someUnverified": "일부 검사를 확인할 수 없습니다. 다시 검사를 클릭해 재시도하세요.",
+    "copyDiagnostics": "진단 정보 복사",
+    "diagnosticsCopied": "진단 정보를 복사했습니다. 고객 지원에 보내는 메시지에 붙여넣으세요.",
+    "diagnosticsCopyFailed": "자동으로 복사하지 못했습니다. 아래 텍스트를 선택해 복사하세요."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

@@ -190,7 +190,10 @@
     "checkUnverified": "Deze controle kon niet worden geverifieerd. Klik op Opnieuw scannen.",
     "agentUnverified": "De diepe scan is niet voltooid — dit apparaat kon niet worden geverifieerd. Klik op Opnieuw scannen.",
     "agentDegraded": "De diepe scan is met fouten geëindigd — dit apparaat kon niet volledig worden geverifieerd. Klik op Opnieuw scannen.",
-    "someUnverified": "Sommige controles konden niet worden geverifieerd. Klik op Opnieuw scannen om het opnieuw te proberen."
+    "someUnverified": "Sommige controles konden niet worden geverifieerd. Klik op Opnieuw scannen om het opnieuw te proberen.",
+    "copyDiagnostics": "Diagnostiek kopiëren",
+    "diagnosticsCopied": "Diagnostiek gekopieerd. Plak deze in je bericht aan de support.",
+    "diagnosticsCopyFailed": "Automatisch kopiëren is mislukt. Selecteer de tekst hieronder en kopieer deze."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

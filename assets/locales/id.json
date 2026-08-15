@@ -190,7 +190,10 @@
     "checkUnverified": "Pemeriksaan ini tidak dapat diverifikasi. Klik Pindai Ulang.",
     "agentUnverified": "Pemindaian mendalam tidak selesai — perangkat ini tidak dapat diverifikasi. Klik Pindai Ulang.",
     "agentDegraded": "Pemindaian mendalam selesai dengan kesalahan — perangkat ini tidak dapat diverifikasi sepenuhnya. Klik Pindai Ulang.",
-    "someUnverified": "Beberapa pemeriksaan tidak dapat diverifikasi. Klik Pindai Ulang untuk mencoba lagi."
+    "someUnverified": "Beberapa pemeriksaan tidak dapat diverifikasi. Klik Pindai Ulang untuk mencoba lagi.",
+    "copyDiagnostics": "Salin diagnostik",
+    "diagnosticsCopied": "Diagnostik disalin. Tempelkan di pesan Anda ke tim dukungan.",
+    "diagnosticsCopyFailed": "Tidak dapat menyalin otomatis. Pilih teks di bawah ini lalu salin."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

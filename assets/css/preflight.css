@@ -440,6 +440,56 @@
 .sc-status--fail { color: var(--danger); font-weight: 600; }
 .sc-status--warn { color: var(--warn);   font-weight: 600; }
 
+/* ── Diagnostics export ──────────────────────────────────────────────────────
+   Only rendered after the scan retry cap is hit, so it is deliberately quiet:
+   a text-weight control that never competes with Rescan / Continue. */
+
+.sc-diagnostics {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.sc-btn-diagnostics {
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+.sc-btn-diagnostics:hover { color: var(--ink); }
+.sc-btn-diagnostics:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.sc-diagnostics__note {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: 0;
+  text-align: center;
+}
+
+.sc-diagnostics__text {
+  width: 100%;
+  max-width: 560px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  resize: vertical;
+  white-space: pre;
+}
+
 .sc-footer__buttons {
   display: flex;
   flex-direction: row;

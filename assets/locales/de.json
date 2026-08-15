@@ -190,7 +190,10 @@
     "checkUnverified": "Diese Prüfung konnte nicht verifiziert werden. Klicken Sie auf Erneut scannen.",
     "agentUnverified": "Der Tiefenscan wurde nicht abgeschlossen – dieses Gerät konnte nicht verifiziert werden. Klicken Sie auf Erneut scannen.",
     "agentDegraded": "Der Tiefenscan endete mit Fehlern – dieses Gerät konnte nicht vollständig verifiziert werden. Klicken Sie auf Erneut scannen.",
-    "someUnverified": "Einige Prüfungen konnten nicht verifiziert werden. Klicken Sie auf Erneut scannen, um es erneut zu versuchen."
+    "someUnverified": "Einige Prüfungen konnten nicht verifiziert werden. Klicken Sie auf Erneut scannen, um es erneut zu versuchen.",
+    "copyDiagnostics": "Diagnose kopieren",
+    "diagnosticsCopied": "Diagnose kopiert. Fügen Sie sie in Ihre Nachricht an den Support ein.",
+    "diagnosticsCopyFailed": "Automatisches Kopieren nicht möglich. Markieren Sie den Text unten und kopieren Sie ihn."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

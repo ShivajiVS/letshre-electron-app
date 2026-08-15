@@ -190,7 +190,10 @@
     "checkUnverified": "Não foi possível verificar esta checagem. Clique em Verificar novamente.",
     "agentUnverified": "A verificação profunda não foi concluída — não foi possível verificar este dispositivo. Clique em Verificar novamente.",
     "agentDegraded": "A verificação profunda terminou com erros — não foi possível verificar totalmente este dispositivo. Clique em Verificar novamente.",
-    "someUnverified": "Algumas checagens não puderam ser verificadas. Clique em Verificar novamente para tentar de novo."
+    "someUnverified": "Algumas checagens não puderam ser verificadas. Clique em Verificar novamente para tentar de novo.",
+    "copyDiagnostics": "Copiar diagnóstico",
+    "diagnosticsCopied": "Diagnóstico copiado. Cole-o na sua mensagem para o suporte.",
+    "diagnosticsCopyFailed": "Não foi possível copiar automaticamente. Selecione o texto abaixo e copie-o."
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

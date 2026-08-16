@@ -210,6 +210,18 @@
     "killElevateHint": "{name}-এর প্রশাসক অধিকার প্রয়োজন। বন্ধ করার আগে আপনার সিস্টেম নিশ্চিতকরণ চাইবে।",
     "killElevateWaiting": "অনুমতির জন্য অপেক্ষা করা হচ্ছে..."
   },
+  "updater": {
+    "available": "আপডেট উপলব্ধ",
+    "downloadingInBackground": "ব্যাকগ্রাউন্ডে ডাউনলোড হচ্ছে{size}…",
+    "downloading": "আপডেট ডাউনলোড হচ্ছে",
+    "ready": "আপডেট প্রস্তুত",
+    "readyBody": "আপনি অ্যাপ বন্ধ করলে এটি স্বয়ংক্রিয়ভাবে ইনস্টল হবে।",
+    "updateNow": "এখনই আপডেট করুন",
+    "dismiss": "বাতিল করুন",
+    "readyHint": "\"এখনই আপডেট করুন\" অ্যাপ বন্ধ করে ইনস্টল করে — আপনার ইন্টারভিউ লিঙ্ক থেকে আবার খুলুন।",
+    "whatsNew": "নতুন কী আছে",
+    "hideNotes": "লুকান"
+  },
   "attestation": {
     "_certifiedTranslationRequired": true,
     "_reason": "Read aloud by the candidate for voice verification and treated as a binding statement. Every translation of this key must be reviewed and signed off by a certified human translator before release — do not ship a machine-translated or unreviewed change to this key.",

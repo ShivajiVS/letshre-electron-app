@@ -210,6 +210,18 @@
     "killElevateHint": "{name} کو ایڈمنسٹریٹر اختیارات درکار ہیں۔ بند کرنے سے پہلے آپ کا سسٹم تصدیق مانگے گا۔",
     "killElevateWaiting": "اجازت کا انتظار ہے..."
   },
+  "updater": {
+    "available": "اپ ڈیٹ دستیاب ہے",
+    "downloadingInBackground": "پس منظر میں ڈاؤن لوڈ ہو رہا ہے{size}…",
+    "downloading": "اپ ڈیٹ ڈاؤن لوڈ ہو رہا ہے",
+    "ready": "اپ ڈیٹ تیار ہے",
+    "readyBody": "جب آپ ایپ بند کریں گے تو یہ خود بخود انسٹال ہو جائے گا۔",
+    "updateNow": "ابھی اپ ڈیٹ کریں",
+    "dismiss": "مسترد کریں",
+    "readyHint": "\"ابھی اپ ڈیٹ کریں\" ایپ بند کر کے انسٹال کرتا ہے — اپنے انٹرویو لنک سے دوبارہ کھولیں۔",
+    "whatsNew": "نیا کیا ہے",
+    "hideNotes": "چھپائیں"
+  },
   "attestation": {
     "_certifiedTranslationRequired": true,
     "_reason": "Read aloud by the candidate for voice verification and treated as a binding statement. Every translation of this key must be reviewed and signed off by a certified human translator before release — do not ship a machine-translated or unreviewed change to this key.",

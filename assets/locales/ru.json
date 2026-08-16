@@ -210,6 +210,18 @@
     "killElevateHint": "Для {name} нужны права администратора. Система запросит подтверждение перед закрытием.",
     "killElevateWaiting": "Ожидание разрешения..."
   },
+  "updater": {
+    "available": "Доступно обновление",
+    "downloadingInBackground": "Загрузка в фоновом режиме{size}…",
+    "downloading": "Загрузка обновления",
+    "ready": "Обновление готово",
+    "readyBody": "Оно установится автоматически, когда вы закроете приложение.",
+    "updateNow": "Обновить сейчас",
+    "dismiss": "Отклонить",
+    "readyHint": "«Обновить сейчас» закроет приложение и установит обновление — откройте его снова по ссылке на собеседование.",
+    "whatsNew": "Что нового",
+    "hideNotes": "Скрыть"
+  },
   "attestation": {
     "_certifiedTranslationRequired": true,
     "_reason": "Read aloud by the candidate for voice verification and treated as a binding statement. Every translation of this key must be reviewed and signed off by a certified human translator before release — do not ship a machine-translated or unreviewed change to this key.",

@@ -1539,7 +1539,7 @@ function updateCardBody(s) {
 
   const notes = s.releaseNotes
     ? `<button class="update-card__notes-toggle" onclick="window.__updateAction('notes')">
-         ${s.notesOpen ? "Hide" : "What’s new"}
+         ${s.notesOpen ? tr("updater.hideNotes", "Hide") : tr("updater.whatsNew", "What’s new")}
        </button>
        ${s.notesOpen ? `<div class="update-card__notes">${escapeHtml(
          typeof s.releaseNotes === "string" ? s.releaseNotes : ""
@@ -1550,8 +1550,8 @@ function updateCardBody(s) {
     case "available": {
       const size = s.sizeBytes ? ` (${formatBytes(s.sizeBytes)})` : "";
       return `
-        ${head("Update available")}
-        <p class="update-card__body">Downloading in the background${size}…</p>
+        ${head(tr("updater.available", "Update available"))}
+        <p class="update-card__body">${tr("updater.downloadingInBackground", `Downloading in the background${size}…`, { size })}</p>
         ${notes}`;
     }
     case "downloading": {
@@ -1560,19 +1560,19 @@ function updateCardBody(s) {
         ? `${formatBytes(s.transferred)} / ${formatBytes(s.total)}`
         : "";
       return `
-        ${head("Downloading update")}
+        ${head(tr("updater.downloading", "Downloading update"))}
         <div class="update-card__progress"><div class="update-card__progress-bar" style="width:${pct}%"></div></div>
         <p class="update-card__meta"><span>${pct}%</span><span>${sizeLine}</span></p>`;
     }
     case "downloaded":
       return `
-        ${head("Update ready", "update-card__icon--ok")}
-        <p class="update-card__body">It installs automatically when you close the app.</p>
+        ${head(tr("updater.ready", "Update ready"), "update-card__icon--ok")}
+        <p class="update-card__body">${tr("updater.readyBody", "It installs automatically when you close the app.")}</p>
         <div class="update-card__actions">
-          <button class="update-card__btn update-card__btn--primary" onclick="window.__updateAction('install')">Update now</button>
-          <button class="update-card__btn update-card__btn--ghost" onclick="window.__updateAction('dismiss')">Dismiss</button>
+          <button class="update-card__btn update-card__btn--primary" onclick="window.__updateAction('install')">${tr("updater.updateNow", "Update now")}</button>
+          <button class="update-card__btn update-card__btn--ghost" onclick="window.__updateAction('dismiss')">${tr("updater.dismiss", "Dismiss")}</button>
         </div>
-        <p class="update-card__hint">"Update now" closes the app and installs — reopen from your interview link.</p>`;
+        <p class="update-card__hint">${tr("updater.readyHint", "\"Update now\" closes the app and installs — reopen from your interview link.")}</p>`;
     default:
       return "";
   }

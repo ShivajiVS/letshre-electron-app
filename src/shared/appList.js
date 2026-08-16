@@ -47,6 +47,16 @@ const SCREEN_SHARING_APPS = [
   "bandicam.exe",
   "camtasia.exe",
   "snagit.exe",
+  // Parsec, Splashtop, Chrome Remote Desktop: remote-access tools, same risk
+  // class as AnyDesk/TeamViewer. Process names below are the primary/known
+  // executables per vendor; remote-access apps vary their helper process
+  // names across versions more than most, so this list is best-effort.
+  "parsecd.exe",
+  "parsec.exe",
+  "srserver.exe",
+  "srfeature.exe",
+  "stserver.exe",
+  "remoting_host.exe",
   // macOS
   "obs.app",
   "obs studio.app",
@@ -56,6 +66,10 @@ const SCREEN_SHARING_APPS = [
   "teamviewer.app",
   "camtasia.app",
   "snagit.app",
+  "parsec.app",
+  "splashtop business.app",
+  "splashtop streamer.app",
+  "chrome remote desktop host.app",
 ];
 
 const CASTING_APPS = [
@@ -324,6 +338,16 @@ const APP_DISPLAY_NAMES = {
   "camtasia.app": "Camtasia",
   "snagit.exe": "Snagit",
   "snagit.app": "Snagit",
+  "parsecd.exe": "Parsec",
+  "parsec.exe": "Parsec",
+  "parsec.app": "Parsec",
+  "srserver.exe": "Splashtop",
+  "srfeature.exe": "Splashtop",
+  "stserver.exe": "Splashtop",
+  "splashtop business.app": "Splashtop",
+  "splashtop streamer.app": "Splashtop",
+  "remoting_host.exe": "Chrome Remote Desktop",
+  "chrome remote desktop host.app": "Chrome Remote Desktop",
   // Casting / Mirroring
   "scrcpy.exe": "Scrcpy (Screen Mirror)",
   scrcpy: "Scrcpy (Screen Mirror)",

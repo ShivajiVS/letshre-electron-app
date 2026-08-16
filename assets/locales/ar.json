@@ -210,6 +210,18 @@
     "killElevateHint": "يحتاج {name} إلى صلاحيات المسؤول. سيطلب منك النظام التأكيد قبل الإغلاق.",
     "killElevateWaiting": "في انتظار الإذن..."
   },
+  "updater": {
+    "available": "التحديث متوفر",
+    "downloadingInBackground": "جارٍ التنزيل في الخلفية{size}…",
+    "downloading": "جارٍ تنزيل التحديث",
+    "ready": "التحديث جاهز",
+    "readyBody": "سيتم تثبيته تلقائيًا عند إغلاق التطبيق.",
+    "updateNow": "التحديث الآن",
+    "dismiss": "تجاهل",
+    "readyHint": "يؤدي \"التحديث الآن\" إلى إغلاق التطبيق وتثبيته — أعد فتحه من رابط المقابلة الخاص بك.",
+    "whatsNew": "ما الجديد",
+    "hideNotes": "إخفاء"
+  },
   "attestation": {
     "_certifiedTranslationRequired": true,
     "_reason": "Read aloud by the candidate for voice verification and treated as a binding statement. Every translation of this key must be reviewed and signed off by a certified human translator before release — do not ship a machine-translated or unreviewed change to this key.",

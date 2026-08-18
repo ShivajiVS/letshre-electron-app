@@ -159,12 +159,10 @@ function registerIpcHandlers() {
   ipcMain.on(IPC.LOAD_PERMISSIONS_PAGE, () => {
     logger.info("[ipc] load-permissions-page");
 
-    // This is the security-check page's Proceed button — the authoritative
-    // preflight gate. The renderer enabling its own button is UX only; main
-    // re-verifies that the last scan actually passed and is still fresh, so a
-    // renderer bug (or devtools) cannot walk past every check. A stale pass is
-    // treated as no pass: the candidate cannot sit on a green screen, launch a
-    // blocked app, and then continue.
+    // Authoritative preflight gate — the renderer enabling its Proceed button
+    // is UX only. Re-verify the last scan actually passed and is still fresh,
+    // so devtools/a renderer bug can't walk past checks, and a stale pass
+    // (green screen, then a blocked app launched) doesn't count as a pass.
     const gate = startDetection.verifyProceedAllowed();
     if (!gate.ok) {
       logger.warn(`[ipc] load-permissions-page REFUSED — ${gate.reason}`);
@@ -297,13 +295,11 @@ function registerIpcHandlers() {
     }
     logger.info("[ipc] run-preflight-scans invoked");
 
-    // NOTE: ensureAgent() is deliberately NOT awaited here. It can block for up
-    // to AGENT_PING_TIMEOUT_MS (15s) waiting on a cold spawn, which used to run
-    // BEFORE the first card could resolve and blew the renderer's scan budget on
-    // slow machines. The agent is pre-warmed when the page loads (prewarmAgent),
-    // and a still-unavailable agent now degrades to a single "unverified" agent
-    // card while the other five checks resolve normally. We still kick a
-    // self-heal off in the background so the next Re-scan finds it alive.
+    // ensureAgent() deliberately not awaited — a cold spawn can take up to
+    // AGENT_PING_TIMEOUT_MS (15s), which used to block the first card and blow
+    // the scan budget on slow machines. It's pre-warmed on page load instead;
+    // if still unavailable, the agent card degrades to "unverified" while the
+    // other five checks resolve, and this call self-heals it for next Re-scan.
     ensureAgent().catch((err) => logger.warn("[ipc] ensureAgent failed:", err.message));
 
     // Streaming preflight: each verdict is pushed the moment its check lands.
@@ -343,11 +339,10 @@ function registerIpcHandlers() {
     const roleSelection = sanitizeRoleSelection(payload);
     logger.info("[ipc] proceed-to-interview received", { is_custom_role: roleSelection.is_custom_role });
 
-    // Backstop gate. Freshness is NOT required here — the candidate has since
-    // walked through permissions, identity verification and role selection, so
-    // the preflight is legitimately minutes old by now, and live detection takes
-    // over the moment the interview starts. What we still refuse is entering the
-    // interview when no preflight ever passed.
+    // Backstop gate, freshness not required — permissions/identity/role
+    // selection have legitimately aged the preflight by now, and live
+    // detection takes over once the interview starts. Still refuses entry
+    // if no preflight ever passed.
     const gate = startDetection.verifyProceedAllowed({ requireFresh: false });
     if (!gate.ok) {
       logger.warn(`[ipc] proceed-to-interview REFUSED — ${gate.reason}`);
@@ -442,11 +437,9 @@ function registerIpcHandlers() {
       logger.warn("[ipc] kill-all-blocked-apps rejected — not an array");
       return [];
     }
-    // Validation used to FILTER the list before killing, so the returned array
-    // was aligned with the surviving names rather than with what the renderer
-    // sent — one rejected name silently shifted every later result onto the
-    // wrong app's row. Now every requested name gets exactly one result at its
-    // original index, and a rejected name reports itself rather than vanishing.
+    // Every requested name gets one result at its original index — filtering
+    // invalid names out before mapping used to shift results onto the wrong
+    // app's row, so rejected names report themselves instead of vanishing.
     const validated = processNames.map((n) => ({ ...validateProcessName(n), original: n }));
     const validNames = validated.filter((r) => r.valid).map((r) => r.safe);
 

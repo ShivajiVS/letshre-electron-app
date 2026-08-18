@@ -3,14 +3,12 @@
  * ───────────────────────
  * Owns authentication against the LetsHyre API.
  *
- * SECURITY: the access/refresh tokens live ONLY in this main-process module —
- * they are never exposed to the renderer (which only ever sees non-sensitive
- * user fields like name/email/role). The renderer drives auth through IPC.
+ * Tokens live ONLY here — the renderer never sees them, only display-safe
+ * user fields (name/email/role), and drives auth through IPC.
  *
- * Persistence: on successful login the session is encrypted via Electron
- * safeStorage (DPAPI on Windows) and written to userData/session.enc.
- * On startup call authManager.init() (after app.whenReady) to restore it so
- * the user is not asked to log in again after closing and reopening the app.
+ * Sessions persist via Electron safeStorage (DPAPI on Windows) to
+ * userData/session.enc. Call init() after app.whenReady to restore one so
+ * the user isn't re-prompted to log in on relaunch.
  */
 
 "use strict";
@@ -261,9 +259,8 @@ async function fetchProfileImage(url) {
 
 /**
  * Submits a voice sample blob to the API for identity verification.
- * Also sends the candidate's UI locale and the exact attestation text they
- * were shown, so backend STT/voice-match can use the right language model
- * instead of assuming English.
+ * Also sends UI locale + attestation text so backend STT/voice-match picks
+ * the right language model instead of assuming English.
  * @param {Uint8Array} uint8Array
  * @param {string} mimeType
  * @param {{ locale?: string, statementText?: string }} [meta]
@@ -390,10 +387,9 @@ async function submitRole(role) {
 }
 
 /**
- * Verifies the restored session against the API on startup.
- * Tries the access token; on 401 attempts a refresh; on network error
- * grants offline grace so the user isn't forced to log in without connectivity.
- *
+ * Verifies the restored session against the API on startup: tries the
+ * access token, refreshes on 401, and grants offline grace on network
+ * error so connectivity loss doesn't force a re-login.
  * @returns {Promise<{ valid: boolean, offline?: boolean, reason?: string }>}
  */
 async function verifySession() {
@@ -430,10 +426,8 @@ async function verifySession() {
 }
 
 // ─── Screen-recording upload API ─────────────────────────────────────────────
-// Mirrors videoUpload.api.js from the interview site. All calls are
-// authenticated via the main-process Bearer token — tokens never touch the
-// renderer. Each function applies the same 401 → refresh → retry pattern used
-// throughout this module.
+// Mirrors videoUpload.api.js from the interview site. Same 401 → refresh →
+// retry pattern as the rest of this module; tokens never leave main.
 
 /**
  * Registers a new upload session with the backend.

@@ -118,15 +118,11 @@ function endInterview(reason) {
 // ─── Self-Enforced Violation ─────────────────────────────────────────────
 
 /**
- * Electron self-enforcement of a hard-block (failsafe).
- *
- * Invoked when a hard-block violation was pushed to the website but the session
- * is still active after the grace window — i.e. the renderer dropped the event
- * or failed to terminate. Lifts the interview lockdown so the candidate can read
- * the screen and act, then navigates to the local violation page (which offers
- * Quit / Re-check). This guarantees a hard-block has a consequence even when the
- * website doesn't handle it.
- *
+ * Failsafe: fires when a hard-block violation was pushed to the website but
+ * the session is still active after the grace window (renderer dropped the
+ * event or failed to terminate). Lifts lockdown so the candidate can read
+ * the screen and retries the violation push via IPC, guaranteeing a
+ * hard-block has a consequence even if the website never handles it.
  * @param {string} reason
  */
 function enforceViolation(reason) {
@@ -183,13 +179,11 @@ function lockdownForInterview(interviewUrl, tokens = null, roleSelection = null)
   win.setMinimizable(false);
 
   win.webContents.once("dom-ready", () => {
-    // A NEW interview is starting. Wipe any finished session the interview site
-    // left in sessionStorage — Electron reuses one long-lived tab, so a prior
-    // COMPLETED session survives the scorecard → dashboard → new-interview round
-    // trip and would otherwise be restored as a stale scorecard. This runs
-    // before the SPA's first render (same injection path candidate_photo relies
-    // on), so the site starts fresh. Belt-and-suspenders with the site-side
-    // restore guard, and it works even against an older deployed site.
+    // A new interview is starting — wipe any finished session sessionStorage
+    // still holds. Electron reuses one long-lived tab, so a prior completed
+    // session would otherwise survive the scorecard → dashboard → new-interview
+    // trip and get restored as a stale scorecard. Runs before the SPA's first
+    // render, same as the candidate_photo injection below.
     const statements = ["sessionStorage.removeItem('interview_session');"];
     if (tokens?.accessToken) {
       statements.push(`sessionStorage.setItem('ac', ${JSON.stringify(tokens.accessToken)});`);
@@ -242,11 +236,11 @@ function clearCandidatePhoto() {
 }
 
 /**
- * Wipes the interview site's PERSISTED storage (cookies, localStorage, IndexedDB,
- * service-worker + cache storage) for INTERVIEW_BASE_URL. Called on logout so a
- * previous candidate's tokens or cached interview data don't carry into the next
- * account. sessionStorage is intentionally not covered here — the interview page
- * isn't loaded at logout, and the next interview re-injects/overwrites it.
+ * Wipes the interview site's persisted storage (cookies, localStorage,
+ * IndexedDB, service worker + cache) for INTERVIEW_BASE_URL on logout, so a
+ * previous candidate's tokens/data don't carry into the next account.
+ * sessionStorage isn't touched — the interview page isn't loaded at logout,
+ * and the next interview overwrites it anyway.
  * @returns {Promise<void>}
  */
 function clearInterviewSessionData() {

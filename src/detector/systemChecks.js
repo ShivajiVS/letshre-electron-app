@@ -35,11 +35,9 @@ const violationEscalation = new Map(); // event key → total fire count (ADD-06
 
 let isSessionActive = false;
 
-// Phase 1: a single unified detection timer replaces the four overlapping
-// intervals (hdmi+mirror / agent poll / anti-tamper / process watch) that each
-// fired on their own schedule and pushed violations independently. One tick now
-// gathers every signal, applies the fail-closed policy uniformly, and routes all
-// violations through one path — removing duplicate timers and inter-tick races.
+// One unified detection timer replaces the old four overlapping intervals
+// (hdmi+mirror / agent poll / anti-tamper / process watch), which each pushed
+// violations independently and could race each other.
 let detectionInterval = null;
 let preProceedInterval = null;
 let heartbeatInterval = null;
@@ -70,8 +68,8 @@ let _lastPreflight = null;
 const indeterminateStreak = new Map(); // check key → consecutive indeterminate count
 
 /**
- * Records the outcome of a single check tick and escalates a sustained
- * inability-to-verify into a violation.
+ * Records one check's outcome and escalates a sustained inability-to-verify
+ * into a violation.
  * @param {Electron.BrowserWindow} win
  * @param {string} key   - stable check identifier, e.g. "hdmi" / "process"
  * @param {string} label - human-readable check name for the violation message
@@ -116,16 +114,12 @@ function getAuditLog() {
   return [...auditLog];
 }
 
-// ─── Backend violation reporting (Phase 3) ───────────────────────────────────
-// Server-authoritative enforcement: every violation is POSTed to the backend in
-// ADDITION to the renderer push. The renderer push is best-effort UX — if the
-// page reloaded or its onViolation listener wasn't attached yet, that event is
-// lost and the candidate faces no consequence. The backend POST makes the server
-// the source of truth: it records the violation and can terminate / flag the
-// session regardless of renderer state.
-//
-// Failed posts are queued and retried (bounded, FIFO) so a transient network
-// blip is not a silent bypass.
+// ─── Backend violation reporting ──────────────────────────────────────────────
+// Every violation is also POSTed to the backend, not just pushed to the renderer:
+// the renderer push is best-effort UX and is lost if the page reloaded or its
+// listener wasn't attached, so the backend POST is what makes the server the
+// authority that can actually terminate/flag the session. Failed posts queue and
+// retry (bounded, FIFO) so a network blip isn't a silent bypass.
 const MAX_PENDING_REPORTS = 100;
 const pendingReports = [];
 let isFlushingReports = false;
@@ -197,15 +191,13 @@ function startHeartbeat() {
 }
 
 /**
- * One unified detection pass. Gathers every signal, applies the fail-closed
- * policy uniformly, and routes all violations through sendViolation().
+ * One unified detection pass: gathers every signal, applies fail-closed policy
+ * uniformly, and routes all violations through sendViolation().
  *
- * Phase 4: the live tick reads the process list ONCE via checkProcesses() and
- * emits a single de-duplicated process violation. The old code ran both
- * detectMirroring() AND a separate process watcher over the same blocked-app
- * list, so every running blocked app (e.g. chrome.exe) fired twice — once
- * "medium" (casting) and once "high". detectMirroring() is only used by the
- * preflight now (its renderer reads details.processes).
+ * Reads the process list ONCE via checkProcesses() and emits a single
+ * de-duplicated violation — the old code also ran detectMirroring() over the
+ * same blocked-app list, so a running blocked app fired twice ("medium" casting
+ * + "high"). detectMirroring() is now only used by the preflight.
  *
  * @param {Electron.BrowserWindow} win
  */
@@ -235,14 +227,11 @@ async function runDetectionTick(win) {
   // ── Fail-CLOSED: sustained inability to verify any signal escalates ──────────
   trackIndeterminate(win, "hdmi", "External display check", hdmi.status);
   trackIndeterminate(win, "process", "Blocked-process check", proc.status);
-  // Agent down = indeterminate deep-scan. This replaces the old one-shot tamper
-  // ping with the same N-strike model, so a single transient miss no longer
-  // false-fires a "security agent terminated" violation.
-  //
+  // Agent down = indeterminate deep-scan, same N-strike model as the other
+  // checks, so a single transient miss doesn't false-fire "agent terminated".
   // `degraded` (agent contract v2) means the agent ran but some of its own
-  // checks errored, so it cannot vouch for the machine either. That is the same
-  // "could not verify" condition as being unreachable and gets the same N-strike
-  // treatment. An older agent build omits the field, which reads as not degraded.
+  // checks errored, so it can't vouch for the machine either — same treatment.
+  // Older agent builds omit the field, which reads as not degraded.
   trackIndeterminate(
     win,
     "agent",
@@ -250,13 +239,10 @@ async function runDetectionTick(win) {
     !agentReachable || agentStatus.degraded === true ? "indeterminate" : "clear"
   );
 
-  // Duplicate-display cross-check. agent.py returns null when it could not read
-  // the physical monitor count; 0 legitimately means "not applicable" (macOS /
-  // Linux, where the screen API is authoritative). That null used to be coerced
-  // by `|| 0` and compared as "no mirrored display" — a silent fail-OPEN during
-  // a LIVE interview, where a candidate could mirror to a second panel and never
-  // be flagged. Only tracked while the agent is reachable; an unreachable agent
-  // already escalates under the "agent" key above.
+  // Duplicate-display cross-check. agent.py returns null (not 0) when it can't
+  // read the physical monitor count; coercing that to 0 would read as "no
+  // mirrored display" — a silent fail-open. Only tracked while reachable; an
+  // unreachable agent already escalates under the "agent" key above.
   if (agentReachable) {
     const physicalCount = agentStatus.physical_monitors;
     trackIndeterminate(
@@ -426,19 +412,12 @@ function acknowledgeViolation() {
 //PREFLIGHT: run all checks concurrently under per-check deadlines
 /**
  * Resolves `promise` with `fallback` if it does not settle within `ms`, and
- * also if it rejects. Never rejects itself.
+ * also if it rejects. Never rejects itself — one slow/broken probe degrades its
+ * own card to "unverified" instead of aborting the whole scan (a single hung
+ * check used to leave every card stuck on "Scanning").
  *
- * This is deliberately a RESOLVE-with-fallback rather than a reject: one slow
- * or broken probe must degrade its own card to "unverified", not abort the
- * whole scan. The old all-or-nothing behaviour is what produced the retry
- * storm — a single hung check left every card stuck on "Scanning".
- *
- * @template T
- * Also records how long the probe actually took and how it ended, into
- * `timings[key]` when a record sink is supplied (Phase E). Per-check durations
- * are the one piece of data that makes a "the security check didn't work"
- * report actionable — the original timeout bug was invisible precisely because
- * only the total was logged.
+ * Also records duration/outcome into `timings[key]` when a record sink is
+ * supplied, so a timed-out card can be told apart from an errored one.
  *
  * @template T
  * @param {Promise<T>} promise
@@ -497,31 +476,23 @@ const agentUnreachable = () => ({ alive: false, status: null });
 /**
  * Fetches the agent's deep-scan result.
  *
- * The happy path is now ONE round trip: a successful scan proves liveness, so
- * the separate ping beforehand was pure latency. We only fall back to a ping
- * when the scan fails, and then solely to tell "agent is dead" (fail — Re-scan
- * respawns it) apart from "agent is alive but its scan did not come back"
- * (unverified). Those two used to be indistinguishable, and the second one
- * rendered as a clean pass.
+ * Happy path is one round trip: a successful scan proves liveness, so a
+ * separate ping first would be pure latency. We only ping as a fallback when
+ * the scan fails, to tell "agent is dead" (Re-scan respawns it) apart from
+ * "agent alive but scan didn't come back" (unverified) — those used to be
+ * indistinguishable, with the second one rendering as a clean pass.
  *
  * @returns {Promise<{alive: boolean, status: object|null}>}
  */
 async function scanAgent(budgetMs = PREFLIGHT_AGENT_DEADLINE_MS) {
-  // WAIT for the agent to come up rather than asking once.
-  //
-  // sendAgentCommand() resolves null SYNCHRONOUSLY when no agent process exists
-  // yet — it does not wait and does not time out. The agent is spawned by
-  // prewarmAgent() as the security-check page opens, but spawning costs
-  // killStaleAgent() (taskkill + a PowerShell probe, ~1.5-2.5s) plus a cold
-  // PyInstaller unpack (2-5s). The preflight's agent probe runs milliseconds
-  // after the page loads, so it used to get an instant "no agent" and report
-  // "Security agent failed to start" — never once using its multi-second
-  // budget. Clicking Re-scan then succeeded purely because the agent had
-  // finished starting in the meantime, which is exactly the reported symptom.
-  //
-  // We now poll for liveness inside the budget, reserving time at the end for
-  // the scan itself. A genuinely dead agent still fails, just at the deadline
-  // instead of immediately.
+  // Poll for agent liveness within the budget instead of asking once:
+  // sendAgentCommand() resolves null synchronously if no agent process exists
+  // yet, and the agent (spawned when the security-check page opens) can take
+  // several seconds to come up (stale-process kill + cold PyInstaller unpack).
+  // A one-shot check right after page load used to catch it mid-spawn and
+  // report a false "failed to start". Time is reserved at the end of the
+  // budget for the scan itself; a genuinely dead agent still fails, just at
+  // the deadline instead of instantly.
   const deadline = Date.now() + budgetMs;
   const livenessDeadline = deadline - PREFLIGHT_AGENT_SCAN_RESERVE_MS;
 
@@ -543,11 +514,10 @@ async function scanAgent(budgetMs = PREFLIGHT_AGENT_DEADLINE_MS) {
  * Runs every preflight check and returns the verdict list plus the authoritative
  * `canProceed` gate.
  *
- * Checks run CONCURRENTLY, each under its own deadline, and each verdict is
- * streamed to the renderer via `onProgress` the moment it lands. Previously the
- * three steps ran sequentially behind a single renderer-side timeout that was
- * shorter than their combined worst case, so a cold agent reliably aborted a
- * scan that was in fact progressing normally.
+ * Checks run concurrently, each under its own deadline, streaming each verdict
+ * to the renderer via `onProgress` as it lands. (They used to run sequentially
+ * behind one renderer-side timeout shorter than their combined worst case, so a
+ * cold agent reliably aborted an otherwise-healthy scan.)
  *
  * @param {((verdict: object) => void) | null} onProgress - called once per verdict
  * @returns {Promise<{scanId: string, verdicts: object[], canProceed: boolean,
@@ -635,17 +605,15 @@ async function _runChecksOnceInner(onProgress, scanId, startedAt, timings) {
   // Cross-check (needs both probes): the screen API only sees LOGICAL displays,
   // so Windows "Duplicate these displays" mode reads as a single display. If the
   // agent counted more physical panels, upgrade the HDMI result and re-emit the
-  // card (the renderer keys cards by id, so a re-emit replaces the earlier one).
+  // card (renderer keys cards by id, so re-emit replaces the earlier one).
   //
-  // Derived into a NEW object rather than mutated in place: rawHdmi may be a
-  // timeout fallback, and an "unverified" result must never be upgradable into a
-  // concrete verdict — if we could not read the displays at all, a physical
-  // count from the agent does not tell us what the OS is doing with them.
-  // No `|| 0` here: agent contract v2 returns null when the count could not be
-  // read, and coercing that to 0 would read as "no mirrored display". `null > 1`
-  // is false, so an unreadable count simply does not upgrade the verdict — and
-  // the agent's own `degraded` flag independently marks its card unverified,
-  // which keeps the gate closed rather than silently passing.
+  // Built as a new object, not mutated in place: rawHdmi may be a timeout
+  // fallback, and an "unverified" result must never get upgraded to a concrete
+  // verdict from data (physical count) that doesn't actually confirm it.
+  // No `|| 0` on physical_monitors: agent contract v2 returns null (not 0) when
+  // unreadable, and `null > 1` is false, so an unreadable count just doesn't
+  // upgrade the verdict — the agent's own `degraded` flag independently keeps
+  // its card, and the gate, from silently passing.
   const physical = agent?.status?.physical_monitors;
   const hdmi =
     !rawHdmi.detected && rawHdmi.status === "clear" && physical > 1
@@ -819,26 +787,17 @@ function stopPreProceedMonitor() {
  * Suspends the pre-proceed watcher for the duration of a preflight scan and
  * returns the resume function.
  *
- * WHY PAUSE RATHER THAN LET THEM OVERLAP
- * ──────────────────────────────────────
- * The monitor polls checkProcesses() every 2s, which keeps that function's 3s
- * result cache permanently warm. runChecksOnce() calls invalidateProcessCache()
- * at scan start, but the monitor could refill it a fraction of a second later,
- * so the scan's own detectMirroring() would read a snapshot the MONITOR took —
- * possibly from before the candidate closed the offending app. The monitor also
- * pushes PUSH_PRE_PROCEED_STATUS, which drives the same Proceed button and
- * status line the scan is in the middle of repainting.
+ * Must pause, not overlap: the monitor's 2s poll keeps checkProcesses' 3s cache
+ * warm, so it could refill the cache right after the scan invalidates it,
+ * making the scan read a stale snapshot from before the candidate closed an
+ * app. It also pushes PUSH_PRE_PROCEED_STATUS, fighting the scan for the same
+ * Proceed button/status line. Pausing sidesteps both — the scan already reads
+ * the same process list, more thoroughly, so the poller has nothing to add
+ * while it runs.
  *
- * Pausing is the simplest fix that removes both problems at once: while a scan
- * owns the screen there is nothing for a 2s poller to contribute — the scan is
- * reading the very same process list, only more thoroughly. The alternative
- * (letting both run and having the scan bypass the cache) leaves the UI race
- * unaddressed and needs a second, cache-bypassing code path.
- *
- * Resume restores only what the flow actually WANTS running: if no monitor was
- * active (the normal case for the FIRST scan, which runs before ipcHandlers
- * ever starts one) or the user stopped it mid-scan via Proceed/Recheck, resume
- * is a no-op rather than starting one behind the flow's back.
+ * Resume only restores what the flow actually wants running: if no monitor was
+ * active (normal for the first scan, before ipcHandlers starts one) or the
+ * user stopped it mid-scan via Proceed/Recheck, resume is a no-op.
  *
  * @returns {() => void} resume — idempotent; call from a finally.
  */

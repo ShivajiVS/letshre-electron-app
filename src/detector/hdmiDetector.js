@@ -1,26 +1,8 @@
-/**
- * src/detector/hdmiDetector.js
- * ────────────────────────────
- * External-display / HDMI detection.
- *
- * Phase 0: rewritten to use Electron's native `screen` API instead of
- * spawning `powershell.exe` (WmiMonitorID / Win32_VideoController) on every
- * scan tick. The previous approach was the single biggest source of flaky
- * detection:
- *   - PowerShell cold-start (200–700 ms) timed out under load
- *   - any error path resolved to "zero monitors" → silent fail-OPEN
- *   - WmiMonitorID missed USB-C / DisplayLink external displays
- *
- * `screen.getAllDisplays()` is native, synchronous, instant, and reflects the
- * same physical displays the OS compositor sees — cross-platform (Win/Mac/Linux).
- *
- * Contract (shared across detectors):
- *   status: "clear" | "violation" | "indeterminate"
- *   detected: boolean  (true ⇢ status "violation")
- */
-
 "use strict";
 
+// Uses Electron's native `screen` API rather than shelling out to PowerShell
+// (WmiMonitorID) — the old probe was slow, missed USB-C/DisplayLink monitors,
+// and silently fail-opened to "zero monitors" on any error.
 const electron = require("electron");
 
 /**

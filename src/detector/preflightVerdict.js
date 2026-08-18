@@ -1,34 +1,14 @@
 /**
- * src/detector/preflightVerdict.js
- * ────────────────────────────────
- * Pure mapping from raw detector output → the preflight's verdict contract.
+ * Pure mapping from raw detector output to the preflight's verdict contract.
  *
- * WHY THIS EXISTS
- * ───────────────
- * Detectors speak a three-state contract (clear | violation | indeterminate).
- * The live interview tick honours all three via trackIndeterminate(), but the
- * preflight used to branch only on a boolean `detected` flag, which silently
- * collapsed "I could not verify this" into "this passed". Three fail-OPEN holes
- * came out of that:
+ * Each check resolves to pass (verified clean), fail (verified problem), or
+ * unverified (couldn't tell). We used to branch on a boolean `detected` flag,
+ * which quietly treated "couldn't verify" as "passed" — this three-state
+ * contract exists so `unverified` blocks Proceed like `fail` does, while still
+ * letting the UI say "couldn't verify, retry" instead of accusing the candidate.
  *
- *   1. tasklist/ps failing  → detectMirroring returns indeterminate with an
- *      empty process list → all four app cards rendered green.
- *   2. the display probe throwing → hdmi.detected === false → "No external
- *      display detected."
- *   3. the agent answering ping but not scan → status === null → threats === []
- *      → "No AI tools ... detected." with a Ready badge.
- *
- * Every check now resolves to exactly one of:
- *   pass       — affirmatively verified clean
- *   fail       — affirmatively detected a problem (candidate can act on it)
- *   unverified — could not be established either way
- *
- * `unverified` blocks Proceed exactly like `fail` (fail-CLOSED), but is a
- * distinct state so the UI can say "couldn't verify, retry" instead of accusing
- * the candidate of something.
- *
- * These functions are pure and synchronous so they can be unit-tested without
- * Electron — see test/preflightVerdict.test.js.
+ * Pure and synchronous so it's unit-testable without Electron — see
+ * test/preflightVerdict.test.js.
  */
 
 "use strict";
@@ -67,10 +47,9 @@ function verdict(id, status, reasonKey, extra = {}) {
 }
 
 /**
- * Maps the external-display probe.
- * hdmiDetector returns { detected, status, monitors, reason }. A throw inside
- * the probe surfaces as status "indeterminate" with detected === false — which
- * must NOT be read as "no external display".
+ * Maps the external-display probe. A throw inside the probe surfaces as
+ * status "indeterminate" with detected === false — must not be read as
+ * "no external display".
  * @param {object|null|undefined} result
  * @returns {Verdict}
  */
@@ -85,11 +64,9 @@ function mapHdmi(result) {
 }
 
 /**
- * Maps the blocked-process scan onto its four cards.
- *
- * Categorisation moved out of the renderer and into main: the renderer must not
- * be the component that decides whether the machine is clean, because
- * `canProceed` is now computed here and re-verified before lockdown.
+ * Maps the blocked-process scan onto its four cards. Categorisation lives here
+ * (not the renderer) because `canProceed` is computed from these verdicts and
+ * re-verified before lockdown — the renderer must not decide clean vs. dirty.
  *
  * @param {object|null|undefined} result - detectMirroring() output
  * @returns {Verdict[]} exactly four verdicts: meeting, screen, wireless, ai
@@ -97,8 +74,7 @@ function mapHdmi(result) {
 function mapProcesses(result) {
   const ids = ["meeting", "screen", "wireless", "ai"];
 
-  // A scan that could not complete leaves ALL FOUR cards unverified. Previously
-  // this path produced an empty process list, which rendered as four passes.
+  // A failed scan leaves all four cards unverified, not an empty (all-pass) list.
   if (!result || result.status === "indeterminate") {
     return ids.map((id) => verdict(id, UNVERIFIED, "preflightResults.checkUnverified"));
   }
@@ -132,12 +108,10 @@ function mapProcesses(result) {
 }
 
 /**
- * Maps the security agent's deep scan.
- *
- * Three distinct failure modes that used to collapse into one another:
- *   - agent not alive          → fail (it is mandatory; Re-scan respawns it)
- *   - alive but no scan result → UNVERIFIED (was silently rendered as clean)
- *   - alive, scanned, degraded → UNVERIFIED (some of its 8 checks errored)
+ * Maps the security agent's deep scan. Three distinct cases: not alive → fail
+ * (it's mandatory; Re-scan respawns it); alive but no scan result → unverified
+ * (used to render as clean); alive and scanned but degraded → unverified (some
+ * of its 8 checks errored).
  *
  * @param {{alive: boolean, status: object|null}|null|undefined} agent
  * @returns {Verdict}
@@ -148,8 +122,7 @@ function mapAgent(agent) {
   }
 
   const status = agent.status;
-  // Alive but the scan itself did not come back (timeout / pipe error). We know
-  // nothing about behavioural threats, so we must not claim the machine is clean.
+  // Scan didn't come back (timeout / pipe error) — unknown, not clean.
   if (!status) {
     return verdict("agent", UNVERIFIED, "preflightResults.agentUnverified");
   }
@@ -162,15 +135,14 @@ function mapAgent(agent) {
     });
   }
 
-  // The agent self-reports when some of its own checks errored (Phase D). An
-  // agent build predating that field omits it, which reads as "not degraded" —
-  // acceptable, because `safe_to_proceed` below still gates the verdict.
+  // Agent self-reports if some of its checks errored. Older builds omit the
+  // field, which reads as "not degraded" — fine, since safe_to_proceed still gates.
   if (status.degraded === true) {
     return verdict("agent", UNVERIFIED, "preflightResults.agentDegraded");
   }
 
-  // Trust the agent's own verdict when it supplies one. An older build without
-  // the field leaves this undefined, which correctly skips the check.
+  // Trust the agent's own verdict when present; older builds without the field
+  // leave this undefined and skip the check.
   if (status.safe_to_proceed === false) {
     return verdict("agent", UNVERIFIED, "preflightResults.agentUnverified");
   }

@@ -2,14 +2,6 @@ const { ALL_BLOCKED_APPS } = require("../shared/appList");
 
 /**
  * Mirroring / casting detection.
- *
- * Phase 0: the resolution + monitor-count heuristic was removed. Multi-monitor
- * detection now lives entirely in hdmiDetector.js via the native Electron
- * `screen` API (reliable, no PowerShell). Resolution alone was never a sound
- * signal — modern laptops ship QHD/4K panels — and the PowerShell probe it
- * required was a flakiness + false-positive source. Mirroring is now inferred
- * purely from running casting/remote-desktop processes.
- *
  * @returns {Promise<{ detected: boolean, status: string, reason: string, details: object }>}
  */
 async function detectMirroring() {
@@ -38,44 +30,24 @@ async function detectMirroring() {
   };
 }
 
-// =====================
-// PROCESS CHECK (SMART)
-// =====================
-
-// ── Result cache ──────────────────────────────────────────────────────────────
-// Avoids spawning a new tasklist/ps process within a short burst (e.g. the
-// pre-proceed watcher reads this; preflight warmed it).
-let _processCheckCache = null;   // { found: string[], status: string }
-let _processCheckTime  = 0;       // Date.now() of last successful run
+let _processCheckCache = null; // { found: string[], status: string }
+let _processCheckTime = 0; // Date.now() of last successful run
 const PROCESS_CACHE_TTL_MS = 3000;
 
-// Cache epoch. Incremented by invalidateProcessCache(). A probe records the
-// epoch it started under and refuses to publish its result if the epoch has
-// moved on since — i.e. someone invalidated the cache while it was in flight.
-//
-// WHY: the pre-proceed monitor polls every 2s, so a tasklist spawn it started a
-// moment before a preflight scan began could land AFTER the scan's
-// invalidateProcessCache() and silently re-seed the cache with a pre-scan
-// snapshot. The scan would then "freshly" read data captured before the
-// candidate closed the offending app. Without the epoch, invalidation is only
-// advisory; with it, "invalidate then read" genuinely means uncached data.
+// Cache epoch, bumped by invalidateProcessCache(). A probe records the epoch it
+// started under and drops its result if the epoch moved on before it finished —
+// otherwise an in-flight tasklist spawned just before a scan invalidates could
+// land after and re-seed the cache with stale (pre-close) data.
 let _cacheEpoch = 0;
 
 /**
- * Phase 4: row-anchored process matching to cut false positives.
+ * Row-anchored process matching against the blocked-app list, one process per
+ * row rather than regexing the whole stdout blob (which let long exe names slip
+ * past `tasklist`'s 25-char truncation and could cross-match unrelated lines).
  *
- * The previous implementation regex-matched blocked names against the entire
- * `tasklist` stdout blob, which had two problems:
- *   - default `tasklist` table output TRUNCATES the image name to 25 chars,
- *     so long exe names silently slipped through (false negative);
- *   - matching across the whole blob could cross-match unrelated columns/lines
- *     (false positive).
- *
- * We now enumerate one process per row and compare the EXACT image-name field:
- *   - Windows: `tasklist /FO CSV /NH` → first CSV field is the (untruncated)
- *     image name. Exact, case-insensitive Set membership against the blocked list.
- *   - macOS:   `ps -Aco comm=` → bare command names; match the blocked name
- *     (minus its .app/.exe suffix) against the process basename.
+ * Windows: `tasklist /FO CSV /NH` — first field is the untruncated image name,
+ * exact case-insensitive match. macOS: `ps -Aco comm=` — bare command names,
+ * matched against the blocked name minus its .app/.exe suffix.
  *
  * @returns {Promise<{ found: string[], status: string }>}
  */
@@ -103,7 +75,9 @@ function checkProcesses() {
     if (process.platform === "darwin") {
       execFile("ps", ["-Aco", "comm="], (err, stdout) => {
         // Fail-CLOSED: a failed listing is "indeterminate", not "clean" (uncached).
-        if (err) { return resolve({ found: [], status: "indeterminate" }); }
+        if (err) {
+          return resolve({ found: [], status: "indeterminate" });
+        }
 
         const running = stdout
           .split("\n")
@@ -124,12 +98,16 @@ function checkProcesses() {
 
     // Windows: CSV is untruncated and one process per row.
     execFile("tasklist", ["/FO", "CSV", "/NH"], (err, stdout) => {
-      if (err) { return resolve({ found: [], status: "indeterminate" }); }
+      if (err) {
+        return resolve({ found: [], status: "indeterminate" });
+      }
 
       const running = new Set();
       for (const line of stdout.split("\n")) {
         const m = line.trim().match(/^"([^"]+)"/); // first CSV field = image name
-        if (m) { running.add(m[1].toLowerCase()); }
+        if (m) {
+          running.add(m[1].toLowerCase());
+        }
       }
 
       // Exact membership — no substring/partial matches.
@@ -148,7 +126,7 @@ function checkProcesses() {
  */
 function invalidateProcessCache() {
   _processCheckCache = null;
-  _processCheckTime  = 0;
+  _processCheckTime = 0;
   _cacheEpoch += 1;
 }
 

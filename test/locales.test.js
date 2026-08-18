@@ -1,14 +1,12 @@
 "use strict";
 
 /**
- * Accuracy guardrails for the i18n locale bundles (assets/locales/*.json).
- *
- * These are the mechanical half of "100% accurate": exact key parity with
- * the English source, no empty values, and interpolation-token parity. The
- * semantic half — especially attestation.statement, read aloud by the
- * candidate for voice verification — requires human certified-translator
- * sign-off before release; that is a process step, not something a test
- * can verify.
+ * Accuracy guardrails for the i18n locale bundles (assets/locales/*.json):
+ * exact key parity with the English source, no empty values, and
+ * interpolation-token parity. This is only the mechanical half — semantic
+ * accuracy (especially attestation.statement, read aloud by the candidate for
+ * voice verification) requires human certified-translator sign-off, which is
+ * a process step no test can verify.
  */
 
 const test = require("node:test");

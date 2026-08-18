@@ -1,21 +1,14 @@
 /**
- * test/processNameSanitiser.test.js
- * ─────────────────────────────────
  * Binds the two copies of the process-name sanitisation rule.
  *
  * `validateProcessName()` in src/main/ipcHandlers.js strips characters outside
- * [\w.\- ] before a name reaches processKiller, so a kill result comes back
- * under the STRIPPED spelling. The renderer therefore mirrors the same regex in
- * `sanitiseProcessKey()` so it can still match that result to the row it drew.
- *
- * Two copies of one rule in two processes is a drift hazard: if main's sanitiser
- * ever changes, the renderer silently stops matching and every affected row
- * reports a failure it did not have. Neither file can import the other (the
- * renderer is sandboxed and cannot require local modules — the same constraint
- * that forces the IPC channel names and the scan-budget constant to be mirrored
- * rather than shared), so a source-level assertion is the only binding available.
- *
- * Same approach as test/preflightBudget.test.js.
+ * [\w.\- ] before a name reaches processKiller, so kill results come back under
+ * the stripped spelling; the renderer's `sanitiseProcessKey()` mirrors the same
+ * regex so it can match that result to the row it drew. Neither file can
+ * import the other (renderer is sandboxed), so if main's rule ever drifts, the
+ * renderer silently stops matching and rows report failures they didn't have —
+ * hence a source-level assertion instead. Same approach as
+ * test/preflightBudget.test.js.
  */
 
 "use strict";
@@ -47,9 +40,8 @@ test("renderer's sanitiseProcessKey mirrors main's validateProcessName rule", ()
 });
 
 test("the shared rule preserves every name on the blocklist unchanged", () => {
-  // The practical guarantee that makes the mirror safe: kill rows are only ever
-  // drawn for names that came from ALL_BLOCKED_APPS, and sanitising those is a
-  // no-op. If a blocklist entry ever needed stripping, the renderer would be
+  // Kill rows are only ever drawn for names from ALL_BLOCKED_APPS, and
+  // sanitising those must be a no-op — otherwise the renderer would be
   // matching on a spelling that never appears on screen.
   const { ALL_BLOCKED_APPS } = require("../src/shared/appList");
   const strip = (s) => s.replace(/[^\w.\- ]/g, "");

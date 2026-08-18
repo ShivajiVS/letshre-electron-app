@@ -1,17 +1,12 @@
 /**
- * test/preflightBudget.test.js
- * ────────────────────────────
- * Guards the preflight timing invariant.
+ * Guards the preflight timing invariant. The original flakiness was arithmetic:
+ * the renderer aborted every scan after 20s while main's worst case (cold agent
+ * spawn + sequential 12s deep scan) was ~31s — fine on a warm machine, a retry
+ * storm on a cold one.
  *
- * The original flakiness was arithmetic, not logic: the renderer aborted every
- * scan after 20s while the main process's worst case (a cold agent spawn behind
- * ensureAgent, then a sequential 12s deep scan) was ~31s. On a warm machine the
- * scan took ~1s and everything worked; on a cold one it timed out every attempt
- * and fell into a retry storm. "Sometimes the checks don't work."
- *
- * The renderer cannot require() shared constants (preload is sandboxed, which is
- * also why IPC channel names are mirrored there), so its budget is a literal.
- * This test asserts that literal still agrees with src/shared/constants.js.
+ * The renderer is sandboxed and can't require() shared constants, so its
+ * budget is a literal; this test asserts that literal still agrees with
+ * src/shared/constants.js.
  */
 
 "use strict";
@@ -45,9 +40,9 @@ test("every per-check deadline fits inside the global deadline", () => {
 });
 
 test("the renderer aborts strictly AFTER main's global deadline", () => {
-  // Main must always be the component that decides a scan is over. If the
-  // renderer gives up first it abandons an invoke it cannot cancel, and the
-  // orphaned scan keeps streaming progress events into the next attempt.
+  // Main must decide when a scan is over. If the renderer gives up first, it
+  // abandons an invoke it can't cancel, and the orphaned scan keeps streaming
+  // progress events into the next attempt.
   assert.ok(
     PREFLIGHT_RENDERER_TIMEOUT_MS > PREFLIGHT_GLOBAL_DEADLINE_MS,
     `renderer timeout (${PREFLIGHT_RENDERER_TIMEOUT_MS}ms) must exceed ` +
@@ -56,10 +51,9 @@ test("the renderer aborts strictly AFTER main's global deadline", () => {
 });
 
 test("the agent budget leaves real time BOTH to wait for spawn and to scan", () => {
-  // scanAgent() splits its budget: it polls for the agent to exist until
-  // (deadline - RESERVE), then spends the reserve running the deep scan. If the
-  // reserve ever grew to consume the whole budget, the liveness wait would be
-  // zero or negative and we would be straight back to the original bug — an
+  // scanAgent() polls for the agent to exist until (deadline - RESERVE), then
+  // spends the reserve on the deep scan. If the reserve ever consumed the whole
+  // budget, the liveness wait would go to zero — back to the original bug of an
   // instant "Security agent failed to start" while the agent was still spawning.
   const livenessWindow = PREFLIGHT_AGENT_DEADLINE_MS - PREFLIGHT_AGENT_SCAN_RESERVE_MS;
   assert.ok(
@@ -68,8 +62,7 @@ test("the agent budget leaves real time BOTH to wait for spawn and to scan", () 
       `for the agent within the ${PREFLIGHT_AGENT_DEADLINE_MS}ms budget`
   );
   // A cold spawn costs killStaleAgent (~1.5-2.5s) plus a PyInstaller unpack
-  // (2-5s), so the wait window has to comfortably clear that or the first scan
-  // after launch fails on a slow machine.
+  // (2-5s); the wait window must clear that comfortably.
   assert.ok(
     livenessWindow >= 8000,
     `only ${livenessWindow}ms to wait for a cold agent spawn — too tight`

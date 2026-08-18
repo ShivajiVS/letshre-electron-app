@@ -1,19 +1,13 @@
 "use strict";
 
 /**
- * Tests for the process-kill engine.
+ * Tests for the process-kill engine: (1) whitelist/self-protection guards —
+ * only blocklisted apps or their companions can be killed, never us or
+ * arbitrary processes; (2) PID-accurate termination logic — process-table
+ * parsing, self-exclusion, companion ordering, outcome classification.
  *
- * Two layers are covered:
- *   1. The IPC-reachable whitelist / self-protection guards — the kill must only
- *      ever terminate blocklisted apps (or the companions of the app being
- *      closed), never the app itself or arbitrary processes.
- *   2. The decision logic behind PID-accurate termination: process-table
- *      parsing, the self-exclusion PID set, companion-before-main ordering and
- *      outcome classification.
- *
- * NO REAL PROCESS IS EVER SPAWNED OR KILLED HERE. The guard cases reject before
- * any spawn; every end-to-end case runs killSingleProcess() against injected
- * fake enumeration/kill dependencies.
+ * No real process is ever spawned or killed: guard cases reject before any
+ * spawn, and end-to-end cases run killSingleProcess() against injected fakes.
  */
 
 const test = require("node:test");

@@ -82,7 +82,7 @@ let _cacheEpoch = 0;
 function checkProcesses() {
   const now = Date.now();
   if (_processCheckCache && now - _processCheckTime < PROCESS_CACHE_TTL_MS) {
-    return Promise.resolve(_processCheckCache); // instant cache hit
+    return Promise.resolve(_processCheckCache);
   }
   const startedEpoch = _cacheEpoch;
   return new Promise((resolve) => {

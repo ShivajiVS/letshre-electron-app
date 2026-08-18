@@ -60,7 +60,7 @@ function agentGet(path, timeoutMs = TIMEOUT_MS) {
 async function pingAgent() {
   const viaPipe = await sendAgentCommand("ping");
   if (viaPipe) { return viaPipe.alive === true; }
-  const res = await agentGet("/ping"); // fallback
+  const res = await agentGet("/ping");
   return res !== null && res.alive === true;
 }
 
@@ -73,7 +73,7 @@ async function pingAgent() {
 async function fetchAgentStatus() {
   const viaPipe = await sendAgentCommand("status");
   if (viaPipe && !viaPipe.error) { return viaPipe; }
-  return await agentGet("/status"); // fallback
+  return await agentGet("/status");
 }
 
 /**
@@ -83,7 +83,7 @@ async function fetchAgentStatus() {
 async function triggerAgentScan() {
   const viaPipe = await sendAgentCommand("scan", SCAN_TIMEOUT_MS);
   if (viaPipe && !viaPipe.error) { return viaPipe; }
-  return await agentGet("/scan", SCAN_TIMEOUT_MS); // fallback
+  return await agentGet("/scan", SCAN_TIMEOUT_MS);
 }
 
 module.exports = { pingAgent, fetchAgentStatus, triggerAgentScan };

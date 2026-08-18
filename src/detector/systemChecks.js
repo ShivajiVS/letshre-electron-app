@@ -339,7 +339,6 @@ async function sendViolation(win, event, severity) {
 
   const now = Date.now();
 
-  //Cooldown gate
   if (violationCache.has(event)) {
     if (now - violationCache.get(event) < VIOLATION_COOLDOWN_MS) {
       return;
@@ -347,7 +346,6 @@ async function sendViolation(win, event, severity) {
   }
   violationCache.set(event, now);
 
-  //Escalation tracking (ADD-06)
   const prevCount = violationEscalation.get(event) || 0;
   const count = prevCount + 1;
   violationEscalation.set(event, count);

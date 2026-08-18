@@ -155,7 +155,6 @@
     "hdmiUnverified": "Could not verify external displays. Click Rescan.",
     "hdmiDetected": "Disconnect all external displays/cables.",
     "hdmiClear": "No external display detected.",
-    "checkFailed": "Could not complete this check. Click Rescan.",
     "meetingRunning": "These meeting apps are still running:",
     "meetingClear": "No meeting apps detected.",
     "screenRunning": "These screen sharing apps are still running:",

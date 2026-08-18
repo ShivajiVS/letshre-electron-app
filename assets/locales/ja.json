@@ -155,7 +155,6 @@
     "hdmiUnverified": "外部ディスプレイを確認できませんでした。「Rescan」をクリックしてください。",
     "hdmiDetected": "すべての外部ディスプレイ/ケーブルを取り外してください。",
     "hdmiClear": "外部ディスプレイは検出されませんでした。",
-    "checkFailed": "このチェックを完了できませんでした。「Rescan」をクリックしてください。",
     "meetingRunning": "次の会議アプリがまだ実行中です:",
     "meetingClear": "会議アプリは検出されませんでした。",
     "screenRunning": "次の画面共有アプリがまだ実行中です:",

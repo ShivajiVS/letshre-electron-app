@@ -155,7 +155,6 @@
     "hdmiUnverified": "Não foi possível verificar as telas externas. Clique em «Rescan».",
     "hdmiDetected": "Desconecte todas as telas/cabos externos.",
     "hdmiClear": "Nenhuma tela externa detectada.",
-    "checkFailed": "Não foi possível concluir esta verificação. Clique em «Rescan».",
     "meetingRunning": "Estes aplicativos de reunião ainda estão em execução:",
     "meetingClear": "Nenhum aplicativo de reunião detectado.",
     "screenRunning": "Estes aplicativos de compartilhamento de tela ainda estão em execução:",

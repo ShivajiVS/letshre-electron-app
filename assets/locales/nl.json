@@ -155,7 +155,6 @@
     "hdmiUnverified": "Externe schermen konden niet worden geverifieerd. Klik op «Rescan».",
     "hdmiDetected": "Koppel alle externe schermen/kabels los.",
     "hdmiClear": "Geen extern scherm gedetecteerd.",
-    "checkFailed": "Deze controle kon niet worden voltooid. Klik op «Rescan».",
     "meetingRunning": "Deze vergader-apps draaien nog:",
     "meetingClear": "Geen vergader-apps gedetecteerd.",
     "screenRunning": "Deze schermdeel-apps draaien nog:",

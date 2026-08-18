@@ -155,7 +155,6 @@
     "hdmiUnverified": "Externe Bildschirme konnten nicht überprüft werden. Klicken Sie auf „Rescan“.",
     "hdmiDetected": "Trennen Sie alle externen Bildschirme/Kabel.",
     "hdmiClear": "Kein externer Bildschirm erkannt.",
-    "checkFailed": "Diese Prüfung konnte nicht abgeschlossen werden. Klicken Sie auf „Rescan“.",
     "meetingRunning": "Diese Meeting-Apps laufen noch:",
     "meetingClear": "Keine Meeting-Apps erkannt.",
     "screenRunning": "Diese Bildschirmfreigabe-Apps laufen noch:",

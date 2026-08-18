@@ -155,7 +155,6 @@
     "hdmiUnverified": "외부 디스플레이를 확인할 수 없습니다. 「Rescan」을 클릭하세요.",
     "hdmiDetected": "모든 외부 디스플레이/케이블 연결을 해제하세요.",
     "hdmiClear": "외부 디스플레이가 감지되지 않았습니다.",
-    "checkFailed": "이 검사를 완료할 수 없습니다. 「Rescan」을 클릭하세요.",
     "meetingRunning": "다음 회의 앱이 여전히 실행 중입니다:",
     "meetingClear": "회의 앱이 감지되지 않았습니다.",
     "screenRunning": "다음 화면 공유 앱이 여전히 실행 중입니다:",

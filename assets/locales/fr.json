@@ -155,7 +155,6 @@
     "hdmiUnverified": "Impossible de vérifier les écrans externes. Cliquez sur « Rescan ».",
     "hdmiDetected": "Débranchez tous les écrans/câbles externes.",
     "hdmiClear": "Aucun écran externe détecté.",
-    "checkFailed": "Impossible de terminer cette vérification. Cliquez sur « Rescan ».",
     "meetingRunning": "Ces applications de réunion sont toujours en cours d'exécution :",
     "meetingClear": "Aucune application de réunion détectée.",
     "screenRunning": "Ces applications de partage d'écran sont toujours en cours d'exécution :",

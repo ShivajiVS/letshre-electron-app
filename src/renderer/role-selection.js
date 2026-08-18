@@ -201,11 +201,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.electronAPI.proceedToInterview(payload);
     // Watchdog: successful navigation tears down this page. If this fires,
     // navigation never happened — restore the button so the user can retry.
-    setTimeout(() => {
-      btnStartInterview.disabled = false;
-      btnStartInterview.innerHTML = startInterviewHTML;
-      showError("That took too long. Please try again.");
-    }, 6000);
+    window.armButtonRestore(btnStartInterview, startInterviewHTML, {
+      onRestore: () => showError("That took too long. Please try again."),
+    });
   });
 
   // ── API submission ───────────────────────────────────────────────────────────
@@ -260,7 +258,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       btnSubmitRole.innerHTML = `Continue to Interview ${ARROW_ICON}`;
 
       const label = selectedClarifyRole
-        ? `Confirm — ${escHtml(selectedClarifyRole)} ${ARROW_ICON}`
+        ? `Confirm — ${window.escHtml(selectedClarifyRole)} ${ARROW_ICON}`
         : `Confirm selection ${ARROW_ICON}`;
       btnConfirmClarify.disabled = selectedClarifyRole.length === 0;
       btnConfirmClarify.innerHTML = label;
@@ -282,7 +280,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       card.style.animationDelay = `${i * 60}ms`;
       card.innerHTML = `
         <div class="rs-role-card__radio"></div>
-        <span class="rs-role-card__label">${escHtml(role)}</span>`;
+        <span class="rs-role-card__label">${window.escHtml(role)}</span>`;
       card.addEventListener("click", () => {
         roleCardsEl.querySelectorAll(".rs-role-card").forEach((c) =>
           c.classList.remove("rs-role-card--selected")
@@ -290,7 +288,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         card.classList.add("rs-role-card--selected");
         selectedClarifyRole = role;
         btnConfirmClarify.disabled = false;
-        btnConfirmClarify.innerHTML = `Confirm — ${escHtml(role)} ${ARROW_ICON}`;
+        btnConfirmClarify.innerHTML = `Confirm — ${window.escHtml(role)} ${ARROW_ICON}`;
       });
       roleCardsEl.appendChild(card);
     });
@@ -319,17 +317,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="20 6 9 17 4 12"/>
         </svg>
-        <span>${escHtml(skill)}</span>`;
+        <span>${window.escHtml(skill)}</span>`;
       skillsGrid.appendChild(chip);
     });
   }
 
 });
-
-function escHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}

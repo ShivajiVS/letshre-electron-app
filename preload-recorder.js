@@ -9,12 +9,13 @@
 "use strict";
 
 const { contextBridge, ipcRenderer } = require("electron");
+const { IPC } = require("./src/shared/constants");
 
 contextBridge.exposeInMainWorld("recorderBridge", {
-  onInit:    (cb) => ipcRenderer.on("recorder:init", (_, data) => cb(data)),
-  onStop:    (cb) => ipcRenderer.on("recorder:stop", () => cb()),
-  sendReady:   () => ipcRenderer.send("recorder:ready"),
-  sendChunk:   (uint8Array) => ipcRenderer.send("recorder:chunk", uint8Array),
-  sendStopped: () => ipcRenderer.send("recorder:stopped"),
-  sendError:   (msg) => ipcRenderer.send("recorder:error", msg),
+  onInit:    (cb) => ipcRenderer.on(IPC.RECORDER_INIT, (_, data) => cb(data)),
+  onStop:    (cb) => ipcRenderer.on(IPC.RECORDER_STOP, () => cb()),
+  sendReady:   () => ipcRenderer.send(IPC.RECORDER_READY),
+  sendChunk:   (uint8Array) => ipcRenderer.send(IPC.RECORDER_CHUNK, uint8Array),
+  sendStopped: () => ipcRenderer.send(IPC.RECORDER_STOPPED),
+  sendError:   (msg) => ipcRenderer.send(IPC.RECORDER_ERROR, msg),
 });

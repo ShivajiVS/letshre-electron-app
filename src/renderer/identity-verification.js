@@ -493,11 +493,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.electronAPI.loadRoleSelection();
     // Watchdog: successful navigation tears down this page. If this fires,
     // navigation never happened — restore the button so the user can retry.
-    setTimeout(() => {
-      btnBegin.disabled = false;
-      btnBegin.innerHTML = beginBtnHTML;
-      showError("That took too long. Please try again.");
-    }, 6000);
+    window.armButtonRestore(btnBegin, beginBtnHTML, {
+      onRestore: () => showError("That took too long. Please try again."),
+    });
   });
 
   btnRetryPhoto.addEventListener("click", () => {

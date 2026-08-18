@@ -373,13 +373,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.electronAPI.loadPermissionsPage();
     // Watchdog: successful navigation tears down this page (timer dies with it).
     // If it fires, navigation never happened — restore the button for a retry.
-    setTimeout(() => {
-      btnProceed.innerHTML = proceedBtnHTML;
-      btnProceed.className = PROCEED_ENABLED_CLASS;
-      btnProceed.disabled = false;
-      finalStatus.textContent = tr("preflightResults.tooLong", "That took too long. Please try again.");
-      finalStatus.className = "sc-status sc-status--fail";
-    }, 6000);
+    window.armButtonRestore(btnProceed, proceedBtnHTML, {
+      onRestore: () => {
+        btnProceed.className = PROCEED_ENABLED_CLASS;
+        finalStatus.textContent = tr("preflightResults.tooLong", "That took too long. Please try again.");
+        finalStatus.className = "sc-status sc-status--fail";
+      },
+    });
   });
 
   // ── Initial Scan ──────────────────────────────────────────────────────────
@@ -645,8 +645,8 @@ function renderKillButtons(container, blockedApps) {
 
     // appName is a live OS process name — attacker-influenceable (a candidate
     // can rename an executable to an HTML payload). Escape before innerHTML.
-    const safeDisplay = escapeHtml(getDisplayName(appName));
-    const safeProcess = escapeHtml(appName);
+    const safeDisplay = window.escHtml(getDisplayName(appName));
+    const safeProcess = window.escHtml(appName);
 
     row.innerHTML = `
       <div class="sc-kill-info-wrap">
@@ -758,7 +758,7 @@ function clearKillHint(row) {
  */
 function applyKillOutcome(row, btn, processName, norm) {
   const display = getDisplayName(processName);
-  const safeName = escapeHtml(display);
+  const safeName = window.escHtml(display);
 
   row.classList.remove(
     "sc-kill-row--closed", "sc-kill-row--respawned", "sc-kill-row--blocked"
@@ -902,7 +902,7 @@ async function handleKillApp(btn, processName, row) {
   } catch {
     clearKillHint(row);
     btn.className = "sc-kill-btn sc-kill-btn--failed";
-    const safeName = escapeHtml(getDisplayName(processName));
+    const safeName = window.escHtml(getDisplayName(processName));
     btn.innerHTML = `${KILL_ICON.x} ${tr("preflightResults.closeErrorManual", `Error — close ${safeName} manually`, { name: safeName })}`;
     btn.disabled = false;
     return;
@@ -1076,7 +1076,7 @@ function renderAgentCard(v) {
           <div class="sc-card__icon sc-card__icon--unverified">${ICONS.unknown}</div>
           <div class="sc-card__body">
             <h3 class="sc-card__title">${title}</h3>
-            <p class="sc-card__desc sc-card__desc--unverified">${escapeHtml(desc)}</p>
+            <p class="sc-card__desc sc-card__desc--unverified">${window.escHtml(desc)}</p>
           </div>
         </div>
         <div class="sc-badge sc-badge--unverified">${tr("preflightResults.unverified", "Unverified")}</div>
@@ -1097,7 +1097,7 @@ function renderAgentCard(v) {
           </div>
           <div class="sc-card__body">
             <h3 class="sc-card__title">${title}</h3>
-            <p class="sc-card__desc">${escapeHtml(desc)}</p>
+            <p class="sc-card__desc">${window.escHtml(desc)}</p>
           </div>
         </div>
         <div class="sc-badge sc-badge--pass">${tr("preflightResults.ready", "Ready")}</div>
@@ -1122,7 +1122,7 @@ function renderAgentCard(v) {
           </div>
           <div class="sc-card__body">
             <h3 class="sc-card__title">${title}</h3>
-            <p class="sc-card__desc sc-card__desc--fail">${escapeHtml(desc)}</p>
+            <p class="sc-card__desc sc-card__desc--fail">${window.escHtml(desc)}</p>
           </div>
         </div>
         <div class="sc-badge sc-badge--fail">${tr("preflightResults.required", "Required")}</div>
@@ -1142,10 +1142,10 @@ function renderAgentCard(v) {
         <span class="sc-kill-dot"></span>
       </span>
       <div class="sc-threat-content">
-        <span class="sc-threat-title">${escapeHtml(t.type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()))}</span>
-        <p class="sc-threat-detail">${escapeHtml(t.detail)}</p>
+        <span class="sc-threat-title">${window.escHtml(t.type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()))}</span>
+        <p class="sc-threat-detail">${window.escHtml(t.detail)}</p>
       </div>
-      <span class="sc-threat-badge sc-threat-badge--${t.severity === "HIGH" ? "high" : "medium"}">${escapeHtml(t.severity)}</span>
+      <span class="sc-threat-badge sc-threat-badge--${t.severity === "HIGH" ? "high" : "medium"}">${window.escHtml(t.severity)}</span>
     </div>`
     )
     .join("");
@@ -1160,7 +1160,7 @@ function renderAgentCard(v) {
         </div>
         <div class="sc-card__body">
           <h3 class="sc-card__title">${title}</h3>
-          <p class="sc-card__desc sc-card__desc--fail">${escapeHtml(desc)}</p>
+          <p class="sc-card__desc sc-card__desc--fail">${window.escHtml(desc)}</p>
         </div>
       </div>
       <div class="sc-badge sc-badge--fail">${tr("preflightResults.actionRequired", "Action Required")}</div>
@@ -1480,13 +1480,6 @@ function formatBytes(bytes) {
   return `${n.toFixed(n < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
-/** Escapes text for safe insertion into the DOM (release notes are remote). */
-function escapeHtml(str) {
-  return String(str || "").replace(/[&<>"']/g, (c) => (
-    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
-  ));
-}
-
 window.__updateAction = (action) => {
   if (action === "install") {
     window.electronAPI?.installUpdate?.();
@@ -1534,14 +1527,14 @@ function updateCardBody(s) {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">${icon}</svg>
       </span>
       <span class="update-card__title">${title}</span>
-      ${s.version ? `<span class="update-card__chip">v${escapeHtml(s.version)}</span>` : ""}
+      ${s.version ? `<span class="update-card__chip">v${window.escHtml(s.version)}</span>` : ""}
     </div>`;
 
   const notes = s.releaseNotes
     ? `<button class="update-card__notes-toggle" onclick="window.__updateAction('notes')">
          ${s.notesOpen ? tr("updater.hideNotes", "Hide") : tr("updater.whatsNew", "What’s new")}
        </button>
-       ${s.notesOpen ? `<div class="update-card__notes">${escapeHtml(
+       ${s.notesOpen ? `<div class="update-card__notes">${window.escHtml(
          typeof s.releaseNotes === "string" ? s.releaseNotes : ""
        ).slice(0, 1200)}</div>` : ""}`
     : "";

@@ -15,8 +15,7 @@
 
 const http = require("http");
 
-const AGENT_HOST = "127.0.0.1";
-const AGENT_PORT = 9999;
+const { AGENT_HOST, AGENT_PORT } = require("../shared/constants");
 const TIMEOUT_MS = 2000; // max wait for a fast request (ping / cached status)
 const SCAN_TIMEOUT_MS = 12000; // a full deep scan runs all 8 checks — give it room
 

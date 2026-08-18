@@ -117,7 +117,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
             <polyline points="22,6 12,13 2,6"/>
           </svg>
-          ${escHtml(profile.email)}
+          ${window.escHtml(profile.email)}
         </span>`;
     }
     if (profile.phone_number) {
@@ -126,7 +126,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.61 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.08 6.08l.98-.98a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
           </svg>
-          ${escHtml(profile.phone_number)}
+          ${window.escHtml(profile.phone_number)}
         </span>`;
     }
 
@@ -190,12 +190,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.electronAPI.startInterview();
     // Watchdog: successful navigation tears down this page (timer dies with it).
     // If the timer fires, navigation never happened — restore the button.
-    setTimeout(() => {
-      takeBtn.disabled = false;
-      takeBtn.innerHTML = takeBtnHTML;
-      dashNote.textContent = "That took too long. Please try again.";
-      dashNote.classList.add("exhausted-note");
-    }, 6000);
+    window.armButtonRestore(takeBtn, takeBtnHTML, {
+      onRestore: () => {
+        dashNote.textContent = "That took too long. Please try again.";
+        dashNote.classList.add("exhausted-note");
+      },
+    });
   });
 
   // ── Logout ───────────────────────────────────────────────────────────────
@@ -212,11 +212,3 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.location.href = "./login.html";
   });
 });
-
-function escHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}

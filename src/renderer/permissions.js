@@ -192,10 +192,8 @@ document.addEventListener("DOMContentLoaded", () => {
     window.electronAPI.loadIdentityVerification();
     // Watchdog: successful navigation tears down this page. If this fires,
     // navigation never happened — restore the button so the user can retry.
-    setTimeout(() => {
-      btnStart.innerHTML = startBtnHTML;
-      btnStart.disabled = false;
-      permNote.textContent = "That took too long. Please try again.";
-    }, 6000);
+    window.armButtonRestore(btnStart, startBtnHTML, {
+      onRestore: () => { permNote.textContent = "That took too long. Please try again."; },
+    });
   });
 });

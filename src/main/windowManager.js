@@ -62,8 +62,6 @@ function createWindow(onViolation, startPage = "login") {
 
   win.maximize();
 
-  win.webContents.openDevTools({ mode: "right" }); // DEBUG — remove before shipping
-
   const pageFiles = { login: "login.html", dashboard: "dashboard.html" };
   const pageFile = pageFiles[startPage] || pageFiles.login;
   win.loadFile(path.join(__dirname, "../../assets", pageFile));

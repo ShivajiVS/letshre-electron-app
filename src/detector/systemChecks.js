@@ -722,11 +722,6 @@ function verifyProceedAllowed({ requireFresh = true } = {}) {
   return { ok: true, reason: "" };
 }
 
-/** Clears the cached gate. Called on Recheck so a new scan must establish it. */
-function clearPreflightGate() {
-  _lastPreflight = null;
-}
-
 //  STOP (called when interview session ends)
 /**
  * Stops all detection intervals and disables the violation push guard.
@@ -880,7 +875,6 @@ module.exports = {
    *  UI (e.g. the elevated-kill consent prompt) during a proctored session. */
   isSessionActive: () => isSessionActive,
   verifyProceedAllowed,
-  clearPreflightGate,
   getAuditLog,
   acknowledgeViolation,
   startPreProceedMonitor,

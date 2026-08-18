@@ -257,7 +257,6 @@ async function start(meta = {}) {
 
     recorderWin.webContents.once("did-finish-load", () => {
       if (recorderWin && !recorderWin.isDestroyed()) {
-        // recorderWin.webContents.openDevTools({ mode: "detach" }); // DEBUG — remove before shipping
         recorderWin.webContents.send(IPC.RECORDER_INIT, { sourceId });
       }
     });
@@ -352,6 +351,4 @@ function registerRecorderIpc() {
 
 }
 
-function getIsRecording() { return isRecording; }
-
-module.exports = { start, stop, registerRecorderIpc, getIsRecording };
+module.exports = { start, stop, registerRecorderIpc };

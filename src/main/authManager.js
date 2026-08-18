@@ -587,12 +587,8 @@ function getTokens() {
   return { accessToken: session.accessToken, refreshToken: session.refreshToken };
 }
 
-function isAuthenticated() {
-  return session !== null;
-}
-
 module.exports = {
-  init, verifySession, login, logout, getUser, getTokens, isAuthenticated,
+  init, verifySession, login, logout, getUser, getTokens,
   getCandidateProfile, fetchProfileImage, submitVoiceSample, submitFaceVerification, submitRole,
   startVideoUpload, uploadVideoChunk, completeVideoUpload, getVideoUploadStatus,
 };

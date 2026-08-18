@@ -3,7 +3,6 @@
 document.addEventListener("DOMContentLoaded", async () => {
 
   // ── State ─────────────────────────────────────────────────────────────────
-  let currentStep = 1;        // 1 | 2 | 3
   let audioBlob = null;
   let audioMimeType = "";
   let audioURL = null;
@@ -112,7 +111,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ── Step navigation ───────────────────────────────────────────────────────
 
   function goToStep(n) {
-    currentStep = n;
     hideError();
 
     // Panels
@@ -128,8 +126,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     stepPills.forEach((pill, i) => {
       const step = i + 1;
       pill.classList.remove("iv-step--active", "iv-step--done");
-      if (step < n) pill.classList.add("iv-step--done");
-      else if (step === n) pill.classList.add("iv-step--active");
+      if (step < n) {pill.classList.add("iv-step--done");}
+      else if (step === n) {pill.classList.add("iv-step--active");}
     });
 
     // Dot content: done = checkmark
@@ -170,7 +168,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Proxy through main process so CDN/S3 URLs aren't blocked by renderer CSP
     try {
       const res = await window.electronAPI?.fetchProfileImage?.(url);
-      if (res?.ok && res.dataUrl) return res.dataUrl;
+      if (res?.ok && res.dataUrl) {return res.dataUrl;}
     } catch { /* fall through */ }
     return url; // fallback: try direct (may fail under strict CSP)
   }
@@ -179,11 +177,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     const resolved = await resolveImageUrl(src);
     refPhoto.onload = () => {
       refPhoto.style.display = "block";
-      if (refPhotoPlaceholder) refPhotoPlaceholder.style.display = "none";
+      if (refPhotoPlaceholder) {refPhotoPlaceholder.style.display = "none";}
     };
     refPhoto.onerror = () => {
       refPhoto.style.display = "none";
-      if (refPhotoPlaceholder) refPhotoPlaceholder.style.display = "flex";
+      if (refPhotoPlaceholder) {refPhotoPlaceholder.style.display = "flex";}
     };
     refPhoto.src = resolved;
   }
@@ -214,7 +212,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       audioChunks = [];
       mediaRecorder = new MediaRecorder(stream, mime ? { mimeType: mime } : {});
 
-      mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+      mediaRecorder.ondataavailable = e => { if (e.data.size > 0) {audioChunks.push(e.data);} };
       mediaRecorder.onstop = () => {
         // Use the MIME type the browser actually chose (not our guess) so the
         // blob type always matches the recorded data format.
@@ -235,7 +233,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           return;
         }
 
-        if (audioURL) URL.revokeObjectURL(audioURL);
+        if (audioURL) {URL.revokeObjectURL(audioURL);}
         audioURL = URL.createObjectURL(audioBlob);
         setVoiceState("reviewing");
       };
@@ -247,7 +245,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         stream.getTracks().forEach(t => t.stop());
         audioBlob = null;
         setVoiceState("idle");
-        showError("Recording was interrupted: " + (e.error?.message || "microphone error") + ". Please try again.");
+        showError(`Recording was interrupted: ${  e.error?.message || "microphone error"  }. Please try again.`);
       };
 
       mediaRecorder.start();
@@ -258,7 +256,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function stopRecording() {
-    if (mediaRecorder?.state !== "inactive") mediaRecorder.stop();
+    if (mediaRecorder?.state !== "inactive") {mediaRecorder.stop();}
   }
 
   function retakeVoice() {
@@ -271,7 +269,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function togglePlayback() {
-    if (!audioURL) return;
+    if (!audioURL) {return;}
     if (isPlaying) {
       audioPlayer.pause();
       isPlaying = false;
@@ -285,7 +283,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       isPlaying = true;
     } catch (err) {
       isPlaying = false;
-      showError("Could not play back audio: " + err.message);
+      showError(`Could not play back audio: ${  err.message}`);
     }
     updatePlaybackBtn();
   }
@@ -393,7 +391,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ── Face submit ───────────────────────────────────────────────────────────
 
   async function submitPhoto() {
-    if (!capturedDataUrl) return;
+    if (!capturedDataUrl) {return;}
     setLoading(btnSubmitPhoto, true, "Verifying Identity…");
     btnRetakePhoto.disabled = true;
     try {
@@ -516,7 +514,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.addEventListener("beforeunload", () => {
     stopCamera();
     audioPlayer.pause();
-    if (mediaRecorder?.state !== "inactive") mediaRecorder?.stop();
+    if (mediaRecorder?.state !== "inactive") {mediaRecorder?.stop();}
   });
 
   // ── Init ──────────────────────────────────────────────────────────────────

@@ -278,15 +278,15 @@ async function submitVoiceSample(uint8Array, mimeType, meta = {}) {
   const doRequest = () => {
     const buf = Buffer.from(uint8Array);
     let ext = "webm";
-    if (mimeType?.includes("mp4")) ext = "mp4";
-    if (mimeType?.includes("ogg")) ext = "ogg";
-    if (mimeType?.includes("wav")) ext = "wav";
+    if (mimeType?.includes("mp4")) {ext = "mp4";}
+    if (mimeType?.includes("ogg")) {ext = "ogg";}
+    if (mimeType?.includes("wav")) {ext = "wav";}
 
     const form = new FormData();
     const blob = new Blob([buf], { type: mimeType || "audio/webm" });
     form.append("voice_sample", blob, `voice_sample.${ext}`);
-    if (safeLocale) form.append("locale", safeLocale);
-    if (safeStatement) form.append("statement_text", safeStatement);
+    if (safeLocale) {form.append("locale", safeLocale);}
+    if (safeStatement) {form.append("statement_text", safeStatement);}
 
     return axios.post(
       `${API_BASE_URL}/user/v1/candidate/interview/voice_sample/`,

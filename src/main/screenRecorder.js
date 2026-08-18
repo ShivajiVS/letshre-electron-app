@@ -73,8 +73,8 @@ async function _uploadWithRetry(uint8Array, index) {
 }
 
 function _pump() {
-  if (!uploadId) return Promise.resolve();
-  if (pumpRunning) return pumpPromise; // caller awaits the already-running pump
+  if (!uploadId) {return Promise.resolve();}
+  if (pumpRunning) {return pumpPromise;} // caller awaits the already-running pump
 
   pumpRunning = true;
   pumpPromise = (async () => {
@@ -350,12 +350,6 @@ function registerRecorderIpc() {
     _pushToInterviewPage(IPC.PUSH_PROCTORING_ERROR, { error: msg });
   });
 
-  // Resume chunk pump when connectivity returns.
-  require("electron").app.on("ready", () => {
-    const { net } = require("electron");
-    // Use window online event proxy via the interview window for reconnection.
-    // Simpler: check on each chunk arrival (pump is already idempotent).
-  });
 }
 
 function getIsRecording() { return isRecording; }

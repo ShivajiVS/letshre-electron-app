@@ -64,13 +64,13 @@ function createWebmChunker({ targetMs, onChunk }) {
       // Capture init segment once: everything before the first Cluster.
       if (!init) {
         const offsets = _clusterOffsets(tail);
-        if (offsets.length === 0) return; // header still arriving
+        if (offsets.length === 0) {return;} // header still arriving
         init     = tail.slice(0, offsets[0]);
         tail     = tail.slice(offsets[0]);
         lastEmit = Date.now();
       }
 
-      if (Date.now() - lastEmit < targetMs) return;
+      if (Date.now() - lastEmit < targetMs) {return;}
 
       // Emit all COMPLETE clusters (everything before the last cluster start —
       // the last one may still be receiving bytes).
@@ -81,7 +81,7 @@ function createWebmChunker({ targetMs, onChunk }) {
     },
 
     flush() {
-      if (!init || tail.length === 0) return;
+      if (!init || tail.length === 0) {return;}
       onChunk(_concat(init, tail)); // Uint8Array — same as emit, no Blob
       tail = new Uint8Array(0);
     },
@@ -167,7 +167,7 @@ window.recorderBridge?.onInit(async ({ sourceId }) => {
 
     // Serialise byte pushes so the chunker always receives bytes in order.
     mediaRecorder.ondataavailable = (e) => {
-      if (!e.data || e.data.size === 0) return;
+      if (!e.data || e.data.size === 0) {return;}
       chunkChain = chunkChain
         .then(() => e.data.arrayBuffer())
         .then((buf) => chunker.push(buf))

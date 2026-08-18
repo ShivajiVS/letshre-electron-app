@@ -178,11 +178,11 @@ function reportViolationToBackend(payload) {
 }
 
 function startHeartbeat() {
-  if (heartbeatInterval) return;
+  if (heartbeatInterval) {return;}
   heartbeatInterval = setInterval(async () => {
     try {
       const token = getCurrentAccessToken();
-      if (!token) return;
+      if (!token) {return;}
       await axios.post(
         `${API_BASE_URL}/interview/heartbeat`,
         { timestamp: new Date().toISOString() },
@@ -784,7 +784,7 @@ function resetState() {
 function startPreProceedMonitor(win) {
   _preProceedDesired = true;
   _preProceedWin = win;
-  if (preProceedInterval) return; // already running
+  if (preProceedInterval) {return;} // already running
   // A scan owns the process list and the screen right now; the resume hook
   // installed by pausePreProceedMonitor() will start us when it finishes.
   if (_scanInProgress) {

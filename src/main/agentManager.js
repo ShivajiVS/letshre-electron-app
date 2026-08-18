@@ -176,7 +176,7 @@ function killStaleAgent() {
           .trim()
           .split(/\s+/)
           .filter((p) => p && p !== "0");
-        if (pids.length === 0) return resolve();
+        if (pids.length === 0) {return resolve();}
 
         logger.info(
           `[agent] killing stale agent(s) on port ${AGENT_PORT}: PIDs ${pids.join(", ")}`

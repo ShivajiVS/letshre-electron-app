@@ -102,8 +102,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Header pills
     stepPills.forEach((el, i) => {
       el.classList.remove("rs-step--active", "rs-step--done");
-      if (i < idx)       el.classList.add("rs-step--done");
-      else if (i === idx) el.classList.add("rs-step--active");
+      if (i < idx)       {el.classList.add("rs-step--done");}
+      else if (i === idx) {el.classList.add("rs-step--active");}
     });
 
     // Connector lines
@@ -118,8 +118,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Panels
     panels.forEach((p, i) => {
-      if (i === idx) p.removeAttribute("hidden");
-      else           p.setAttribute("hidden", "");
+      if (i === idx) {p.removeAttribute("hidden");}
+      else           {p.setAttribute("hidden", "");}
     });
   }
 

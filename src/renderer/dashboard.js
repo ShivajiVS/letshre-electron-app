@@ -149,7 +149,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const dotCount = Math.min(max, 10);
       for (let i = 0; i < dotCount; i++) {
         const dot = document.createElement("span");
-        dot.className = "attempt-dot" + (i < used ? " used" : "");
+        dot.className = `attempt-dot${  i < used ? " used" : ""}`;
         attemptDots.appendChild(dot);
       }
       attemptCount.textContent = window.t

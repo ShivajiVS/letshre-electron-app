@@ -29,7 +29,7 @@ const { IPC, UPDATE_CHECK_INTERVAL_MS } = require("../shared/constants");
 
 /** @type {"idle"|"checking"|"available"|"downloading"|"downloaded"|"error"} */
 let state = "idle";
-let latestInfo = null; // last update info (version, releaseNotes)
+let latestInfo = null;
 let lastError = null;
 let periodicTimer = null;
 let lastPercent = 0; // most recent download-progress %, for getState() recovery

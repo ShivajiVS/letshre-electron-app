@@ -164,7 +164,6 @@ function killStaleAgent() {
       });
       killByName.on("error", () => resolve());
     } else {
-      // macOS / Linux: find PID(s) via lsof
       const findProc = spawn("lsof", ["-ti", `:${AGENT_PORT}`], {
         shell: false,
       });

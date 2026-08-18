@@ -110,7 +110,7 @@ async function _refreshTokens() {
     session.accessToken = newAccessToken;
     const newRefresh = data.refresh_token || data.refresh;
     if (newRefresh) { session.refreshToken = newRefresh; }
-    _saveSession(); // persist the rotated tokens
+    _saveSession();
     logger.info("[auth] access token refreshed");
     return true;
   } catch (err) {
@@ -156,7 +156,7 @@ async function login(email, password) {
       },
     };
 
-    _saveSession(); // persist across restarts
+    _saveSession();
     logger.info("[auth] login success:", data.email);
     return { success: true, message: body.message || "Login successful.", user: session.user };
   } catch (err) {

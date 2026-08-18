@@ -89,12 +89,10 @@ function handleIncomingProtocol(url, win, isInterviewActive, onViolation) {
 
 // ─── Accessors ───────────────────────────────────────────────────────────────
 
-/** Returns the currently active interview URL. */
 function getCurrentInterviewUrl() {
   return currentInterviewUrl;
 }
 
-/** Returns the currently active access token. */
 function getCurrentAccessToken() {
   return currentAccessToken;
 }

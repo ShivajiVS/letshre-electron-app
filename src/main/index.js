@@ -26,11 +26,9 @@ const appState = require("./appState");
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
-  // A second instance was launched — quit immediately.
   appState.setQuitting();
   app.quit();
 } else {
-  // Handle second instance activation (Windows / Linux deep-link).
   app.on("second-instance", (_event, argv) => {
     const url = argv.find((arg) => arg.startsWith(`${PROTOCOL_SCHEME}://`));
     if (url) {
@@ -46,7 +44,6 @@ if (!gotTheLock) {
   // ── Custom Protocol Registration ─────────────────────────────────────────
 
   if (process.defaultApp) {
-    // Dev mode: register with explicit execPath + argv[1]
     if (process.argv.length >= 2) {
       app.setAsDefaultProtocolClient(
         PROTOCOL_SCHEME,

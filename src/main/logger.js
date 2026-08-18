@@ -38,7 +38,6 @@ function initFileLogger(logDir) {
   try {
     const logPath = path.join(logDir, "secure-interview.log");
 
-    // Rotate if the existing log exceeds the size limit
     try {
       const stat = fs.statSync(logPath);
       if (stat.size > MAX_LOG_BYTES) {
@@ -47,7 +46,7 @@ function initFileLogger(logDir) {
         fs.renameSync(logPath, rotated);
       }
     } catch {
-      // File doesn't exist yet — that's fine
+      // no existing log file
     }
 
     logStream = fs.createWriteStream(logPath, { flags: "a" });
@@ -74,11 +73,9 @@ function log(level, ...args) {
   const ts     = new Date().toISOString();
   const prefix = `[${ts}] [${level.toUpperCase()}]`;
 
-  // ── Console transport ────────────────────────────────────────
   // eslint-disable-next-line no-console
   console[level === "debug" || level === "info" ? "log" : level](prefix, ...args);
 
-  // ── File transport (when initialised) ───────────────────────
   if (logStream) {
     const line = `${prefix} ${args.map((a) => (typeof a === "object" ? JSON.stringify(a) : String(a))).join(" ")}\n`;
     logStream.write(line);

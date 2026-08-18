@@ -52,7 +52,7 @@ function _matchOSLocale(osLocale) {
 /** Resolves the initial locale from the OS when no stored preference exists. */
 function resolveInitialLocale() {
   try {
-    const osLocale = app.getLocale(); // e.g. "en-US", "hi-IN"
+    const osLocale = app.getLocale();
     const matched = _matchOSLocale(osLocale);
     if (matched) {
       logger.info(`[locale] resolved OS locale "${osLocale}" -> "${matched}"`);

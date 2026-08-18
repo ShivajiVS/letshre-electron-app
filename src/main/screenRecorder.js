@@ -240,7 +240,6 @@ async function start(meta = {}) {
       logger.warn("[recorder] /start failed — buffering chunks:", startRes.error);
     }
 
-    // Create hidden recorder window.
     recorderWin = new BrowserWindow({
       show:         false,
       width:        1,

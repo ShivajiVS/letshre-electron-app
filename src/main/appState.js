@@ -18,12 +18,10 @@
 let _isQuitting = false;
 
 const appState = {
-  /** Mark the application as in the process of quitting. */
   setQuitting() {
     _isQuitting = true;
   },
 
-  /** Returns true if app.quit() has been initiated. */
   isQuitting() {
     return _isQuitting;
   },

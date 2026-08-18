@@ -34,7 +34,6 @@ let _candidatePhotoBase64 = null;
  * @returns {BrowserWindow}
  */
 function createWindow(onViolation, startPage = "login") {
-  // Prevent duplicate window creation
   if (win && !win.isDestroyed()) {
     win.focus();
     return win;
@@ -68,7 +67,6 @@ function createWindow(onViolation, startPage = "login") {
 
   win.setMenuBarVisibility(false);
 
-  // Clean up reference when window is destroyed
   win.on("closed", () => {
     win = null;
   });
@@ -333,12 +331,10 @@ function _applyWindowProtections(onViolation) {
     });
 
     if (choice === 0) {
-      // User confirmed — quit cleanly
       logger.warn("[window] user confirmed interview exit via close dialog");
       isInterviewActive = false;
       app.quit();
     } else {
-      // User cancelled — log the attempt
       logger.warn("[window] user dismissed close dialog during interview");
       onViolation("Attempt to close interview window", "high");
     }
@@ -378,12 +374,10 @@ function _applyCSPHeaders() {
 
 // ─── Accessors ───────────────────────────────────────────────────────────────
 
-/** Returns the current BrowserWindow instance (may be null). */
 function getWindow() {
   return win;
 }
 
-/** Returns whether an interview session is currently active. */
 function getIsInterviewActive() {
   return isInterviewActive;
 }

@@ -150,7 +150,7 @@ function registerIpcHandlers() {
     }
     logger.info("[ipc] start-interview — entering security check");
     setInterviewSession(tokens.accessToken, tokens.refreshToken);
-    prewarmAgent(); // start the agent as the security-check page opens
+    prewarmAgent();
     loadSecurityCheck();
   });
 
@@ -174,7 +174,6 @@ function registerIpcHandlers() {
     loadPermissionsPage();
   });
 
-  // Permissions "Start interview" → load identity verification page.
   ipcMain.on(IPC.LOAD_IDENTITY_VERIFICATION, () => {
     logger.info("[ipc] load-identity-verification");
     loadIdentityVerificationPage();
@@ -194,7 +193,6 @@ function registerIpcHandlers() {
     return await authManager.submitFaceVerification(dataUrl);
   });
 
-  // Back navigation
   ipcMain.on(IPC.LOAD_DASHBOARD, () => {
     logger.info("[ipc] load-dashboard (back nav)");
     stopPreProceedMonitor();
@@ -208,17 +206,15 @@ function registerIpcHandlers() {
   ipcMain.on(IPC.LOAD_SECURITY_CHECK, () => {
     logger.info("[ipc] load-security-check (back nav)");
     stopPreProceedMonitor();
-    prewarmAgent(); // returning to the security-check page — restart the agent
+    prewarmAgent();
     loadSecurityCheck();
   });
 
-  // Role selection page navigation.
   ipcMain.on(IPC.LOAD_ROLE_SELECTION, () => {
     logger.info("[ipc] load-role-selection");
     loadRoleSelectionPage();
   });
 
-  // How-it-works page navigation.
   ipcMain.on(IPC.LOAD_HOW_IT_WORKS, () => {
     logger.info("[ipc] load-how-it-works");
     loadHowItWorksPage();
@@ -343,7 +339,6 @@ function registerIpcHandlers() {
     storeCandidatePhoto(dataUrl);
   });
 
-  //Interview Flow
   ipcMain.on(IPC.PROCEED_TO_INTERVIEW, (_event, payload) => {
     const roleSelection = sanitizeRoleSelection(payload);
     logger.info("[ipc] proceed-to-interview received", { is_custom_role: roleSelection.is_custom_role });
@@ -375,7 +370,6 @@ function registerIpcHandlers() {
     }
   });
 
-  //Process Management 
   ipcMain.handle(IPC.KILL_BLOCKED_APP, async (_event, processName) => {
     // IMP-03: Validate and sanitise before passing to processKiller
     const { valid, safe } = validateProcessName(processName);
@@ -481,7 +475,6 @@ function registerIpcHandlers() {
   });
 
   // ── Auto-Updater ─────────────────────────────────────────────────────────
-  //Renderer can trigger install after update-downloaded event.
 
   ipcMain.on(IPC.INSTALL_UPDATE, () => {
     logger.info("[ipc] install-update received");
@@ -496,16 +489,12 @@ function registerIpcHandlers() {
   // Renderer asks for the running app version (shown in the preflight footer).
   ipcMain.handle(IPC.GET_APP_VERSION, () => app.getVersion());
 
-  //Audit Trail
   // ADD-07: Exposes the in-memory audit log to the renderer (support diagnostics).
-
   ipcMain.handle(IPC.GET_AUDIT_LOG, () => {
     return startDetection.getAuditLog ? startDetection.getAuditLog() : [];
   });
 
-  //Interview Complete
   // Signal sent by interview.letshyre.com when the session ends.
-  // Stops all detection loops and lifts the window lockdown.
 
   // Renderer acknowledges it received & is handling a violation — keeps the
   // self-enforcement failsafe suppressed while the website stays responsive.
@@ -519,7 +508,6 @@ function registerIpcHandlers() {
     const safeReason = typeof reason === "string" ? reason.slice(0, 40) : "unknown";
     logger.info(`[ipc] interview-complete received — reason: ${safeReason}`);
 
-    // Stop all active detection / polling loops
     if (startDetection.stop) { startDetection.stop(); }
 
     // Interview is over — stop the security agent (deep detection is done; the

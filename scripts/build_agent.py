@@ -2,7 +2,7 @@
 build_agent.py
 ==============
 Builds agent.py into a standalone executable using PyInstaller.
-Run this before `npm run build` to produce the binary that gets
+Run this before `pnpm run build:full` to produce the binary that gets
 bundled into the Electron app via extraResources.
 
 Usage:

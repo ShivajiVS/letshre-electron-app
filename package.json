@@ -14,7 +14,7 @@
     "start": "electron .",
     "dev": "nodemon --watch src --watch assets --watch preload.js --ext js,html,css --exec \"electron .\"",
     "build:agent": "python scripts/build_agent.py",
-    "build:full": "npm run build:agent && electron-builder",
+    "build:full": "pnpm run build:agent && electron-builder",
     "dist": "electron-builder --win --mac",
     "test": "node --test",
     "lint": "eslint src preload.js main.js --ext .js",

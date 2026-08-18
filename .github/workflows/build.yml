@@ -45,11 +45,11 @@ jobs:
       # Non-blocking for now (the repo has pre-existing lint debt). Once that is
       # cleared, drop `continue-on-error` to make this a hard release gate.
       # - name: Run ESLint
-      #   run: npm run lint
+      #   run: pnpm run lint
       #   continue-on-error: true
 
       # - name: Check Prettier formatting
-      #   run: npm run format:check
+      #   run: pnpm run format:check
       #   continue-on-error: true
 
   # ──────────────────────────────────────────────────────────────
@@ -200,11 +200,11 @@ jobs:
   #       uses: actions/cache@v4
   #       with:
   #         path: node_modules
-  #         key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+  #         key: ${{ runner.os }}-node-${{ hashFiles('pnpm-lock.yaml') }}
   #         restore-keys: ${{ runner.os }}-node-
 
   #     - name: Install Node dependencies
-  #       run: npm ci
+  #       run: pnpm install --frozen-lockfile
 
   #     - name: Download agent binary
   #       uses: actions/download-artifact@v4

@@ -89,6 +89,7 @@ Two cooperating detection tiers:
 ├── main.js                     # entry shim → src/main/index.js
 ├── agent.py                    # Python deep-scan agent (source of resources/agent.exe)
 ├── preload.js                  # contextBridge: exposes window.electronAPI to all pages
+├── preload-recorder.js         # minimal contextBridge for the hidden recorder window
 ├── scripts/build_agent.py      # PyInstaller build → resources/agent.exe
 │
 ├── src/
@@ -98,8 +99,12 @@ Two cooperating detection tiers:
 │   │   ├── windowManager.js    # window creation, kiosk lockdown, CSP, self-enforcement
 │   │   ├── ipcHandlers.js      # the only file that registers ipcMain channels
 │   │   ├── agentManager.js     # spawn agent, stdin/stdout pipe, ensureAgent()
+│   │   ├── authManager.js      # login against the LetsHyre API; tokens live main-process-only
 │   │   ├── protocolHandler.js  # letshyre:// parsing → interview URL + token
 │   │   ├── processKiller.js    # whitelisted force-kill of blocked apps
+│   │   ├── screenRecorder.js   # hidden recorder window + chunked upload pipeline
+│   │   ├── localeManager.js    # resolves/persists candidate UI language
+│   │   ├── updater.js          # auto-update orchestration (electron-updater)
 │   │   ├── appState.js         # quitting flag
 │   │   └── logger.js           # file logger (userData/secure-interview.log)
 │   │
@@ -107,19 +112,35 @@ Two cooperating detection tiers:
 │   │   ├── systemChecks.js     # detection ENGINE: preflight + live tick + violations
 │   │   ├── hdmiDetector.js     # external-display detection (Electron screen API)
 │   │   ├── mirrorDetector.js   # blocked-process scan (tasklist CSV / ps)
+│   │   ├── preflightVerdict.js # maps raw detector output → preflight verdict contract
 │   │   └── agentClient.js      # talks to the Python agent (pipe-first, HTTP fallback)
 │   │
 │   ├── renderer/               # page controllers (sandboxed renderer)
-│   │   ├── preflight.js
-│   │   └── violation.js
+│   │   ├── preflight.js        # preflight screen controller
+│   │   ├── login.js            # login screen controller
+│   │   ├── dashboard.js        # candidate dashboard controller
+│   │   ├── role-selection.js   # role-selection step state machine
+│   │   ├── identity-verification.js  # identity-verification screen controller
+│   │   ├── permissions.js      # OS permissions screen controller
+│   │   ├── recorder.js         # runs inside the hidden recorder window
+│   │   └── languageSwitcher.js # keyboard-accessible language dropdown widget
 │   │
 │   └── shared/
 │       ├── constants.js        # single source of truth: ports, URLs, IPC names, timings
 │       └── appList.js          # blocked app lists + friendly display names
 │
-├── assets/                     # static UI (HTML/CSS/icons) loaded as file://
-│   ├── preflight.html / .js    # preflight screen (loads src/renderer/preflight.js)
-│   └── violation.html          # local violation/terminal screen (self-enforcement)
+├── assets/                     # static UI (HTML/CSS/icons/locales) loaded as file://
+│   ├── login.html
+│   ├── role-selection.html
+│   ├── identity-verification.html
+│   ├── permissions.html
+│   ├── preflight.html          # preflight screen (loads src/renderer/preflight.js)
+│   ├── dashboard.html
+│   ├── recorder.html           # hidden recorder window
+│   ├── how-it-works.html
+│   ├── css/                    # hand-authored per-page stylesheets
+│   ├── js/i18n.js              # locale loading/translation helper
+│   └── locales/                # per-language JSON translation bundles (19 languages)
 │
 └── resources/agent.exe         # built agent binary (gitignored — rebuild before packaging)
 ```
@@ -311,7 +332,7 @@ pnpm install
 ### Run (development)
 
 ```bash
-pnpm run dev      # builds CSS, then launches Electron with file watching (nodemon)
+pnpm run dev      # launches Electron with file watching (nodemon)
 # or
 pnpm start        # plain electron .
 ```
@@ -356,7 +377,7 @@ Most knobs live in `src/shared/constants.js`:
 | `HARD_BLOCK_GRACE_MS` | `8000` | Grace before Electron self‑enforces a hard block |
 | `AGENT_PORT` | `9999` | Agent HTTP fallback port |
 
-Environment variables: `API_BASE_URL` (staging/test backend), `AGENT_PY` / `AGENT_PY_BIN` (dev agent), `AGENT_LOG_DIR` / `APP_VERSION` / `AGENT_SECRET` (set automatically for the spawned agent).
+Environment variables: `API_BASE_URL` (staging/test backend), `AGENT_PY` / `AGENT_PY_BIN` (dev agent), `AGENT_LOG_DIR` / `APP_VERSION` / `AGENT_SECRET` (set automatically for the spawned agent), `LOG_LEVEL` (main-process log verbosity, default `info`; see `src/main/logger.js`).
 
 ## Security hardening
 

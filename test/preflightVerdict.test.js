@@ -1,14 +1,7 @@
-/**
- * test/preflightVerdict.test.js
- * ─────────────────────────────
- * Regression tests for the preflight verdict contract.
- *
- * These exist because the preflight used to fail OPEN in three separate ways
- * while the live interview tick failed closed. Each "unverified" case below is a
- * bug that shipped: a probe that could not complete rendered a green "Ready"
- * badge and enabled Proceed. The invariant to protect is simple — nothing but an
- * affirmative pass may open the gate.
- */
+// Regression tests for the preflight verdict contract. The preflight used to
+// fail OPEN in several ways: a probe that couldn't complete rendered a green
+// "Ready" badge and enabled Proceed. Each "unverified" case below is one of
+// those shipped bugs — nothing but an affirmative pass may open the gate.
 
 "use strict";
 
@@ -38,9 +31,8 @@ test("mapHdmi: a detected external display fails", () => {
 });
 
 test("mapHdmi: indeterminate is unverified, NOT a pass", () => {
-  // hdmiDetector returns detected:false alongside indeterminate. Reading only
-  // the boolean is what made a thrown display probe render as "no external
-  // display detected".
+  // hdmiDetector returns detected:false alongside indeterminate — reading only
+  // the boolean made a thrown display probe render as "no external display".
   const v = mapHdmi({ detected: false, status: "indeterminate" });
   assert.strictEqual(v.status, UNVERIFIED);
 });
@@ -59,7 +51,7 @@ test("mapProcesses: a clean scan passes all four cards", () => {
 });
 
 test("mapProcesses: indeterminate marks ALL four cards unverified", () => {
-  // The regression: detectMirroring returns an empty process list alongside
+  // Regression: detectMirroring returns an empty process list alongside
   // indeterminate, so every category looked clean and all four went green.
   const vs = mapProcesses({ detected: false, status: "indeterminate", details: { processes: [] } });
   assert.strictEqual(vs.length, 4);
@@ -107,8 +99,8 @@ test("mapAgent: a dead agent fails", () => {
 });
 
 test("mapAgent: alive but no scan result is unverified, NOT a clean pass", () => {
-  // The regression: threats ?? [] made a missing scan indistinguishable from a
-  // scan that found nothing, so the card claimed the device was clean on the
+  // Regression: `threats ?? []` made a missing scan indistinguishable from a
+  // scan that found nothing, so the card claimed a clean device on the
   // strength of a scan that never ran.
   const v = mapAgent({ alive: true, status: null });
   assert.strictEqual(v.status, UNVERIFIED);
@@ -139,12 +131,9 @@ test("mapAgent: an older agent build without the new fields still passes when cl
   assert.strictEqual(v.status, PASS);
 });
 
-// ─── Cross-language contract with agent.py ───────────────────────────────────
-// These fixtures are REAL output captured from `agent.py` contract v2 (verified
-// by running run_full_scan() directly). agent.py ships as a PyInstaller binary
-// that is gitignored and rebuilt separately, so nothing else in this repo checks
-// that the two sides still agree — if someone changes the Python result shape,
-// these are what catch it.
+// These fixtures are real output captured from `agent.py` contract v2 (via
+// run_full_scan()). agent.py ships as a gitignored PyInstaller binary built
+// separately, so these tests are what catch it if the Python result shape drifts.
 
 const AGENT_V2_CLEAN = {
   status: "CLEAR",
@@ -168,8 +157,8 @@ test("agent contract v2: a clean scan passes", () => {
 });
 
 test("agent contract v2: a degraded scan is unverified, not a pass", () => {
-  // Some of the agent's own checks errored, so it cannot vouch for the machine
-  // even though it found nothing. safe_to_proceed goes false alongside degraded.
+  // Some of the agent's own checks errored, so it can't vouch for the machine
+  // even though it found nothing; safe_to_proceed goes false alongside degraded.
   const degraded = {
     ...AGENT_V2_CLEAN,
     checks: { ...AGENT_V2_CLEAN.checks, window_titles: "error", overlay_windows: "error" },
@@ -180,8 +169,8 @@ test("agent contract v2: a degraded scan is unverified, not a pass", () => {
 });
 
 test("agent contract v2: an unreadable monitor count does not read as 'no mirror'", () => {
-  // count_physical_monitors() returns null (not 0) when it fails, and marks its
-  // own check errored -> degraded -> unverified. 0 is legitimate on macOS/Linux.
+  // count_physical_monitors() returns null (not 0) on failure and marks its own
+  // check errored -> degraded -> unverified; 0 is legitimate on macOS/Linux.
   const cantCount = {
     ...AGENT_V2_CLEAN,
     physical_monitors: null,
@@ -196,7 +185,7 @@ test("agent contract v2: an unreadable monitor count does not read as 'no mirror
 });
 
 test("agent contract v1 (stale agent.exe): still passes when genuinely clean", () => {
-  // resources/agent.exe is gitignored and may lag the Python source, so a build
+  // resources/agent.exe is gitignored and may lag the Python source — a build
   // predating contract v2 must not wedge the gate shut.
   const v1 = { status: "CLEAR", threats: [], safe_to_proceed: true, physical_monitors: 1 };
   assert.strictEqual(mapAgent({ alive: true, status: v1 }).status, PASS);

@@ -1,10 +1,8 @@
 "use strict";
 
-/**
- * Tests for the blocked-process scanner — the core "is a banned app running"
- * check. execFile is stubbed so these run on any platform (the Windows tasklist
- * CSV parse is what ships and is exercised here).
- */
+// Tests for the blocked-process scanner (the "is a banned app running" check).
+// execFile is stubbed so these run on any platform, exercising the Windows
+// tasklist CSV parse that ships.
 
 const test = require("node:test");
 const assert = require("node:assert");
@@ -83,12 +81,11 @@ test("checkProcesses: serves cache within TTL until invalidated", async () => {
   assert.deepStrictEqual(c.found, [], "fresh probe after invalidation");
 });
 
-// ── Cache epoch (Phase C) ────────────────────────────────────────────────────
-// The pre-proceed monitor polls every 2s while a preflight scan calls
-// invalidateProcessCache() and then reads. Without the epoch guard, a probe the
-// MONITOR started just before the invalidation could land afterwards and
-// re-seed the cache with a pre-invalidation snapshot — so the scan's "fresh"
-// read would return data captured before the candidate closed the app.
+// Cache epoch: the pre-proceed monitor polls every 2s while a preflight scan
+// calls invalidateProcessCache() and then reads. Without the epoch guard, a
+// probe the monitor started just before the invalidation could land afterward
+// and re-seed the cache with a stale snapshot, so the scan's "fresh" read
+// would return data from before the candidate closed the app.
 
 /** execFile stub whose callback fires only when the returned trigger is called. */
 function stubDeferredExecFile(stdout) {

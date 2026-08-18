@@ -42,11 +42,8 @@ test("blocklist entries are lowercase (matching is case-insensitive via .toLower
 
 const ALL_COMPANIONS = Object.values(APP_COMPANIONS).flat();
 
-/**
- * Shared / system processes that other software depends on. Killing any of
- * these would damage the machine or take down unrelated apps, so they must
- * never appear as a companion. Lowercase, compared case-insensitively.
- */
+// Shared/system processes other software depends on; killing one would damage
+// the machine or unrelated apps, so none may appear as a companion.
 const FORBIDDEN_SHARED_PROCESSES = [
   "msedgewebview2.exe",
   "runtimebroker.exe",
@@ -106,10 +103,9 @@ test("companions are kill-only — none appear in the detection blocklist", () =
 });
 
 test("no companion is a shared/system process, unless it is path-scoped", () => {
-  // Shared image names are banned as kill targets because terminating them
-  // damages unrelated software. The ONE permitted exception is a name that is
-  // pinned to its owning app's install directory — the companion-scope tests
-  // below then prove every app listing it actually supplies that scope.
+  // Shared image names are banned as kill targets; the only exception is a
+  // name pinned to its owning app's install directory (proven by the
+  // companion-scope tests below).
   const { requiresPathScope } = require("../src/shared/appList");
   for (const companion of ALL_COMPANIONS) {
     const name = companion.toLowerCase();
@@ -124,12 +120,10 @@ test("no companion is a shared/system process, unless it is path-scoped", () => 
   }
 });
 
-// ─── Path-scoped companions ──────────────────────────────────────────────────
-// `update.exe` is Squirrel's relauncher and IS what brings Discord/Slack/classic
-// Teams back after a kill — but every Squirrel app ships one under that same
-// name. It is allowed as a kill target ONLY because it is pinned to its owning
-// app's install directory. These tests encode that exception so it cannot be
-// widened by accident into "kill every update.exe on the machine".
+// `update.exe` is Squirrel's relauncher — needed to bring Discord/Slack/classic
+// Teams back after a kill — but every Squirrel app ships one under that name.
+// It's allowed as a kill target only when pinned to its own install directory;
+// these tests keep that exception from silently widening to "any update.exe".
 
 const {
   APP_COMPANION_SCOPES,
@@ -149,8 +143,8 @@ test("every scoped companion is declared as requiring a path scope", () => {
 });
 
 test("every app listing a scope-requiring companion supplies a scope for it", () => {
-  // This is the invariant that keeps the exception safe. A shared name listed as
-  // a companion WITHOUT a scope would be killed by image name alone.
+  // A shared name listed as a companion without a scope would be killed by
+  // image name alone — this is the invariant that keeps the exception safe.
   for (const [app, companions] of Object.entries(APP_COMPANIONS)) {
     for (const companion of companions) {
       if (!requiresPathScope(companion)) {

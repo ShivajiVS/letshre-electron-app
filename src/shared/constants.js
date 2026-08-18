@@ -1,7 +1,5 @@
 /**
- * src/shared/constants.js
- * ───────────────────────
- * Single source of truth for all magic values used across the app.
+ * Single source of truth for magic values used across the app.
  * Import from here — never hard-code ports, URLs, or IPC channel strings.
  */
 
@@ -56,41 +54,35 @@ const DETECTION_INTERVAL_MS = 5000;
 const HEARTBEAT_INTERVAL_MS = 30000;
 
 /**
- * How often (ms) to re-check GitHub for app updates. Checks are SUPPRESSED while
- * an interview is active — a proctor client must never restart mid-session.
+ * How often (ms) to re-check GitHub for app updates. Suppressed during an
+ * active interview — a proctor client must never restart mid-session.
  */
 const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 /**
- * Fail-CLOSED policy: number of consecutive "indeterminate" results (a check
- * that errored / timed out and therefore could not confirm the system is clean)
- * tolerated during an ACTIVE interview before the check is escalated to a
- * violation. At DETECTION_INTERVAL_MS = 5s, a value of 3 ≈ 15s of blind spot.
- * This closes the previous silent fail-OPEN hole where any transient probe
- * error was treated as "secure".
+ * Fail-closed: consecutive "indeterminate" checks (errored/timed out) tolerated
+ * during an active interview before escalating to a violation. At
+ * DETECTION_INTERVAL_MS = 5s, 3 ≈ 15s blind spot.
  */
 const INDETERMINATE_ESCALATION_THRESHOLD = 3;
 
 /**
- * Grace period (ms) after a hard-block violation before Electron SELF-ENFORCES.
- * The violation is pushed to the website first; if the session is still active
- * after this window (the site dropped the event or failed to terminate),
- * Electron lifts the lockdown and shows the local violation screen itself.
- * This closes the gap where renderer-only enforcement = silent bypass.
+ * Grace period (ms) after a hard-block violation before Electron self-enforces.
+ * The violation goes to the website first; if the session is still active after
+ * this window (site dropped the event or failed to terminate), Electron lifts
+ * lockdown and shows the local violation screen itself.
  */
 const HARD_BLOCK_GRACE_MS = 8000;
 
 // ─── Preflight scan budget ───────────────────────────────────────────────────
-// The preflight runs its checks CONCURRENTLY, each under its own deadline. A
-// check that misses its deadline is reported "unverified" (fail-closed: it
-// blocks Proceed) instead of failing the whole scan — partial results beat
-// all-or-nothing.
+// Checks run concurrently, each under its own deadline. A check that misses
+// its deadline is reported "unverified" (fail-closed, blocks Proceed) rather
+// than failing the whole scan.
 //
 // INVARIANT: PREFLIGHT_RENDERER_TIMEOUT_MS > PREFLIGHT_GLOBAL_DEADLINE_MS.
-// These previously lived apart (renderer 20s vs. a main-side worst case of
-// ~31s), so on a cold start the renderer aborted a scan that was still
-// progressing normally and entered a retry storm. Both sides now derive their
-// budget from here so they cannot drift apart again.
+// These used to live apart (renderer 20s vs. main-side worst case ~31s), so a
+// cold start could get the renderer aborting a scan still in progress and
+// retry-storming. Both sides now derive from here so they can't drift apart.
 
 /** Deadline for the native display probe (Electron screen API — effectively instant). */
 const PREFLIGHT_HDMI_DEADLINE_MS = 1000;
@@ -99,12 +91,11 @@ const PREFLIGHT_HDMI_DEADLINE_MS = 1000;
 const PREFLIGHT_PROCESS_DEADLINE_MS = 4000;
 
 /**
- * Deadline for the agent probe. This DOES have to absorb a cold agent spawn:
- * pre-warming starts the agent as the page opens, but the preflight's probe runs
- * milliseconds later, and spawning costs killStaleAgent() (taskkill + a
- * PowerShell probe, ~1.5-2.5s) plus a cold PyInstaller unpack (2-5s). Sized to
- * cover that on a slow/AV-scanned machine. A warm agent still answers in ~200ms,
- * so this ceiling is only ever paid on the first scan after launch.
+ * Deadline for the agent probe. Has to absorb a cold agent spawn: pre-warming
+ * starts the agent as the page opens, but the probe runs milliseconds later, and
+ * spawning costs killStaleAgent() (~1.5-2.5s) plus a cold PyInstaller unpack
+ * (2-5s). A warm agent answers in ~200ms — this ceiling only bites on the first
+ * scan after launch.
  */
 const PREFLIGHT_AGENT_DEADLINE_MS = 20000;
 
@@ -123,11 +114,9 @@ const PREFLIGHT_RENDERER_TIMEOUT_MS = 27000;
 const PREFLIGHT_RESULT_MAX_AGE_MS = 60000;
 
 // ─── Process termination budget ──────────────────────────────────────────────
-// One killSingleProcess() call spends at most:
-//   enumeration (KILL_ENUM_TIMEOUT_MS) + kill spawns + verification
-//   (KILL_VERIFY_TIMEOUT_MS) + relaunch watch (KILL_RELAUNCH_WATCH_MS)
-// ≈ 12s absolute worst case, ~1–2s in the common "it just closed" path.
-// killAllProcesses() runs apps concurrently, so N apps cost the same as one.
+// killSingleProcess() spends enum + kill + verify + relaunch-watch, ≈12s worst
+// case, ~1-2s in the common path. killAllProcesses() runs apps concurrently, so
+// N apps cost the same as one.
 
 /** Max ms for a single process-enumeration / taskkill helper invocation. */
 const KILL_ENUM_TIMEOUT_MS = 5000;
@@ -140,8 +129,8 @@ const KILL_VERIFY_POLL_MS = 400;
 
 /**
  * After the app goes clear, how long to keep watching for it to come back.
- * A launcher/updater that survived will typically respawn within ~1–2s; a
- * reappearance inside this window is reported as outcome "respawned".
+ * A surviving launcher/updater typically respawns within ~1-2s; a reappearance
+ * in this window is reported as outcome "respawned".
  */
 const KILL_RELAUNCH_WATCH_MS = 3000;
 
@@ -149,10 +138,9 @@ const KILL_RELAUNCH_WATCH_MS = 3000;
 const KILL_RELAUNCH_POLL_MS = 600;
 
 /**
- * Budget for an ELEVATED kill (Phase 5). Generous because it spans a UAC /
- * osascript prompt that a human has to read and accept — the clock is on the
- * candidate, not the machine. Still bounded so a prompt left untouched (or
- * rendered behind another window) cannot wedge the preflight forever.
+ * Budget for an elevated kill (Phase 5). Generous because it spans a UAC /
+ * osascript prompt a human has to read and accept, but still bounded so a
+ * prompt left untouched can't wedge the preflight forever.
  */
 const KILL_ELEVATE_TIMEOUT_MS = 60000;
 
@@ -249,20 +237,17 @@ const IPC = {
   // Interview session end: website → main (lifts window lockdown)
   INTERVIEW_COMPLETE: "interview-complete",
 
-  // Violation acknowledgement: website → main. The renderer calls this from its
-  // onViolation handler to confirm it received and is handling the violation.
-  // While acks keep arriving, Electron's self-enforcement failsafe stays
-  // suppressed (the website owns the warning/termination UX). If acks stop
-  // (renderer crashed / listener dropped), the failsafe self-enforces.
+  // Violation ack: website → main via renderer's onViolation handler. While
+  // acks keep arriving, Electron's self-enforcement failsafe stays suppressed;
+  // if they stop (renderer crashed/listener dropped), the failsafe kicks in.
   ACK_VIOLATION: "ack-violation",
 
-  // Pre-proceed watcher: main → renderer push — real-time blocked-app status
-  // while the user is on the "All checks passed" success screen.
-  // Payload: { clean: boolean, apps: string[] }
+  // Pre-proceed watcher: main → renderer, real-time blocked-app status on the
+  // "All checks passed" screen. Payload: { clean: boolean, apps: string[] }
   PUSH_PRE_PROCEED_STATUS: "push-pre-proceed-status",
 
-  // Identity verification → main: store the captured photo for injection into
-  // the interview SPA sessionStorage before React boots.
+  // Store the captured ID-verification photo, injected into interview SPA
+  // sessionStorage before React boots.
   STORE_CANDIDATE_PHOTO: "store-candidate-photo",
 
   // Screen recording / proctoring — triggered by interview.letshyre.com

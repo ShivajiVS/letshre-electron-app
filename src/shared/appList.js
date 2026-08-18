@@ -1,14 +1,7 @@
 /**
- * src/shared/appList.js
- * ─────────────────────
- * Single source of truth for all blocked / suspicious application names.
- *
- * Previously these lists were duplicated across:
- *   - main.js (KILLABLE_APPS)
- *   - src/detector/mirrorDetector.js (suspicious[])
- *   - assets/preflight.js (meetingApps, screenSharingApps, APP_DISPLAY_NAMES)
- *
- * Now there is ONE place. Update here — everywhere picks it up automatically.
+ * Single source of truth for blocked/suspicious application names. Used to be
+ * duplicated across main.js, mirrorDetector.js, and preflight.js — update here,
+ * everywhere else picks it up automatically.
  */
 
 "use strict";
@@ -47,10 +40,8 @@ const SCREEN_SHARING_APPS = [
   "bandicam.exe",
   "camtasia.exe",
   "snagit.exe",
-  // Parsec, Splashtop, Chrome Remote Desktop: remote-access tools, same risk
-  // class as AnyDesk/TeamViewer. Process names below are the primary/known
-  // executables per vendor; remote-access apps vary their helper process
-  // names across versions more than most, so this list is best-effort.
+  // Parsec/Splashtop/Chrome Remote Desktop: same risk class as AnyDesk/TeamViewer.
+  // Helper process names vary more across versions than most apps, so this is best-effort.
   "parsecd.exe",
   "parsec.exe",
   "srserver.exe",
@@ -149,44 +140,41 @@ const ALL_BLOCKED_APPS = [
 // ─── Companion / Relauncher Processes ────────────────────────────────────────
 
 /**
- * Processes that can RELAUNCH a blocked app, or that keep it running in the
+ * Processes that can relaunch a blocked app or keep it running in the
  * background after its window closes. Keyed by the blocked app's main image
- * name (lowercase, as it appears in ALL_BLOCKED_APPS). Values are lowercase
- * image names. These are KILL targets only — they are deliberately NOT added to
- * the detection blocklist, because a stray helper alone must not fail a scan.
+ * name (lowercase). Kill targets only — deliberately NOT in the detection
+ * blocklist, since a stray helper alone shouldn't fail a scan.
  *
- * Safety rule for anyone extending this map: a companion must be EXCLUSIVE to
- * one vendor's product. Never add shared runtime/host processes (webview,
- * broker, shell, generic Squirrel/electron `update.exe`, crash handlers) —
- * killing those breaks unrelated software on the candidate's machine.
+ * Rule for extending this map: a companion must be exclusive to one vendor's
+ * product. Never add shared runtime/host processes (webview, broker, shell,
+ * generic Squirrel `update.exe`, crash handlers) — killing those breaks
+ * unrelated software on the candidate's machine.
  */
 const APP_COMPANIONS = {
   // ── Zoom ──
-  // zoomlauncher: protocol/URL launcher that re-spawns zoom.exe.
-  // cpthost + airhost: sharing/AirPlay hosts that survive the main window.
+  // zoomlauncher re-spawns zoom.exe; cpthost/airhost are sharing/AirPlay hosts
+  // that survive the main window.
   "zoom.exe": ["zoomlauncher.exe", "cpthost.exe", "airhost.exe"],
 
   // ── Microsoft Teams ──
-  // ms-teamsupdate: the new Teams updater, invoked by ms-teams.exe; it can
-  // reinstall/relaunch the client. Classic Teams only ships the shared Squirrel
-  // `update.exe`, which is intentionally omitted (not vendor-exclusive).
-  // Classic Teams also ships the shared Squirrel `update.exe`; it is listed here
-  // ONLY because APP_COMPANION_SCOPES pins it to Teams' own install directory.
-  // Never add a shared image name here without a matching scope entry.
+  // ms-teamsupdate is the new Teams updater and can reinstall/relaunch the
+  // client. Classic Teams' `update.exe` is listed here ONLY because
+  // APP_COMPANION_SCOPES pins it to Teams' own install dir — never add a
+  // shared image name here without a matching scope entry.
   "teams.exe": ["ms-teamsupdate.exe", "update.exe"],
   "ms-teams.exe": ["ms-teamsupdate.exe"],
   "msteams.exe": ["ms-teamsupdate.exe"],
 
   // ── Squirrel-based Electron apps ──
-  // `update.exe` IS the relauncher for these, but the name is shared across
-  // every Squirrel app, so both entries are path-scoped in APP_COMPANION_SCOPES.
+  // `update.exe` is the relauncher, but the name is shared across every
+  // Squirrel app, so both entries are path-scoped in APP_COMPANION_SCOPES.
   "discord.exe": ["update.exe"],
   "slack.exe": ["update.exe"],
 
   // ── Cisco Webex ──
-  // ciscowebexstart: relauncher. webexhost/ciscocollabhost: persistent hosts
-  // that pre-warm and re-open the meeting UI. atmgr/washost/wmlhost/ptoneclk:
-  // tray + meeting helpers that keep running after the meeting window closes.
+  // ciscowebexstart relaunches; webexhost/ciscocollabhost are persistent hosts
+  // that re-open the meeting UI; atmgr/washost/wmlhost/ptoneclk are tray/meeting
+  // helpers that outlive the meeting window.
   "webex.exe": [
     "ciscowebexstart.exe",
     "webexhost.exe",
@@ -198,23 +186,23 @@ const APP_COMPANIONS = {
   ],
 
   // ── Skype ──
-  // Background/host/bridge components of the packaged Skype app; the background
-  // host re-activates the foreground app.
+  // Background/host/bridge components of the packaged app; background host
+  // re-activates the foreground app.
   "skype.exe": ["skypeapp.exe", "skypebackgroundhost.exe", "skypehost.exe", "skypebridge.exe"],
 
   // ── GoToMeeting ──
-  // g2mlauncher: relauncher. g2mcomm: persistent comm service that reopens the
-  // session UI. g2mui: meeting UI process.
+  // g2mlauncher relaunches; g2mcomm is a persistent comm service that reopens
+  // the session UI; g2mui is the meeting UI process.
   "gotomeeting.exe": ["g2mlauncher.exe", "g2mcomm.exe", "g2mui.exe"],
 
   // ── TeamViewer ──
-  // teamviewer_service: Windows service that restarts teamviewer.exe on kill.
-  // tv_w32 / tv_x64 / teamviewer_desktop: session hosts that keep accepting
-  // incoming remote connections without the main window.
+  // teamviewer_service restarts teamviewer.exe on kill (it's a Windows service);
+  // tv_w32/tv_x64/teamviewer_desktop are session hosts that keep accepting
+  // incoming connections without the main window.
   "teamviewer.exe": ["teamviewer_service.exe", "tv_w32.exe", "tv_x64.exe", "teamviewer_desktop.exe"],
 
   // ── Snagit (TechSmith) ──
-  // Editor + privileged helper that keep capture alive after the tray app exits.
+  // Editor + privileged helper keep capture alive after the tray app exits.
   "snagit.exe": ["snagiteditor.exe", "snagpriv.exe"],
 };
 
@@ -237,24 +225,23 @@ function getCompanions(processName) {
 // ─── Path-scoped companions ──────────────────────────────────────────────────
 
 /**
- * Some relaunchers CANNOT be identified by image name alone because several
- * unrelated vendors ship the exact same one. The Squirrel installer framework is
- * the big case: Discord, Slack, classic Teams and most Electron apps all ship an
- * `Update.exe`, and that process is precisely what brings the app back after it
- * is killed. Terminating every `Update.exe` on the machine would take down
- * unrelated software the candidate depends on.
+ * Some relaunchers can't be identified by image name alone because several
+ * unrelated vendors ship the exact same one — Squirrel is the big case:
+ * Discord, Slack, classic Teams and most Electron apps all ship an
+ * `Update.exe`, and it's exactly what brings the app back after a kill.
+ * Terminating every `Update.exe` on the machine would take down unrelated
+ * software the candidate depends on.
  *
- * These companions are therefore matched on image name AND install location: the
+ * So these companions are matched on image name AND install location: the
  * process's executable path must sit under the owning app's own directory.
  *
  * Keyed by blocked app → { companion image name → required path fragment }.
- * Fragments are lowercase and matched as a substring of the executable path, so
- * they are installation-root agnostic (works under %LOCALAPPDATA%, Program
- * Files, or a portable install).
+ * Fragments are lowercase, matched as a substring of the path (installation-root
+ * agnostic — works under %LOCALAPPDATA%, Program Files, or a portable install).
  *
  * FAIL-CLOSED CONTRACT: a companion listed here must NEVER be killed when the
- * executable path is unavailable or does not contain the fragment. The engine
- * enforces this — see matchesImageName() in src/main/processKiller.js.
+ * executable path is unavailable or doesn't contain the fragment. Enforced by
+ * matchesImageName() in src/main/processKiller.js.
  */
 const APP_COMPANION_SCOPES = {
   // Squirrel updater/relauncher, scoped to each vendor's own install directory.
@@ -289,9 +276,9 @@ function getCompanionScope(processName, companionName) {
 }
 
 /**
- * True if this image name may ONLY be killed inside a path scope. Used by the
- * engine to refuse a kill when it has a scoped name but no path to check it
- * against, rather than falling back to an unscoped image-name kill.
+ * True if this image name may only be killed inside a path scope — lets the
+ * engine refuse a kill when it has no path to check against, instead of
+ * falling back to an unscoped name match.
  * @param {string} companionName
  * @returns {boolean}
  */

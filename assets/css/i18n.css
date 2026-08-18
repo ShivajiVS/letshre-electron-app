@@ -3,12 +3,10 @@
  * Included on every native page alongside i18n.js.
  */
 
-/* ─── No-FOUC ─────────────────────────────────────────────────────────── */
 html.i18n-pending body {
   visibility: hidden;
 }
 
-/* ─── Language switcher ──────────────────────────────────────────────── */
 #lang-switcher {
   display: inline-flex;
   align-items: center;
@@ -63,10 +61,5 @@ html[dir="rtl"] .hiw-back svg {
  * with a native speaker during translation review).
  */
 body {
-  font-family:
-    Inter,
-    "Noto Sans",
-    "Segoe UI",
-    system-ui,
-    sans-serif;
+  font-family: Inter, "Noto Sans", "Segoe UI", system-ui, sans-serif;
 }

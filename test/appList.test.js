@@ -1,9 +1,5 @@
 "use strict";
 
-/**
- * Tests for the single source of truth of blocked apps + display names.
- */
-
 const test = require("node:test");
 const assert = require("node:assert");
 
@@ -43,8 +39,6 @@ test("blocklist entries are lowercase (matching is case-insensitive via .toLower
     assert.strictEqual(app, app.toLowerCase(), `${app} should be lowercase`);
   }
 });
-
-// ─── Companion processes ─────────────────────────────────────────────────────
 
 /** Every companion name in the map, flattened. */
 const ALL_COMPANIONS = Object.values(APP_COMPANIONS).flat();
@@ -107,7 +101,7 @@ test("companions are kill-only — none appear in the detection blocklist", () =
   for (const companion of ALL_COMPANIONS) {
     assert.ok(
       !ALL_BLOCKED_APPS.includes(companion),
-      `${companion} is a companion and must NOT be in ALL_BLOCKED_APPS`,
+      `${companion} is a companion and must NOT be in ALL_BLOCKED_APPS`
     );
   }
 });
@@ -120,11 +114,13 @@ test("no companion is a shared/system process, unless it is path-scoped", () => 
   const { requiresPathScope } = require("../src/shared/appList");
   for (const companion of ALL_COMPANIONS) {
     const name = companion.toLowerCase();
-    if (!FORBIDDEN_SHARED_PROCESSES.includes(name)) { continue; }
+    if (!FORBIDDEN_SHARED_PROCESSES.includes(name)) {
+      continue;
+    }
     assert.ok(
       requiresPathScope(name),
       `${companion} is a shared/system process and must never be a kill target ` +
-        `unless it is registered in APP_COMPANION_SCOPES`,
+        `unless it is registered in APP_COMPANION_SCOPES`
     );
   }
 });
@@ -147,7 +143,7 @@ test("every scoped companion is declared as requiring a path scope", () => {
     for (const companion of Object.keys(scopes)) {
       assert.ok(
         requiresPathScope(companion),
-        `${companion} has a scope entry but requiresPathScope() does not report it`,
+        `${companion} has a scope entry but requiresPathScope() does not report it`
       );
     }
   }
@@ -158,11 +154,13 @@ test("every app listing a scope-requiring companion supplies a scope for it", ()
   // a companion WITHOUT a scope would be killed by image name alone.
   for (const [app, companions] of Object.entries(APP_COMPANIONS)) {
     for (const companion of companions) {
-      if (!requiresPathScope(companion)) { continue; }
+      if (!requiresPathScope(companion)) {
+        continue;
+      }
       const scope = getCompanionScope(app, companion);
       assert.ok(
         scope && scope.length > 0,
-        `${app} lists shared companion ${companion} with no path scope — it would be killed by name alone`,
+        `${app} lists shared companion ${companion} with no path scope — it would be killed by name alone`
       );
     }
   }
@@ -174,7 +172,7 @@ test("every APP_COMPANION_SCOPES key is a real blocked app, and lists that compa
     for (const companion of Object.keys(scopes)) {
       assert.ok(
         (APP_COMPANIONS[app] || []).includes(companion),
-        `${app} has a scope for ${companion} but does not list it as a companion (dead entry)`,
+        `${app} has a scope for ${companion} but does not list it as a companion (dead entry)`
       );
     }
   }
@@ -220,7 +218,7 @@ test("companion lists contain no duplicates, within or across apps", () => {
     assert.strictEqual(
       new Set(companions).size,
       companions.length,
-      `${key} has duplicate companions`,
+      `${key} has duplicate companions`
     );
     assert.ok(!companions.includes(key), `${key} should not list itself as a companion`);
   }

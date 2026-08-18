@@ -1,9 +1,3 @@
-/* ──────────────────────────────────────────────────────────────────────────
-   dashboard.css — Dashboard page styles (navbar + content)
-   ────────────────────────────────────────────────────────────────────────── */
-
-/* ── Navbar ──────────────────────────────────────────────────────────────── */
-
 .topbar {
   height: 64px;
   display: flex;
@@ -27,8 +21,6 @@
   align-items: center;
   gap: 16px;
 }
-
-/* ── Main content ────────────────────────────────────────────────────────── */
 
 .dash-main {
   max-width: 600px;
@@ -73,7 +65,10 @@
   display: block;
 }
 
-.profile-card__info { flex: 1; min-width: 0; }
+.profile-card__info {
+  flex: 1;
+  min-width: 0;
+}
 .profile-card__name {
   font-size: 17px;
   font-weight: 700;
@@ -101,7 +96,10 @@
   align-items: center;
   gap: 5px;
 }
-.profile-card__meta-item svg { flex-shrink: 0; opacity: 0.65; }
+.profile-card__meta-item svg {
+  flex-shrink: 0;
+  opacity: 0.65;
+}
 
 /* Interview card */
 .dash-card {
@@ -139,8 +137,15 @@
   border-radius: 10px;
   max-width: 340px;
 }
-.attempt-tracker__label { font-size: 13px; color: var(--muted); white-space: nowrap; }
-.attempt-tracker__dots { display: flex; gap: 6px; }
+.attempt-tracker__label {
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.attempt-tracker__dots {
+  display: flex;
+  gap: 6px;
+}
 .attempt-dot {
   width: 10px;
   height: 10px;
@@ -148,9 +153,19 @@
   background: var(--accent-soft);
   border: 1.5px solid var(--accent);
 }
-.attempt-dot.used { background: var(--accent); border-color: var(--accent-hover); }
-.attempt-tracker__count { font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; }
-.attempt-tracker__count.exhausted { color: var(--danger); }
+.attempt-dot.used {
+  background: var(--accent);
+  border-color: var(--accent-hover);
+}
+.attempt-tracker__count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.attempt-tracker__count.exhausted {
+  color: var(--danger);
+}
 
 /* CTA button */
 .btn-cta {
@@ -168,11 +183,21 @@
   border: none;
   border-radius: 11px;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.05s ease;
+  transition:
+    background 0.15s ease,
+    transform 0.05s ease;
 }
-.btn-cta:hover { background: var(--accent-hover); }
-.btn-cta:active { transform: translateY(0.5px); }
-.btn-cta:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+.btn-cta:hover {
+  background: var(--accent-hover);
+}
+.btn-cta:active {
+  transform: translateY(0.5px);
+}
+.btn-cta:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
 
 .dash-note {
   margin-top: 14px;
@@ -180,4 +205,7 @@
   color: var(--faint);
   line-height: 1.5;
 }
-.dash-note.exhausted-note { color: var(--danger); font-weight: 500; }
+.dash-note.exhausted-note {
+  color: var(--danger);
+  font-weight: 500;
+}

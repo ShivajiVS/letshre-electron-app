@@ -1,7 +1,3 @@
-/* ──────────────────────────────────────────────────────────────────────────
-   login.css — Login page styles
-   ────────────────────────────────────────────────────────────────────────── */
-
 .auth-center {
   min-height: 100vh;
   display: flex;
@@ -20,8 +16,9 @@
   padding: 44px 40px;
 }
 
-/* Brand / Logo */
-.brand { margin-bottom: 32px; }
+.brand {
+  margin-bottom: 32px;
+}
 .brand__logo {
   height: 34px;
   width: auto;
@@ -44,7 +41,9 @@
 }
 
 /* Fields */
-.field { margin-bottom: 20px; }
+.field {
+  margin-bottom: 20px;
+}
 .field__label {
   display: block;
   font-size: 13px;
@@ -62,9 +61,13 @@
   background: var(--surface);
   border: 1px solid var(--input-border);
   border-radius: 10px;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
-.field__input::placeholder { color: var(--faint); }
+.field__input::placeholder {
+  color: var(--faint);
+}
 .field__input:focus {
   outline: none;
   border-color: var(--accent);
@@ -104,7 +107,9 @@
   border-radius: 10px;
   line-height: 1.4;
 }
-.auth-error.show { display: block; }
+.auth-error.show {
+  display: block;
+}
 
 /* Submit button */
 .btn {
@@ -119,11 +124,21 @@
   border: none;
   border-radius: 10px;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.05s ease;
+  transition:
+    background 0.15s ease,
+    transform 0.05s ease;
 }
-.btn:hover { background: var(--accent-hover); }
-.btn:active { transform: translateY(0.5px); }
-.btn:disabled { opacity: 0.65; cursor: default; transform: none; }
+.btn:hover {
+  background: var(--accent-hover);
+}
+.btn:active {
+  transform: translateY(0.5px);
+}
+.btn:disabled {
+  opacity: 0.65;
+  cursor: default;
+  transform: none;
+}
 
 .auth-foot {
   margin-top: 24px;

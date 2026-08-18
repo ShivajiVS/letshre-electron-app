@@ -3,19 +3,9 @@
  * ───────────────────
  * Auto-update orchestration (GitHub releases via electron-updater).
  *
- * Design priorities for a PROCTORING client:
- *   1. INTERVIEW SAFETY — never check, prompt, or install while an interview is
- *      active. An auto-restart mid-session would void the interview. All update
- *      activity is gated on windowManager.getIsInterviewActive().
- *   2. Background download + DEFER — updates download silently and, if the user
- *      doesn't restart now, install automatically on the next natural quit
- *      (autoInstallOnAppQuit). The user is never forced to restart.
- *   3. Observable UX — the renderer receives state, progress, ready, and error
- *      events so it can show a friendly banner.
- *
- * Code signing is NOT required for Windows auto-update to function; when signing
- * secrets (CSC_LINK / CSC_KEY_PASSWORD) are added to the build, no code here
- * changes — electron-builder simply produces signed artifacts.
+ * All update activity is gated on interview state — never check/download/install
+ * while an interview is active. Updates download silently and install on the
+ * next natural quit (autoInstallOnAppQuit) if the user doesn't restart now.
  */
 
 "use strict";
@@ -67,11 +57,8 @@ function setState(next, extra = {}) {
  * events can reach the renderer).
  */
 function init() {
-  // AUTOMATIC but INTERVIEW-GATED. We disable electron-updater's own auto-download
-  // (which would fire on update-available with no interview check) and instead
-  // start the download ourselves via downloadUpdate(), which refuses during an
-  // active interview. Still no user consent step — it just won't bleed a download
-  // into a locked-down session. Install is silent on the next app quit.
+  // Disable electron-updater's own auto-download (no interview check) — we
+  // trigger it ourselves via downloadUpdate(), which refuses mid-interview.
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
   // electron-updater accepts any logger with debug/info/warn/error — ours has all.
@@ -80,12 +67,8 @@ function init() {
   autoUpdater.on("checking-for-update", () => setState("checking"));
 
   autoUpdater.on("update-available", (info) => {
-    // A periodic re-check re-emits update-available for the SAME version even
-    // after it's fully downloaded (electron-updater doesn't dedupe across
-    // checks). Keep the staged "downloaded" state instead of un-readying it and
-    // re-downloading — otherwise installUpdate() would refuse until the
-    // round-trip completes and the card would regress from "ready" to
-    // "downloading".
+    // A periodic re-check re-emits this event for a version we've already staged
+    // (electron-updater doesn't dedupe). Don't un-ready it and re-download.
     if (downloaded && latestInfo?.version === info.version) {
       logger.info("[updater] update-available for already-staged version — keeping ready state");
       return;
@@ -100,8 +83,7 @@ function init() {
       // Total download size (bytes) so the card can show "ready to download (X MB)".
       sizeBytes: Array.isArray(info.files) && info.files[0] ? info.files[0].size : null,
     });
-    // Start the download automatically — but gated: downloadUpdate() is a no-op
-    // during an active interview, so a download never begins mid-session.
+    // Auto-start the download — downloadUpdate() no-ops during an interview.
     downloadUpdate();
   });
 
@@ -205,21 +187,19 @@ function installUpdate() {
   logger.info("[updater] quitting to install update (silent):", latestInfo?.version);
   appState.setQuitting();
 
-  // Kill the bundled Python agent FIRST so resources\agent.exe is not locked
-  // when the installer removes the old version (otherwise the uninstall fails
-  // with "Failed to uninstall old application files"). The installer's
-  // customInit hook also force-kills it, but doing it here too closes the race.
+  // Kill the agent first so resources\agent.exe isn't locked when the installer
+  // removes the old version (installer's customInit also force-kills it — belt
+  // and suspenders against the race).
   try {
     killAgent();
   } catch (err) {
     logger.warn("[updater] killAgent before install failed:", err.message);
   }
 
-  // Short delay so the OS releases the agent's file handles before the
-  // installer launches. (isSilent=true, isForceRunAfter=FALSE): silent one-click
-  // install with NO relaunch — the app is launched via a letshyre:// deep link
-  // whose token would be lost on relaunch, so the candidate reopens from their
-  // interview link (on the new version). perMachine:false avoids a UAC prompt.
+  // Delay lets the OS release the agent's file handles first. No relaunch
+  // (isForceRunAfter=false): the app opens via a letshyre:// deep link whose
+  // token would be lost on relaunch, so candidates reopen from their interview
+  // link instead. perMachine:false avoids a UAC prompt.
   setTimeout(() => autoUpdater.quitAndInstall(true, false), 1200);
   return true;
 }

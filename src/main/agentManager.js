@@ -48,8 +48,7 @@ const _pending = new Map(); // id → { resolve, timer }
 let _stdoutBuf = ""; // accumulates partial stdout lines
 
 /**
- * Resolves the absolute path to the agent binary,
- * handling both packaged (production) and development environments.
+ * Resolves the absolute path to the agent binary (packaged vs. dev).
  * @returns {string}
  */
 function getAgentPath() {
@@ -134,11 +133,8 @@ function sendAgentCommand(cmd, timeoutMs = AGENT_REQUEST_TIMEOUT_MS) {
 // ─── Stale Agent Cleanup ─────────────────────────────────────────────────────
 
 /**
- * Kills any stale agent process occupying the agent port.
- * This handles the case where a previous Electron crash left an orphaned
- * agent.exe still bound to port 9999, preventing a new instance from starting.
- *
- * Cross-platform: uses `netstat` + `taskkill` on Windows, `lsof` + `kill` on macOS/Linux.
+ * Kills any stale agent left bound to the agent port by a previous crash.
+ * Uses `netstat`+`taskkill` on Windows, `lsof`+`kill` on macOS/Linux.
  * @returns {Promise<void>}
  */
 function killStaleAgent() {

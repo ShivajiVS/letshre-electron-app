@@ -157,9 +157,6 @@ jobs:
           name: agent-windows
           path: resources/
 
-      - name: Build Tailwind CSS
-        run: npm run build:css
-
       - name: Package (Windows)
         shell: pwsh
         env:

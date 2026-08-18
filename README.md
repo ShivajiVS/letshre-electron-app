@@ -77,7 +77,7 @@ Two cooperating detection tiers:
 | Desktop shell | **Electron 30** (`contextIsolation`, `sandbox`, no `nodeIntegration`) |
 | Main/renderer language | Node.js **20+** (CommonJS) |
 | Deep‑scan agent | **Python 3.12** + `psutil`, bundled to a single binary with **PyInstaller** |
-| UI | Static HTML + **Tailwind CSS 3** |
+| UI | Static HTML + hand‑authored CSS |
 | Packaging | **electron-builder 24** (NSIS installer on Windows, DMG on macOS) |
 | Auto‑update | `electron-updater` (GitHub releases) |
 | Lint/format | ESLint 8 + Prettier 3 |
@@ -325,7 +325,6 @@ pnpm start        # plain electron .
   AGENT_PY=1 pnpm start        # spawns `python agent.py` instead of resources/agent.exe
   ```
   (`AGENT_PY_BIN` overrides the interpreter, default `python`/`python3`. Dev only.)
-- **Tailwind** — `pnpm run watch:css` rebuilds styles on change.
 - **Lint / format** — `pnpm run lint` / `pnpm run format`.
 - **Logs** — the main process and forwarded agent logs are written to
   `…/AppData/Roaming/letshyre-secure-interview/secure-interview.log` (Windows).
@@ -333,10 +332,8 @@ pnpm start        # plain electron .
 ## Building & packaging
 
 ```bash
-pnpm run build:css      # compile Tailwind
 pnpm run build:agent    # PyInstaller → resources/agent.exe   (run when agent.py changes)
-pnpm run build:full     # build:css + build:agent + electron-builder
-pnpm run build          # build:css + electron-builder (assumes agent already built)
+pnpm run build:full     # build:agent + electron-builder
 pnpm run dist           # cross-target (win + mac)
 ```
 
@@ -386,10 +383,9 @@ Environment variables: `API_BASE_URL` (staging/test backend), `AGENT_PY` / `AGEN
 | Script | Description |
 |--------|-------------|
 | `start` | Launch Electron |
-| `dev` | Build CSS, then launch with file watching |
-| `build:css` / `watch:css` | Compile / watch Tailwind |
+| `dev` | Launch with file watching |
 | `build:agent` | PyInstaller build of the Python agent |
-| `build` / `build:full` / `dist` | Package the app (see [Building](#building--packaging)) |
+| `build:full` / `dist` | Package the app (see [Building](#building--packaging)) |
 | `lint` / `lint:fix` | ESLint |
 | `format` / `format:check` | Prettier |
 

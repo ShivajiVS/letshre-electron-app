@@ -366,8 +366,8 @@ function _applyCSPHeaders() {
         ...details.responseHeaders,
         "Content-Security-Policy": [
           "default-src 'self'; " +
-            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com; " +
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com; " +
+            "script-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
             "font-src 'self' https://fonts.gstatic.com data:; " + // 'self' also serves assets/fonts/*.woff2 (i18n Noto subsets)
             "img-src 'self' data: blob: https://api.letshyre.com; " +
             "media-src 'self' blob:; " +

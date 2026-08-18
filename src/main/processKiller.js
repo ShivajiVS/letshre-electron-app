@@ -1,44 +1,23 @@
 /**
  * src/main/processKiller.js
  * ─────────────────────────
- * Force-terminates blocked applications, PID-accurately.
+ * Force-terminates blocked applications, PID-accurately. Only processes in
+ * ALL_BLOCKED_APPS (src/shared/appList.js) may be killed — this whitelist is
+ * what stops the IPC handler from being abused to kill arbitrary OS processes.
  *
- * Only processes in ALL_BLOCKED_APPS (from src/shared/appList.js) may be
- * killed — all others are rejected. This whitelist prevents the IPC handler
- * from being abused to kill arbitrary OS processes.
+ * Flow: companions (launchers/updaters that would relaunch the main exe) are
+ * killed before the main exe itself; we then verify by re-scanning PIDs and
+ * watch briefly for a relaunch, so the result outcome ("closed", "respawned",
+ * etc, see KillResult) reflects what actually happened, not a guess. Killing
+ * is PID-by-PID (children before parents) against an explicit exclusion set,
+ * rather than `taskkill /T`, so an excluded PID can never be swept up.
  *
- * Design (see the four phases below):
- *
- *  1. OUTCOME CLASSIFICATION — every kill returns a structured {@link KillResult}
- *     whose `outcome` is derived from real signals (per-PID exit codes plus a
- *     PID-level re-scan), never from a guess. `success` is true only for
- *     "closed" and "already-gone".
- *
- *  2. COMPANION-FIRST ORDERING — launcher/updater/tray processes that would
- *     relaunch the main executable are terminated BEFORE it, so nothing
- *     survives to respawn it. Companions come from appList.getCompanions();
- *     a missing export is treated as "no companions" so this module keeps
- *     working while that list is being written.
- *
- *  3. RELAUNCH DETECTION — after the target goes clear we keep watching for a
- *     few seconds. A process that comes back reports outcome "respawned"
- *     instead of a false "closed".
- *
- *  4. PID-ACCURATE TERMINATION — we enumerate the whole process table (PID +
- *     parent PID), select the PIDs belonging to the target image names, order
- *     them children-before-parents, and kill them individually. This gives the
- *     completeness of `taskkill /T` without its danger, because the target set
- *     is filtered through an explicit exclusion set first.
- *
- * SAFETY INVARIANT
- * ────────────────
- * We never terminate our own process, its ancestors, its descendants, or the
- * bundled security agent. Two independent guards enforce this:
- *   • by NAME — isOwnProcess() rejects the request outright, and
- *   • by PID  — computeExclusionPids() builds the protected PID set from the
- *               same process-table snapshot the targets are chosen from.
- * If the process table cannot be read, the kill FAILS rather than proceeding
- * with an unknown exclusion set.
+ * SAFETY INVARIANT: we never terminate our own process, its ancestors, its
+ * descendants, or the bundled security agent. Enforced two ways —
+ * isOwnProcess() rejects by name, computeExclusionPids() builds the protected
+ * PID set from the same snapshot the targets are chosen from. If the process
+ * table can't be read, the kill fails rather than running with an unknown
+ * exclusion set.
  */
 
 "use strict";
@@ -79,13 +58,10 @@ const {
 const SUCCESS_OUTCOMES = ["closed", "already-gone"];
 
 /**
- * Total time budget for one killSingleProcess() call:
- *   enumeration (≤ KILL_ENUM_TIMEOUT_MS, typically ~300ms)
- * + the kill spawns (batched in parallel per tree level)
- * + verification poll   (≤ KILL_VERIFY_TIMEOUT_MS)
- * + relaunch watch      (≤ KILL_RELAUNCH_WATCH_MS, only after the target went clear)
- * ≈ 12s absolute worst case, ~1–2s in the common "it just closed" path.
- * killAllProcesses() runs every app concurrently, so N apps cost the same as one.
+ * Time budget for one killSingleProcess() call: enumeration + kill spawns +
+ * verification poll + relaunch watch ≈ 12s worst case, ~1-2s in the common
+ * case. killAllProcesses() runs every app concurrently, so N apps cost the
+ * same as one.
  */
 const DEFAULT_TIMING = {
   enumTimeoutMs: KILL_ENUM_TIMEOUT_MS,
@@ -99,26 +75,20 @@ const DEFAULT_TIMING = {
 // ─── Self-Protection Guard (by name) ─────────────────────────────────────────
 
 /**
- * Returns true if the given process name matches our own Electron app.
- * Handles version-suffixed names (e.g. "LetsHyre Secure Interview 1.0.0.exe").
- *
- * Windows: electron-builder produces "LetsHyre Secure Interview.exe"
- *          and version-suffixed "LetsHyre Secure Interview 1.0.0.exe".
- * macOS:   "LetsHyre Secure Interview.app" or "letshyre-secure-interview".
- * Dev:     "electron.exe" / "electron".
+ * True if processName is our own Electron app — covers electron-builder's
+ * version-suffixed names ("LetsHyre Secure Interview 1.0.0.exe"), the macOS
+ * bundle/npm name, and dev-mode "electron.exe"/agent.exe.
  * @param {string} processName
  * @returns {boolean}
  */
 function isOwnProcess(processName) {
   const name = String(processName || "").toLowerCase();
 
-  // Prefix matches — covers version-suffixed names and .app/.exe extensions
   const OWN_PREFIXES = [
-    "letshyre secure interview", // matches with or without version suffix
+    "letshyre secure interview", // with or without version suffix
     "letshyre-secure-interview", // npm/bundle name variant
   ];
 
-  // Exact matches for dev mode and agent process
   const OWN_EXACT = ["electron.exe", "electron", "agent.exe", "agent"];
 
   if (OWN_EXACT.includes(name)) {return true;}
@@ -152,8 +122,8 @@ function sleepReal(ms) {
 
 /**
  * Spawns a helper command (never a blocked app) and collects its output.
- * Uses spawn() with shell:false — arguments are passed directly, no shell
- * parsing, so a crafted process name cannot inject a command.
+ * shell:false — args pass through directly, no shell parsing, so a crafted
+ * process name can't inject a command.
  * @returns {Promise<{code: number|null, stdout: string, stderr: string, error?: string}>}
  */
 function runCommand(command, args, timeoutMs) {
@@ -237,10 +207,9 @@ function parseCreated(value) {
 }
 
 /**
- * Parses headered CSV process output (PowerShell Get-CimInstance or wmic).
- * Both emit a header row containing ProcessId/ParentProcessId/Name, so one
- * header-driven parser covers both. Rows without a usable PID are dropped;
- * blank lines, `#TYPE` preambles and short/missing fields are tolerated.
+ * Parses headered CSV process output (PowerShell Get-CimInstance or wmic) —
+ * both emit a ProcessId/ParentProcessId/Name header row, so one parser
+ * covers both. Rows without a usable PID are dropped.
  * @param {string} text
  * @returns {ProcEntry[]}
  */
@@ -275,9 +244,8 @@ function parseWindowsProcessCsv(text) {
 
     const ppidRaw = cols.ppid >= 0 ? Number(fields[cols.ppid]) : NaN;
     const created = cols.created >= 0 ? parseCreated(fields[cols.created]) : NaN;
-    // Absent for protected/system processes and on the wmic fallback. Left as
-    // "" rather than guessed — a path-scoped companion must FAIL to match when
-    // the path is unknown, never fall back to an image-name-only match.
+    // Left "" rather than guessed when absent — a path-scoped companion must
+    // fail to match on an unknown path, never fall back to name-only.
     const path = cols.path >= 0 ? String(fields[cols.path] || "").replace(/^"|"$/g, "") : "";
 
     procs.push({
@@ -320,12 +288,9 @@ function parseUnixProcessTable(text) {
 
 /**
  * True when a process-table entry belongs to the given blocked-app image name.
- *
- * Windows: image names are exact ("chrome.exe").
- * macOS:   the blocklist uses bundle names ("google chrome.app") but `comm`
- *          is "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
- *          so we match either the executable basename or the `.app` bundle
- *          component of the path.
+ * Windows image names are exact ("chrome.exe"). macOS blocklist uses bundle
+ * names ("google chrome.app") but `comm` is a full path, so we match either
+ * the executable basename or the `.app` bundle component.
  * @param {ProcEntry} proc
  * @param {string} targetName
  * @param {NodeJS.Platform|string} platform
@@ -336,10 +301,9 @@ function matchesImageName(proc, targetName, platform, scope = null) {
   if (!target || !proc) {return false;}
   const name = String(proc.name || "").toLowerCase();
 
-  // Path scope for companions whose image name is shared across vendors (the
-  // Squirrel `update.exe`). FAIL-CLOSED: no path means no match. Killing every
-  // update.exe on the machine would take down unrelated software, so an
-  // unverifiable path must never degrade into an image-name-only kill.
+  // Path scope for companions with a shared image name across vendors (e.g.
+  // Squirrel's update.exe). Fail-closed: no path means no match — killing
+  // every update.exe on the machine would take down unrelated software.
   if (scope) {
     const fullPath = String(proc.path || proc.command || "").toLowerCase();
     if (!fullPath || !fullPath.includes(String(scope).toLowerCase())) {return false;}
@@ -356,11 +320,10 @@ function matchesImageName(proc, targetName, platform, scope = null) {
 // ─── Exclusion set (the safety invariant) ────────────────────────────────────
 
 /**
- * A parent link is only trusted when the parent is not NEWER than the child.
- * Windows keeps a dead parent's PID in the child's PPID field, and PIDs are
- * recycled — without this check a blocked app that happened to inherit the PID
- * of our long-dead launcher would be mistaken for our own ancestor (and spared
- * forever). When creation times are unavailable we trust the link.
+ * A parent link is trusted only when the parent isn't newer than the child.
+ * PIDs get recycled, so without this a blocked app that inherited our
+ * long-dead launcher's old PID would be mistaken for our ancestor and spared
+ * forever. Trusted by default when creation times are unavailable.
  */
 function isPlausibleParent(parent, child) {
   if (!parent || !child) {return false;}
@@ -369,20 +332,16 @@ function isPlausibleParent(parent, child) {
 }
 
 /**
- * Builds the set of PIDs we refuse to terminate, from a single process-table
- * snapshot:
- *   • our own PID,
- *   • its ancestor chain (cycle-guarded, creation-time validated),
- *   • every descendant of our PID (renderer/GPU helpers, spawned agent),
- *   • every process whose image name matches isOwnProcess() (a detached
- *     agent.exe is not in our tree but must never be killed),
- *   • every descendant of those own-named processes,
- *   • the OS pseudo/root PIDs (0 and 4 on Windows, 0 and 1 on macOS).
+ * Builds the set of PIDs we refuse to terminate, from one process-table
+ * snapshot: our own PID and its ancestor chain, every descendant of our PID,
+ * every process matching isOwnProcess() by name (a detached agent.exe isn't
+ * in our tree but must still be protected) plus their descendants, and the
+ * OS pseudo/root PIDs.
  *
  * Descendants are expanded ONLY from our own process and the own-named ones —
- * never from ancestors or from the OS roots, because launchd (PID 1) and
- * explorer.exe are ancestors of every user application and expanding them
- * would protect the very apps we are asked to close.
+ * never from ancestors or OS roots, because launchd (PID 1) / explorer.exe
+ * are ancestors of every user app and expanding them would protect the very
+ * apps we're asked to close.
  *
  * @param {ProcEntry[]} procs
  * @param {number} selfPid
@@ -455,9 +414,8 @@ function processDepth(proc, byPid) {
 }
 
 /**
- * Groups target PIDs into kill levels, deepest (most nested child) first, so a
- * parent is never terminated before the children it would otherwise be able to
- * notice dying. PIDs within one level are independent and killed in parallel.
+ * Groups target PIDs into kill levels, deepest first, so a parent is never
+ * terminated before its children. PIDs within one level are killed in parallel.
  * @param {ProcEntry[]} targets
  * @param {Map<number, ProcEntry>} byPid
  * @returns {number[][]}
@@ -475,13 +433,11 @@ function planKillLevels(targets, byPid) {
 }
 
 /**
- * Ordered list of image names to terminate: companions first (they relaunch the
- * main executable), the main executable last.
- *
- * Companions come from our own static table, not from the renderer, so they are
- * not required to be on the blocklist — an updater like "zoomupdater.exe" is
- * never listed as a blocked app but must still die. They are still filtered
- * through isOwnProcess().
+ * Ordered list of image names to terminate: companions first (they relaunch
+ * the main executable), main executable last. Companions come from our own
+ * static table, not the renderer, so they needn't be on the blocklist — an
+ * updater like "zoomupdater.exe" is never a blocked app but must still die.
+ * Still filtered through isOwnProcess().
  * @param {string} processName
  * @param {(name: string) => string[]} getCompanions
  * @returns {string[]}
@@ -500,18 +456,13 @@ function planTargetNames(processName, getCompanions) {
 }
 
 /**
- * Whitelist rule for ONE kill candidate.
- *
- * Companions (launchers/updaters/tray helpers) are deliberately NOT on
- * ALL_BLOCKED_APPS — a stray helper alone must not fail a detection scan — so
- * the flat blocklist check alone would silently no-op the whole companion-first
- * ordering. The rule is therefore: killable if blocklisted, OR listed as a
- * companion OF THE TARGET CURRENTLY BEING KILLED.
- *
- * It is deliberately scoped to that one target rather than a union of every
- * companion, so the IPC surface cannot be used to kill an arbitrary helper by
- * naming an unrelated app. isOwnProcess() is applied to every candidate here,
- * companions included; the PID-level exclusion set applies to them too.
+ * Whitelist rule for ONE kill candidate: killable if blocklisted, OR listed
+ * as a companion of the target CURRENTLY being killed. Companions are
+ * deliberately not on ALL_BLOCKED_APPS (a stray helper alone shouldn't fail
+ * a detection scan), so the rule is scoped to that one target rather than a
+ * union of every companion — otherwise the IPC surface could kill an
+ * arbitrary helper by naming an unrelated app. isOwnProcess() and the
+ * PID-level exclusion set still apply to every candidate, companions included.
  *
  * @param {string} candidate  - image name we are about to terminate
  * @param {string} targetName - the blocked app the user asked to close
@@ -532,14 +483,13 @@ function isKillableName(candidate, targetName, isBlocked, getCompanions) {
 }
 
 /**
- * Reads companions from appList lazily and defensively — the export is being
- * added by separate work and may not exist yet. Missing export = no companions.
+ * Reads companions from appList lazily and defensively — missing export = no
+ * companions.
  * @param {string} processName
  * @returns {string[]}
  */
 function getCompanionsSafe(processName) {
   try {
-    // Lazy require: picks up the export as soon as it lands, no load-order coupling.
     const appList = require("../shared/appList");
     if (typeof appList.getCompanions !== "function") {return [];}
     const result = appList.getCompanions(processName);
@@ -550,9 +500,9 @@ function getCompanionsSafe(processName) {
 }
 
 /**
- * Required install-path fragment for a companion, or null. Defaults to null on
- * any failure — safe, because a null scope combined with requiresPathScopeSafe()
- * makes the engine DROP the candidate rather than kill it unscoped.
+ * Required install-path fragment for a companion, or null on any failure —
+ * safe, because null combined with requiresPathScopeSafe() makes the engine
+ * drop the candidate rather than kill it unscoped.
  * @param {string} processName
  * @param {string} companionName
  * @returns {string|null}
@@ -568,10 +518,10 @@ function getCompanionScopeSafe(processName, companionName) {
 }
 
 /**
- * True if this image name is shared across vendors and may only ever be killed
- * inside a path scope. Defaults to TRUE on failure is NOT appropriate here —
- * an unknown name is an ordinary vendor-exclusive companion — but a THROW while
- * checking is, so the catch returns true to fail closed.
+ * True if this image name is shared across vendors and may only be killed
+ * inside a path scope. An unknown name defaults to false (ordinary
+ * vendor-exclusive companion), but a throw while checking returns true —
+ * fail closed.
  * @param {string} companionName
  * @returns {boolean}
  */
@@ -640,15 +590,12 @@ function classifyKillOutcome(signals) {
 // ─── Platform probes (the only code that touches the OS) ─────────────────────
 
 /**
- * Full process table with parent PIDs.
- *
- * Windows uses PowerShell + Get-CimInstance rather than `wmic`: wmic is
- * deprecated since Windows 10 21H1 and is ABSENT from Windows 11 24H2 and
- * Server 2025, i.e. exactly the machines this ships to. `tasklist` is present
- * everywhere but exposes no parent PID, so it cannot support either the
- * ancestor exclusion set or children-first ordering. wmic is still tried as a
- * fallback for locked-down machines where PowerShell execution is blocked; if
- * both fail we report failure rather than killing with an unknown exclusion set.
+ * Full process table with parent PIDs. Uses PowerShell + Get-CimInstance
+ * rather than `wmic` (deprecated, absent on Windows 11 24H2 / Server 2025)
+ * or `tasklist` (no parent PID, can't support the ancestor exclusion set or
+ * children-first ordering). wmic is still tried as a fallback for locked-down
+ * machines where PowerShell is blocked; if both fail we report failure rather
+ * than killing with an unknown exclusion set.
  * @returns {Promise<{ok: boolean, procs: ProcEntry[], error?: string}>}
  */
 async function listProcessTableReal(platform, timeoutMs) {
@@ -682,9 +629,8 @@ async function listProcessTableReal(platform, timeoutMs) {
 }
 
 /**
- * Cheap presence probe used by verification and the relaunch watch — it only
- * needs "does any PID with this image name exist", so it avoids re-running the
- * (much slower) PowerShell enumeration once per poll.
+ * Cheap presence probe for verification/relaunch-watch polling — avoids
+ * re-running the slower full PowerShell enumeration on every poll.
  * @returns {Promise<{ok: boolean, pids: number[], error?: string}>}
  */
 async function findPidsByNameReal(name, platform, timeoutMs) {
@@ -728,17 +674,11 @@ async function killPidReal(pid, platform, timeoutMs) {
 // ─── Phase 5: elevation ──────────────────────────────────────────────────────
 
 /**
- * Whether the CURRENT USER could satisfy an elevation prompt.
- *
- * This is deliberately "is the user an administrator", not "are we already
- * elevated". On Windows an admin running unelevated has a filtered token: the
- * BUILTIN\Administrators SID is still present (marked deny-only), and UAC will
- * show a simple consent prompt. A NON-admin instead gets a prompt demanding
- * credentials they do not have — a dead end that reads as the app being broken.
- * So we only ever offer the elevated retry to users who can actually complete it.
- *
- * Cached: group membership cannot change within a session, and this runs on a
- * user-facing path.
+ * Whether the CURRENT USER could satisfy an elevation prompt — deliberately
+ * "is the user an administrator", not "are we already elevated". A non-admin
+ * would get a UAC prompt demanding credentials they don't have (reads as the
+ * app being broken), so we only offer the elevated retry to users who can
+ * actually complete it. Cached: group membership can't change mid-session.
  *
  * @param {object} [deps]
  * @returns {Promise<boolean>}
@@ -751,8 +691,7 @@ async function canElevate(deps = null) {
   let result = false;
   try {
     if (d.platform === "win32") {
-      // S-1-5-32-544 = BUILTIN\Administrators. Matching the SID rather than the
-      // localised group name keeps this working on non-English Windows.
+      // S-1-5-32-544 = BUILTIN\Administrators; SID match works on non-English Windows too.
       const r = await d.runProbe("whoami", ["/groups"], d.timing.enumTimeoutMs);
       result = /S-1-5-32-544/i.test(r.stdout || "");
     } else if (d.platform === "darwin") {
@@ -769,11 +708,9 @@ async function canElevate(deps = null) {
 }
 
 /**
- * Terminates a set of PIDs through ONE elevation prompt.
- *
- * One prompt for the whole set, never one per PID — a candidate faced with six
- * consecutive UAC dialogs will cancel, and a per-PID prompt would also let the
- * app's relauncher win the race between dialogs.
+ * Terminates a set of PIDs through ONE elevation prompt — never one per PID,
+ * since a candidate faced with six UAC dialogs will just cancel, and a
+ * per-PID prompt lets the app's relauncher win the race between dialogs.
  *
  * @param {number[]} pids
  * @param {object} deps
@@ -865,13 +802,13 @@ async function killSingleProcess(processName, overrides) {
     ...partial,
   });
 
-  // ── Guard 1: never kill ourselves (by name) ────────────────────────────────
+  // Guard 1: never kill ourselves (by name)
   if (isOwnProcess(name)) {
     logger.warn("[processKiller] blocked attempt to kill own process:", processName);
     return finish({ outcome: "own-process", error: "Cannot kill own process" });
   }
 
-  // ── Guard 2: whitelist ─────────────────────────────────────────────────────
+  // Guard 2: whitelist
   if (!deps.isBlocked(name)) {
     logger.warn("[processKiller] rejected attempt to kill non-blocked process:", processName);
     return finish({ outcome: "not-blocked", error: "Process not in blocked list" });
@@ -881,10 +818,10 @@ async function killSingleProcess(processName, overrides) {
     return finish({ outcome: "unsupported", error: `Unsupported platform: ${deps.platform}` });
   }
 
-  // ── Snapshot the process table ────────────────────────────────────────────
+  // Snapshot the process table
   const snapshot = await deps.listProcessTable();
   if (!snapshot || !snapshot.ok || !Array.isArray(snapshot.procs) || snapshot.procs.length === 0) {
-    // Fail closed: without a table we cannot compute the exclusion set, and
+    // Fail closed: without a table we can't compute the exclusion set, and
     // killing with an unknown exclusion set could take down our own app.
     const detail = (snapshot && snapshot.error) || "process table unavailable";
     logger.error("[processKiller] refusing to kill — ", detail);
@@ -894,22 +831,21 @@ async function killSingleProcess(processName, overrides) {
   const procs = snapshot.procs;
   const byPid = new Map(procs.map((p) => [p.pid, p]));
 
-  // ── Guard 3: never kill ourselves (by PID) ────────────────────────────────
+  // Guard 3: never kill ourselves (by PID)
   const excluded = computeExclusionPids(procs, deps.selfPid, deps.platform);
 
-  // ── Phase 2: companions first, main executable last ───────────────────────
-  // Every candidate — companions included — is re-checked against the scoped
-  // whitelist rule before it can be touched.
+  // Companions first, main executable last; every candidate is re-checked
+  // against the scoped whitelist rule before it can be touched.
   const targetNames = planTargetNames(name, deps.getCompanions)
     .filter((candidate) => isKillableName(candidate, name, deps.isBlocked, deps.getCompanions));
 
   let found = 0;
   let protectedMatches = 0;
   const groups = targetNames.map((targetName) => {
-    // A companion whose image name is shared across vendors is only killable
-    // inside its owning app's install directory. If it declares a scope
-    // requirement but we have no scope for THIS app, drop it entirely rather
-    // than killing by name — see APP_COMPANION_SCOPES in shared/appList.js.
+    // A shared-name companion is only killable inside its owning app's
+    // install directory. If it requires a scope but we have none for THIS
+    // app, drop it entirely rather than kill by name — see
+    // APP_COMPANION_SCOPES in shared/appList.js.
     const scope = deps.getCompanionScope(name, targetName);
     if (!scope && targetName !== name && deps.requiresPathScope(targetName)) {
       logger.warn(
@@ -940,7 +876,7 @@ async function killSingleProcess(processName, overrides) {
     });
   }
 
-  // ── Phase 4: kill children before parents, group by group ─────────────────
+  // Kill children before parents, group by group
   let killed = 0;
   let denied = 0;
   let spawnErrors = 0;
@@ -948,11 +884,9 @@ async function killSingleProcess(processName, overrides) {
   const companionsKilled = [];
 
   if (deps.elevated) {
-    // Phase 5: ONE elevation prompt for every PID across every group. Prompting
-    // per PID (or per group) would make a candidate accept up to a dozen UAC
-    // dialogs, and would give the app's relauncher a window to win between them.
-    // Ordering within the elevated call still matters less than atomicity here:
-    // taskkill receives the whole set at once.
+    // ONE elevation prompt for every PID across every group — per-PID/per-group
+    // prompting would make a candidate accept a dozen UAC dialogs and give the
+    // relauncher a window to win between them. taskkill gets the whole set at once.
     const allPids = groups.flatMap((g) => planKillLevels(g.procs, byPid).flat());
     const r = await deps.killPidsElevated(allPids, { ...deps, timing });
     if (r.status === "killed") {
@@ -961,9 +895,8 @@ async function killSingleProcess(processName, overrides) {
         if (g.procs.length && g.name !== name) {companionsKilled.push(g.name);}
       }
     } else if (r.status === "cancelled") {
-      // The candidate declined the prompt. That is a deliberate choice, not a
-      // failure of ours — report it as still-denied so the UI keeps offering the
-      // manual route rather than looping the prompt.
+      // Declined prompt, not our failure — report as denied so the UI offers
+      // the manual route instead of looping the prompt.
       denied = allPids.length;
       lastError = r.detail || "elevation declined";
     } else {
@@ -987,7 +920,7 @@ async function killSingleProcess(processName, overrides) {
     }
   }
 
-  // ── Verification: poll until no target PID remains, or the budget expires ──
+  // Verification: poll until no target PID remains, or the budget expires
   const anyTargetAlive = async () => {
     for (const targetName of targetNames) {
       const r = await deps.findPidsByName(targetName);
@@ -1006,7 +939,7 @@ async function killSingleProcess(processName, overrides) {
     if (alive === null) {lastError = lastError || "could not verify — process query failed";}
   }
 
-  // ── Phase 3: relaunch watch — the actual reported bug ─────────────────────
+  // Relaunch watch — the actual reported bug
   let respawned = false;
   if (cleared) {
     const watchAttempts = Math.max(1, Math.ceil(timing.relaunchWatchMs / timing.relaunchPollMs));
@@ -1017,7 +950,6 @@ async function killSingleProcess(processName, overrides) {
     }
   }
 
-  // ── Phase 1: structured outcome ───────────────────────────────────────────
   const outcome = classifyKillOutcome({ found, killable, killed, denied, spawnErrors, cleared, respawned });
   const result = finish({
     outcome,
@@ -1065,16 +997,13 @@ async function killAllProcesses(processNames, overrides) {
 }
 
 /**
- * Phase 5: retry a kill with elevated privileges, behind ONE consent prompt.
- *
- * Deliberately a separate entry point rather than an automatic fallback inside
- * killSingleProcess(). Elevation shows the candidate a system dialog, so it must
- * only ever happen because they explicitly asked for it — never as a silent
- * retry, and never in a loop. The caller is responsible for offering it only
- * when canElevate() is true and only outside an active interview.
- *
- * Every guard from the normal path still applies: name whitelist, self-process
- * protection, PID exclusion set, companion path scoping.
+ * Retry a kill with elevated privileges, behind ONE consent prompt. A
+ * separate entry point rather than an automatic fallback in killSingleProcess()
+ * — elevation shows a system dialog, so it must only happen because the user
+ * explicitly asked, never as a silent retry or in a loop. Caller offers it
+ * only when canElevate() is true and outside an active interview. Every
+ * guard from the normal path still applies (whitelist, self-protection,
+ * PID exclusion, companion path scoping).
  *
  * @param {string} processName
  * @param {object} [overrides] - test injection seam

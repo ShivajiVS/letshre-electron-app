@@ -296,7 +296,7 @@ The client calls these on `API_BASE_URL` (default `https://api.letshyre.com`) wi
 
 ### Prerequisites
 
-- **Node.js ≥ 20** and **npm ≥ 10**
+- **Node.js ≥ 20** and **pnpm ≥ 10**
 - **Python 3.12** with `psutil` (and `pyinstaller` to build the agent binary):
   ```bash
   pip install psutil pyinstaller
@@ -305,15 +305,15 @@ The client calls these on `API_BASE_URL` (default `https://api.letshyre.com`) wi
 ### Install
 
 ```bash
-npm install
+pnpm install
 ```
 
 ### Run (development)
 
 ```bash
-npm run dev      # builds CSS, then launches Electron with file watching (nodemon)
+pnpm run dev      # builds CSS, then launches Electron with file watching (nodemon)
 # or
-npm start        # plain electron .
+pnpm start        # plain electron .
 ```
 
 > In dev and production the app runs the **bundled** `resources/agent.exe`, not `agent.py`. To iterate on the agent without rebuilding, set `AGENT_PY=1` (see below).
@@ -322,22 +322,22 @@ npm start        # plain electron .
 
 - **Iterate on the Python agent without rebuilding** — run the source directly:
   ```bash
-  AGENT_PY=1 npm start        # spawns `python agent.py` instead of resources/agent.exe
+  AGENT_PY=1 pnpm start        # spawns `python agent.py` instead of resources/agent.exe
   ```
   (`AGENT_PY_BIN` overrides the interpreter, default `python`/`python3`. Dev only.)
-- **Tailwind** — `npm run watch:css` rebuilds styles on change.
-- **Lint / format** — `npm run lint` / `npm run format`.
+- **Tailwind** — `pnpm run watch:css` rebuilds styles on change.
+- **Lint / format** — `pnpm run lint` / `pnpm run format`.
 - **Logs** — the main process and forwarded agent logs are written to
   `…/AppData/Roaming/letshyre-secure-interview/secure-interview.log` (Windows).
 
 ## Building & packaging
 
 ```bash
-npm run build:css      # compile Tailwind
-npm run build:agent    # PyInstaller → resources/agent.exe   (run when agent.py changes)
-npm run build:full     # build:css + build:agent + electron-builder
-npm run build          # build:css + electron-builder (assumes agent already built)
-npm run dist           # cross-target (win + mac)
+pnpm run build:css      # compile Tailwind
+pnpm run build:agent    # PyInstaller → resources/agent.exe   (run when agent.py changes)
+pnpm run build:full     # build:css + build:agent + electron-builder
+pnpm run build          # build:css + electron-builder (assumes agent already built)
+pnpm run dist           # cross-target (win + mac)
 ```
 
 Output goes to `release/` (NSIS installer on Windows, DMG on macOS).
@@ -374,8 +374,8 @@ Environment variables: `API_BASE_URL` (staging/test backend), `AGENT_PY` / `AGEN
 
 | Symptom | Likely cause / fix |
 |---------|--------------------|
-| Preflight blocks on “Deep Scan Agent — Required” | `agent.exe` didn’t start (AV quarantine, missing binary). Click **Re‑scan** (auto‑respawns). For dev, build it: `npm run build:agent`, or run `AGENT_PY=1`. |
-| Agent changes have no effect | Dev/prod run `resources/agent.exe`. Rebuild with `npm run build:agent`, or use `AGENT_PY=1`. |
+| Preflight blocks on “Deep Scan Agent — Required” | `agent.exe` didn’t start (AV quarantine, missing binary). Click **Re‑scan** (auto‑respawns). For dev, build it: `pnpm run build:agent`, or run `AGENT_PY=1`. |
+| Agent changes have no effect | Dev/prod run `resources/agent.exe`. Rebuild with `pnpm run build:agent`, or use `AGENT_PY=1`. |
 | Single external display never passes | Any second display is a violation by design. Use a single screen. |
 | Violations don’t reach the web app | Ensure the page registers `onViolation` and runs inside this client (not a normal browser). |
 | Hard block force‑navigates mid‑interview | The web app isn’t calling `acknowledgeViolation()`. Add it to your violation handler. |

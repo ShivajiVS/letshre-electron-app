@@ -40,7 +40,6 @@ test("blocklist entries are lowercase (matching is case-insensitive via .toLower
   }
 });
 
-/** Every companion name in the map, flattened. */
 const ALL_COMPANIONS = Object.values(APP_COMPANIONS).flat();
 
 /**

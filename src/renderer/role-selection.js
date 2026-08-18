@@ -13,7 +13,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // ── DOM refs ────────────────────────────────────────────────────────────────
 
-  // Step pills (header)
   const stepPills = [
     document.getElementById("step-pill-confirm"),
     document.getElementById("step-pill-input"),
@@ -26,7 +25,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("line-3"),
   ];
 
-  // Sidebar
   const sidebarTitle = document.getElementById("sidebar-title");
   const sidebarDesc  = document.getElementById("sidebar-desc");
   const sidebarDots  = [
@@ -36,7 +34,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("dot-4"),
   ];
 
-  // Panels
   const panels = [
     document.getElementById("panel-confirm"),
     document.getElementById("panel-input"),
@@ -44,7 +41,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("panel-skills"),
   ];
 
-  // Confirm panel
   const confirmSkeleton   = document.getElementById("confirm-skeleton");
   const confirmContent    = document.getElementById("confirm-content");
   const confirmRoleName   = document.getElementById("confirm-role-name");
@@ -52,16 +48,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   const btnYes            = document.getElementById("btn-yes");
   const btnNo             = document.getElementById("btn-no");
 
-  // Input panel
   const roleInput     = document.getElementById("role-input");
   const btnSubmitRole = document.getElementById("btn-submit-role");
 
-  // Clarify panel
   const ambiguousRoleLabel = document.getElementById("ambiguous-role-label");
   const roleCardsEl        = document.getElementById("role-cards");
   const btnConfirmClarify  = document.getElementById("btn-confirm-clarify");
 
-  // Skills panel
   const confirmedRoleLabel = document.getElementById("confirmed-role-label");
   const skillsGrid         = document.getElementById("skills-grid");
   const btnStartInterview  = document.getElementById("btn-start-interview");
@@ -95,28 +88,23 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ── Step navigation ──────────────────────────────────────────────────────────
   function goToStep(idx) {
     hideError();
-    // Sidebar copy
     sidebarTitle.textContent = SIDEBAR[idx].title;
     sidebarDesc.textContent  = SIDEBAR[idx].desc;
 
-    // Header pills
     stepPills.forEach((el, i) => {
       el.classList.remove("rs-step--active", "rs-step--done");
       if (i < idx)       {el.classList.add("rs-step--done");}
       else if (i === idx) {el.classList.add("rs-step--active");}
     });
 
-    // Connector lines
     stepLines.forEach((el, i) => {
       el.classList.toggle("rs-step__line--done", i < idx);
     });
 
-    // Sidebar progress dots
     sidebarDots.forEach((el, i) => {
       el.classList.toggle("rs-sidebar__dot--active", i === idx);
     });
 
-    // Panels
     panels.forEach((p, i) => {
       if (i === idx) {p.removeAttribute("hidden");}
       else           {p.setAttribute("hidden", "");}

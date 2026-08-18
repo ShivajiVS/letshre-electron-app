@@ -82,7 +82,7 @@ function createWebmChunker({ targetMs, onChunk }) {
 
     flush() {
       if (!init || tail.length === 0) {return;}
-      onChunk(_concat(init, tail)); // Uint8Array — same as emit, no Blob
+      onChunk(_concat(init, tail));
       tail = new Uint8Array(0);
     },
   };

@@ -36,11 +36,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const CHECK_SVG = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
     <path class="perm-check-path" d="M20 6L9 17l-5-5"/></svg>`;
 
-  // X for denied
   const CROSS_SVG = `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
     <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
 
-  // Spinner for requesting state
   const SPIN_SVG = `<svg class="perm-spin" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
     <path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>`;
 
@@ -66,7 +64,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // Card modifier — preserve base class
     card.className = `perm-card${newState !== "idle" ? ` perm-card--${newState}` : ""}`;
 
-    // Icon content
     if (newState === "requesting") {
       icon.innerHTML = SPIN_SVG;
     } else if (newState === "granted") {
@@ -77,11 +74,9 @@ document.addEventListener("DOMContentLoaded", () => {
       icon.innerHTML = ICON[perm];
     }
 
-    // Badge
     badge.textContent = BADGE[newState].text;
     badge.className   = BADGE[newState].cls;
 
-    // Allow / retry button
     if (newState === "granted") {
       btn.style.display = "none";
     } else if (newState === "denied") {

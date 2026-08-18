@@ -19,14 +19,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   const logoutBtn       = document.getElementById("logout-btn");
   const dashNote        = document.getElementById("dash-note");
 
-  // Profile card
   const profileAvatar   = document.getElementById("profile-avatar");
   const profileInitials = document.getElementById("profile-initials");
   const profileName     = document.getElementById("profile-name");
   const profileRole     = document.getElementById("profile-role");
   const profileMeta     = document.getElementById("profile-meta");
 
-  // Attempt tracker
   const attemptTracker  = document.getElementById("attempt-tracker");
   const attemptDots     = document.getElementById("attempt-dots");
   const attemptCount    = document.getElementById("attempt-count");
@@ -91,24 +89,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (profile) {
     const displayName = profile.name || displayNameFallback;
 
-    // Update welcome
     welcomeEl.textContent = `Welcome, ${String(displayName).trim().split(/\s+/)[0]}`;
 
-    // Profile card
     profileName.innerHTML = "";
     profileName.textContent = displayName;
 
     profileRole.innerHTML = "";
     profileRole.textContent = profile.role || "";
 
-    // Profile card photo
     if (profile.profile_photo) {
       setAvatarPhoto(profileAvatar, profileInitials, profile.profile_photo, displayName);
     } else {
       profileInitials.textContent = initials(displayName);
     }
 
-    // Meta row: email + phone
     profileMeta.innerHTML = "";
     if (profile.email) {
       profileMeta.innerHTML += `

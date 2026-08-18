@@ -18,16 +18,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   const errorBanner  = document.getElementById("iv-error");
   const errorText    = document.getElementById("iv-error-text");
 
-  // Sidebar
   const sidebarTitle = document.getElementById("sidebar-title");
   const sidebarDesc  = document.getElementById("sidebar-desc");
 
-  // Panels
   const panelVoice  = document.getElementById("panel-voice");
   const panelPhoto  = document.getElementById("panel-photo");
   const panelResult = document.getElementById("panel-result");
 
-  // Voice
   const voiceIconWrap     = document.getElementById("voice-icon-wrap");
   const ivStatement       = document.getElementById("iv-statement");
   const ivWaveform        = document.getElementById("iv-waveform");
@@ -42,7 +39,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   const btnRetakeVoice    = document.getElementById("btn-retake-voice");
   const btnContinueVoice  = document.getElementById("btn-continue-voice");
 
-  // Photo
   const refPhoto        = document.getElementById("ref-photo");
   const ivVideo         = document.getElementById("iv-video");
   const ivCaptured      = document.getElementById("iv-captured");
@@ -56,7 +52,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   const btnSubmitPhoto  = document.getElementById("btn-submit-photo");
   const btnBackToVoice  = document.getElementById("btn-back-to-voice");
 
-  // Result
   const resultRef        = document.getElementById("result-ref");
   const resultCaptured   = document.getElementById("result-captured");
   const resultMatchBadge = document.getElementById("result-match-badge");
@@ -66,7 +61,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   const btnRetryPhoto    = document.getElementById("btn-retry-photo");
   const resultTip        = document.getElementById("result-tip");
 
-  // Step pills
   const stepPills = [1, 2, 3].map(n => document.getElementById(`step-pill-${n}`));
   const stepLines = [1, 2].map(n => document.getElementById(`step-line-${n}`));
   const stepDots  = [1, 2, 3].map(n => document.getElementById(`step-dot-${n}`));
@@ -113,16 +107,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   function goToStep(n) {
     hideError();
 
-    // Panels
     panelVoice.hidden  = n !== 1;
     panelPhoto.hidden  = n !== 2;
     panelResult.hidden = n !== 3;
 
-    // Sidebar
     sidebarTitle.textContent = SIDEBAR[n].title;
     sidebarDesc.textContent  = SIDEBAR[n].desc;
 
-    // Sub-step pills
     stepPills.forEach((pill, i) => {
       const step = i + 1;
       pill.classList.remove("iv-step--active", "iv-step--done");
@@ -140,14 +131,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     });
 
-    // Connector lines
     stepLines.forEach((line, i) => {
       const prevStep = i + 1;
       line.classList.toggle("iv-step--done", prevStep < n);
       line.style.background = prevStep < n ? "#16a34a" : "";
     });
 
-    // If entering photo step, start camera
     if (n === 2 && !capturedDataUrl) {
       startCamera();
     }
@@ -422,10 +411,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     resultCaptured.src = capturedDataUrl; // already a local data: URL — no proxy needed
 
-    // Match badge
     resultMatchBadge.innerHTML = `<span class="iv-result-match__pill ${isMatch ? "iv-result-match__pill--match" : "iv-result-match__pill--no-match"}">${isMatch ? "Matched" : "No Match"}</span>`;
 
-    // Status card
     if (isMatch) {
       resultStatus.className = "iv-result-status iv-result-status--match";
       resultStatus.innerHTML = `

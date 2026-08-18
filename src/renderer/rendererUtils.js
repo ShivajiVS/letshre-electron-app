@@ -21,16 +21,13 @@ window.escHtml = function escHtml(str) {
 };
 
 /**
- * Shared "disable button → do something async → restore after a timeout"
- * watchdog used by every nav button that triggers a page teardown (main
- * navigates elsewhere, which kills this timer along with the rest of the
- * page). If the timer DOES fire, navigation never happened, so the button
- * (and any extra page state via `onRestore`) is restored for a retry.
+ * Watchdog for "disable button → kick off async nav → restore on timeout".
+ * A successful navigation tears down the page (and this timer with it), so if
+ * the timer DOES fire, nav never happened — restore the button for a retry.
  *
- * Callers capture the button's original innerHTML themselves BEFORE calling
- * this (they need the pristine markup, captured before mutating the button
- * into its "loading" state), then call this right after starting the async
- * action:
+ * Callers must grab the button's original innerHTML themselves before
+ * mutating it into a loading state, then call this right after starting the
+ * async action:
  *
  *   const btnHTML = btn.innerHTML;
  *   btn.disabled = true;
@@ -40,8 +37,7 @@ window.escHtml = function escHtml(str) {
  *     onRestore: () => { note.textContent = "That took too long. Please try again."; }
  *   });
  *
- * Returns the timer id (from setTimeout) in case a caller ever needs to
- * clearTimeout it early.
+ * Returns the setTimeout id in case a caller wants to clearTimeout it early.
  */
 window.armButtonRestore = function armButtonRestore(btn, originalHTML, options) {
   const { timeoutMs = 6000, onRestore } = options || {};

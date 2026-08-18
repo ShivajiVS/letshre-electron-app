@@ -128,10 +128,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const used = Number(profile.interview_attempts_used) || 0;
     const max  = Number(profile.max_interviews_allowed)  || 0;
 
-    // interview_attempts_remaining may be absent from the API payload. Number()
-    // of a missing field yields NaN (NOT null/undefined), so `?? fallback` never
-    // fired — leaving remaining = NaN, which broke the "used all attempts" gate
-    // (NaN <= 0 is false) and rendered "NaN of X remaining". Validate explicitly.
+    // Number(missing field) is NaN, not null/undefined, so `?? fallback` won't
+    // catch it — validate explicitly or the attempts gate silently breaks.
     const rawRemaining = Number(profile.interview_attempts_remaining);
     const remaining = Number.isFinite(rawRemaining) ? rawRemaining : Math.max(0, max - used);
 

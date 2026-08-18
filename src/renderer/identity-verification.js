@@ -212,9 +212,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         console.log("[audio] actualMime:", actualMime, "chunks:", audioChunks.length, "blobSize:", audioBlob.size);
 
-        // Guard: a mid-recording failure (device unplug, OS revoke) can leave
-        // zero captured bytes. Don't advance to review with an empty, unplayable
-        // sample that would fail silently at submit.
+        // A mid-recording failure (device unplug, OS revoke) can leave zero bytes —
+        // don't advance to review with an empty sample that fails silently at submit.
         if (!audioBlob || audioBlob.size === 0) {
           audioBlob = null;
           setVoiceState("idle");
@@ -227,9 +226,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         setVoiceState("reviewing");
       };
 
-      // Without this, a hardware/permission failure mid-recording is swallowed:
-      // onstop may never fire (or fires with no data) and the UI stays stuck on
-      // the recording state.
+      // Without this, a mid-recording hardware failure gets swallowed — onstop
+      // may never fire and the UI stays stuck on "recording".
       mediaRecorder.onerror = (e) => {
         stream.getTracks().forEach(t => t.stop());
         audioBlob = null;
@@ -504,11 +502,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // ── Init ──────────────────────────────────────────────────────────────────
 
-  // Navigate to step 1 immediately. loadProfile() is an async IPC round-trip;
-  // awaiting it here caused a race where a slow profile fetch resolved AFTER the
-  // user had already advanced to step 2, snapping them back to step 1 with the
-  // Continue button stuck in its "Submitting…" state. Fire it and forget — the
-  // profile image binds to the DOM via onload whenever it arrives.
+  // Don't await loadProfile() — a slow fetch resolving after the user moves on
+  // would snap them back to step 1. Fire and forget; the photo binds on onload.
   goToStep(1);
   loadProfile();
 });

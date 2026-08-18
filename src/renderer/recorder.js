@@ -109,10 +109,9 @@ let micStream     = null;
 
 // ─── Main flow ────────────────────────────────────────────────────────────────
 
-// If the preload never loaded (e.g. preload-recorder.js missing from the packaged
-// asar), window.recorderBridge is undefined and nothing below can run. There is no
-// bridge to report the error over, so bail loudly to the console — the main-side
-// readiness watchdog is the real safety net that surfaces this to the user.
+// No bridge means preload-recorder.js didn't load (e.g. missing from the packaged
+// asar) — nothing below can run, and there's no bridge to report it over, so just
+// log; main's readiness watchdog is what actually surfaces this to the user.
 if (!window.recorderBridge) {
   console.error(
     "[recorder] recorderBridge is undefined — preload-recorder.js did not load; recording cannot start"

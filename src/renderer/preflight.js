@@ -9,15 +9,12 @@
 
 "use strict";
 
-// NOTE: In Electron's renderer (sandboxed), Node require() is not available.
-// The shared data below is inlined at build time OR can be loaded via a
-// bundler. For now it mirrors shared/appList.js directly.
-// If you add a bundler (e.g. esbuild), replace with: require('../shared/appList')
+// Renderer is sandboxed (no require()), so this mirrors shared/appList.js by
+// hand. Swap for `require('../shared/appList')` if a bundler gets added.
 
-// Only the display-name map is needed here now. Deciding WHICH category a
-// running process falls into moved to src/detector/preflightVerdict.js in main,
-// because that decision feeds `canProceed` — the renderer must not be the
-// component that determines whether the machine is clean.
+// Only the display-name map lives here — categorizing a process now happens in
+// src/detector/preflightVerdict.js (main), since that feeds `canProceed` and
+// the renderer must never be the one deciding the machine is clean.
 let APP_DISPLAY_NAMES = {};
 
 function getDisplayName(processName) {
@@ -41,9 +38,8 @@ const ICONS = {
   error:
     '<svg class="sc-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>',
-  // "Unverified" — deliberately a question mark, not a warning triangle. This
-  // state means "we could not establish this", which is not the candidate's
-  // fault; the triangle reads as an accusation.
+  // Question mark, not a warning triangle: "unverified" isn't the candidate's
+  // fault, and a triangle reads as an accusation.
   unknown:
     '<svg class="sc-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>',
@@ -51,19 +47,13 @@ const ICONS = {
 
 // ─── Verdict contract ─────────────────────────────────────────────────────────
 // Card state comes from main as { id, status, reasonKey, reasonParams,
-// blockedApps, threats }. `unverified` blocks Proceed exactly like `fail` — the
-// renderer never decides that an unestablished check is a pass.
-// `fail` is the fallthrough branch in both card renderers, so it needs no
-// constant here — but it is never the DEFAULT: an unrecognised status lands in
-// the fail branch, which blocks Proceed. Fail-closed by construction.
+// blockedApps, threats }. `unverified` blocks Proceed exactly like `fail`.
+// `fail` has no constant — it's the fallthrough branch in both card renderers,
+// so an unrecognised status blocks Proceed too. Fail-closed by construction.
 const PASS = "pass";
 const UNVERIFIED = "unverified";
 
-/**
- * English fallbacks for verdict reason keys, used only when window.t is absent
- * (the non-Electron browser preview). In the app these always resolve through
- * i18n — main sends keys, not prose, so translations cannot drift from logic.
- */
+/** English fallbacks for verdict reason keys, used only in the non-Electron preview. */
 const REASON_FALLBACK = {
   "preflightResults.hdmiClear": "No external display detected.",
   "preflightResults.hdmiDetected": "Disconnect all external displays/cables.",
@@ -100,14 +90,10 @@ let _proceedReady = false;
 //   _isAutoRescan    — set right before a PROGRAMMATIC rescan so a manual click
 //                      resets the caps while an auto one preserves them
 // Renderer-side abort. MIRRORS PREFLIGHT_RENDERER_TIMEOUT_MS in
-// src/shared/constants.js — keep the two in sync (preload is sandboxed and
-// cannot require local modules, same reason the IPC names are mirrored there).
-// test/preflightBudget.test.js asserts they still match.
-//
-// This was 20000 while main's worst case was ~31s, so a cold agent spawn
-// reliably aborted a scan that was progressing normally and kicked off the
-// retry storm. Main is now bounded to PREFLIGHT_GLOBAL_DEADLINE_MS (10s), which
-// this must exceed.
+// src/shared/constants.js (preload can't require local modules, so it's
+// duplicated, not imported); test/preflightBudget.test.js checks they match.
+// Must stay above main's PREFLIGHT_GLOBAL_DEADLINE_MS (10s) — a cold agent
+// spawn used to blow past the old 20000ms budget and trigger a retry storm.
 const SCAN_TIMEOUT_MS = 27000;
 const MAX_SCAN_RETRIES = 3;
 const MAX_AUTO_RESCANS = 3;
@@ -118,17 +104,16 @@ let _isAutoRescan    = false;
 let _scanGeneration  = 0;
 
 // ── Phase 5: elevated retry ──────────────────────────────────────────────────
-// Whether the candidate could actually satisfy an elevation prompt. Resolved
-// once at page load and defaults to FALSE, so both a standard user and an older
-// bridge without the probe simply never get offered it.
+// Whether the candidate can satisfy an elevation prompt. Resolved once at page
+// load, defaults to FALSE — a standard user or an older bridge without the
+// probe just never gets offered it.
 let _canElevate = false;
 /** Process names already retried with elevation — the offer is strictly one-shot. */
 const _elevationTried = new Set();
 
 // ── Diagnostics capture (Phase E) ────────────────────────────────────────────
-// Enough context to answer "the security check didn't work" without asking the
-// candidate to find a log file. Populated as scans run; exported on demand by
-// the Copy-diagnostics control that appears once the retry cap is hit.
+// Populated as scans run, exported on demand by the Copy-diagnostics control
+// (shown once the retry cap is hit) so "it didn't work" reports come with context.
 let _appVersion   = null;
 let _lastScanId   = null;
 let _lastTimings  = null;   // per-probe { durationMs, deadlineMs, outcome }
@@ -152,16 +137,11 @@ function withTimeout(promise, ms, label) {
 /**
  * Schedules a programmatic rescan after a kill.
  *
- * Two independent brakes:
- *
- *  1. EVIDENCE (preferred). When the kill layer has told us WHY an app is still
- *     there, re-scanning is pointless — a `respawned` app will be back before
- *     the scan finishes and an `access-denied` app will never go away without
- *     admin rights. Both name the offending apps and stop, instead of burning
- *     retries and ending on the generic "Some apps keep reopening" line.
- *  2. The blind counter (MAX_AUTO_RESCANS), still the fallback for the case
- *     where we have no outcome detail at all (older kill backend, or a kill
- *     that reported success but the app came back between scans).
+ * Prefers evidence over blindly retrying: if the kill layer told us an app
+ * `respawned` or is `accessDenied`, rescanning won't help, so we name the
+ * culprits and stop instead of burning retries into a generic message.
+ * Falls back to the MAX_AUTO_RESCANS counter when there's no outcome detail
+ * (older kill backend, or a reported success where the app came back anyway).
  *
  * @param {{respawned?: string[], accessDenied?: string[]}} [evidence]
  *        DISPLAY names (not raw process names) — this text goes to textContent.
@@ -287,9 +267,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // ── Live blocked-app gating of the Proceed button ──────────────────────────
-  // The pre-proceed watcher (main) pushes {clean, apps} every 2s while the user
-  // is on the success screen. Without this, a candidate who passes preflight then
-  // launches Zoom/OBS before clicking Proceed would still see Proceed enabled.
+  // Main pushes {clean, apps} every 2s while the user sits on the success
+  // screen, so launching Zoom/OBS after passing but before clicking Proceed
+  // still disables it.
   window.electronAPI?.onPreProceedStatus?.(({ clean, apps }) => {
     if (!_proceedReady) { return; } // only gate once preflight has passed
     applyLiveProceedStatus(clean, apps || [], btnProceed, finalStatus);
@@ -298,9 +278,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ── Scan Lifecycle ──────────────────────────────────────────────────────
 
   async function runScans() {
-    // A manual rescan (user click) is a fresh start — clear the retry/rescan
-    // caps. A programmatic rescan (auto-retry or post-kill) preserves them so
-    // the caps actually bound the loop.
+    // Manual rescan = fresh start, clear the caps. Programmatic rescan
+    // (auto-retry or post-kill) preserves them so the caps actually bound the loop.
     if (!_isAutoRescan) {
       _scanRetryCount = 0;
       _autoRescanCount = 0;
@@ -315,37 +294,35 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
 
-    // Generation guard. A renderer-side timeout abandons its invoke but cannot
-    // cancel the work in main, so the abandoned scan keeps streaming progress
-    // events. Without this they repaint the NEW scan's cards with stale results.
+    // A renderer-side timeout abandons its invoke but can't cancel main's work,
+    // so an abandoned scan keeps streaming progress events. This generation
+    // guard stops them from repainting the NEW scan's cards with stale results.
     const myGeneration = ++_scanGeneration;
 
-    // Subscribe to per-verdict progress before invoking the scan, so each card
-    // updates the moment its own check lands rather than all at the end.
+    // Subscribe before invoking so each card updates as its own check lands,
+    // rather than all at once at the end.
     window.electronAPI.onPreflightProgress((verdict) => {
       if (myGeneration !== _scanGeneration) { return; } // superseded — drop it
       applyVerdict(verdict);
     });
 
     try {
-      // Bound the scan so a hung native check can never leave the page stuck on
-      // "Scanning" with no way out. This budget MUST stay larger than main's
-      // PREFLIGHT_GLOBAL_DEADLINE_MS so that main is always the component which
-      // decides a scan is over — see the invariant in src/shared/constants.js.
+      // Bounds a hung native check so the page can't get stuck on "Scanning"
+      // forever. Must stay larger than main's PREFLIGHT_GLOBAL_DEADLINE_MS so
+      // main always decides when a scan is over (see src/shared/constants.js).
       const results = await withTimeout(
         window.electronAPI.runPreflight(),
         SCAN_TIMEOUT_MS,
         "Security scan timed out"
       );
       if (myGeneration !== _scanGeneration) { return; } // a newer scan owns the UI
-      // Cards were already updated via streaming events above.
-      // processResults() re-applies them (idempotent) and sets the final button state.
+      // Cards are already painted from the streaming events; this re-applies
+      // them (idempotent) and sets the final button state.
       processResults(results, btnProceed, btnRescan, finalStatus);
       _scanRetryCount = 0; // a completed scan (pass or fail) breaks the retry chain
     } catch (err) {
       if (myGeneration !== _scanGeneration) { return; }
       console.error("[preflight] scan error:", err);
-      // IMP-15: Structured error boundary with capped auto-retry countdown
       showScanError(finalStatus, btnRescan, err?.message || "Unknown error");
     } finally {
       // Always clean up the listener to prevent leaks on rescan
@@ -390,14 +367,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 function setLoadingState(btnProceed, btnRescan, finalStatus) {
   // A scan is starting — the previous pass no longer authorises anything.
-  //
-  // Without this, _proceedReady stayed true across a Re-scan (it is only ever
-  // assigned in processResults), so a PUSH_PRE_PROCEED_STATUS with clean:true
-  // arriving while the cards were still resolving would run
-  // applyLiveProceedStatus() and re-enable Proceed on the strength of a
-  // process-only poll — no display check, no agent deep scan. Main now also
-  // pauses that monitor for the duration of a scan (systemChecks
-  // pausePreProceedMonitor), so this is the second of two independent guards.
+  // Otherwise a pre-proceed push with clean:true, arriving mid-rescan, could
+  // re-enable Proceed off a process-only poll before the new cards resolve.
+  // Main also pauses that monitor during a scan; this is the second guard.
   _proceedReady = false;
   _lastVerdicts = []; // rebuilt from this scan's streamed verdicts
 
@@ -460,19 +432,18 @@ function renderAgentPending() {
 // ─── Results Processing ───────────────────────────────────────────────────────
 
 /**
- * Renders one verdict onto its card. Called both from the streaming progress
- * listener and again from processResults() — idempotent, keyed by card id, so a
- * re-emit (e.g. the physical-monitor cross-check upgrading the HDMI verdict)
- * simply replaces the earlier render.
+ * Renders one verdict onto its card. Called from both the streaming progress
+ * listener and processResults() — idempotent and keyed by card id, so a
+ * re-emit (e.g. a physical-monitor cross-check upgrading the HDMI verdict)
+ * just replaces the earlier render.
  *
  * @param {{id: string, status: string, reasonKey: string, reasonParams?: object,
  *          blockedApps?: string[], threats?: object[]}} v
  */
 function applyVerdict(v) {
   if (!v || !v.id) { return; }
-  // Record it for diagnostics too. Streamed verdicts are the ONLY per-check
-  // state we get when the scan later times out, which is exactly the case a
-  // stuck candidate needs to report.
+  // Record for diagnostics — if the scan later times out, these streamed
+  // verdicts are the only per-check state we have to show the candidate reported.
   if (v.scanId) { _lastScanId = v.scanId; }
   const at = _lastVerdicts.findIndex((x) => x.id === v.id);
   const row = { id: v.id, status: v.status, reasonKey: v.reasonKey };
@@ -489,9 +460,8 @@ function applyVerdict(v) {
  * Called once the scan completes. Re-applies every verdict (idempotent with the
  * streamed ones) and sets the final button + status.
  *
- * The Proceed gate is `results.canProceed`, computed in the MAIN process. The
- * renderer no longer derives it: main re-verifies the same value when the button
- * is actually clicked, so the two must come from one source.
+ * Proceed is gated on `results.canProceed`, computed in main — the renderer
+ * never derives it, since main re-verifies the same value on click.
  */
 function processResults(results, btnProceed, btnRescan, finalStatus) {
   const verdicts = Array.isArray(results?.verdicts) ? results.verdicts : [];
@@ -689,12 +659,11 @@ function renderKillButtons(container, blockedApps) {
 //                still-running | not-blocked | own-process | spawn-error |
 //                unsupported
 //
-// `error` is a technical string for diagnostics — it is deliberately never read
-// here, so an OS error message can never reach the candidate's screen.
+// `error` is a technical string for diagnostics and is deliberately never read
+// here, so an OS error message can't reach the candidate's screen.
 //
-// The renderer treats `outcome` as OPTIONAL: an older kill backend that returns
-// only `{ success }` still works, degrading to the previous binary messaging
-// rather than rendering "undefined".
+// `outcome` is treated as OPTIONAL — an older backend returning only
+// `{ success }` still works, degrading to binary messaging instead of "undefined".
 
 const SUCCESS_KILL_OUTCOMES = new Set(["closed", "already-gone"]);
 const KNOWN_KILL_OUTCOMES = new Set([
@@ -705,10 +674,9 @@ const KNOWN_KILL_OUTCOMES = new Set([
 /**
  * Coerces whatever the kill IPC returned into a shape this file can trust.
  *
- * When a recognised `outcome` is present it is AUTHORITATIVE for success:
- * `success` is derived from it rather than believed. That is the fix for the
- * reported bug — a backend that reports success:true alongside `respawned`
- * must not be allowed to tell the candidate the app is closed.
+ * A recognised `outcome` is AUTHORITATIVE for success — `success` is derived
+ * from it, not believed, so a backend reporting success:true alongside
+ * `respawned` can't tell the candidate the app is closed.
  *
  * @param {any} raw
  * @param {string} processName fallback identity if the payload omits it
@@ -750,11 +718,9 @@ function clearKillHint(row) {
 /**
  * Paints one kill row from its KillResult and returns a coarse category the
  * callers aggregate on: "closed" | "respawned" | "access-denied" |
- * "still-running" | "failed".
- *
- * Every non-success outcome gets its own copy, because "it needs admin",
- * "it restarted itself" and "it is still shutting down" call for three
- * completely different actions from the candidate.
+ * "still-running" | "failed". Each non-success outcome gets its own copy —
+ * "needs admin", "restarted itself", and "still shutting down" call for
+ * different actions from the candidate.
  */
 function applyKillOutcome(row, btn, processName, norm) {
   const display = getDisplayName(processName);
@@ -802,12 +768,9 @@ function applyKillOutcome(row, btn, processName, norm) {
   if (norm.outcome === "access-denied") {
     row.classList.add("sc-kill-row--blocked");
 
-    // Phase 5: offer an elevated retry ONLY when the candidate could actually
-    // complete it, and only once. A standard user gets a credential prompt they
-    // cannot satisfy, so for them we never mention admin rights as an action —
-    // we go straight to the manual route. `_canElevate` is resolved once at page
-    // load; it defaults to false, so an older bridge without the probe simply
-    // never sees this branch.
+    // Offer an elevated retry only when the candidate can actually complete it,
+    // and only once. A standard user would just get a credential prompt they
+    // can't satisfy, so they go straight to the manual route instead.
     if (_canElevate && !_elevationTried.has(processName)) {
       btn.disabled = false;
       btn.dataset.mode = "elevate";
@@ -883,10 +846,9 @@ async function handleKillApp(btn, processName, row) {
   btn.className = "sc-kill-btn sc-kill-btn--killing";
   btn.innerHTML = `${KILL_ICON.spin} ${tr("preflightResults.closing", "Closing...")}`;
 
-  // Phase 5: this click is the candidate's EXPLICIT consent to elevate — the
-  // button was relabelled for it. Elevation is never an automatic fallback, and
-  // never repeats: the name is recorded either way so a failed or declined
-  // prompt cannot be re-offered in a loop.
+  // This click is explicit consent to elevate (the button was relabelled for
+  // it) — never an automatic fallback, and never repeated: recorded either way
+  // so a failed or declined prompt can't loop back.
   const elevated = btn.dataset.mode === "elevate";
   if (elevated) {
     delete btn.dataset.mode;
@@ -926,9 +888,9 @@ async function handleKillApp(btn, processName, row) {
 }
 
 /**
- * MIRRORS validateProcessName() in src/main/ipcHandlers.js — that is where the
- * name is stripped before the kill, so a KillResult can come back under the
- * stripped spelling. Used only to pair a result with its row, never to display.
+ * Mirrors validateProcessName() in src/main/ipcHandlers.js, which strips the
+ * name before killing — so a KillResult can come back under the stripped
+ * spelling. Used only to pair a result with its row, never to display.
  */
 function sanitiseProcessKey(name) {
   return String(name || "").replace(/[^\w.\- ]/g, "");
@@ -975,14 +937,13 @@ async function handleKillAll(btn, processNames) {
     return;
   }
 
-  // Per-app truth: reflect each result on its OWN row. A missing entry is a
-  // failure, not a success — fail-closed, exactly like the verdict path.
+  // Per-app truth: reflect each result on its own row. A missing entry is a
+  // failure, not a success — fail-closed, like the verdict path.
   //
-  // Results come back keyed by the SANITISED name (the IPC layer strips
-  // characters outside [\w.- ] before killing), which for a renamed executable
-  // is not byte-identical to the name we rendered. Index both ways so such a
-  // row still shows its true outcome; the sanitised index only holds keys that
-  // are unambiguous, so a collision can never cross-apply an outcome.
+  // Results come back keyed by the SANITISED name (IPC strips characters
+  // outside [\w.- ] before killing), which won't match a renamed executable
+  // byte-for-byte. Index both ways; the sanitised index drops ambiguous keys
+  // so a collision can never cross-apply an outcome to the wrong row.
   const byName = new Map();
   const bySanitised = new Map();
   const collided = new Set();
@@ -1049,12 +1010,9 @@ async function handleKillAll(btn, processNames) {
 // ─── Agent Card ───────────────────────────────────────────────────────────────
 
 /**
- * Renders the Deep Scan Agent card from its verdict.
- *
- * Note the three distinct non-pass states, which the previous implementation
- * collapsed into two: an agent that answered ping but returned no scan used to
- * fall through to the "no threats" branch and render a green "Ready" badge,
- * claiming a clean device on the strength of a scan that never ran.
+ * Renders the Deep Scan Agent card from its verdict. Three distinct non-pass
+ * states matter here: an agent that answers ping but returns no scan must not
+ * fall through to a green "Ready" badge on the strength of a scan that never ran.
  *
  * @param {{status: string, reasonKey: string, reasonParams?: object, threats?: object[]}} v
  */
@@ -1241,16 +1199,13 @@ function showScanError(finalStatus, btnRescan, message) {
 }
 
 // ─── Diagnostics Export (Phase E) ────────────────────────────────────────────
-// "The security check didn't work" is unactionable on its own. This produces a
-// compact, paste-able text blob describing WHICH probe failed and HOW LONG it
-// took — the per-check durations are what make a blown deadline distinguishable
-// from an instant error, which is exactly what the original timeout bug hid.
+// Produces a compact, paste-able text blob naming which probe failed and how
+// long it took — the durations distinguish a blown deadline from an instant error.
 //
-// PRIVACY: the blob is assembled from an explicit allow-list of fields. It
-// carries no tokens, no file paths, no user identity, and no process list
-// beyond the blocked-app names the candidate is already looking at on screen.
-// Audit entries are re-projected field by field rather than dumped, so a future
-// audit field cannot silently start leaking into a support paste.
+// PRIVACY: assembled from an explicit allow-list of fields only — no tokens,
+// file paths, user identity, or process names beyond what's already on screen.
+// Audit entries are re-projected field by field, not dumped, so a future audit
+// field can't silently start leaking into a support paste.
 
 const MAX_DIAGNOSTIC_AUDIT_ENTRIES = 15;
 
@@ -1361,12 +1316,10 @@ async function buildDiagnosticsText() {
 }
 
 /**
- * Copies text to the clipboard, degrading gracefully.
- *
- * navigator.clipboard requires a secure context and this page is loaded over
- * file://, so the async API is not guaranteed to exist here — execCommand is
- * the working fallback, and if BOTH fail the caller shows the text for manual
- * selection rather than silently doing nothing.
+ * Copies text to the clipboard, degrading gracefully. navigator.clipboard needs
+ * a secure context and this page loads over file://, so it may not exist —
+ * execCommand is the fallback; if both fail the caller shows the text for
+ * manual selection instead of doing nothing.
  * @returns {Promise<boolean>}
  */
 async function copyToClipboard(text) {

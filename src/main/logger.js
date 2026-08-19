@@ -1,8 +1,5 @@
 /**
- * src/main/logger.js
- * ──────────────────
  * Structured logger for the main process — dual transport: console + file.
- *
  * Levels: debug < info < warn < error
  * Set LOG_LEVEL env variable to control verbosity (default: "info").
  *
@@ -20,10 +17,10 @@
 
 "use strict";
 
-const fs   = require("fs");
+const fs = require("fs");
 const path = require("path");
 
-const LEVELS      = { debug: 0, info: 1, warn: 2, error: 3 };
+const LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
 const activeLevel = LEVELS[process.env.LOG_LEVEL] ?? LEVELS.info;
 const MAX_LOG_BYTES = 5 * 1024 * 1024; // 5 MB — rotate at this size
 
@@ -42,7 +39,9 @@ function initFileLogger(logDir) {
       const stat = fs.statSync(logPath);
       if (stat.size > MAX_LOG_BYTES) {
         const rotated = logPath.replace(".log", ".1.log");
-        if (fs.existsSync(rotated)) { fs.unlinkSync(rotated); }
+        if (fs.existsSync(rotated)) {
+          fs.unlinkSync(rotated);
+        }
         fs.renameSync(logPath, rotated);
       }
     } catch {
@@ -68,9 +67,11 @@ function initFileLogger(logDir) {
  * @param {...any} args
  */
 function log(level, ...args) {
-  if (LEVELS[level] < activeLevel) { return; }
+  if (LEVELS[level] < activeLevel) {
+    return;
+  }
 
-  const ts     = new Date().toISOString();
+  const ts = new Date().toISOString();
   const prefix = `[${ts}] [${level.toUpperCase()}]`;
 
   // eslint-disable-next-line no-console
@@ -90,8 +91,8 @@ const logger = {
   init: initFileLogger,
 
   debug: (...args) => log("debug", ...args),
-  info:  (...args) => log("info",  ...args),
-  warn:  (...args) => log("warn",  ...args),
+  info: (...args) => log("info", ...args),
+  warn: (...args) => log("warn", ...args),
   error: (...args) => log("error", ...args),
 };
 

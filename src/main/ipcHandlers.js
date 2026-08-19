@@ -1,8 +1,5 @@
 /**
- * src/main/ipcHandlers.js
- * ───────────────────────
  * Centralised registration of ALL ipcMain channels.
- *
  * This is the only file that calls ipcMain.handle() or ipcMain.on().
  * Channel names come from shared/constants.js — no raw strings here.
  *
@@ -23,9 +20,27 @@ const {
   killSingleProcessElevated,
   canElevate,
 } = require("./processKiller");
-const { lockdownForInterview, storeCandidatePhoto, clearCandidatePhoto, clearInterviewSessionData, endInterview, getWindow, minimizeWindow, loadDashboard, loadSecurityCheck, loadPermissionsPage, loadIdentityVerificationPage, loadRoleSelectionPage, loadHowItWorksPage } = require("./windowManager");
+const {
+  lockdownForInterview,
+  storeCandidatePhoto,
+  clearCandidatePhoto,
+  clearInterviewSessionData,
+  endInterview,
+  getWindow,
+  minimizeWindow,
+  loadDashboard,
+  loadSecurityCheck,
+  loadPermissionsPage,
+  loadIdentityVerificationPage,
+  loadRoleSelectionPage,
+  loadHowItWorksPage,
+} = require("./windowManager");
 const { invalidateProcessCache } = require("../detector/mirrorDetector");
-const { getCurrentInterviewUrl, setInterviewSession, resetInterviewSession } = require("./protocolHandler");
+const {
+  getCurrentInterviewUrl,
+  setInterviewSession,
+  resetInterviewSession,
+} = require("./protocolHandler");
 const { ensureAgent, killAgent } = require("./agentManager");
 const authManager = require("./authManager");
 const localeManager = require("./localeManager");
@@ -33,9 +48,12 @@ const startDetection = require("../detector/systemChecks");
 const screenRecorder = require("./screenRecorder");
 const { startPreProceedMonitor, stopPreProceedMonitor } = startDetection;
 
-const { MEETING_APPS, SCREEN_SHARING_APPS, AI_CHEATING_APPS, APP_DISPLAY_NAMES } = require("../shared/appList");
-
-// ─── Input validation ─────────────────────────────────────────────────────────
+const {
+  MEETING_APPS,
+  SCREEN_SHARING_APPS,
+  AI_CHEATING_APPS,
+  APP_DISPLAY_NAMES,
+} = require("../shared/appList");
 
 /**
  * Validates and sanitises a process name coming from the renderer.
@@ -62,9 +80,7 @@ function validateProcessName(value) {
  * concurrent spawns, so this never races the RUN_PREFLIGHT ensureAgent().
  */
 function prewarmAgent() {
-  ensureAgent().catch((err) =>
-    logger.warn("[ipc] agent pre-warm failed:", err.message)
-  );
+  ensureAgent().catch((err) => logger.warn("[ipc] agent pre-warm failed:", err.message));
 }
 
 /**
@@ -91,18 +107,17 @@ function sanitizeRoleSelection(payload) {
   const result = { is_custom_role: true };
   const roles = toStringArray(payload?.selected_role);
   const skills = toStringArray(payload?.manual_skills);
-  if (roles.length) { result.selected_role = roles; }
-  if (skills.length) { result.manual_skills = skills; }
+  if (roles.length) {
+    result.selected_role = roles;
+  }
+  if (skills.length) {
+    result.manual_skills = skills;
+  }
   return result;
 }
 
-// ─── Handler Registration ─────────────────────────────────────────────────────
-
-/**
- * Registers all IPC handlers. Must be called after app is ready.
- */
+//Registers all IPC handlers. Must be called after app is ready.
 function registerIpcHandlers() {
-  // ── Auth ───────────────────────────────────────────────────────────────────
   // Tokens are handled entirely in main (authManager); the renderer only ever
   // receives display-safe user fields.
 
@@ -221,12 +236,14 @@ function registerIpcHandlers() {
   // Role selection — submit role → get skills or clarification suggestions.
   ipcMain.handle(IPC.SUBMIT_ROLE, async (_event, role) => {
     const safeRole = typeof role === "string" ? role.trim().slice(0, 200) : "";
-    if (!safeRole) { return { ok: false, error: "Role is required." }; }
+    if (!safeRole) {
+      return { ok: false, error: "Role is required." };
+    }
     logger.info("[ipc] submit-role:", safeRole);
     return await authManager.submitRole(safeRole);
   });
 
-  // ── Localization ─────────────────────────────────────────────────────────
+  // ── Localization
 
   ipcMain.handle(IPC.GET_LOCALE, () => localeManager.getPreferred());
 
@@ -250,7 +267,7 @@ function registerIpcHandlers() {
     return applied;
   });
 
-  // ── App Control ──────────────────────────────────────────────────────────
+  // ── App Control
 
   ipcMain.handle(IPC.GET_APP_LIST, () => ({
     meetingApps: MEETING_APPS,
@@ -272,15 +289,19 @@ function registerIpcHandlers() {
 
   ipcMain.on(IPC.RECHECK_SYSTEM, () => {
     const win = getWindow();
-    if (!win) { return; }
+    if (!win) {
+      return;
+    }
     logger.info("[ipc] recheck-system received");
     stopPreProceedMonitor();
     invalidateProcessCache();
-    if (startDetection.resetState) { startDetection.resetState(); }
+    if (startDetection.resetState) {
+      startDetection.resetState();
+    }
     win.loadFile(path.join(__dirname, "../../assets/preflight.html"));
   });
 
-  // ── Preflight ────────────────────────────────────────────────────────────
+  // ── Preflight
 
   // In-flight preflight, shared by concurrent callers. A renderer-side timeout
   // used to abandon its invoke and immediately fire another, stacking two full
@@ -312,11 +333,9 @@ function registerIpcHandlers() {
       }
     };
 
-    _preflightInFlight = startDetection
-      .runChecksOnce(onProgress)
-      .finally(() => {
-        _preflightInFlight = null;
-      });
+    _preflightInFlight = startDetection.runChecksOnce(onProgress).finally(() => {
+      _preflightInFlight = null;
+    });
 
     const result = await _preflightInFlight;
 
@@ -337,7 +356,9 @@ function registerIpcHandlers() {
 
   ipcMain.on(IPC.PROCEED_TO_INTERVIEW, (_event, payload) => {
     const roleSelection = sanitizeRoleSelection(payload);
-    logger.info("[ipc] proceed-to-interview received", { is_custom_role: roleSelection.is_custom_role });
+    logger.info("[ipc] proceed-to-interview received", {
+      is_custom_role: roleSelection.is_custom_role,
+    });
 
     // Backstop gate, freshness not required — permissions/identity/role
     // selection have legitimately aged the preflight by now, and live
@@ -467,8 +488,7 @@ function registerIpcHandlers() {
     return results;
   });
 
-  // ── Auto-Updater ─────────────────────────────────────────────────────────
-
+  // ── Auto-Updater
   ipcMain.on(IPC.INSTALL_UPDATE, () => {
     logger.info("[ipc] install-update received");
     // Gated internally — refuses during an active interview.
@@ -501,7 +521,9 @@ function registerIpcHandlers() {
     const safeReason = typeof reason === "string" ? reason.slice(0, 40) : "unknown";
     logger.info(`[ipc] interview-complete received — reason: ${safeReason}`);
 
-    if (startDetection.stop) { startDetection.stop(); }
+    if (startDetection.stop) {
+      startDetection.stop();
+    }
 
     // Interview is over — stop the security agent (deep detection is done; the
     // post-interview recording uses desktopCapturer, not the agent).
@@ -518,15 +540,18 @@ function registerIpcHandlers() {
     updater.onInterviewEnded();
   });
 
-  // ── Screen recording / proctoring ────────────────────────────────────────
   // Register internal recorder↔main IPC (recorder:ready, recorder:chunk, recorder:error).
   screenRecorder.registerRecorderIpc();
 
   // interview.letshyre.com → start recording
   ipcMain.handle(IPC.PROCTORING_START, async (_event, meta = {}) => {
-    const safeSessionId   = typeof meta?.sessionId   === "string" ? meta.sessionId.slice(0, 100)   : null;
-    const safeInterviewId = typeof meta?.interviewId === "string" ? meta.interviewId.slice(0, 100) : null;
-    logger.info("[ipc] proctoring-start", { sessionId: safeSessionId, interviewId: safeInterviewId });
+    const safeSessionId = typeof meta?.sessionId === "string" ? meta.sessionId.slice(0, 100) : null;
+    const safeInterviewId =
+      typeof meta?.interviewId === "string" ? meta.interviewId.slice(0, 100) : null;
+    logger.info("[ipc] proctoring-start", {
+      sessionId: safeSessionId,
+      interviewId: safeInterviewId,
+    });
     return await screenRecorder.start({ sessionId: safeSessionId, interviewId: safeInterviewId });
   });
 

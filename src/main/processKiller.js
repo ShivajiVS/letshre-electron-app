@@ -1,6 +1,4 @@
 /**
- * src/main/processKiller.js
- * ─────────────────────────
  * Force-terminates blocked applications, PID-accurately. Only processes in
  * ALL_BLOCKED_APPS (src/shared/appList.js) may be killed — this whitelist is
  * what stops the IPC handler from being abused to kill arbitrary OS processes.
@@ -72,7 +70,7 @@ const DEFAULT_TIMING = {
   elevateTimeoutMs: KILL_ELEVATE_TIMEOUT_MS,
 };
 
-// ─── Self-Protection Guard (by name) ─────────────────────────────────────────
+// ─── Self-Protection Guard (by name)
 
 /**
  * True if processName is our own Electron app — covers electron-builder's
@@ -91,11 +89,11 @@ function isOwnProcess(processName) {
 
   const OWN_EXACT = ["electron.exe", "electron", "agent.exe", "agent"];
 
-  if (OWN_EXACT.includes(name)) {return true;}
+  if (OWN_EXACT.includes(name)) {
+    return true;
+  }
   return OWN_PREFIXES.some((prefix) => name.startsWith(prefix));
 }
-
-// ─── Small helpers ───────────────────────────────────────────────────────────
 
 /** Basename that understands both `/` and `\` regardless of host platform. */
 function baseName(p) {
@@ -109,7 +107,9 @@ function uniqueLower(values) {
   const out = [];
   for (const v of values) {
     const k = String(v || "").toLowerCase();
-    if (!k || seen.has(k)) {continue;}
+    if (!k || seen.has(k)) {
+      continue;
+    }
     seen.add(k);
     out.push(k);
   }
@@ -140,25 +140,37 @@ function runCommand(command, args, timeoutMs) {
     let settled = false;
 
     const finish = (payload) => {
-      if (settled) {return;}
+      if (settled) {
+        return;
+      }
       settled = true;
       clearTimeout(timer);
       resolve(payload);
     };
 
     const timer = setTimeout(() => {
-      try { child.kill(); } catch { /* already gone */ }
+      try {
+        child.kill();
+      } catch {
+        /* already gone */
+      }
       finish({ code: null, stdout, stderr, error: "timed out" });
     }, timeoutMs);
 
-    if (child.stdout) {child.stdout.on("data", (d) => { stdout += d.toString(); });}
-    if (child.stderr) {child.stderr.on("data", (d) => { stderr += d.toString(); });}
+    if (child.stdout) {
+      child.stdout.on("data", (d) => {
+        stdout += d.toString();
+      });
+    }
+    if (child.stderr) {
+      child.stderr.on("data", (d) => {
+        stderr += d.toString();
+      });
+    }
     child.on("error", (err) => finish({ code: null, stdout, stderr, error: err.message }));
     child.on("close", (code) => finish({ code, stdout, stderr }));
   });
 }
-
-// ─── Process-table parsing (pure, unit-tested) ───────────────────────────────
 
 /**
  * Splits one CSV line, honouring double quotes and "" escapes.
@@ -174,7 +186,12 @@ function parseCsvLine(line) {
     const ch = line[i];
     if (inQuotes) {
       if (ch === '"') {
-        if (line[i + 1] === '"') { current += '"'; i++; } else { inQuotes = false; }
+        if (line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
       } else {
         current += ch;
       }
@@ -200,8 +217,12 @@ function parseCsvLine(line) {
  */
 function parseCreated(value) {
   const raw = String(value || "").trim();
-  if (!raw) {return NaN;}
-  if (/^\d+$/.test(raw)) {return Number(raw);}
+  if (!raw) {
+    return NaN;
+  }
+  if (/^\d+$/.test(raw)) {
+    return Number(raw);
+  }
   const m = raw.match(/^(\d{14})/);
   return m ? Number(m[1]) : NaN;
 }
@@ -228,7 +249,9 @@ function parseWindowsProcessCsv(text) {
     if (!cols) {
       const lower = fields.map((f) => f.replace(/^"|"$/g, "").toLowerCase());
       const pidIdx = lower.indexOf("processid");
-      if (pidIdx === -1) {continue;} // still looking for the header row
+      if (pidIdx === -1) {
+        continue;
+      } // still looking for the header row
       cols = {
         pid: pidIdx,
         ppid: lower.indexOf("parentprocessid"),
@@ -240,7 +263,9 @@ function parseWindowsProcessCsv(text) {
     }
 
     const pid = Number(fields[cols.pid]);
-    if (!Number.isInteger(pid) || pid < 0) {continue;}
+    if (!Number.isInteger(pid) || pid < 0) {
+      continue;
+    }
 
     const ppidRaw = cols.ppid >= 0 ? Number(fields[cols.ppid]) : NaN;
     const created = cols.created >= 0 ? parseCreated(fields[cols.created]) : NaN;
@@ -271,10 +296,14 @@ function parseUnixProcessTable(text) {
   const procs = [];
   for (const line of String(text || "").split(/\r?\n/)) {
     const m = line.match(/^\s*(\d+)\s+(\d+)\s+(.+?)\s*$/);
-    if (!m) {continue;} // blank lines, headers, malformed rows
+    if (!m) {
+      continue;
+    } // blank lines, headers, malformed rows
     const pid = Number(m[1]);
     const ppid = Number(m[2]);
-    if (!Number.isInteger(pid)) {continue;}
+    if (!Number.isInteger(pid)) {
+      continue;
+    }
     procs.push({
       pid,
       ppid: Number.isInteger(ppid) ? ppid : null,
@@ -298,7 +327,9 @@ function parseUnixProcessTable(text) {
  */
 function matchesImageName(proc, targetName, platform, scope = null) {
   const target = String(targetName || "").toLowerCase();
-  if (!target || !proc) {return false;}
+  if (!target || !proc) {
+    return false;
+  }
   const name = String(proc.name || "").toLowerCase();
 
   // Path scope for companions with a shared image name across vendors (e.g.
@@ -306,13 +337,19 @@ function matchesImageName(proc, targetName, platform, scope = null) {
   // every update.exe on the machine would take down unrelated software.
   if (scope) {
     const fullPath = String(proc.path || proc.command || "").toLowerCase();
-    if (!fullPath || !fullPath.includes(String(scope).toLowerCase())) {return false;}
+    if (!fullPath || !fullPath.includes(String(scope).toLowerCase())) {
+      return false;
+    }
   }
 
-  if (platform !== "darwin") {return name === target;}
+  if (platform !== "darwin") {
+    return name === target;
+  }
 
   const bare = target.endsWith(".app") ? target.slice(0, -4) : target;
-  if (name === bare || name === target) {return true;}
+  if (name === bare || name === target) {
+    return true;
+  }
   const command = String(proc.command || "").toLowerCase();
   return command.includes(`/${bare}.app/`);
 }
@@ -326,8 +363,12 @@ function matchesImageName(proc, targetName, platform, scope = null) {
  * forever. Trusted by default when creation times are unavailable.
  */
 function isPlausibleParent(parent, child) {
-  if (!parent || !child) {return false;}
-  if (!Number.isFinite(parent.created) || !Number.isFinite(child.created)) {return true;}
+  if (!parent || !child) {
+    return false;
+  }
+  if (!Number.isFinite(parent.created) || !Number.isFinite(child.created)) {
+    return true;
+  }
   return parent.created <= child.created;
 }
 
@@ -353,8 +394,12 @@ function computeExclusionPids(procs, selfPid, platform) {
   const byPid = new Map(list.map((p) => [p.pid, p]));
   const children = new Map();
   for (const p of list) {
-    if (!Number.isInteger(p.ppid)) {continue;}
-    if (!children.has(p.ppid)) {children.set(p.ppid, []);}
+    if (!Number.isInteger(p.ppid)) {
+      continue;
+    }
+    if (!children.has(p.ppid)) {
+      children.set(p.ppid, []);
+    }
     children.get(p.ppid).push(p);
   }
 
@@ -362,19 +407,29 @@ function computeExclusionPids(procs, selfPid, platform) {
   excluded.add(platform === "darwin" ? 1 : 4); // launchd / Windows "System"
 
   const seeds = new Set();
-  if (Number.isInteger(selfPid)) {seeds.add(selfPid);}
-  for (const p of list) {
-    if (isOwnProcess(p.name)) {seeds.add(p.pid);}
+  if (Number.isInteger(selfPid)) {
+    seeds.add(selfPid);
   }
-  for (const pid of seeds) {excluded.add(pid);}
+  for (const p of list) {
+    if (isOwnProcess(p.name)) {
+      seeds.add(p.pid);
+    }
+  }
+  for (const pid of seeds) {
+    excluded.add(pid);
+  }
 
   // Ancestors of ourselves (individual PIDs only, not their subtrees).
   let cursor = byPid.get(selfPid);
   let hops = 0;
   while (cursor && hops++ < 64) {
     const parent = Number.isInteger(cursor.ppid) ? byPid.get(cursor.ppid) : null;
-    if (!parent || !isPlausibleParent(parent, cursor)) {break;}
-    if (excluded.has(parent.pid) && parent.pid !== selfPid) {break;} // cycle / already covered
+    if (!parent || !isPlausibleParent(parent, cursor)) {
+      break;
+    }
+    if (excluded.has(parent.pid) && parent.pid !== selfPid) {
+      break;
+    } // cycle / already covered
     excluded.add(parent.pid);
     cursor = parent;
   }
@@ -385,8 +440,12 @@ function computeExclusionPids(procs, selfPid, platform) {
   while (queue.length && guard++ < 100000) {
     const pid = queue.shift();
     for (const child of children.get(pid) || []) {
-      if (excluded.has(child.pid)) {continue;}
-      if (!isPlausibleParent(byPid.get(pid), child)) {continue;}
+      if (excluded.has(child.pid)) {
+        continue;
+      }
+      if (!isPlausibleParent(byPid.get(pid), child)) {
+        continue;
+      }
       excluded.add(child.pid);
       queue.push(child.pid);
     }
@@ -403,10 +462,14 @@ function processDepth(proc, byPid) {
   let cursor = proc;
   const seen = new Set();
   while (cursor && depth < 64) {
-    if (seen.has(cursor.pid)) {break;}
+    if (seen.has(cursor.pid)) {
+      break;
+    }
     seen.add(cursor.pid);
     const parent = Number.isInteger(cursor.ppid) ? byPid.get(cursor.ppid) : null;
-    if (!parent) {break;}
+    if (!parent) {
+      break;
+    }
     depth++;
     cursor = parent;
   }
@@ -424,12 +487,12 @@ function planKillLevels(targets, byPid) {
   const levels = new Map();
   for (const proc of targets) {
     const depth = processDepth(proc, byPid);
-    if (!levels.has(depth)) {levels.set(depth, []);}
+    if (!levels.has(depth)) {
+      levels.set(depth, []);
+    }
     levels.get(depth).push(proc.pid);
   }
-  return [...levels.keys()]
-    .sort((a, b) => b - a)
-    .map((d) => levels.get(d).sort((a, b) => a - b));
+  return [...levels.keys()].sort((a, b) => b - a).map((d) => levels.get(d).sort((a, b) => a - b));
 }
 
 /**
@@ -447,7 +510,9 @@ function planTargetNames(processName, getCompanions) {
   let companions = [];
   try {
     const raw = getCompanions(main);
-    if (Array.isArray(raw)) {companions = raw;}
+    if (Array.isArray(raw)) {
+      companions = raw;
+    }
   } catch (err) {
     logger.warn("[processKiller] getCompanions threw:", err.message);
   }
@@ -472,8 +537,12 @@ function planTargetNames(processName, getCompanions) {
  */
 function isKillableName(candidate, targetName, isBlocked, getCompanions) {
   const name = String(candidate || "").toLowerCase();
-  if (!name || isOwnProcess(name)) {return false;}
-  if (isBlocked(name)) {return true;}
+  if (!name || isOwnProcess(name)) {
+    return false;
+  }
+  if (isBlocked(name)) {
+    return true;
+  }
   try {
     const raw = getCompanions(String(targetName || "").toLowerCase());
     return Array.isArray(raw) && raw.some((c) => String(c || "").toLowerCase() === name);
@@ -491,7 +560,9 @@ function isKillableName(candidate, targetName, isBlocked, getCompanions) {
 function getCompanionsSafe(processName) {
   try {
     const appList = require("../shared/appList");
-    if (typeof appList.getCompanions !== "function") {return [];}
+    if (typeof appList.getCompanions !== "function") {
+      return [];
+    }
     const result = appList.getCompanions(processName);
     return Array.isArray(result) ? result : [];
   } catch {
@@ -510,7 +581,9 @@ function getCompanionsSafe(processName) {
 function getCompanionScopeSafe(processName, companionName) {
   try {
     const appList = require("../shared/appList");
-    if (typeof appList.getCompanionScope !== "function") {return null;}
+    if (typeof appList.getCompanionScope !== "function") {
+      return null;
+    }
     return appList.getCompanionScope(processName, companionName) || null;
   } catch {
     return null;
@@ -528,7 +601,9 @@ function getCompanionScopeSafe(processName, companionName) {
 function requiresPathScopeSafe(companionName) {
   try {
     const appList = require("../shared/appList");
-    if (typeof appList.requiresPathScope !== "function") {return false;}
+    if (typeof appList.requiresPathScope !== "function") {
+      return false;
+    }
     return appList.requiresPathScope(companionName) === true;
   } catch {
     return true; // cannot verify the rule → refuse the kill
@@ -547,13 +622,23 @@ function requiresPathScopeSafe(companionName) {
  * @returns {{status: "killed"|"gone"|"denied"|"error", detail?: string}}
  */
 function classifyPidKill(r) {
-  if (!r) {return { status: "error", detail: "no result" };}
-  if (r.error) {return { status: "error", detail: r.error };}
+  if (!r) {
+    return { status: "error", detail: "no result" };
+  }
+  if (r.error) {
+    return { status: "error", detail: r.error };
+  }
 
   const text = `${r.stderr || ""} ${r.stdout || ""}`.toLowerCase();
-  if (r.code === 0) {return { status: "killed" };}
-  if (r.code === 128) {return { status: "gone" };}
-  if (/not found|no such process|no running instance|not running/.test(text)) {return { status: "gone" };}
+  if (r.code === 0) {
+    return { status: "killed" };
+  }
+  if (r.code === 128) {
+    return { status: "gone" };
+  }
+  if (/not found|no such process|no running instance|not running/.test(text)) {
+    return { status: "gone" };
+  }
   if (/access is denied|operation not permitted|not permitted|insufficient/.test(text)) {
     return { status: "denied", detail: (r.stderr || "").trim() || "access denied" };
   }
@@ -574,16 +659,33 @@ function classifyPidKill(r) {
  */
 function classifyKillOutcome(signals) {
   const {
-    found = 0, killable = 0, killed = 0,
-    denied = 0, spawnErrors = 0, cleared = false, respawned = false,
+    found = 0,
+    killable = 0,
+    killed = 0,
+    denied = 0,
+    spawnErrors = 0,
+    cleared = false,
+    respawned = false,
   } = signals || {};
 
-  if (found === 0) {return "already-gone";}
-  if (killable === 0) {return "still-running";} // every match is inside our own tree
-  if (respawned) {return "respawned";}
-  if (cleared) {return "closed";}
-  if (denied > 0) {return "access-denied";}
-  if (killed === 0 && spawnErrors > 0) {return "spawn-error";}
+  if (found === 0) {
+    return "already-gone";
+  }
+  if (killable === 0) {
+    return "still-running";
+  } // every match is inside our own tree
+  if (respawned) {
+    return "respawned";
+  }
+  if (cleared) {
+    return "closed";
+  }
+  if (denied > 0) {
+    return "access-denied";
+  }
+  if (killed === 0 && spawnErrors > 0) {
+    return "spawn-error";
+  }
   return "still-running";
 }
 
@@ -602,27 +704,41 @@ async function listProcessTableReal(platform, timeoutMs) {
   if (platform === "darwin") {
     const r = await runCommand("ps", ["-Ao", "pid=,ppid=,comm="], timeoutMs);
     const procs = parseUnixProcessTable(r.stdout);
-    if (procs.length) {return { ok: true, procs };}
-    return { ok: false, procs: [], error: r.error || (r.stderr || "").trim() || "ps returned no rows" };
+    if (procs.length) {
+      return { ok: true, procs };
+    }
+    return {
+      ok: false,
+      procs: [],
+      error: r.error || (r.stderr || "").trim() || "ps returned no rows",
+    };
   }
 
   const psArgs = [
-    "-NoProfile", "-NonInteractive", "-Command",
+    "-NoProfile",
+    "-NonInteractive",
+    "-Command",
     // ExecutablePath is needed for path-scoped companions (the shared Squirrel
     // update.exe), and costs nothing extra on a query we already run.
-    "Get-CimInstance Win32_Process | Select-Object Name,ProcessId,ParentProcessId,ExecutablePath,"
-      + "@{n='Created';e={$_.CreationDate.Ticks}} | ConvertTo-Csv -NoTypeInformation",
+    "Get-CimInstance Win32_Process | Select-Object Name,ProcessId,ParentProcessId,ExecutablePath," +
+      "@{n='Created';e={$_.CreationDate.Ticks}} | ConvertTo-Csv -NoTypeInformation",
   ];
   const ps = await runCommand("powershell.exe", psArgs, timeoutMs);
   let procs = parseWindowsProcessCsv(ps.stdout);
-  if (procs.length) {return { ok: true, procs };}
+  if (procs.length) {
+    return { ok: true, procs };
+  }
 
   logger.warn("[processKiller] Get-CimInstance enumeration failed, trying wmic fallback");
   const wmic = await runCommand(
-    "wmic", ["process", "get", "Name,ParentProcessId,ProcessId,CreationDate", "/FORMAT:CSV"], timeoutMs,
+    "wmic",
+    ["process", "get", "Name,ParentProcessId,ProcessId,CreationDate", "/FORMAT:CSV"],
+    timeoutMs
   );
   procs = parseWindowsProcessCsv(wmic.stdout);
-  if (procs.length) {return { ok: true, procs };}
+  if (procs.length) {
+    return { ok: true, procs };
+  }
 
   const detail = ps.error || (ps.stderr || "").trim() || wmic.error || "no rows returned";
   return { ok: false, procs: [], error: `process enumeration failed: ${detail}` };
@@ -640,20 +756,35 @@ async function findPidsByNameReal(name, platform, timeoutMs) {
     if (!procs.length) {
       return { ok: false, pids: [], error: r.error || "ps returned no rows" };
     }
-    return { ok: true, pids: procs.filter((p) => matchesImageName(p, name, platform)).map((p) => p.pid) };
+    return {
+      ok: true,
+      pids: procs.filter((p) => matchesImageName(p, name, platform)).map((p) => p.pid),
+    };
   }
 
-  const r = await runCommand("tasklist", ["/FI", `IMAGENAME eq ${name}`, "/NH", "/FO", "CSV"], timeoutMs);
-  if (r.error) {return { ok: false, pids: [], error: r.error };}
+  const r = await runCommand(
+    "tasklist",
+    ["/FI", `IMAGENAME eq ${name}`, "/NH", "/FO", "CSV"],
+    timeoutMs
+  );
+  if (r.error) {
+    return { ok: false, pids: [], error: r.error };
+  }
 
   const pids = [];
   for (const line of String(r.stdout || "").split(/\r?\n/)) {
     const trimmed = line.trim();
-    if (!trimmed || trimmed.toUpperCase().startsWith("INFO:")) {continue;}
+    if (!trimmed || trimmed.toUpperCase().startsWith("INFO:")) {
+      continue;
+    }
     const fields = parseCsvLine(trimmed);
     const pid = Number(fields[1]);
-    if (!Number.isInteger(pid)) {continue;}
-    if (baseName(fields[0] || "").toLowerCase() !== String(name).toLowerCase()) {continue;}
+    if (!Number.isInteger(pid)) {
+      continue;
+    }
+    if (baseName(fields[0] || "").toLowerCase() !== String(name).toLowerCase()) {
+      continue;
+    }
     pids.push(pid);
   }
   return { ok: true, pids };
@@ -665,9 +796,10 @@ async function findPidsByNameReal(name, platform, timeoutMs) {
  * @returns {Promise<{status: "killed"|"gone"|"denied"|"error", detail?: string}>}
  */
 async function killPidReal(pid, platform, timeoutMs) {
-  const r = platform === "darwin"
-    ? await runCommand("kill", ["-9", String(pid)], timeoutMs)
-    : await runCommand("taskkill", ["/PID", String(pid), "/F"], timeoutMs);
+  const r =
+    platform === "darwin"
+      ? await runCommand("kill", ["-9", String(pid)], timeoutMs)
+      : await runCommand("taskkill", ["/PID", String(pid), "/F"], timeoutMs);
   return classifyPidKill(r);
 }
 
@@ -686,7 +818,9 @@ async function killPidReal(pid, platform, timeoutMs) {
 let _canElevateCache = null;
 async function canElevate(deps = null) {
   const d = deps || createDefaultDeps();
-  if (_canElevateCache !== null && !deps) {return _canElevateCache;}
+  if (_canElevateCache !== null && !deps) {
+    return _canElevateCache;
+  }
 
   let result = false;
   try {
@@ -703,7 +837,9 @@ async function canElevate(deps = null) {
     result = false; // cannot prove they can elevate → do not offer it
   }
 
-  if (!deps) {_canElevateCache = result;}
+  if (!deps) {
+    _canElevateCache = result;
+  }
   return result;
 }
 
@@ -721,7 +857,9 @@ async function killPidsElevatedReal(pids, deps) {
   // nothing but positive integers. They come from our own enumeration, but the
   // validation is what makes that guarantee local and auditable.
   const safe = pids.filter((p) => Number.isInteger(p) && p > 0);
-  if (safe.length === 0) {return { status: "error", detail: "no valid PIDs" };}
+  if (safe.length === 0) {
+    return { status: "error", detail: "no valid PIDs" };
+  }
   if (safe.length !== pids.length) {
     return { status: "error", detail: "refusing to elevate with a malformed PID list" };
   }
@@ -731,7 +869,9 @@ async function killPidsElevatedReal(pids, deps) {
     const r = await deps.runProbe(
       "powershell.exe",
       [
-        "-NoProfile", "-NonInteractive", "-Command",
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
         `Start-Process -FilePath taskkill.exe -ArgumentList ${argList} ` +
           "-Verb RunAs -Wait -WindowStyle Hidden",
       ],
@@ -739,8 +879,12 @@ async function killPidsElevatedReal(pids, deps) {
     );
     const text = `${r.stdout || ""} ${r.stderr || ""}`;
     // The user declining UAC surfaces as a "canceled by the user" error.
-    if (/cancel/i.test(text)) {return { status: "cancelled", detail: "elevation declined" };}
-    if (r.code === 0) {return { status: "killed" };}
+    if (/cancel/i.test(text)) {
+      return { status: "cancelled", detail: "elevation declined" };
+    }
+    if (r.code === 0) {
+      return { status: "killed" };
+    }
     return { status: "error", detail: (r.stderr || "").trim() || `exit ${r.code}` };
   }
 
@@ -751,8 +895,12 @@ async function killPidsElevatedReal(pids, deps) {
       deps.timing.elevateTimeoutMs
     );
     const text = `${r.stdout || ""} ${r.stderr || ""}`;
-    if (/User canceled|-128/i.test(text)) {return { status: "cancelled", detail: "elevation declined" };}
-    if (r.code === 0) {return { status: "killed" };}
+    if (/User canceled|-128/i.test(text)) {
+      return { status: "cancelled", detail: "elevation declined" };
+    }
+    if (r.code === 0) {
+      return { status: "killed" };
+    }
     return { status: "error", detail: (r.stderr || "").trim() || `exit ${r.code}` };
   }
 
@@ -836,8 +984,9 @@ async function killSingleProcess(processName, overrides) {
 
   // Companions first, main executable last; every candidate is re-checked
   // against the scoped whitelist rule before it can be touched.
-  const targetNames = planTargetNames(name, deps.getCompanions)
-    .filter((candidate) => isKillableName(candidate, name, deps.isBlocked, deps.getCompanions));
+  const targetNames = planTargetNames(name, deps.getCompanions).filter((candidate) =>
+    isKillableName(candidate, name, deps.isBlocked, deps.getCompanions)
+  );
 
   let found = 0;
   let protectedMatches = 0;
@@ -867,7 +1016,9 @@ async function killSingleProcess(processName, overrides) {
   }
 
   if (killable === 0) {
-    logger.warn(`[processKiller] every ${name} PID is inside the protected process tree — refusing`);
+    logger.warn(
+      `[processKiller] every ${name} PID is inside the protected process tree — refusing`
+    );
     return finish({
       outcome: classifyKillOutcome({ found, killable: 0 }),
       error: "All matching processes belong to the protected (own) process tree",
@@ -892,7 +1043,9 @@ async function killSingleProcess(processName, overrides) {
     if (r.status === "killed") {
       killed = allPids.length;
       for (const g of groups) {
-        if (g.procs.length && g.name !== name) {companionsKilled.push(g.name);}
+        if (g.procs.length && g.name !== name) {
+          companionsKilled.push(g.name);
+        }
       }
     } else if (r.status === "cancelled") {
       // Declined prompt, not our failure — report as denied so the UI offers
@@ -905,18 +1058,29 @@ async function killSingleProcess(processName, overrides) {
     }
   } else {
     for (const group of groups) {
-      if (!group.procs.length) {continue;}
+      if (!group.procs.length) {
+        continue;
+      }
       let groupKilled = 0;
       for (const level of planKillLevels(group.procs, byPid)) {
         const results = await Promise.all(level.map((pid) => deps.killPid(pid)));
         for (const r of results) {
-          if (r.status === "killed") { killed++; groupKilled++; }
-          else if (r.status === "denied") { denied++; lastError = r.detail || "access denied"; }
-          else if (r.status === "error") { spawnErrors++; lastError = r.detail || "kill failed"; }
+          if (r.status === "killed") {
+            killed++;
+            groupKilled++;
+          } else if (r.status === "denied") {
+            denied++;
+            lastError = r.detail || "access denied";
+          } else if (r.status === "error") {
+            spawnErrors++;
+            lastError = r.detail || "kill failed";
+          }
           // "gone" — the PID exited between snapshot and kill; not an error.
         }
       }
-      if (groupKilled > 0 && group.name !== name) {companionsKilled.push(group.name);}
+      if (groupKilled > 0 && group.name !== name) {
+        companionsKilled.push(group.name);
+      }
     }
   }
 
@@ -924,8 +1088,12 @@ async function killSingleProcess(processName, overrides) {
   const anyTargetAlive = async () => {
     for (const targetName of targetNames) {
       const r = await deps.findPidsByName(targetName);
-      if (!r || !r.ok) {return null;} // indeterminate — treat as "still there"
-      if (r.pids.length > 0) {return true;}
+      if (!r || !r.ok) {
+        return null;
+      } // indeterminate — treat as "still there"
+      if (r.pids.length > 0) {
+        return true;
+      }
     }
     return false;
   };
@@ -935,8 +1103,13 @@ async function killSingleProcess(processName, overrides) {
   for (let i = 0; i < verifyAttempts; i++) {
     await deps.sleep(timing.verifyPollMs);
     const alive = await anyTargetAlive();
-    if (alive === false) { cleared = true; break; }
-    if (alive === null) {lastError = lastError || "could not verify — process query failed";}
+    if (alive === false) {
+      cleared = true;
+      break;
+    }
+    if (alive === null) {
+      lastError = lastError || "could not verify — process query failed";
+    }
   }
 
   // Relaunch watch — the actual reported bug
@@ -946,20 +1119,33 @@ async function killSingleProcess(processName, overrides) {
     for (let i = 0; i < watchAttempts; i++) {
       await deps.sleep(timing.relaunchPollMs);
       const alive = await anyTargetAlive();
-      if (alive === true) { respawned = true; break; }
+      if (alive === true) {
+        respawned = true;
+        break;
+      }
     }
   }
 
-  const outcome = classifyKillOutcome({ found, killable, killed, denied, spawnErrors, cleared, respawned });
+  const outcome = classifyKillOutcome({
+    found,
+    killable,
+    killed,
+    denied,
+    spawnErrors,
+    cleared,
+    respawned,
+  });
   const result = finish({
     outcome,
     pidsKilled: killed,
     companionsKilled,
-    ...(outcome === "closed" || outcome === "already-gone" ? {} : { error: describeFailure(outcome, lastError, protectedMatches) }),
+    ...(outcome === "closed" || outcome === "already-gone"
+      ? {}
+      : { error: describeFailure(outcome, lastError, protectedMatches) }),
   });
 
   logger[result.success ? "info" : "warn"](
-    `[processKiller] ${name} → ${outcome} (pids killed: ${killed}, companions: ${companionsKilled.join(", ") || "none"})`,
+    `[processKiller] ${name} → ${outcome} (pids killed: ${killed}, companions: ${companionsKilled.join(", ") || "none"})`
   );
   return result;
 }
@@ -977,10 +1163,12 @@ function describeFailure(outcome, lastError, protectedMatches) {
     case "spawn-error":
       return lastError || "Termination command could not be executed";
     default:
-      return lastError
-        || (protectedMatches > 0
+      return (
+        lastError ||
+        (protectedMatches > 0
           ? "Process still running and is inside the protected process tree"
-          : "Process still running after termination");
+          : "Process still running after termination")
+      );
   }
 }
 

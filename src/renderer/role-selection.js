@@ -1,18 +1,12 @@
 /**
- * src/renderer/role-selection.js
- * ────────────────────────────────
  * 4-step role selection state machine:
  *   confirm → (No) input → (needs_clarification) clarify → skills → lockdown
- *
  * All API calls go through main via IPC — tokens never touch this renderer.
  */
 
 "use strict";
 
 document.addEventListener("DOMContentLoaded", async () => {
-
-  // ── DOM refs ────────────────────────────────────────────────────────────────
-
   const stepPills = [
     document.getElementById("step-pill-confirm"),
     document.getElementById("step-pill-input"),
@@ -26,8 +20,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   ];
 
   const sidebarTitle = document.getElementById("sidebar-title");
-  const sidebarDesc  = document.getElementById("sidebar-desc");
-  const sidebarDots  = [
+  const sidebarDesc = document.getElementById("sidebar-desc");
+  const sidebarDots = [
     document.getElementById("dot-1"),
     document.getElementById("dot-2"),
     document.getElementById("dot-3"),
@@ -41,60 +35,77 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("panel-skills"),
   ];
 
-  const confirmSkeleton   = document.getElementById("confirm-skeleton");
-  const confirmContent    = document.getElementById("confirm-content");
-  const confirmRoleName   = document.getElementById("confirm-role-name");
+  const confirmSkeleton = document.getElementById("confirm-skeleton");
+  const confirmContent = document.getElementById("confirm-content");
+  const confirmRoleName = document.getElementById("confirm-role-name");
   const confirmRoleInline = document.getElementById("confirm-role-inline");
-  const btnYes            = document.getElementById("btn-yes");
-  const btnNo             = document.getElementById("btn-no");
+  const btnYes = document.getElementById("btn-yes");
+  const btnNo = document.getElementById("btn-no");
 
-  const roleInput     = document.getElementById("role-input");
+  const roleInput = document.getElementById("role-input");
   const btnSubmitRole = document.getElementById("btn-submit-role");
 
   const ambiguousRoleLabel = document.getElementById("ambiguous-role-label");
-  const roleCardsEl        = document.getElementById("role-cards");
-  const btnConfirmClarify  = document.getElementById("btn-confirm-clarify");
+  const roleCardsEl = document.getElementById("role-cards");
+  const btnConfirmClarify = document.getElementById("btn-confirm-clarify");
 
   const confirmedRoleLabel = document.getElementById("confirmed-role-label");
-  const skillsGrid         = document.getElementById("skills-grid");
-  const btnStartInterview  = document.getElementById("btn-start-interview");
+  const skillsGrid = document.getElementById("skills-grid");
+  const btnStartInterview = document.getElementById("btn-start-interview");
 
   // Error banner (inline display:none/flex — see role-selection.html note)
-  const rsError     = document.getElementById("rs-error");
+  const rsError = document.getElementById("rs-error");
   const rsErrorText = document.getElementById("rs-error-text");
-  function showError(msg) { rsErrorText.textContent = msg; rsError.style.display = "flex"; }
-  function hideError() { rsError.style.display = "none"; }
+  function showError(msg) {
+    rsErrorText.textContent = msg;
+    rsError.style.display = "flex";
+  }
+  function hideError() {
+    rsError.style.display = "none";
+  }
 
-  // ── Sidebar copy per step ────────────────────────────────────────────────────
   const SIDEBAR = [
-    { title: "Your Selected Role",  desc: "Review the role assigned to you. If it's correct, proceed directly to the interview. Otherwise, enter a different role." },
-    { title: "Enter Your Role",     desc: "Type the role you're interviewing for. Our AI will tailor the interview questions to match your specific position." },
-    { title: "Narrow It Down",      desc: "The role you entered covers several specialisations. Choose the one that best describes your expertise." },
-    { title: "Skills Detected",     desc: "These are the key skills we'll evaluate during your interview. Review them and start when you're ready." },
+    {
+      title: "Your Selected Role",
+      desc: "Review the role assigned to you. If it's correct, proceed directly to the interview. Otherwise, enter a different role.",
+    },
+    {
+      title: "Enter Your Role",
+      desc: "Type the role you're interviewing for. Our AI will tailor the interview questions to match your specific position.",
+    },
+    {
+      title: "Narrow It Down",
+      desc: "The role you entered covers several specialisations. Choose the one that best describes your expertise.",
+    },
+    {
+      title: "Skills Detected",
+      desc: "These are the key skills we'll evaluate during your interview. Review them and start when you're ready.",
+    },
   ];
 
-  // ── State ────────────────────────────────────────────────────────────────────
-  let profileRole         = "";   // role from candidate profile
-  let pendingRole         = "";   // last submitted role string
-  let selectedClarifyRole = "";   // picked in clarification step
+  let profileRole = ""; // role from candidate profile
+  let pendingRole = ""; // last submitted role string
+  let selectedClarifyRole = ""; // picked in clarification step
 
   // Role-decision state, handed to the interview site at Start Interview.
   //   Yes (keep assigned role) → is_custom_role: false; backend uses the profile role.
   //   No  (chose a new role)   → is_custom_role: true + selected_role + manual_skills.
-  let isCustomRole = false;       // false = confirmed profile role, true = custom
-  let finalRole    = "";          // the role shown on the skills panel
-  let finalSkills  = [];          // the skills shown on the skills panel
+  let isCustomRole = false; // false = confirmed profile role, true = custom
+  let finalRole = ""; // the role shown on the skills panel
+  let finalSkills = []; // the skills shown on the skills panel
 
-  // ── Step navigation ──────────────────────────────────────────────────────────
   function goToStep(idx) {
     hideError();
     sidebarTitle.textContent = SIDEBAR[idx].title;
-    sidebarDesc.textContent  = SIDEBAR[idx].desc;
+    sidebarDesc.textContent = SIDEBAR[idx].desc;
 
     stepPills.forEach((el, i) => {
       el.classList.remove("rs-step--active", "rs-step--done");
-      if (i < idx)       {el.classList.add("rs-step--done");}
-      else if (i === idx) {el.classList.add("rs-step--active");}
+      if (i < idx) {
+        el.classList.add("rs-step--done");
+      } else if (i === idx) {
+        el.classList.add("rs-step--active");
+      }
     });
 
     stepLines.forEach((el, i) => {
@@ -106,21 +117,25 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     panels.forEach((p, i) => {
-      if (i === idx) {p.removeAttribute("hidden");}
-      else           {p.setAttribute("hidden", "");}
+      if (i === idx) {
+        p.removeAttribute("hidden");
+      } else {
+        p.setAttribute("hidden", "");
+      }
     });
   }
 
-  // ── Load candidate profile ───────────────────────────────────────────────────
   try {
     const res = await window.electronAPI?.getCandidateProfile?.();
     if (res?.success && res.data?.role) {
       profileRole = res.data.role;
     }
-  } catch { /* non-fatal */ }
+  } catch {
+    /* non-fatal */
+  }
 
   if (profileRole) {
-    confirmRoleName.textContent   = profileRole;
+    confirmRoleName.textContent = profileRole;
     confirmRoleInline.textContent = profileRole;
     confirmSkeleton.setAttribute("hidden", "");
     confirmContent.removeAttribute("hidden");
@@ -129,8 +144,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     // No role from profile — skip confirm, go straight to input
     goToStep(1);
   }
-
-  // ── Confirm step ─────────────────────────────────────────────────────────────
 
   btnYes.addEventListener("click", () => {
     // Keeping the assigned profile role → not a custom role.
@@ -145,8 +158,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     goToStep(1);
   });
 
-  // ── Input step ───────────────────────────────────────────────────────────────
-
   roleInput.addEventListener("input", () => {
     btnSubmitRole.disabled = roleInput.value.trim().length === 0;
   });
@@ -160,20 +171,24 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   btnSubmitRole.addEventListener("click", () => {
     const role = roleInput.value.trim();
-    if (role) { setSubmitting(true); submitRole(role); }
+    if (role) {
+      setSubmitting(true);
+      submitRole(role);
+    }
   });
-
-  // ── Clarify step ─────────────────────────────────────────────────────────────
 
   btnConfirmClarify.addEventListener("click", () => {
-    if (selectedClarifyRole) { setSubmitting(true); submitRole(selectedClarifyRole); }
+    if (selectedClarifyRole) {
+      setSubmitting(true);
+      submitRole(selectedClarifyRole);
+    }
   });
-
-  // ── Skills step ──────────────────────────────────────────────────────────────
 
   const startInterviewHTML = btnStartInterview.innerHTML; // capture for restore
   btnStartInterview.addEventListener("click", () => {
-    if (btnStartInterview.disabled) { return; }
+    if (btnStartInterview.disabled) {
+      return;
+    }
     // Fail loud if the bridge method is missing — never spin forever silently.
     if (typeof window.electronAPI?.proceedToInterview !== "function") {
       showError("Unable to start the interview. Please restart the app.");
@@ -193,8 +208,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       onRestore: () => showError("That took too long. Please try again."),
     });
   });
-
-  // ── API submission ───────────────────────────────────────────────────────────
 
   async function submitRole(role) {
     pendingRole = role;
@@ -226,23 +239,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // ── Busy state ───────────────────────────────────────────────────────────────
-
   const ARROW_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>`;
-  const SPINNER    = `<span class="rs-spinner"></span>`;
+  const SPINNER = `<span class="rs-spinner"></span>`;
 
   function setSubmitting(busy) {
-    btnYes.disabled           = busy;
-    btnSubmitRole.disabled    = busy;
+    btnYes.disabled = busy;
+    btnSubmitRole.disabled = busy;
     btnConfirmClarify.disabled = busy;
 
     if (busy) {
-      btnYes.innerHTML           = `${SPINNER} Loading…`;
-      btnSubmitRole.innerHTML    = `${SPINNER} Checking role…`;
+      btnYes.innerHTML = `${SPINNER} Loading…`;
+      btnSubmitRole.innerHTML = `${SPINNER} Checking role…`;
       btnConfirmClarify.innerHTML = `${SPINNER} Confirming…`;
     } else {
       btnYes.innerHTML = `Yes, continue ${ARROW_ICON}`;
-      btnSubmitRole.disabled  = roleInput.value.trim().length === 0;
+      btnSubmitRole.disabled = roleInput.value.trim().length === 0;
       btnSubmitRole.innerHTML = `Continue to Interview ${ARROW_ICON}`;
 
       const label = selectedClarifyRole
@@ -252,8 +263,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       btnConfirmClarify.innerHTML = label;
     }
   }
-
-  // ── Render clarification cards ───────────────────────────────────────────────
 
   function renderClarification(suggestions) {
     selectedClarifyRole = "";
@@ -270,9 +279,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         <div class="rs-role-card__radio"></div>
         <span class="rs-role-card__label">${window.escHtml(role)}</span>`;
       card.addEventListener("click", () => {
-        roleCardsEl.querySelectorAll(".rs-role-card").forEach((c) =>
-          c.classList.remove("rs-role-card--selected")
-        );
+        roleCardsEl
+          .querySelectorAll(".rs-role-card")
+          .forEach((c) => c.classList.remove("rs-role-card--selected"));
         card.classList.add("rs-role-card--selected");
         selectedClarifyRole = role;
         btnConfirmClarify.disabled = false;
@@ -282,12 +291,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  // ── Render skills chips ───────────────────────────────────────────────────────
-
   function renderSkills(skills, role) {
     // Capture the confirmed values — this panel is the single source of the
     // role + skills sent to the interview site on Start Interview.
-    finalRole   = role;
+    finalRole = role;
     finalSkills = Array.isArray(skills) ? skills : [];
     confirmedRoleLabel.textContent = role;
     skillsGrid.innerHTML = "";
@@ -309,5 +316,4 @@ document.addEventListener("DOMContentLoaded", async () => {
       skillsGrid.appendChild(chip);
     });
   }
-
 });

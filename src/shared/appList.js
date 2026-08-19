@@ -6,8 +6,6 @@
 
 "use strict";
 
-// ─── Per-category Lists ──────────────────────────────────────────────────────
-
 const MEETING_APPS = [
   // Windows
   "zoom.exe",
@@ -199,7 +197,12 @@ const APP_COMPANIONS = {
   // teamviewer_service restarts teamviewer.exe on kill (it's a Windows service);
   // tv_w32/tv_x64/teamviewer_desktop are session hosts that keep accepting
   // incoming connections without the main window.
-  "teamviewer.exe": ["teamviewer_service.exe", "tv_w32.exe", "tv_x64.exe", "teamviewer_desktop.exe"],
+  "teamviewer.exe": [
+    "teamviewer_service.exe",
+    "tv_w32.exe",
+    "tv_x64.exe",
+    "teamviewer_desktop.exe",
+  ],
 
   // ── Snagit (TechSmith) ──
   // Editor + privileged helper keep capture alive after the tray app exits.
@@ -222,8 +225,7 @@ function getCompanions(processName) {
   return [...APP_COMPANIONS[key]];
 }
 
-// ─── Path-scoped companions ──────────────────────────────────────────────────
-
+// Path-scoped companions
 /**
  * Some relaunchers can't be identified by image name alone because several
  * unrelated vendors ship the exact same one — Squirrel is the big case:
@@ -285,8 +287,6 @@ function getCompanionScope(processName, companionName) {
 function requiresPathScope(companionName) {
   return SCOPED_COMPANION_NAMES.has(String(companionName || "").toLowerCase());
 }
-
-// ─── Display Name Lookup ─────────────────────────────────────────────────────
 
 /** Maps process executable names to human-friendly display names. */
 const APP_DISPLAY_NAMES = {

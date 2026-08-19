@@ -1,8 +1,5 @@
 /**
- * src/main/index.js
- * ─────────────────
  * Main process entry point — intentionally thin.
- *
  * Responsibilities:
  *   1. Enforce single-instance lock
  *   2. Register the letshyre:// custom protocol
@@ -21,7 +18,7 @@ const { getWindow, getIsInterviewActive } = require("./windowManager");
 const { PROTOCOL_SCHEME } = require("../shared/constants");
 const appState = require("./appState");
 
-// ─── Single Instance Lock ────────────────────────────────────────────────────
+// ─── Single Instance Lock
 
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -32,42 +29,28 @@ if (!gotTheLock) {
   app.on("second-instance", (_event, argv) => {
     const url = argv.find((arg) => arg.startsWith(`${PROTOCOL_SCHEME}://`));
     if (url) {
-      handleIncomingProtocol(
-        url,
-        getWindow(),
-        getIsInterviewActive(),
-        safeViolation
-      );
+      handleIncomingProtocol(url, getWindow(), getIsInterviewActive(), safeViolation);
     }
   });
 
-  // ── Custom Protocol Registration ─────────────────────────────────────────
+  // ── Custom Protocol Registration
 
   if (process.defaultApp) {
     if (process.argv.length >= 2) {
-      app.setAsDefaultProtocolClient(
-        PROTOCOL_SCHEME,
-        process.execPath,
-        [path.resolve(process.argv[1])]
-      );
+      app.setAsDefaultProtocolClient(PROTOCOL_SCHEME, process.execPath, [
+        path.resolve(process.argv[1]),
+      ]);
     }
   } else {
     app.setAsDefaultProtocolClient(PROTOCOL_SCHEME);
   }
 
-  // ── macOS Protocol Launch (open-url) ─────────────────────────────────────
+  // ── macOS Protocol Launch (open-url)
 
   app.on("open-url", (event, url) => {
     event.preventDefault();
-    handleIncomingProtocol(
-      url,
-      getWindow(),
-      getIsInterviewActive(),
-      safeViolation
-    );
+    handleIncomingProtocol(url, getWindow(), getIsInterviewActive(), safeViolation);
   });
-
-  // ── Delegate App Lifecycle ────────────────────────────────────────────────
 
   registerAppEvents();
 }

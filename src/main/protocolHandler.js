@@ -1,6 +1,4 @@
 /**
- * src/main/protocolHandler.js
- * ───────────────────────────
  * Owns everything related to the `letshyre://` custom deep-link protocol:
  *   - Parsing URL parameters
  *   - Building the interview URL
@@ -15,12 +13,8 @@
 const logger = require("./logger");
 const { INTERVIEW_BASE_URL } = require("../shared/constants");
 
-// ─── State ───────────────────────────────────────────────────────────────────
-
 let currentInterviewUrl = INTERVIEW_BASE_URL;
 let currentAccessToken = null;
-
-// ─── URL Helpers ─────────────────────────────────────────────────────────────
 
 /**
  * Parses a letshyre:// deep-link URL and extracts access/refresh tokens.
@@ -56,8 +50,6 @@ function buildInterviewUrl(params) {
   return url;
 }
 
-// ─── Protocol Activation ─────────────────────────────────────────────────────
-
 /**
  * Handles an incoming letshyre:// deep-link.
  * Updates state and optionally redirects the active window.
@@ -72,9 +64,13 @@ function handleIncomingProtocol(url, win, isInterviewActive, onViolation) {
   currentAccessToken = params.accessToken || null;
   currentInterviewUrl = buildInterviewUrl(params);
 
-  if (!win) {return;}
+  if (!win) {
+    return;
+  }
 
-  if (win.isMinimized()) {win.restore();}
+  if (win.isMinimized()) {
+    win.restore();
+  }
   win.focus();
 
   if (isInterviewActive) {
@@ -86,8 +82,6 @@ function handleIncomingProtocol(url, win, isInterviewActive, onViolation) {
     logger.info("[protocol] updated target interview URL:", currentInterviewUrl);
   }
 }
-
-// ─── Accessors ───────────────────────────────────────────────────────────────
 
 function getCurrentInterviewUrl() {
   return currentInterviewUrl;
@@ -128,7 +122,9 @@ function resetInterviewSession() {
  */
 function applyArgvDeepLink(argv) {
   const url = argv.find((arg) => arg.startsWith("letshyre://"));
-  if (!url) {return;}
+  if (!url) {
+    return;
+  }
   const params = getParams(url);
   currentAccessToken = params.accessToken || null;
   currentInterviewUrl = buildInterviewUrl(params);

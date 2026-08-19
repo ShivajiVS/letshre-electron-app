@@ -1,8 +1,5 @@
 /**
- * src/renderer/preflight.js
- * ─────────────────────────
  * Preflight security check UI controller.
- *
  * Communicates with the main process via window.electronAPI (contextBridge).
  * App lists and display names are sourced from shared/appList.js.
  */
@@ -26,8 +23,6 @@ function tr(key, fallback, params) {
   return window.t ? window.t(key, params) : fallback;
 }
 
-// ─── Icon Templates ───────────────────────────────────────────────────────────
-
 const ICONS = {
   loading:
     '<svg class="sc-icon spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
@@ -45,7 +40,7 @@ const ICONS = {
     '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>',
 };
 
-// ─── Verdict contract ─────────────────────────────────────────────────────────
+// ─── Verdict contract
 // Card state comes from main as { id, status, reasonKey, reasonParams,
 // blockedApps, threats }. `unverified` blocks Proceed exactly like `fail`.
 // `fail` has no constant — it's the fallthrough branch in both card renderers,
@@ -67,19 +62,22 @@ const REASON_FALLBACK = {
   "preflightResults.aiClear": "No AI cheating tools detected.",
   "preflightResults.aiRunning": "These AI copilot tools are still running:",
   "preflightResults.checkUnverified": "Could not verify this check. Click Re-scan.",
-  "preflightResults.agentClear": "No AI tools, network anomalies, or automation frameworks detected.",
-  "preflightResults.agentFailedStart": "Security agent failed to start — it is required to continue. Click Re-scan to retry.",
-  "preflightResults.agentUnverified": "Deep scan did not complete — this device could not be verified. Click Re-scan.",
-  "preflightResults.agentDegraded": "Deep scan finished with errors — this device could not be fully verified. Click Re-scan.",
-  "preflightResults.agentThreatsDetected": "Behavioral threats detected. Close the applications below and rescan.",
+  "preflightResults.agentClear":
+    "No AI tools, network anomalies, or automation frameworks detected.",
+  "preflightResults.agentFailedStart":
+    "Security agent failed to start — it is required to continue. Click Re-scan to retry.",
+  "preflightResults.agentUnverified":
+    "Deep scan did not complete — this device could not be verified. Click Re-scan.",
+  "preflightResults.agentDegraded":
+    "Deep scan finished with errors — this device could not be fully verified. Click Re-scan.",
+  "preflightResults.agentThreatsDetected":
+    "Behavioral threats detected. Close the applications below and rescan.",
 };
 
 /** Renders a verdict's reason through i18n, falling back to English in preview. */
 function verdictText(v) {
   return tr(v.reasonKey, REASON_FALLBACK[v.reasonKey] || v.reasonKey, v.reasonParams);
 }
-
-// ─── State ──────────────────────────────────────────────────────────────────────────────
 
 // True once preflight has fully passed — gates the live pre-proceed watcher.
 let _proceedReady = false;
@@ -97,13 +95,12 @@ let _proceedReady = false;
 const SCAN_TIMEOUT_MS = 27000;
 const MAX_SCAN_RETRIES = 3;
 const MAX_AUTO_RESCANS = 3;
-let _scanRetryCount  = 0;
+let _scanRetryCount = 0;
 let _autoRescanCount = 0;
-let _isAutoRescan    = false;
+let _isAutoRescan = false;
 /** Incremented per scan; progress events from older generations are ignored. */
-let _scanGeneration  = 0;
+let _scanGeneration = 0;
 
-// ── Phase 5: elevated retry ──────────────────────────────────────────────────
 // Whether the candidate can satisfy an elevation prompt. Resolved once at page
 // load, defaults to FALSE — a standard user or an older bridge without the
 // probe just never gets offered it.
@@ -111,17 +108,16 @@ let _canElevate = false;
 /** Process names already retried with elevation — the offer is strictly one-shot. */
 const _elevationTried = new Set();
 
-// ── Diagnostics capture (Phase E) ────────────────────────────────────────────
 // Populated as scans run, exported on demand by the Copy-diagnostics control
 // (shown once the retry cap is hit) so "it didn't work" reports come with context.
-let _appVersion   = null;
-let _lastScanId   = null;
-let _lastTimings  = null;   // per-probe { durationMs, deadlineMs, outcome }
-let _lastVerdicts = [];     // [{ id, status, reasonKey }]
+let _appVersion = null;
+let _lastScanId = null;
+let _lastTimings = null; // per-probe { durationMs, deadlineMs, outcome }
+let _lastVerdicts = []; // [{ id, status, reasonKey }]
 let _lastCanProceed = null;
-let _lastScanError  = null;
+let _lastScanError = null;
 
-const PROCEED_ENABLED_CLASS  = "sc-btn-proceed sc-btn-proceed--enabled";
+const PROCEED_ENABLED_CLASS = "sc-btn-proceed sc-btn-proceed--enabled";
 const PROCEED_DISABLED_CLASS = "sc-btn-proceed sc-btn-proceed--disabled";
 
 /** Rejects if `promise` doesn't settle within `ms` — bounds a hung native scan. */
@@ -152,7 +148,9 @@ function scheduleAutoRescan(evidence) {
   const accessDenied = evidence?.accessDenied || [];
 
   const halt = (key, fallback, names) => {
-    if (!finalStatus) { return; }
+    if (!finalStatus) {
+      return;
+    }
     finalStatus.className = "sc-status sc-status--fail";
     finalStatus.textContent = tr(key, fallback, { names: names.join(", ") });
   };
@@ -178,8 +176,10 @@ function scheduleAutoRescan(evidence) {
   if (_autoRescanCount >= MAX_AUTO_RESCANS) {
     if (finalStatus) {
       finalStatus.className = "sc-status sc-status--fail";
-      finalStatus.textContent =
-        tr("preflightResults.appsReopening", "Some apps keep reopening. Close them manually, then click Rescan.");
+      finalStatus.textContent = tr(
+        "preflightResults.appsReopening",
+        "Some apps keep reopening. Close them manually, then click Rescan."
+      );
     }
     return;
   }
@@ -190,12 +190,12 @@ function scheduleAutoRescan(evidence) {
   }, 2000);
 }
 
-// ─── DOM References ───────────────────────────────────────────────────────────────────
-
 document.addEventListener("DOMContentLoaded", async () => {
-  if (window.i18n?.ready) { await window.i18n.ready; }
+  if (window.i18n?.ready) {
+    await window.i18n.ready;
+  }
 
-  const btnRescan  = document.getElementById("btn-rescan");
+  const btnRescan = document.getElementById("btn-rescan");
   const btnProceed = document.getElementById("btn-proceed");
   const finalStatus = document.getElementById("final-status");
 
@@ -208,22 +208,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // ── App version footer ─────────────────────────────────────────────────────
   if (window.electronAPI?.getAppVersion) {
-    window.electronAPI.getAppVersion().then((v) => {
-      _appVersion = v || null;
-      const el = document.getElementById("app-version");
-      if (el && v) { el.textContent = `v${v}`; }
-    }).catch(() => {});
+    window.electronAPI
+      .getAppVersion()
+      .then((v) => {
+        _appVersion = v || null;
+        const el = document.getElementById("app-version");
+        if (el && v) {
+          el.textContent = `v${v}`;
+        }
+      })
+      .catch(() => {});
   }
 
-  // ── Phase 5: can this user satisfy an elevation prompt? ────────────────────
-  // Probed once, up front, so the access-denied path can decide instantly
-  // whether to offer an elevated retry or go straight to manual instructions.
-  // Any failure leaves it false — we never offer what we cannot confirm.
-  window.electronAPI?.canElevate?.()
-    .then((ok) => { _canElevate = ok === true; })
-    .catch(() => { _canElevate = false; });
+  window.electronAPI
+    ?.canElevate?.()
+    .then((ok) => {
+      _canElevate = ok === true;
+    })
+    .catch(() => {
+      _canElevate = false;
+    });
 
   // ── Auto-updater card (consent-first; interview-safe — main gates everything) ─
   if (window.electronAPI?.onUpdateAvailable) {
@@ -254,28 +259,38 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Recovery: pull the current updater state in case an event fired before
     // these listeners attached (e.g. after a Recheck reloaded the page).
-    window.electronAPI.getUpdateState?.().then((s) => {
-      if (!s) { return; }
-      if (s.downloaded) {
-        setUpdateCard({ kind: "downloaded", version: s.version });
-      } else if (s.state === "downloading") {
-        setUpdateCard({ kind: "downloading", percent: s.percent, version: s.version });
-      } else if (s.state === "available") {
-        setUpdateCard({ kind: "available", version: s.version, sizeBytes: s.sizeBytes, releaseNotes: s.releaseNotes });
-      }
-    }).catch(() => {});
+    window.electronAPI
+      .getUpdateState?.()
+      .then((s) => {
+        if (!s) {
+          return;
+        }
+        if (s.downloaded) {
+          setUpdateCard({ kind: "downloaded", version: s.version });
+        } else if (s.state === "downloading") {
+          setUpdateCard({ kind: "downloading", percent: s.percent, version: s.version });
+        } else if (s.state === "available") {
+          setUpdateCard({
+            kind: "available",
+            version: s.version,
+            sizeBytes: s.sizeBytes,
+            releaseNotes: s.releaseNotes,
+          });
+        }
+      })
+      .catch(() => {});
   }
 
-  // ── Live blocked-app gating of the Proceed button ──────────────────────────
+  // ── Live blocked-app gating of the Proceed button
   // Main pushes {clean, apps} every 2s while the user sits on the success
   // screen, so launching Zoom/OBS after passing but before clicking Proceed
   // still disables it.
   window.electronAPI?.onPreProceedStatus?.(({ clean, apps }) => {
-    if (!_proceedReady) { return; } // only gate once preflight has passed
+    if (!_proceedReady) {
+      return;
+    } // only gate once preflight has passed
     applyLiveProceedStatus(clean, apps || [], btnProceed, finalStatus);
   });
-
-  // ── Scan Lifecycle ──────────────────────────────────────────────────────
 
   async function runScans() {
     // Manual rescan = fresh start, clear the caps. Programmatic rescan
@@ -302,7 +317,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Subscribe before invoking so each card updates as its own check lands,
     // rather than all at once at the end.
     window.electronAPI.onPreflightProgress((verdict) => {
-      if (myGeneration !== _scanGeneration) { return; } // superseded — drop it
+      if (myGeneration !== _scanGeneration) {
+        return;
+      } // superseded — drop it
       applyVerdict(verdict);
     });
 
@@ -315,13 +332,17 @@ document.addEventListener("DOMContentLoaded", async () => {
         SCAN_TIMEOUT_MS,
         "Security scan timed out"
       );
-      if (myGeneration !== _scanGeneration) { return; } // a newer scan owns the UI
+      if (myGeneration !== _scanGeneration) {
+        return;
+      } // a newer scan owns the UI
       // Cards are already painted from the streaming events; this re-applies
       // them (idempotent) and sets the final button state.
       processResults(results, btnProceed, btnRescan, finalStatus);
       _scanRetryCount = 0; // a completed scan (pass or fail) breaks the retry chain
     } catch (err) {
-      if (myGeneration !== _scanGeneration) { return; }
+      if (myGeneration !== _scanGeneration) {
+        return;
+      }
       console.error("[preflight] scan error:", err);
       showScanError(finalStatus, btnRescan, err?.message || "Unknown error");
     } finally {
@@ -330,17 +351,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // ── Button Listeners ──────────────────────────────────────────────────────
-
   btnRescan.addEventListener("click", runScans);
 
   const proceedBtnHTML = btnProceed.innerHTML; // capture original for restore
   btnProceed.addEventListener("click", () => {
-    if (btnProceed.disabled) { return; }
+    if (btnProceed.disabled) {
+      return;
+    }
     // Fail loud if the bridge method is missing — never spin forever silently
     // (synced with the other nav buttons hardened in renderer-production-hardening).
     if (typeof window.electronAPI?.loadPermissionsPage !== "function") {
-      finalStatus.textContent = tr("preflightResults.restartApp", "Unable to continue — please restart the app.");
+      finalStatus.textContent = tr(
+        "preflightResults.restartApp",
+        "Unable to continue — please restart the app."
+      );
       finalStatus.className = "sc-status sc-status--fail";
       return;
     }
@@ -353,17 +377,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.armButtonRestore(btnProceed, proceedBtnHTML, {
       onRestore: () => {
         btnProceed.className = PROCEED_ENABLED_CLASS;
-        finalStatus.textContent = tr("preflightResults.tooLong", "That took too long. Please try again.");
+        finalStatus.textContent = tr(
+          "preflightResults.tooLong",
+          "That took too long. Please try again."
+        );
         finalStatus.className = "sc-status sc-status--fail";
       },
     });
   });
 
-  // ── Initial Scan ──────────────────────────────────────────────────────────
   runScans();
 });
-
-// ─── Loading State ────────────────────────────────────────────────────────────
 
 function setLoadingState(btnProceed, btnRescan, finalStatus) {
   // A scan is starting — the previous pass no longer authorises anything.
@@ -392,15 +416,15 @@ function setLoadingState(btnProceed, btnRescan, finalStatus) {
       badgeEl.className = "sc-badge sc-badge--scanning";
       badgeEl.textContent = tr("preflightResults.scanning", "Scanning");
     }
-    if (actionsEl) { actionsEl.innerHTML = ""; }
+    if (actionsEl) {
+      actionsEl.innerHTML = "";
+    }
   });
 
   // Show the agent card in a pending/scanning state (like the static cards)
   // until its result arrives. renderAgentCard() replaces it with pass/fail.
   renderAgentPending();
 }
-
-// ─── Agent Pending State ────────────────────────────────────────────────────
 
 /**
  * Renders the Deep Scan Agent card in a scanning state, matching the static
@@ -410,7 +434,9 @@ function setLoadingState(btnProceed, btnRescan, finalStatus) {
 function renderAgentPending() {
   document.getElementById("card-agent")?.remove();
   const container = document.querySelector(".sc-cards");
-  if (!container) { return; }
+  if (!container) {
+    return;
+  }
 
   const card = document.createElement("div");
   card.id = "card-agent";
@@ -429,8 +455,6 @@ function renderAgentPending() {
   container.appendChild(card);
 }
 
-// ─── Results Processing ───────────────────────────────────────────────────────
-
 /**
  * Renders one verdict onto its card. Called from both the streaming progress
  * listener and processResults() — idempotent and keyed by card id, so a
@@ -441,13 +465,21 @@ function renderAgentPending() {
  *          blockedApps?: string[], threats?: object[]}} v
  */
 function applyVerdict(v) {
-  if (!v || !v.id) { return; }
+  if (!v || !v.id) {
+    return;
+  }
   // Record for diagnostics — if the scan later times out, these streamed
   // verdicts are the only per-check state we have to show the candidate reported.
-  if (v.scanId) { _lastScanId = v.scanId; }
+  if (v.scanId) {
+    _lastScanId = v.scanId;
+  }
   const at = _lastVerdicts.findIndex((x) => x.id === v.id);
   const row = { id: v.id, status: v.status, reasonKey: v.reasonKey };
-  if (at >= 0) { _lastVerdicts[at] = row; } else { _lastVerdicts.push(row); }
+  if (at >= 0) {
+    _lastVerdicts[at] = row;
+  } else {
+    _lastVerdicts.push(row);
+  }
 
   if (v.id === "agent") {
     renderAgentCard(v);
@@ -485,7 +517,10 @@ function processResults(results, btnProceed, btnRescan, finalStatus) {
 
   if (allPassed) {
     _autoRescanCount = 0; // the kill→rescan loop resolved — re-arm auto-rescan
-    finalStatus.textContent = tr("preflightResults.allPassed", "All security checks passed. You are ready to start.");
+    finalStatus.textContent = tr(
+      "preflightResults.allPassed",
+      "All security checks passed. You are ready to start."
+    );
     finalStatus.className = "sc-status sc-status--pass";
     btnProceed.disabled = false;
     btnProceed.className = PROCEED_ENABLED_CLASS;
@@ -495,8 +530,14 @@ function processResults(results, btnProceed, btnRescan, finalStatus) {
     // "resolve the security alerts" when a probe failed sends them hunting for
     // a problem that isn't theirs.
     finalStatus.textContent = anyUnverified
-      ? tr("preflightResults.someUnverified", "Some checks could not be verified. Click Re-scan to try again.")
-      : tr("preflightResults.resolveAlerts", "Please resolve the security alerts above to proceed.");
+      ? tr(
+          "preflightResults.someUnverified",
+          "Some checks could not be verified. Click Re-scan to try again."
+        )
+      : tr(
+          "preflightResults.resolveAlerts",
+          "Please resolve the security alerts above to proceed."
+        );
     finalStatus.className = "sc-status sc-status--fail";
     btnProceed.disabled = true;
     btnProceed.className = PROCEED_DISABLED_CLASS;
@@ -510,7 +551,10 @@ function processResults(results, btnProceed, btnRescan, finalStatus) {
  */
 function applyLiveProceedStatus(clean, apps, btnProceed, finalStatus) {
   if (clean) {
-    finalStatus.textContent = tr("preflightResults.allPassed", "All security checks passed. You are ready to start.");
+    finalStatus.textContent = tr(
+      "preflightResults.allPassed",
+      "All security checks passed. You are ready to start."
+    );
     finalStatus.className = "sc-status sc-status--pass";
     btnProceed.disabled = false;
     btnProceed.className = PROCEED_ENABLED_CLASS;
@@ -526,8 +570,6 @@ function applyLiveProceedStatus(clean, apps, btnProceed, finalStatus) {
     btnProceed.className = PROCEED_DISABLED_CLASS;
   }
 }
-
-// ─── Card Updates ─────────────────────────────────────────────────────────────
 
 /**
  * Paints one static card in one of three states.
@@ -548,9 +590,13 @@ function updateCard(id, status, msg, blockedApps = []) {
   const descEl = document.getElementById(`desc-${id}`);
   const actionsEl = document.getElementById(`actions-${id}`);
   const badgeEl = document.getElementById(`badge-${id}`);
-  if (!cardEl || !iconEl || !descEl) { return; }
+  if (!cardEl || !iconEl || !descEl) {
+    return;
+  }
 
-  if (actionsEl) {actionsEl.innerHTML = "";}
+  if (actionsEl) {
+    actionsEl.innerHTML = "";
+  }
   descEl.textContent = msg;
 
   if (status === PASS) {
@@ -590,18 +636,19 @@ function updateCard(id, status, msg, blockedApps = []) {
   }
 }
 
-// ─── Kill Buttons ─────────────────────────────────────────────────────────────
-
 // Small inline icons for the kill row/button states. Defined once so the
 // per-outcome branches below stay readable.
 const KILL_ICON = {
   x: '<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>',
-  check: '<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>',
+  check:
+    '<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>',
   spin: '<svg class="sc-icon-xs spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>',
   // Same glyph as the spinner but static — "this came back on its own".
-  reopen: '<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>',
+  reopen:
+    '<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>',
   lock: '<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>',
-  clock: '<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>',
+  clock:
+    '<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>',
 };
 
 function renderKillButtons(container, blockedApps) {
@@ -643,9 +690,7 @@ function renderKillButtons(container, blockedApps) {
     const closeAllBtn = document.createElement("button");
     closeAllBtn.className = "sc-kill-all-btn";
     closeAllBtn.innerHTML = `<svg class="sc-icon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> ${tr("preflightResults.closeAllRescan", "Close All & Re-scan")}`;
-    closeAllBtn.addEventListener("click", () =>
-      handleKillAll(closeAllBtn, blockedApps)
-    );
+    closeAllBtn.addEventListener("click", () => handleKillAll(closeAllBtn, blockedApps));
     container.appendChild(closeAllBtn);
   }
 }
@@ -667,8 +712,15 @@ function renderKillButtons(container, blockedApps) {
 
 const SUCCESS_KILL_OUTCOMES = new Set(["closed", "already-gone"]);
 const KNOWN_KILL_OUTCOMES = new Set([
-  "closed", "already-gone", "access-denied", "respawned", "still-running",
-  "not-blocked", "own-process", "spawn-error", "unsupported",
+  "closed",
+  "already-gone",
+  "access-denied",
+  "respawned",
+  "still-running",
+  "not-blocked",
+  "own-process",
+  "spawn-error",
+  "unsupported",
 ]);
 
 /**
@@ -684,9 +736,7 @@ const KNOWN_KILL_OUTCOMES = new Set([
  */
 function normalizeKillResult(raw, processName) {
   const outcome =
-    typeof raw?.outcome === "string" && KNOWN_KILL_OUTCOMES.has(raw.outcome)
-      ? raw.outcome
-      : null;
+    typeof raw?.outcome === "string" && KNOWN_KILL_OUTCOMES.has(raw.outcome) ? raw.outcome : null;
   return {
     processName: typeof raw?.processName === "string" ? raw.processName : processName,
     success: outcome ? SUCCESS_KILL_OUTCOMES.has(outcome) : raw?.success === true,
@@ -712,7 +762,9 @@ function setKillHint(row, text, tone) {
 
 function clearKillHint(row) {
   const hint = row.nextElementSibling;
-  if (hint?.classList?.contains("sc-kill-hint")) { hint.remove(); }
+  if (hint?.classList?.contains("sc-kill-hint")) {
+    hint.remove();
+  }
 }
 
 /**
@@ -726,9 +778,7 @@ function applyKillOutcome(row, btn, processName, norm) {
   const display = getDisplayName(processName);
   const safeName = window.escHtml(display);
 
-  row.classList.remove(
-    "sc-kill-row--closed", "sc-kill-row--respawned", "sc-kill-row--blocked"
-  );
+  row.classList.remove("sc-kill-row--closed", "sc-kill-row--respawned", "sc-kill-row--blocked");
 
   if (norm.success) {
     clearKillHint(row);
@@ -742,7 +792,9 @@ function applyKillOutcome(row, btn, processName, norm) {
     row.classList.add("sc-kill-row--closed");
     row.querySelector(".sc-kill-ping")?.remove();
     const dot = row.querySelector(".sc-kill-dot");
-    if (dot) { dot.className = "sc-kill-dot sc-kill-dot--closed"; }
+    if (dot) {
+      dot.className = "sc-kill-dot sc-kill-dot--closed";
+    }
     return "closed";
   }
 
@@ -876,10 +928,10 @@ async function handleKillApp(btn, processName, row) {
   if (category === "closed") {
     // F4: derive "all closed" from the live DOM (rows still open across every
     // card) rather than a running counter that drifts on the fail-closed path.
-    const stillOpen = document.querySelectorAll(
-      ".sc-kill-row:not(.sc-kill-row--closed)"
-    ).length;
-    if (stillOpen === 0) { scheduleAutoRescan(); }
+    const stillOpen = document.querySelectorAll(".sc-kill-row:not(.sc-kill-row--closed)").length;
+    if (stillOpen === 0) {
+      scheduleAutoRescan();
+    }
   } else if (category === "respawned") {
     scheduleAutoRescan({ respawned: [display] });
   } else if (category === "access-denied") {
@@ -917,14 +969,20 @@ async function handleKillAll(btn, processNames) {
     btn.className = `sc-kill-all-btn sc-kill-all-btn--${variant}`;
     btn.innerHTML = `<svg class="sc-icon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24">${icon}</svg> ${label}`;
   };
-  const CHECK_PATH = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>';
-  const X_PATH = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>';
+  const CHECK_PATH =
+    '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>';
+  const X_PATH =
+    '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>';
 
   let results;
   try {
     results = await window.electronAPI.killAllProcesses(processNames);
   } catch {
-    setSummary("failed", X_PATH, tr("preflightResults.someFailedToClose", "Some apps failed to close"));
+    setSummary(
+      "failed",
+      X_PATH,
+      tr("preflightResults.someFailedToClose", "Some apps failed to close")
+    );
     scheduleAutoRescan();
     return;
   }
@@ -932,7 +990,11 @@ async function handleKillAll(btn, processNames) {
   // Older backend (or a bridge that resolves with nothing): no per-app truth is
   // available, so fall back to the previous behaviour rather than inventing one.
   if (!Array.isArray(results)) {
-    setSummary("success", CHECK_PATH, tr("preflightResults.allClosedRescanning", "All apps closed — re-scanning..."));
+    setSummary(
+      "success",
+      CHECK_PATH,
+      tr("preflightResults.allClosedRescanning", "All apps closed — re-scanning...")
+    );
     scheduleAutoRescan();
     return;
   }
@@ -948,15 +1010,23 @@ async function handleKillAll(btn, processNames) {
   const bySanitised = new Map();
   const collided = new Set();
   results.forEach((r) => {
-    if (!r || typeof r.processName !== "string") { return; }
+    if (!r || typeof r.processName !== "string") {
+      return;
+    }
     byName.set(r.processName, r);
     const key = sanitiseProcessKey(r.processName);
-    if (bySanitised.has(key)) { collided.add(key); } else { bySanitised.set(key, r); }
+    if (bySanitised.has(key)) {
+      collided.add(key);
+    } else {
+      bySanitised.set(key, r);
+    }
   });
   collided.forEach((key) => bySanitised.delete(key));
 
   const lookup = (name) => {
-    if (byName.has(name)) { return byName.get(name); }
+    if (byName.has(name)) {
+      return byName.get(name);
+    }
     return bySanitised.get(sanitiseProcessKey(name));
   };
 
@@ -966,33 +1036,59 @@ async function handleKillAll(btn, processNames) {
 
   processNames.forEach((name) => {
     const found = findKillRow(container, name);
-    if (!found || !found.btn) { return; }
+    if (!found || !found.btn) {
+      return;
+    }
     const category = applyKillOutcome(
-      found.row, found.btn, name, normalizeKillResult(lookup(name), name)
+      found.row,
+      found.btn,
+      name,
+      normalizeKillResult(lookup(name), name)
     );
-    if (category === "closed") { closedCount += 1; }
-    else if (category === "respawned") { evidence.respawned.push(getDisplayName(name)); }
-    else if (category === "access-denied") { evidence.accessDenied.push(getDisplayName(name)); }
-    else if (category === "still-running") { retryableCount += 1; }
+    if (category === "closed") {
+      closedCount += 1;
+    } else if (category === "respawned") {
+      evidence.respawned.push(getDisplayName(name));
+    } else if (category === "access-denied") {
+      evidence.accessDenied.push(getDisplayName(name));
+    } else if (category === "still-running") {
+      retryableCount += 1;
+    }
   });
 
   const total = processNames.length;
 
   if (closedCount === total) {
-    setSummary("success", CHECK_PATH, tr("preflightResults.allClosedRescanning", "All apps closed — re-scanning..."));
+    setSummary(
+      "success",
+      CHECK_PATH,
+      tr("preflightResults.allClosedRescanning", "All apps closed — re-scanning...")
+    );
     scheduleAutoRescan();
     return;
   }
 
   if (evidence.respawned.length > 0) {
-    setSummary("failed", X_PATH, tr("preflightResults.killAllReopened", "Some apps reopened themselves"));
+    setSummary(
+      "failed",
+      X_PATH,
+      tr("preflightResults.killAllReopened", "Some apps reopened themselves")
+    );
   } else if (closedCount === 0) {
-    setSummary("failed", X_PATH, tr("preflightResults.someFailedToClose", "Some apps failed to close"));
+    setSummary(
+      "failed",
+      X_PATH,
+      tr("preflightResults.someFailedToClose", "Some apps failed to close")
+    );
   } else {
     setSummary(
-      "partial", X_PATH,
-      tr("preflightResults.killAllPartial", `${closedCount} of ${total} closed — close the rest manually`,
-        { closed: closedCount, total })
+      "partial",
+      X_PATH,
+      tr(
+        "preflightResults.killAllPartial",
+        `${closedCount} of ${total} closed — close the rest manually`,
+        { closed: closedCount, total }
+      )
     );
   }
 
@@ -1019,7 +1115,9 @@ async function handleKillAll(btn, processNames) {
 function renderAgentCard(v) {
   document.getElementById("card-agent")?.remove();
   const container = document.querySelector(".sc-cards");
-  if (!container) { return; }
+  if (!container) {
+    return;
+  }
 
   const title = tr("preflightResults.agentTitle", "Deep Scan Agent");
   const desc = verdictText(v);
@@ -1169,11 +1267,10 @@ function showScanError(finalStatus, btnRescan, message) {
   }
 
   _scanRetryCount += 1;
-  const attempt = tr(
-    "preflightResults.attempt",
-    `attempt ${_scanRetryCount}/${MAX_SCAN_RETRIES}`,
-    { current: _scanRetryCount, max: MAX_SCAN_RETRIES }
-  );
+  const attempt = tr("preflightResults.attempt", `attempt ${_scanRetryCount}/${MAX_SCAN_RETRIES}`, {
+    current: _scanRetryCount,
+    max: MAX_SCAN_RETRIES,
+  });
   let seconds = 5;
 
   const renderCountdown = () =>
@@ -1218,10 +1315,13 @@ function pad(text, width) {
 /** One timing row: "process    4001ms  timeout  (deadline 4000ms)". */
 function formatTimingRows(timings) {
   const entries = Object.entries(timings || {});
-  if (entries.length === 0) { return ["  (none recorded)"]; }
-  return entries.map(([key, t]) =>
-    `  ${pad(key, 10)}${pad(`${t?.durationMs ?? "?"}ms`, 9)}` +
-    `${pad(t?.outcome ?? "?", 9)}(deadline ${t?.deadlineMs ?? "?"}ms)`
+  if (entries.length === 0) {
+    return ["  (none recorded)"];
+  }
+  return entries.map(
+    ([key, t]) =>
+      `  ${pad(key, 10)}${pad(`${t?.durationMs ?? "?"}ms`, 9)}` +
+      `${pad(t?.outcome ?? "?", 9)}(deadline ${t?.deadlineMs ?? "?"}ms)`
   );
 }
 
@@ -1231,7 +1331,9 @@ function formatTimingRows(timings) {
  * @returns {string|null} a single log line, or null if the entry isn't relevant
  */
 function projectAuditEntry(entry) {
-  const ts = String(entry?.timestamp || "").replace("T", " ").replace(/\..*$/, "");
+  const ts = String(entry?.timestamp || "")
+    .replace("T", " ")
+    .replace(/\..*$/, "");
   const d = entry?.data || {};
 
   if (entry?.type === "scan" && d.phase === "preflight") {
@@ -1241,16 +1343,20 @@ function projectAuditEntry(entry) {
     const timings = Object.entries(d.timings || {})
       .map(([k, t]) => `${k}=${t?.durationMs}ms/${t?.outcome}`)
       .join(" ");
-    return `  ${ts} preflight scan=${d.scanId} ${d.durationMs}ms ` +
-      `canProceed=${d.canProceed} [${verdicts}] ${timings}`;
+    return (
+      `  ${ts} preflight scan=${d.scanId} ${d.durationMs}ms ` +
+      `canProceed=${d.canProceed} [${verdicts}] ${timings}`
+    );
   }
 
   if (entry?.type === "scan") {
     // Live-interview tick. blockedApps are the same names rendered as kill
     // buttons on this page; nothing else from the tick is included.
     const apps = Array.isArray(d.blockedApps) ? d.blockedApps.join(",") : "";
-    return `  ${ts} tick display=${d.hdmiStatus} process=${d.processStatus} ` +
-      `agentReachable=${d.agentReachable} blockedApps=[${apps}]`;
+    return (
+      `  ${ts} tick display=${d.hdmiStatus} process=${d.processStatus} ` +
+      `agentReachable=${d.agentReachable} blockedApps=[${apps}]`
+    );
   }
 
   if (entry?.type === "violation") {
@@ -1266,7 +1372,9 @@ function projectAuditEntry(entry) {
 function findAgentVersion(auditEntries) {
   for (let i = auditEntries.length - 1; i >= 0; i -= 1) {
     const v = auditEntries[i]?.data?.agentVersion;
-    if (v) { return v; }
+    if (v) {
+      return v;
+    }
   }
   return null;
 }
@@ -1288,9 +1396,10 @@ async function buildDiagnosticsText() {
     .map(projectAuditEntry)
     .filter(Boolean);
 
-  const checkLines = _lastVerdicts.length > 0
-    ? _lastVerdicts.map((v) => `  ${pad(v.id, 10)}${pad(v.status, 12)}${v.reasonKey || ""}`)
-    : ["  (no check completed)"];
+  const checkLines =
+    _lastVerdicts.length > 0
+      ? _lastVerdicts.map((v) => `  ${pad(v.id, 10)}${pad(v.status, 12)}${v.reasonKey || ""}`)
+      : ["  (no check completed)"];
 
   return [
     "LetsHyre preflight diagnostics",
@@ -1358,9 +1467,13 @@ function removeDiagnosticsControl() {
  * up duplicate buttons.
  */
 function showDiagnosticsControl() {
-  if (document.getElementById("diagnostics-wrap")) { return; }
+  if (document.getElementById("diagnostics-wrap")) {
+    return;
+  }
   const footer = document.querySelector(".sc-footer");
-  if (!footer) { return; }
+  if (!footer) {
+    return;
+  }
 
   const wrap = document.createElement("div");
   wrap.id = "diagnostics-wrap";
@@ -1425,11 +1538,16 @@ let _update = { kind: "idle", notesOpen: false };
 
 /** Formats a byte count as a compact human string (e.g. "12.4 MB"). */
 function formatBytes(bytes) {
-  if (!bytes || bytes < 0) { return ""; }
+  if (!bytes || bytes < 0) {
+    return "";
+  }
   const units = ["B", "KB", "MB", "GB"];
   let i = 0;
   let n = bytes;
-  while (n >= 1024 && i < units.length - 1) { n /= 1024; i += 1; }
+  while (n >= 1024 && i < units.length - 1) {
+    n /= 1024;
+    i += 1;
+  }
   return `${n.toFixed(n < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
@@ -1452,7 +1570,10 @@ function renderUpdateCard() {
   const s = _update;
   const existing = document.getElementById("update-card");
 
-  if (!s || s.kind === "idle") { existing?.remove(); return; }
+  if (!s || s.kind === "idle") {
+    existing?.remove();
+    return;
+  }
 
   let card = existing;
   if (!card) {
@@ -1468,11 +1589,15 @@ function renderUpdateCard() {
 }
 
 function updateCardBody(s) {
-  const icon = {
-    available: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v12m0 0l-4-4m4 4l4-4M5 20h14"/>',
-    downloading: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v12m0 0l-4-4m4 4l4-4M5 20h14"/>',
-    downloaded: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>',
-  }[s.kind] || "";
+  const icon =
+    {
+      available:
+        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v12m0 0l-4-4m4 4l4-4M5 20h14"/>',
+      downloading:
+        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v12m0 0l-4-4m4 4l4-4M5 20h14"/>',
+      downloaded:
+        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>',
+    }[s.kind] || "";
 
   const head = (title, tone = "") => `
     <div class="update-card__head">
@@ -1487,9 +1612,13 @@ function updateCardBody(s) {
     ? `<button class="update-card__notes-toggle" onclick="window.__updateAction('notes')">
          ${s.notesOpen ? tr("updater.hideNotes", "Hide") : tr("updater.whatsNew", "What’s new")}
        </button>
-       ${s.notesOpen ? `<div class="update-card__notes">${window.escHtml(
-         typeof s.releaseNotes === "string" ? s.releaseNotes : ""
-       ).slice(0, 1200)}</div>` : ""}`
+       ${
+         s.notesOpen
+           ? `<div class="update-card__notes">${window
+               .escHtml(typeof s.releaseNotes === "string" ? s.releaseNotes : "")
+               .slice(0, 1200)}</div>`
+           : ""
+       }`
     : "";
 
   switch (s.kind) {
@@ -1502,9 +1631,8 @@ function updateCardBody(s) {
     }
     case "downloading": {
       const pct = Math.max(0, Math.min(100, s.percent ?? 0));
-      const sizeLine = (s.transferred && s.total)
-        ? `${formatBytes(s.transferred)} / ${formatBytes(s.total)}`
-        : "";
+      const sizeLine =
+        s.transferred && s.total ? `${formatBytes(s.transferred)} / ${formatBytes(s.total)}` : "";
       return `
         ${head(tr("updater.downloading", "Downloading update"))}
         <div class="update-card__progress"><div class="update-card__progress-bar" style="width:${pct}%"></div></div>
@@ -1518,9 +1646,8 @@ function updateCardBody(s) {
           <button class="update-card__btn update-card__btn--primary" onclick="window.__updateAction('install')">${tr("updater.updateNow", "Update now")}</button>
           <button class="update-card__btn update-card__btn--ghost" onclick="window.__updateAction('dismiss')">${tr("updater.dismiss", "Dismiss")}</button>
         </div>
-        <p class="update-card__hint">${tr("updater.readyHint", "\"Update now\" closes the app and installs — reopen from your interview link.")}</p>`;
+        <p class="update-card__hint">${tr("updater.readyHint", '"Update now" closes the app and installs — reopen from your interview link.')}</p>`;
     default:
       return "";
   }
 }
-

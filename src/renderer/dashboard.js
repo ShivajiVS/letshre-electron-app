@@ -1,6 +1,4 @@
 /**
- * src/renderer/dashboard.js
- * ─────────────────────────
  * Dashboard controller. Fetches the candidate profile (name, photo, interview
  * attempts) from main via IPC — tokens never touch the renderer. Gates the
  * "Take interview" button on remaining attempts.
@@ -12,26 +10,33 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Ensure the i18n bundle is loaded before we build any dynamic strings
   // below (window.t exists immediately, but reads against an empty bundle
   // until this resolves).
-  if (window.i18n?.ready) { await window.i18n.ready; }
+  if (window.i18n?.ready) {
+    await window.i18n.ready;
+  }
 
-  const welcomeEl       = document.getElementById("welcome");
-  const takeBtn         = document.getElementById("take-interview-btn");
-  const logoutBtn       = document.getElementById("logout-btn");
-  const dashNote        = document.getElementById("dash-note");
+  const welcomeEl = document.getElementById("welcome");
+  const takeBtn = document.getElementById("take-interview-btn");
+  const logoutBtn = document.getElementById("logout-btn");
+  const dashNote = document.getElementById("dash-note");
 
-  const profileAvatar   = document.getElementById("profile-avatar");
+  const profileAvatar = document.getElementById("profile-avatar");
   const profileInitials = document.getElementById("profile-initials");
-  const profileName     = document.getElementById("profile-name");
-  const profileRole     = document.getElementById("profile-role");
-  const profileMeta     = document.getElementById("profile-meta");
+  const profileName = document.getElementById("profile-name");
+  const profileRole = document.getElementById("profile-role");
+  const profileMeta = document.getElementById("profile-meta");
 
-  const attemptTracker  = document.getElementById("attempt-tracker");
-  const attemptDots     = document.getElementById("attempt-dots");
-  const attemptCount    = document.getElementById("attempt-count");
+  const attemptTracker = document.getElementById("attempt-tracker");
+  const attemptDots = document.getElementById("attempt-dots");
+  const attemptCount = document.getElementById("attempt-count");
 
   function initials(name) {
-    const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
-    if (!parts.length) { return "?"; }
+    const parts = String(name || "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    if (!parts.length) {
+      return "?";
+    }
     return (parts[0][0] + (parts[1]?.[0] || "")).toUpperCase();
   }
 
@@ -40,8 +45,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     let imgSrc = src;
     try {
       const res = await window.electronAPI?.fetchProfileImage?.(src);
-      if (res?.ok && res.dataUrl) { imgSrc = res.dataUrl; }
-    } catch { /* fall through to direct URL */ }
+      if (res?.ok && res.dataUrl) {
+        imgSrc = res.dataUrl;
+      }
+    } catch {
+      /* fall through to direct URL */
+    }
 
     const img = document.createElement("img");
     img.alt = displayName;
@@ -55,11 +64,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     containerEl.appendChild(img);
   }
 
-  // ── Guard: must be authenticated ─────────────────────────────────────────
+  // ── Guard: must be authenticated
   let sessionUser = null;
   try {
     sessionUser = await window.electronAPI?.getAuthUser?.();
-  } catch { sessionUser = null; }
+  } catch {
+    sessionUser = null;
+  }
 
   if (!sessionUser) {
     window.location.href = "./login.html";
@@ -68,9 +79,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Populate topbar immediately from session data (no network wait)
   const displayNameFallback = sessionUser.name || sessionUser.email || "User";
-  welcomeEl.textContent      = `Welcome, ${String(displayNameFallback).trim().split(/\s+/)[0]}`;
+  welcomeEl.textContent = `Welcome, ${String(displayNameFallback).trim().split(/\s+/)[0]}`;
 
-  // ── Fetch candidate profile ──────────────────────────────────────────────
+  // ── Fetch candidate profile
   let profile = null;
   try {
     const res = await window.electronAPI?.getCandidateProfile?.();
@@ -84,7 +95,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         return;
       }
     }
-  } catch { profile = null; }
+  } catch {
+    profile = null;
+  }
 
   if (profile) {
     const displayName = profile.name || displayNameFallback;
@@ -124,9 +137,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         </span>`;
     }
 
-    // ── Attempt tracker ──────────────────────────────────────────────────
+    // ── Attempt tracker
     const used = Number(profile.interview_attempts_used) || 0;
-    const max  = Number(profile.max_interviews_allowed)  || 0;
+    const max = Number(profile.max_interviews_allowed) || 0;
 
     // Number(missing field) is NaN, not null/undefined, so `?? fallback` won't
     // catch it — validate explicitly or the attempts gate silently breaks.
@@ -141,16 +154,17 @@ document.addEventListener("DOMContentLoaded", async () => {
       const dotCount = Math.min(max, 10);
       for (let i = 0; i < dotCount; i++) {
         const dot = document.createElement("span");
-        dot.className = `attempt-dot${  i < used ? " used" : ""}`;
+        dot.className = `attempt-dot${i < used ? " used" : ""}`;
         attemptDots.appendChild(dot);
       }
       attemptCount.textContent = window.t
         ? window.t("dashboard.attemptsRemaining", { remaining, max })
         : `${remaining} of ${max} remaining`;
-      if (remaining <= 0) { attemptCount.classList.add("exhausted"); }
+      if (remaining <= 0) {
+        attemptCount.classList.add("exhausted");
+      }
     }
 
-    // ── Gate the button ──────────────────────────────────────────────────
     if (remaining <= 0) {
       takeBtn.disabled = true;
       dashNote.textContent = window.t
@@ -158,19 +172,20 @@ document.addEventListener("DOMContentLoaded", async () => {
         : "You've used all your interview attempts. Contact support if you need more.";
       dashNote.classList.add("exhausted-note");
     }
-
   } else {
     // Profile fetch failed — clear skeletons with session data
-    profileName.textContent     = displayNameFallback;
-    profileRole.textContent     = sessionUser.role || "";
-    profileMeta.innerHTML       = "";
+    profileName.textContent = displayNameFallback;
+    profileRole.textContent = sessionUser.role || "";
+    profileMeta.innerHTML = "";
     profileInitials.textContent = initials(displayNameFallback);
   }
 
-  // ── Take interview ───────────────────────────────────────────────────────
+  // ── Take interview
   const takeBtnHTML = takeBtn.innerHTML; // capture original markup for restore
   takeBtn.addEventListener("click", () => {
-    if (takeBtn.disabled) { return; }
+    if (takeBtn.disabled) {
+      return;
+    }
     // Fail loud if the bridge method is missing — never spin forever silently.
     if (typeof window.electronAPI?.startInterview !== "function") {
       dashNote.textContent = "Unable to start — please restart the app.";
@@ -190,7 +205,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   });
 
-  // ── Logout ───────────────────────────────────────────────────────────────
+  // ── Logout
   logoutBtn.addEventListener("click", async () => {
     logoutBtn.disabled = true;
     logoutBtn.innerHTML = `
@@ -200,7 +215,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         <line x1="21" y1="12" x2="9" y2="12"/>
       </svg>
       Logging out…`;
-    try { await window.electronAPI?.logout?.(); } catch { /* clear locally regardless */ }
+    try {
+      await window.electronAPI?.logout?.();
+    } catch {
+      /* clear locally regardless */
+    }
     window.location.href = "./login.html";
   });
 });

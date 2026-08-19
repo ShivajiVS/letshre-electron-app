@@ -1,8 +1,6 @@
 /**
- * src/main/appState.js
- * ────────────────────
+=
  * Centralised, type-safe application state.
- *
  * Replaces the ad-hoc `app.isQuiting` (misspelled) pattern where a
  * custom property was bolted onto the Electron app object — not
  * type-safe, not declared anywhere, and invisible to other modules.

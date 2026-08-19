@@ -1,8 +1,5 @@
 /**
- * src/main/screenRecorder.js
- * ───────────────────────────
  * Manages the hidden recorder BrowserWindow and the full chunk-upload pipeline.
- *
  * Upload flow (mirrors ScreenRecordingContext.jsx / videoUpload.api.js):
  *   /start  → upload_id
  *   /chunk  × N  (sequential index, retry same index on failure)
@@ -18,50 +15,50 @@
 
 "use strict";
 
-const path        = require("path");
+const path = require("path");
 const { BrowserWindow, desktopCapturer, ipcMain } = require("electron");
-const logger      = require("./logger");
+const logger = require("./logger");
 const authManager = require("./authManager");
-const { IPC }     = require("../shared/constants");
+const { IPC } = require("../shared/constants");
 
-// ─── Retry / poll tunables ────────────────────────────────────────────────────
-
-const MAX_CHUNK_RETRIES  = 4;
-const POLL_INTERVAL_MS   = 3000;
-const MAX_POLL_MS        = 5 * 60 * 1000; // 5 min
+const MAX_CHUNK_RETRIES = 4;
+const POLL_INTERVAL_MS = 3000;
+const MAX_POLL_MS = 5 * 60 * 1000; // 5 min
 
 // Max ms to wait for the hidden recorder window to report RECORDER_READY after
 // creation. If it never does (preload missing, getUserMedia blocked, renderer
 // threw), the recording is dead — surface it instead of failing silently.
-const READY_TIMEOUT_MS   = 10000;
-
-// ─── Module state ─────────────────────────────────────────────────────────────
+const READY_TIMEOUT_MS = 10000;
 
 /** @type {BrowserWindow | null} */
-let recorderWin  = null;
-let isRecording  = false;
+let recorderWin = null;
+let isRecording = false;
 
 // Upload session
-let uploadId     = null;
-let chunkIndex   = 0;
-let chunkBuffer  = []; // holds blobs when /start hasn't resolved yet
-let pumpRunning  = false;
-let pumpPromise  = Promise.resolve(); // tracked so _finalize() can await a running pump
-let chunkQueue   = []; // { index, uint8Array }[]
-let pollTimer    = null;
-let readyTimer   = null; // watchdog: fires if RECORDER_READY never arrives
+let uploadId = null;
+let chunkIndex = 0;
+let chunkBuffer = []; // holds blobs when /start hasn't resolved yet
+let pumpRunning = false;
+let pumpPromise = Promise.resolve(); // tracked so _finalize() can await a running pump
+let chunkQueue = []; // { index, uint8Array }[]
+let pollTimer = null;
+let readyTimer = null; // watchdog: fires if RECORDER_READY never arrives
 
 // Job meta
-let jobMeta      = null; // { interviewId, fileName }
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+let jobMeta = null; // { interviewId, fileName }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function _uploadWithRetry(uint8Array, index) {
   for (let attempt = 1; attempt <= MAX_CHUNK_RETRIES; attempt++) {
-    const res = await authManager.uploadVideoChunk({ uploadId, chunkIndex: index, chunk: uint8Array });
-    if (res.ok) { return; }
+    const res = await authManager.uploadVideoChunk({
+      uploadId,
+      chunkIndex: index,
+      chunk: uint8Array,
+    });
+    if (res.ok) {
+      return;
+    }
     if (attempt < MAX_CHUNK_RETRIES) {
       const backoff = Math.min(1000 * 2 ** attempt, 8000);
       logger.warn(`[recorder] chunk ${index} retry ${attempt} in ${backoff}ms — ${res.error}`);
@@ -73,8 +70,12 @@ async function _uploadWithRetry(uint8Array, index) {
 }
 
 function _pump() {
-  if (!uploadId) {return Promise.resolve();}
-  if (pumpRunning) {return pumpPromise;} // caller awaits the already-running pump
+  if (!uploadId) {
+    return Promise.resolve();
+  }
+  if (pumpRunning) {
+    return pumpPromise;
+  } // caller awaits the already-running pump
 
   pumpRunning = true;
   pumpPromise = (async () => {
@@ -100,11 +101,17 @@ function _pump() {
 }
 
 function _clearPoll() {
-  if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+  if (pollTimer) {
+    clearTimeout(pollTimer);
+    pollTimer = null;
+  }
 }
 
 function _clearReadyWatchdog() {
-  if (readyTimer) { clearTimeout(readyTimer); readyTimer = null; }
+  if (readyTimer) {
+    clearTimeout(readyTimer);
+    readyTimer = null;
+  }
 }
 
 function _pollStatus() {
@@ -132,7 +139,9 @@ function _pollStatus() {
     }
     if (st === "failed") {
       logger.error("[recorder] backend merge failed");
-      _pushToInterviewPage(IPC.PUSH_PROCTORING_ERROR, { error: "Recording merge failed on server" });
+      _pushToInterviewPage(IPC.PUSH_PROCTORING_ERROR, {
+        error: "Recording merge failed on server",
+      });
       return;
     }
     // uploading | queued | processing → keep polling
@@ -148,23 +157,25 @@ async function _finalize() {
     logger.info("[recorder] /start was delayed — retrying with buffered chunks");
     const res = await authManager.startVideoUpload({
       interviewId: jobMeta.interviewId,
-      fileName:    jobMeta.fileName,
+      fileName: jobMeta.fileName,
     });
     if (res.ok) {
       uploadId = res.uploadId;
-      chunkBuffer.forEach((uint8Array) =>
-        chunkQueue.push({ index: chunkIndex++, uint8Array })
-      );
+      chunkBuffer.forEach((uint8Array) => chunkQueue.push({ index: chunkIndex++, uint8Array }));
       chunkBuffer = [];
       await _pump();
     } else {
       logger.error("[recorder] fallback /start also failed — recording lost:", res.error);
-      _pushToInterviewPage(IPC.PUSH_PROCTORING_ERROR, { error: "Could not register upload session." });
+      _pushToInterviewPage(IPC.PUSH_PROCTORING_ERROR, {
+        error: "Could not register upload session.",
+      });
       return;
     }
   }
 
-  if (!uploadId) { return; }
+  if (!uploadId) {
+    return;
+  }
 
   // Drain any remaining queued chunks before completing.
   await _pump();
@@ -183,25 +194,25 @@ function _pushToInterviewPage(channel, payload) {
   try {
     const { getWindow } = require("./windowManager");
     const win = getWindow();
-    if (win && !win.isDestroyed()) { win.webContents.send(channel, payload); }
+    if (win && !win.isDestroyed()) {
+      win.webContents.send(channel, payload);
+    }
   } catch (err) {
     logger.warn(`[recorder] push ${channel} failed:`, err.message);
   }
 }
 
 function _resetState() {
-  uploadId    = null;
-  chunkIndex  = 0;
+  uploadId = null;
+  chunkIndex = 0;
   chunkBuffer = [];
-  chunkQueue  = [];
+  chunkQueue = [];
   pumpRunning = false;
   pumpPromise = Promise.resolve();
-  jobMeta     = null;
+  jobMeta = null;
   _clearPoll();
   _clearReadyWatchdog();
 }
-
-// ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
  * Starts screen + mic recording in a hidden BrowserWindow.
@@ -220,15 +231,17 @@ async function start(meta = {}) {
       types: ["screen"],
       thumbnailSize: { width: 0, height: 0 },
     });
-    if (!sources.length) { throw new Error("No screen sources found"); }
+    if (!sources.length) {
+      throw new Error("No screen sources found");
+    }
 
-    const sourceId   = sources[0].id;
+    const sourceId = sources[0].id;
     const interviewId = meta.interviewId || null;
-    const fileName    = `interview_${interviewId || Date.now()}.webm`;
+    const fileName = `interview_${interviewId || Date.now()}.webm`;
 
     _resetState();
     isRecording = true;
-    jobMeta     = { interviewId, fileName };
+    jobMeta = { interviewId, fileName };
 
     // Register the upload session up-front so chunks stream during the interview.
     // If this fails we buffer chunks and retry at the end (/complete path).
@@ -241,16 +254,16 @@ async function start(meta = {}) {
     }
 
     recorderWin = new BrowserWindow({
-      show:         false,
-      width:        1,
-      height:       1,
-      skipTaskbar:  true,
+      show: false,
+      width: 1,
+      height: 1,
+      skipTaskbar: true,
       webPreferences: {
-        preload:          path.join(__dirname, "../../preload-recorder.js"),
-        nodeIntegration:  false,
+        preload: path.join(__dirname, "../../preload-recorder.js"),
+        nodeIntegration: false,
         contextIsolation: true,
-        sandbox:          false, // getUserMedia with chromeMediaSource requires this
-        webSecurity:      true,
+        sandbox: false, // getUserMedia with chromeMediaSource requires this
+        webSecurity: true,
       },
     });
 
@@ -260,7 +273,9 @@ async function start(meta = {}) {
       }
     });
 
-    recorderWin.on("closed", () => { recorderWin = null; });
+    recorderWin.on("closed", () => {
+      recorderWin = null;
+    });
     recorderWin.loadFile(path.join(__dirname, "../../assets/recorder.html"));
 
     // Watchdog: the recorder must report RECORDER_READY within READY_TIMEOUT_MS.
@@ -270,7 +285,9 @@ async function start(meta = {}) {
     _clearReadyWatchdog();
     readyTimer = setTimeout(() => {
       readyTimer = null;
-      if (!isRecording) { return; } // already stopped/cleaned up
+      if (!isRecording) {
+        return;
+      } // already stopped/cleaned up
       logger.error("[recorder] recorder never became ready — recording will not be captured");
       _pushToInterviewPage(IPC.PUSH_PROCTORING_ERROR, {
         error: "Screen recording could not start on this device.",
@@ -292,7 +309,9 @@ async function start(meta = {}) {
  * sends recorder:stopped, then main calls /complete and polls /status.
  */
 function stop() {
-  if (!isRecording) { return; }
+  if (!isRecording) {
+    return;
+  }
   isRecording = false;
 
   if (recorderWin && !recorderWin.isDestroyed()) {
@@ -330,7 +349,9 @@ function registerRecorderIpc() {
       // /start hasn't resolved yet — buffer; chunkIndex stays 0 so indices are
       // sequential when the buffer is drained in _finalize().
       chunkBuffer.push(uint8Array);
-      logger.info(`[recorder] buffering chunk ${chunkBuffer.length - 1} (${uint8Array.byteLength} B) — no uploadId yet`);
+      logger.info(
+        `[recorder] buffering chunk ${chunkBuffer.length - 1} (${uint8Array.byteLength} B) — no uploadId yet`
+      );
     }
   });
 
@@ -347,7 +368,6 @@ function registerRecorderIpc() {
     isRecording = false;
     _pushToInterviewPage(IPC.PUSH_PROCTORING_ERROR, { error: msg });
   });
-
 }
 
 module.exports = { start, stop, registerRecorderIpc };

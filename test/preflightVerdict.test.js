@@ -20,8 +20,6 @@ const {
   canProceed,
 } = require("../src/detector/preflightVerdict");
 
-// ─── HDMI ────────────────────────────────────────────────────────────────────
-
 test("mapHdmi: a clear probe passes", () => {
   assert.strictEqual(mapHdmi({ detected: false, status: "clear" }).status, PASS);
 });
@@ -42,8 +40,6 @@ test("mapHdmi: a missing result is unverified", () => {
   assert.strictEqual(mapHdmi(null).status, UNVERIFIED);
 });
 
-// ─── Processes ───────────────────────────────────────────────────────────────
-
 test("mapProcesses: a clean scan passes all four cards", () => {
   const vs = mapProcesses({ detected: false, status: "clear", details: { processes: [] } });
   assert.strictEqual(vs.length, 4);
@@ -55,7 +51,10 @@ test("mapProcesses: indeterminate marks ALL four cards unverified", () => {
   // indeterminate, so every category looked clean and all four went green.
   const vs = mapProcesses({ detected: false, status: "indeterminate", details: { processes: [] } });
   assert.strictEqual(vs.length, 4);
-  assert.ok(vs.every((v) => v.status === UNVERIFIED), "no category may pass on an incomplete scan");
+  assert.ok(
+    vs.every((v) => v.status === UNVERIFIED),
+    "no category may pass on an incomplete scan"
+  );
 });
 
 test("mapProcesses: a missing result marks all four unverified", () => {
@@ -86,8 +85,6 @@ test("mapProcesses: an unrecognised blocked app lands on the wireless card", () 
   assert.deepStrictEqual(wireless.blockedApps, ["some-remote-tool.exe"]);
 });
 
-// ─── Agent ───────────────────────────────────────────────────────────────────
-
 test("mapAgent: a clean scan passes", () => {
   const v = mapAgent({ alive: true, status: { threats: [], safe_to_proceed: true } });
   assert.strictEqual(v.status, PASS);
@@ -115,7 +112,10 @@ test("mapAgent: threats fail and are carried through for rendering", () => {
 });
 
 test("mapAgent: a degraded scan is unverified even with zero threats", () => {
-  const v = mapAgent({ alive: true, status: { threats: [], degraded: true, safe_to_proceed: true } });
+  const v = mapAgent({
+    alive: true,
+    status: { threats: [], degraded: true, safe_to_proceed: true },
+  });
   assert.strictEqual(v.status, UNVERIFIED);
 });
 
@@ -145,9 +145,15 @@ const AGENT_V2_CLEAN = {
   physical_monitors: 1,
   contract_version: 2,
   checks: {
-    window_titles: "ok", network: "ok", memory_patterns: "ok",
-    browser_automation: "ok", window_classes: "ok", ai_tools: "ok",
-    overlay_windows: "ok", virtual_audio: "ok", physical_monitors: "ok",
+    window_titles: "ok",
+    network: "ok",
+    memory_patterns: "ok",
+    browser_automation: "ok",
+    window_classes: "ok",
+    ai_tools: "ok",
+    overlay_windows: "ok",
+    virtual_audio: "ok",
+    physical_monitors: "ok",
   },
   degraded: false,
 };
@@ -191,8 +197,6 @@ test("agent contract v1 (stale agent.exe): still passes when genuinely clean", (
   assert.strictEqual(mapAgent({ alive: true, status: v1 }).status, PASS);
 });
 
-// ─── Gate ────────────────────────────────────────────────────────────────────
-
 const cleanRaw = {
   hdmi: { detected: false, status: "clear" },
   mirror: { detected: false, status: "clear", details: { processes: [] } },
@@ -201,7 +205,10 @@ const cleanRaw = {
 
 test("buildVerdicts: returns one verdict per check, in display order", () => {
   const vs = buildVerdicts(cleanRaw);
-  assert.deepStrictEqual(vs.map((v) => v.id), CHECK_IDS);
+  assert.deepStrictEqual(
+    vs.map((v) => v.id),
+    CHECK_IDS
+  );
 });
 
 test("canProceed: true only when every check passed", () => {
@@ -210,9 +217,7 @@ test("canProceed: true only when every check passed", () => {
 
 test("canProceed: a single unverified check closes the gate", () => {
   for (const id of CHECK_IDS) {
-    const vs = buildVerdicts(cleanRaw).map((v) =>
-      v.id === id ? { ...v, status: UNVERIFIED } : v
-    );
+    const vs = buildVerdicts(cleanRaw).map((v) => (v.id === id ? { ...v, status: UNVERIFIED } : v));
     assert.strictEqual(canProceed(vs), false, `${id} unverified must block Proceed`);
   }
 });

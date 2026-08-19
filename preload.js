@@ -1,8 +1,5 @@
 /**
- * preload.js
- * ──────────
  * Renderer context bridge — runs in a sandboxed context before the page loads.
- *
  * NOTE: With sandbox:true, Node's require() is NOT available for local files.
  * Only require('electron') works. IPC channel names are therefore inlined here
  * directly (they mirror src/shared/constants.js IPC — keep them in sync).
@@ -126,33 +123,61 @@ const IPC = {
 
 // Hardened IPC wrapper — only whitelisted channels are allowed
 const ALLOWED_SEND_CHANNELS = [
-  IPC.QUIT_APP, IPC.RECHECK_SYSTEM, IPC.PROCEED_TO_INTERVIEW,
-  IPC.INSTALL_UPDATE, IPC.MINIMIZE_WINDOW, IPC.START_INTERVIEW,
-  IPC.INTERVIEW_COMPLETE, IPC.ACK_VIOLATION, IPC.LOAD_PERMISSIONS_PAGE,
-  IPC.LOAD_IDENTITY_VERIFICATION, IPC.LOAD_ROLE_SELECTION,
-  IPC.LOAD_DASHBOARD, IPC.LOAD_SECURITY_CHECK, IPC.LOAD_HOW_IT_WORKS,
+  IPC.QUIT_APP,
+  IPC.RECHECK_SYSTEM,
+  IPC.PROCEED_TO_INTERVIEW,
+  IPC.INSTALL_UPDATE,
+  IPC.MINIMIZE_WINDOW,
+  IPC.START_INTERVIEW,
+  IPC.INTERVIEW_COMPLETE,
+  IPC.ACK_VIOLATION,
+  IPC.LOAD_PERMISSIONS_PAGE,
+  IPC.LOAD_IDENTITY_VERIFICATION,
+  IPC.LOAD_ROLE_SELECTION,
+  IPC.LOAD_DASHBOARD,
+  IPC.LOAD_SECURITY_CHECK,
+  IPC.LOAD_HOW_IT_WORKS,
   IPC.PROCTORING_STOP,
 ];
 
 const ALLOWED_INVOKE_CHANNELS = [
-  IPC.RUN_PREFLIGHT, IPC.KILL_BLOCKED_APP,
-  IPC.KILL_ALL_BLOCKED_APPS, IPC.KILL_BLOCKED_APP_ELEVATED, IPC.CAN_ELEVATE,
-  IPC.GET_AUDIT_LOG, IPC.GET_APP_LIST,
-  IPC.GET_APP_VERSION, IPC.GET_UPDATE_STATE,
-  IPC.AUTH_LOGIN, IPC.AUTH_LOGOUT, IPC.GET_AUTH_USER, IPC.GET_CANDIDATE_PROFILE,
-  IPC.SUBMIT_VOICE_SAMPLE, IPC.SUBMIT_FACE_VERIFICATION,
-  IPC.FETCH_PROFILE_IMAGE, IPC.SUBMIT_ROLE,
+  IPC.RUN_PREFLIGHT,
+  IPC.KILL_BLOCKED_APP,
+  IPC.KILL_ALL_BLOCKED_APPS,
+  IPC.KILL_BLOCKED_APP_ELEVATED,
+  IPC.CAN_ELEVATE,
+  IPC.GET_AUDIT_LOG,
+  IPC.GET_APP_LIST,
+  IPC.GET_APP_VERSION,
+  IPC.GET_UPDATE_STATE,
+  IPC.AUTH_LOGIN,
+  IPC.AUTH_LOGOUT,
+  IPC.GET_AUTH_USER,
+  IPC.GET_CANDIDATE_PROFILE,
+  IPC.SUBMIT_VOICE_SAMPLE,
+  IPC.SUBMIT_FACE_VERIFICATION,
+  IPC.FETCH_PROFILE_IMAGE,
+  IPC.SUBMIT_ROLE,
   IPC.STORE_CANDIDATE_PHOTO,
   IPC.PROCTORING_START,
-  IPC.GET_LOCALE, IPC.SET_LOCALE, IPC.GET_TRANSLATIONS, IPC.GET_SUPPORTED_LOCALES,
+  IPC.GET_LOCALE,
+  IPC.SET_LOCALE,
+  IPC.GET_TRANSLATIONS,
+  IPC.GET_SUPPORTED_LOCALES,
 ];
 
 const ALLOWED_RECEIVE_CHANNELS = [
-  IPC.PUSH_UPDATE_AVAILABLE, IPC.PUSH_UPDATE_DOWNLOADED,
-  IPC.PUSH_UPDATE_PROGRESS, IPC.PUSH_UPDATE_ERROR, IPC.PUSH_UPDATE_STATE,
-  IPC.PUSH_WARNING, IPC.PREFLIGHT_PROGRESS, IPC.PUSH_VIOLATION,
+  IPC.PUSH_UPDATE_AVAILABLE,
+  IPC.PUSH_UPDATE_DOWNLOADED,
+  IPC.PUSH_UPDATE_PROGRESS,
+  IPC.PUSH_UPDATE_ERROR,
+  IPC.PUSH_UPDATE_STATE,
+  IPC.PUSH_WARNING,
+  IPC.PREFLIGHT_PROGRESS,
+  IPC.PUSH_VIOLATION,
   IPC.PUSH_PRE_PROCEED_STATUS,
-  IPC.PUSH_PROCTORING_STARTED, IPC.PUSH_PROCTORING_ERROR,
+  IPC.PUSH_PROCTORING_STARTED,
+  IPC.PUSH_PROCTORING_ERROR,
   IPC.LOCALE_CHANGED,
 ];
 
@@ -189,10 +214,7 @@ let _updateErrorHandler = null;
 let _updateStateHandler = null;
 let _warningHandler = null;
 
-// ─── Exposed API ─────────────────────────────────────────────────────────────
-
 contextBridge.exposeInMainWorld("electronAPI", {
-  // ── Auth ─────────────────────────────────────────────────────────────────────
   /**
    * Log in. Tokens stay in the main process; this resolves with display-safe
    * fields only. @returns {Promise<{success:boolean, message:string, user?:object}>}
@@ -271,8 +293,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
    * Main process decodes the base64, builds multipart, POSTs with Bearer token.
    * @param {string} dataUrl
    */
-  submitFaceVerification: (dataUrl) =>
-    safeInvoke(IPC.SUBMIT_FACE_VERIFICATION, dataUrl),
+  submitFaceVerification: (dataUrl) => safeInvoke(IPC.SUBMIT_FACE_VERIFICATION, dataUrl),
 
   /**
    * Store the verified photo from identity-verification.html in the main
@@ -280,10 +301,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
    * React boots (via webContents.executeJavaScript on dom-ready).
    * @param {string} dataUrl — base64 data URL
    */
-  storeCandidatePhoto: (dataUrl) =>
-    safeInvoke(IPC.STORE_CANDIDATE_PHOTO, dataUrl),
+  storeCandidatePhoto: (dataUrl) => safeInvoke(IPC.STORE_CANDIDATE_PHOTO, dataUrl),
 
-  // ── App control ────────────────────────────────────────────────────────────
+  // ── App control
   /** Quit the application. */
   quitApp: () => safeSend(IPC.QUIT_APP),
 
@@ -297,29 +317,26 @@ contextBridge.exposeInMainWorld("electronAPI", {
    */
   minimizeWindow: () => safeSend(IPC.MINIMIZE_WINDOW),
 
-  // ── Preflight ──────────────────────────────────────────────────────────────
+  // ── Preflight
   /** Run all preflight security scans and return combined results. */
   runPreflight: () => safeInvoke(IPC.RUN_PREFLIGHT),
 
-  // ── Interview flow ─────────────────────────────────────────────────────────
+  // ── Interview flow
   /** Activate interview lockdown mode and navigate to the interview URL.
    *  payload: { is_custom_role: boolean, selected_role?: string[], manual_skills?: string[] } */
   proceedToInterview: (payload) => safeSend(IPC.PROCEED_TO_INTERVIEW, payload),
 
-  // ── Process management ─────────────────────────────────────────────────────
   /**
    * Force-terminate a single blocked process.
    * @param {string} processName
    */
-  killProcess: (processName) =>
-    safeInvoke(IPC.KILL_BLOCKED_APP, processName),
+  killProcess: (processName) => safeInvoke(IPC.KILL_BLOCKED_APP, processName),
 
   /**
    * Force-terminate multiple blocked processes at once.
    * @param {string[]} processNames
    */
-  killAllProcesses: (processNames) =>
-    safeInvoke(IPC.KILL_ALL_BLOCKED_APPS, processNames),
+  killAllProcesses: (processNames) => safeInvoke(IPC.KILL_ALL_BLOCKED_APPS, processNames),
 
   /** Phase 5: can the current user actually satisfy an elevation prompt?
    *  False for standard users, so the UI can withhold an offer that would
@@ -328,10 +345,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   /** Phase 5: explicit, user-initiated elevated retry. Shows a system consent
    *  prompt, so main refuses it outright during an active interview. */
-  killProcessElevated: (processName) =>
-    safeInvoke(IPC.KILL_BLOCKED_APP_ELEVATED, processName),
+  killProcessElevated: (processName) => safeInvoke(IPC.KILL_BLOCKED_APP_ELEVATED, processName),
 
-  // ── Auto-updater (ADD-01) ──────────────────────────────────────────────────
+  // ── Auto-updater
   /**
    * Subscribe to update-available events from the main process.
    * @param {(data: { version: string }) => void} callback
@@ -414,11 +430,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   /** Returns the running application version string. */
   getAppVersion: () => safeInvoke(IPC.GET_APP_VERSION),
 
-  // ── Audit trail (ADD-07) ───────────────────────────────────────────────────
+  // ── Audit trail (ADD-07)
   /** Fetch the full in-memory session audit log. */
   getAuditLog: () => safeInvoke(IPC.GET_AUDIT_LOG),
 
-  // ── Streaming Preflight (ADD-02) ───────────────────────────────────────────
+  // ── Streaming Preflight (ADD-02)
   /**
    * Subscribe to per-step preflight progress events.
    * Replaces the previous single-response approach — cards update as each
@@ -445,7 +461,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     }
   },
 
-  // ── Warning push (ADD-06) ─────────────────────────────────────────────────
   /**
    * Subscribe to soft-violation warning pushes from the main process.
    * @param {(data: { message: string, severity: string }) => void} callback
@@ -464,7 +479,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     }
   },
 
-  // ── Violation bridge (interview active phase) ───────────────────────────────
   /**
    * Register a callback to receive ALL violation events pushed from the
    * Electron main process during an active interview session.
@@ -510,7 +524,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
    */
   acknowledgeViolation: () => safeSend(IPC.ACK_VIOLATION),
 
-  // ── Interview session end ─────────────────────────────────────────────────
   /**
    * Signal to Electron that the interview session has ended.
    * Electron will exit kiosk mode and restore close / minimize access.
@@ -519,12 +532,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
    *
    * @param {"completed"|"auto-submitted"|"terminated"|"expired"} reason
    */
-  interviewComplete: (reason) =>
-    safeSend(IPC.INTERVIEW_COMPLETE, { reason }),
+  interviewComplete: (reason) => safeSend(IPC.INTERVIEW_COMPLETE, { reason }),
 
   getAppList: () => safeInvoke(IPC.GET_APP_LIST),
 
-  // ── Screen recording / proctoring ─────────────────────────────────────────
+  //Screen recording / proctoring
   /**
    * Tell Electron to start screen + mic recording and upload chunks to the backend.
    * Call this when the interview session begins.
@@ -558,7 +570,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     safeOn(IPC.PUSH_PROCTORING_ERROR, (_, data) => callback(data));
   },
 
-  // ── Pre-proceed watcher (background blocked-app status) ───────────────────
+  // ── Pre-proceed watcher (background blocked-app status)
   /**
    * Subscribe to real-time blocked-app status pushes from the background
    * pre-proceed watcher (active after preflight passes, stopped on Proceed).
@@ -579,7 +591,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.removeAllListeners(IPC.PUSH_PRE_PROCEED_STATUS);
   },
 
-  // ── Localization ───────────────────────────────────────────────────────────
+  // ── Localization
   /** Returns the candidate's active locale code (persisted pref or OS default). */
   getLocale: () => safeInvoke(IPC.GET_LOCALE),
 
@@ -605,7 +617,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
 });
 
-// ─── Input Security (capture phase) ─────────────────────────────────────────
+// ─── Input Security (capture phase)
 // Use capture:true to intercept events BEFORE the webpage can stop them.
 
 document.addEventListener(

@@ -1,8 +1,5 @@
 /**
- * src/main/localeManager.js
- * ──────────────────────────
  * Resolves, reads, and persists the candidate's UI language.
- *
  * Translation bundles are static JSON files under assets/locales/ — read here
  * (main process) and handed to renderers over IPC, mirroring how windowManager
  * loads assets/*.html. This avoids file:// fetch + CSP friction in the
@@ -35,16 +32,24 @@ function _prefsFilePath() {
 
 /** Maps an OS locale string (e.g. "hi-IN", "zh-Hans-CN") to a supported code. */
 function _matchOSLocale(osLocale) {
-  if (!osLocale) {return null;}
-  if (SUPPORTED_CODES.has(osLocale)) {return osLocale;}
+  if (!osLocale) {
+    return null;
+  }
+  if (SUPPORTED_CODES.has(osLocale)) {
+    return osLocale;
+  }
   const lower = osLocale.toLowerCase();
   for (const code of SUPPORTED_CODES) {
-    if (lower === code.toLowerCase()) {return code;}
+    if (lower === code.toLowerCase()) {
+      return code;
+    }
   }
   // Fall back to matching just the primary subtag (e.g. "hi" from "hi-IN").
   const primary = lower.split("-")[0];
   for (const code of SUPPORTED_CODES) {
-    if (code.toLowerCase().split("-")[0] === primary) {return code;}
+    if (code.toLowerCase().split("-")[0] === primary) {
+      return code;
+    }
   }
   return null;
 }
@@ -68,7 +73,9 @@ function resolveInitialLocale() {
 function _loadPreferenceFromDisk() {
   try {
     const fp = _prefsFilePath();
-    if (!fs.existsSync(fp)) {return null;}
+    if (!fs.existsSync(fp)) {
+      return null;
+    }
     const raw = fs.readFileSync(fp, "utf8");
     const parsed = JSON.parse(raw);
     if (typeof parsed?.locale === "string" && SUPPORTED_CODES.has(parsed.locale)) {
@@ -82,7 +89,9 @@ function _loadPreferenceFromDisk() {
 
 /** Returns the active locale: stored preference, else OS-resolved default. */
 function getPreferred() {
-  if (_preferred) {return _preferred;}
+  if (_preferred) {
+    return _preferred;
+  }
   const stored = _loadPreferenceFromDisk();
   _preferred = stored || resolveInitialLocale();
   return _preferred;
@@ -108,7 +117,9 @@ function setPreferred(locale) {
  */
 function getTranslations(locale) {
   const code = SUPPORTED_CODES.has(locale) ? locale : DEFAULT_LOCALE;
-  if (_bundleCache.has(code)) {return _bundleCache.get(code);}
+  if (_bundleCache.has(code)) {
+    return _bundleCache.get(code);
+  }
 
   try {
     const fp = path.join(_localesDir(), `${code}.json`);
@@ -117,8 +128,13 @@ function getTranslations(locale) {
     _bundleCache.set(code, parsed);
     return parsed;
   } catch (err) {
-    logger.warn(`[locale] failed to load bundle "${code}", falling back to ${DEFAULT_LOCALE}:`, err.message);
-    if (code !== DEFAULT_LOCALE) {return getTranslations(DEFAULT_LOCALE);}
+    logger.warn(
+      `[locale] failed to load bundle "${code}", falling back to ${DEFAULT_LOCALE}:`,
+      err.message
+    );
+    if (code !== DEFAULT_LOCALE) {
+      return getTranslations(DEFAULT_LOCALE);
+    }
     return {};
   }
 }

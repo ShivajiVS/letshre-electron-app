@@ -1,6 +1,4 @@
 /**
- * src/main/agentManager.js
- * ────────────────────────
  * Owns the full lifecycle of the Python security agent binary:
  *   - Resolving the binary path (packaged vs. dev)
  *   - Killing stale instances from previous crashes
@@ -40,7 +38,7 @@ let _spawning = false;
 /** @type {NodeJS.Timeout | null} */
 let _respawnTimer = null;
 
-// ─── Pipe protocol state (Phase 2) ───────────────────────────────────────────
+//Pipe protocol state
 // Electron talks to the agent over stdin/stdout using newline-delimited JSON.
 // Each request carries an incrementing id; responses are matched back by id.
 let _cmdId = 0;
@@ -85,7 +83,9 @@ function _consumeStdout(chunk) {
   while ((nl = _stdoutBuf.indexOf("\n")) !== -1) {
     const line = _stdoutBuf.slice(0, nl).trim();
     _stdoutBuf = _stdoutBuf.slice(nl + 1);
-    if (!line) { continue; }
+    if (!line) {
+      continue;
+    }
     let msg;
     try {
       msg = JSON.parse(line);
@@ -130,7 +130,7 @@ function sendAgentCommand(cmd, timeoutMs = AGENT_REQUEST_TIMEOUT_MS) {
   });
 }
 
-// ─── Stale Agent Cleanup ─────────────────────────────────────────────────────
+// Stale Agent Cleanup
 
 /**
  * Kills any stale agent left bound to the agent port by a previous crash.
@@ -154,7 +154,11 @@ function killStaleAgent() {
             }
           }
         `;
-        const killByPort = spawn("powershell", ["-NoProfile", "-NonInteractive", "-Command", psCmd], { shell: false });
+        const killByPort = spawn(
+          "powershell",
+          ["-NoProfile", "-NonInteractive", "-Command", psCmd],
+          { shell: false }
+        );
         killByPort.on("close", () => setTimeout(resolve, 500));
         killByPort.on("error", () => resolve());
       });
@@ -171,7 +175,9 @@ function killStaleAgent() {
           .trim()
           .split(/\s+/)
           .filter((p) => p && p !== "0");
-        if (pids.length === 0) {return resolve();}
+        if (pids.length === 0) {
+          return resolve();
+        }
 
         logger.info(
           `[agent] killing stale agent(s) on port ${AGENT_PORT}: PIDs ${pids.join(", ")}`
@@ -191,8 +197,6 @@ function killStaleAgent() {
   });
 }
 
-// ─── Spawn ───────────────────────────────────────────────────────────────────
-
 /**
  * Spawns the Python security agent binary and keeps a reference to it.
  * Kills any stale orphaned agent first, then spawns fresh.
@@ -207,7 +211,10 @@ async function spawnAgent() {
   }
   _spawning = true;
   // A spawn supersedes any pending auto-respawn.
-  if (_respawnTimer) { clearTimeout(_respawnTimer); _respawnTimer = null; }
+  if (_respawnTimer) {
+    clearTimeout(_respawnTimer);
+    _respawnTimer = null;
+  }
 
   try {
     if (agentProcess) {
@@ -249,7 +256,9 @@ async function spawnAgent() {
         // Ignore exit events from a process we've already replaced — otherwise an
         // old child's exit would null the NEW agentProcess and trigger a stray
         // respawn (kill/respawn thrash).
-        if (agentProcess !== child) { return; }
+        if (agentProcess !== child) {
+          return;
+        }
         logger.warn(`[agent] exited with code ${code}`);
         agentProcess = null;
         // Fail any in-flight commands so callers don't hang until timeout.
@@ -284,8 +293,6 @@ async function spawnAgent() {
   }
 }
 
-// ─── Wait / Poll ─────────────────────────────────────────────────────────────
-
 /**
  * Pings the agent over the pipe every AGENT_POLL_INTERVAL_MS until it responds
  * or maxMs elapses. No longer depends on the HTTP port being reachable.
@@ -296,7 +303,9 @@ async function waitForAgent(maxMs = AGENT_PING_TIMEOUT_MS) {
   const started = Date.now();
   while (Date.now() - started < maxMs) {
     const res = await sendAgentCommand("ping", 400);
-    if (res && res.alive) { return true; }
+    if (res && res.alive) {
+      return true;
+    }
     await new Promise((r) => setTimeout(r, AGENT_POLL_INTERVAL_MS));
   }
   logger.warn("[agent] did not respond within", maxMs, "ms");
@@ -311,13 +320,13 @@ async function waitForAgent(maxMs = AGENT_PING_TIMEOUT_MS) {
  */
 async function ensureAgent() {
   const res = await sendAgentCommand("ping", 600);
-  if (res && res.alive) { return true; }
+  if (res && res.alive) {
+    return true;
+  }
   logger.warn("[agent] not responding — attempting respawn before preflight");
   await spawnAgent();
   return await waitForAgent();
 }
-
-// ─── Cleanup ─────────────────────────────────────────────────────────────────
 
 /**
  * Terminates the agent process if it is running.
@@ -325,7 +334,10 @@ async function ensureAgent() {
  */
 function killAgent() {
   // Cancel any pending auto-respawn so it can't fire after shutdown.
-  if (_respawnTimer) { clearTimeout(_respawnTimer); _respawnTimer = null; }
+  if (_respawnTimer) {
+    clearTimeout(_respawnTimer);
+    _respawnTimer = null;
+  }
   if (agentProcess) {
     try {
       agentProcess.kill();

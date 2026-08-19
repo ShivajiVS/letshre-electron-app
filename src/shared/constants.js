@@ -5,7 +5,7 @@
 
 "use strict";
 
-// ─── Backend / Agent ─────────────────────────────────────────────────────────
+// ─── Backend / Agent
 
 /** Port the Python security agent listens on. */
 const AGENT_PORT = 9999;
@@ -22,7 +22,7 @@ const AGENT_POLL_INTERVAL_MS = 500;
 /** Max wait per individual HTTP request to agent. */
 const AGENT_REQUEST_TIMEOUT_MS = 2000;
 
-// ─── URLs ────────────────────────────────────────────────────────────────────
+// ─── URLs
 
 /** Base URL of the interview web app. */
 const INTERVIEW_BASE_URL = "https://interview.letshyre.com";
@@ -74,7 +74,7 @@ const INDETERMINATE_ESCALATION_THRESHOLD = 3;
  */
 const HARD_BLOCK_GRACE_MS = 8000;
 
-// ─── Preflight scan budget ───────────────────────────────────────────────────
+// ─── Preflight scan budget
 // Checks run concurrently, each under its own deadline. A check that misses
 // its deadline is reported "unverified" (fail-closed, blocks Proceed) rather
 // than failing the whole scan.
@@ -113,7 +113,7 @@ const PREFLIGHT_RENDERER_TIMEOUT_MS = 27000;
 /** Results older than this are considered stale and will not enable Proceed. */
 const PREFLIGHT_RESULT_MAX_AGE_MS = 60000;
 
-// ─── Process termination budget ──────────────────────────────────────────────
+// ─── Process termination budget
 // killSingleProcess() spends enum + kill + verify + relaunch-watch, ≈12s worst
 // case, ~1-2s in the common path. killAllProcesses() runs apps concurrently, so
 // N apps cost the same as one.
@@ -144,7 +144,7 @@ const KILL_RELAUNCH_POLL_MS = 600;
  */
 const KILL_ELEVATE_TIMEOUT_MS = 60000;
 
-// ─── IPC Channel Names ───────────────────────────────────────────────────────
+// ─── IPC Channel Names
 // Keep these in sync with preload.js exposures and ipcHandlers.js registrations.
 //
 // Convention:
@@ -279,8 +279,6 @@ const IPC = {
   LOCALE_CHANGED: "locale-changed",
 };
 
-// ─── Localization ────────────────────────────────────────────────────────────
-
 /** Locale used when no preference is stored and the OS locale isn't supported. */
 const DEFAULT_LOCALE = "en";
 
@@ -309,8 +307,6 @@ const SUPPORTED_LOCALES = [
   { code: "ko", name: "한국어", dir: "ltr" },
   { code: "id", name: "Bahasa Indonesia", dir: "ltr" },
 ];
-
-// ─── Custom Protocol ─────────────────────────────────────────────────────────
 
 /** The custom deep-link scheme registered with the OS. */
 const PROTOCOL_SCHEME = "letshyre";

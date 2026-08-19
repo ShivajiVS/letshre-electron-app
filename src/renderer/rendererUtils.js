@@ -1,6 +1,4 @@
 /**
- * src/renderer/rendererUtils.js
- * ──────────────────────────────
  * Small helpers shared across the renderer pages (dashboard, permissions,
  * identity-verification, role-selection, preflight). Plain browser script —
  * no bundler, no `require`/`module.exports` — attaches to `window` like
@@ -11,13 +9,11 @@
 /* eslint-env browser */
 "use strict";
 
-/**
- * Escapes text for safe insertion into the DOM.
- */
 window.escHtml = function escHtml(str) {
-  return String(str || "").replace(/[&<>"']/g, (c) => (
-    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
-  ));
+  return String(str || "").replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]
+  );
 };
 
 /**
@@ -44,6 +40,8 @@ window.armButtonRestore = function armButtonRestore(btn, originalHTML, options) 
   return setTimeout(() => {
     btn.disabled = false;
     btn.innerHTML = originalHTML;
-    if (typeof onRestore === "function") { onRestore(); }
+    if (typeof onRestore === "function") {
+      onRestore();
+    }
   }, timeoutMs);
 };

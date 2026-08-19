@@ -1,8 +1,6 @@
 /**
- * src/main/authManager.js
- * ───────────────────────
+
  * Owns authentication against the LetsHyre API.
- *
  * Tokens live ONLY here — the renderer never sees them, only display-safe
  * user fields (name/email/role), and drives auth through IPC.
  *
@@ -19,16 +17,19 @@ const { safeStorage, app } = require("electron");
 const axios = require("axios");
 const logger = require("./logger");
 const {
-  API_BASE_URL, AUTH_LOGIN_PATH, AUTH_LOGOUT_PATH,
-  CANDIDATE_PROFILE_PATH, TOKEN_REFRESH_PATH,
-  VIDEO_UPLOAD_START_PATH, VIDEO_UPLOAD_CHUNK_PATH,
-  VIDEO_UPLOAD_COMPLETE_PATH, VIDEO_UPLOAD_STATUS_PATH,
+  API_BASE_URL,
+  AUTH_LOGIN_PATH,
+  AUTH_LOGOUT_PATH,
+  CANDIDATE_PROFILE_PATH,
+  TOKEN_REFRESH_PATH,
+  VIDEO_UPLOAD_START_PATH,
+  VIDEO_UPLOAD_CHUNK_PATH,
+  VIDEO_UPLOAD_COMPLETE_PATH,
+  VIDEO_UPLOAD_STATUS_PATH,
 } = require("../shared/constants");
 
 /** @type {{ accessToken: string, refreshToken: string, user: object } | null} */
 let session = null;
-
-// ─── Session persistence ──────────────────────────────────────────────────────
 
 function _sessionFilePath() {
   return path.join(app.getPath("userData"), "session.enc");
@@ -36,7 +37,9 @@ function _sessionFilePath() {
 
 function _saveSession() {
   try {
-    if (!safeStorage.isEncryptionAvailable()) { return; }
+    if (!safeStorage.isEncryptionAvailable()) {
+      return;
+    }
     const payload = JSON.stringify({
       accessToken: session.accessToken,
       refreshToken: session.refreshToken,
@@ -52,8 +55,12 @@ function _saveSession() {
 function _clearPersistedSession() {
   try {
     const fp = _sessionFilePath();
-    if (fs.existsSync(fp)) { fs.unlinkSync(fp); }
-  } catch { /* ignore */ }
+    if (fs.existsSync(fp)) {
+      fs.unlinkSync(fp);
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 /**
@@ -67,7 +74,9 @@ function init() {
       return;
     }
     const fp = _sessionFilePath();
-    if (!fs.existsSync(fp)) { return; }
+    if (!fs.existsSync(fp)) {
+      return;
+    }
     const encrypted = fs.readFileSync(fp);
     const data = safeStorage.decryptString(encrypted);
     const parsed = JSON.parse(data);
@@ -85,8 +94,6 @@ function init() {
   }
 }
 
-// ─── Token refresh ────────────────────────────────────────────────────────────
-
 /**
  * Attempts a token refresh using the stored refresh token.
  * Updates `session.accessToken` (and refresh token if rotated) on success.
@@ -94,7 +101,9 @@ function init() {
  * @returns {Promise<boolean>}
  */
 async function _refreshTokens() {
-  if (!session?.refreshToken) { return false; }
+  if (!session?.refreshToken) {
+    return false;
+  }
   try {
     const res = await axios.post(
       `${API_BASE_URL}${TOKEN_REFRESH_PATH}`,
@@ -104,10 +113,14 @@ async function _refreshTokens() {
     const body = res.data || {};
     const data = body.data || body;
     const newAccessToken = data.access_token || data.access || data.token;
-    if (!newAccessToken) { return false; }
+    if (!newAccessToken) {
+      return false;
+    }
     session.accessToken = newAccessToken;
     const newRefresh = data.refresh_token || data.refresh;
-    if (newRefresh) { session.refreshToken = newRefresh; }
+    if (newRefresh) {
+      session.refreshToken = newRefresh;
+    }
     _saveSession();
     logger.info("[auth] access token refreshed");
     return true;
@@ -118,8 +131,6 @@ async function _refreshTokens() {
     return false;
   }
 }
-
-// ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
  * Logs in with email/password and stores the session in main.
@@ -223,7 +234,10 @@ async function getCandidateProfile() {
           const body2 = res2.data || {};
           return { success: true, data: body2.data || {} };
         } catch (err2) {
-          const msg = err2.response?.data?.message || err2.message || "Profile fetch failed after token refresh.";
+          const msg =
+            err2.response?.data?.message ||
+            err2.message ||
+            "Profile fetch failed after token refresh.";
           return { success: false, message: msg };
         }
       }
@@ -242,7 +256,9 @@ async function getCandidateProfile() {
  * @returns {Promise<{ ok: boolean, dataUrl?: string, error?: string }>}
  */
 async function fetchProfileImage(url) {
-  if (!url || typeof url !== "string") { return { ok: false, error: "No URL provided." }; }
+  if (!url || typeof url !== "string") {
+    return { ok: false, error: "No URL provided." };
+  }
   try {
     const res = await axios.get(url, {
       responseType: "arraybuffer",
@@ -267,29 +283,41 @@ async function fetchProfileImage(url) {
  * @returns {Promise<{ ok: boolean, error?: string }>}
  */
 async function submitVoiceSample(uint8Array, mimeType, meta = {}) {
-  if (!session?.accessToken) { return { ok: false, error: "Not authenticated." }; }
+  if (!session?.accessToken) {
+    return { ok: false, error: "Not authenticated." };
+  }
 
   const safeLocale = typeof meta?.locale === "string" ? meta.locale.slice(0, 20) : undefined;
-  const safeStatement = typeof meta?.statementText === "string" ? meta.statementText.slice(0, 500) : undefined;
+  const safeStatement =
+    typeof meta?.statementText === "string" ? meta.statementText.slice(0, 500) : undefined;
 
   const doRequest = () => {
     const buf = Buffer.from(uint8Array);
     let ext = "webm";
-    if (mimeType?.includes("mp4")) {ext = "mp4";}
-    if (mimeType?.includes("ogg")) {ext = "ogg";}
-    if (mimeType?.includes("wav")) {ext = "wav";}
+    if (mimeType?.includes("mp4")) {
+      ext = "mp4";
+    }
+    if (mimeType?.includes("ogg")) {
+      ext = "ogg";
+    }
+    if (mimeType?.includes("wav")) {
+      ext = "wav";
+    }
 
     const form = new FormData();
     const blob = new Blob([buf], { type: mimeType || "audio/webm" });
     form.append("voice_sample", blob, `voice_sample.${ext}`);
-    if (safeLocale) {form.append("locale", safeLocale);}
-    if (safeStatement) {form.append("statement_text", safeStatement);}
+    if (safeLocale) {
+      form.append("locale", safeLocale);
+    }
+    if (safeStatement) {
+      form.append("statement_text", safeStatement);
+    }
 
-    return axios.post(
-      `${API_BASE_URL}/user/v1/candidate/interview/voice_sample/`,
-      form,
-      { timeout: 30000, headers: { Authorization: `Bearer ${session.accessToken}` } }
-    );
+    return axios.post(`${API_BASE_URL}/user/v1/candidate/interview/voice_sample/`, form, {
+      timeout: 30000,
+      headers: { Authorization: `Bearer ${session.accessToken}` },
+    });
   };
 
   try {
@@ -299,13 +327,19 @@ async function submitVoiceSample(uint8Array, mimeType, meta = {}) {
     if (err.response?.status === 401) {
       const refreshed = await _refreshTokens();
       if (refreshed) {
-        try { await doRequest(); return { ok: true }; } catch (e2) {
+        try {
+          await doRequest();
+          return { ok: true };
+        } catch (e2) {
           return { ok: false, error: e2.response?.data?.message || e2.message };
         }
       }
       return { ok: false, error: "Session expired." };
     }
-    return { ok: false, error: err.response?.data?.message || err.message || "Voice submission failed." };
+    return {
+      ok: false,
+      error: err.response?.data?.message || err.message || "Voice submission failed.",
+    };
   }
 }
 
@@ -315,7 +349,9 @@ async function submitVoiceSample(uint8Array, mimeType, meta = {}) {
  * @returns {Promise<{ ok: boolean, data?: object, error?: string }>}
  */
 async function submitFaceVerification(dataUrl) {
-  if (!session?.accessToken) { return { ok: false, error: "Not authenticated." }; }
+  if (!session?.accessToken) {
+    return { ok: false, error: "Not authenticated." };
+  }
 
   const doRequest = () => {
     const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, "");
@@ -324,11 +360,10 @@ async function submitFaceVerification(dataUrl) {
     const blob = new Blob([buf], { type: "image/jpeg" });
     form.append("live_photo", blob, "photo.jpg");
 
-    return axios.post(
-      `${API_BASE_URL}/user/v1/candidate/interview/face_verification/`,
-      form,
-      { timeout: 30000, headers: { Authorization: `Bearer ${session.accessToken}` } }
-    );
+    return axios.post(`${API_BASE_URL}/user/v1/candidate/interview/face_verification/`, form, {
+      timeout: 30000,
+      headers: { Authorization: `Bearer ${session.accessToken}` },
+    });
   };
 
   try {
@@ -347,7 +382,10 @@ async function submitFaceVerification(dataUrl) {
       }
       return { ok: false, error: "Session expired." };
     }
-    return { ok: false, error: err.response?.data?.message || err.message || "Face verification failed." };
+    return {
+      ok: false,
+      error: err.response?.data?.message || err.message || "Face verification failed.",
+    };
   }
 }
 
@@ -357,13 +395,21 @@ async function submitFaceVerification(dataUrl) {
  * @returns {Promise<{ ok: boolean, data?: object, error?: string }>}
  */
 async function submitRole(role) {
-  if (!session?.accessToken) { return { ok: false, error: "Not authenticated." }; }
+  if (!session?.accessToken) {
+    return { ok: false, error: "Not authenticated." };
+  }
 
   const doRequest = () =>
     axios.post(
       `${API_BASE_URL}/user/v1/candidate_resume_ai/skills_for_role/`,
       { role },
-      { timeout: 20000, headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.accessToken}` } }
+      {
+        timeout: 20000,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.accessToken}`,
+        },
+      }
     );
 
   try {
@@ -382,7 +428,10 @@ async function submitRole(role) {
       }
       return { ok: false, error: "Session expired." };
     }
-    return { ok: false, error: err.response?.data?.message || err.message || "Role submission failed." };
+    return {
+      ok: false,
+      error: err.response?.data?.message || err.message || "Role submission failed.",
+    };
   }
 }
 
@@ -425,7 +474,7 @@ async function verifySession() {
   }
 }
 
-// ─── Screen-recording upload API ─────────────────────────────────────────────
+// ─── Screen-recording upload API
 // Mirrors videoUpload.api.js from the interview site. Same 401 → refresh →
 // retry pattern as the rest of this module; tokens never leave main.
 
@@ -436,18 +485,29 @@ async function verifySession() {
  * @returns {Promise<{ ok: boolean, uploadId?: string, error?: string }>}
  */
 async function startVideoUpload({ interviewId, fileName }) {
-  if (!session?.accessToken) { return { ok: false, error: "Not authenticated." }; }
+  if (!session?.accessToken) {
+    return { ok: false, error: "Not authenticated." };
+  }
 
-  const doRequest = () => axios.post(
-    `${API_BASE_URL}${VIDEO_UPLOAD_START_PATH}`,
-    { interview_id: interviewId, file_name: fileName, content_type: "video/webm" },
-    { timeout: 20000, headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.accessToken}` } }
-  );
+  const doRequest = () =>
+    axios.post(
+      `${API_BASE_URL}${VIDEO_UPLOAD_START_PATH}`,
+      { interview_id: interviewId, file_name: fileName, content_type: "video/webm" },
+      {
+        timeout: 20000,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.accessToken}`,
+        },
+      }
+    );
 
   try {
     const res = await doRequest();
     const uploadId = res.data?.data?.upload_id || res.data?.upload_id || null;
-    if (!uploadId) { return { ok: false, error: "No upload_id in response." }; }
+    if (!uploadId) {
+      return { ok: false, error: "No upload_id in response." };
+    }
     return { ok: true, uploadId };
   } catch (err) {
     if (err.response?.status === 401) {
@@ -456,12 +516,19 @@ async function startVideoUpload({ interviewId, fileName }) {
         try {
           const res2 = await doRequest();
           const uploadId = res2.data?.data?.upload_id || res2.data?.upload_id || null;
-          return uploadId ? { ok: true, uploadId } : { ok: false, error: "No upload_id in response." };
-        } catch (e2) { return { ok: false, error: e2.response?.data?.message || e2.message }; }
+          return uploadId
+            ? { ok: true, uploadId }
+            : { ok: false, error: "No upload_id in response." };
+        } catch (e2) {
+          return { ok: false, error: e2.response?.data?.message || e2.message };
+        }
       }
       return { ok: false, error: "Session expired." };
     }
-    return { ok: false, error: err.response?.data?.message || err.message || "Start upload failed." };
+    return {
+      ok: false,
+      error: err.response?.data?.message || err.message || "Start upload failed.",
+    };
   }
 }
 
@@ -474,18 +541,23 @@ async function startVideoUpload({ interviewId, fileName }) {
  * @returns {Promise<{ ok: boolean, error?: string }>}
  */
 async function uploadVideoChunk({ uploadId, chunkIndex, chunk }) {
-  if (!session?.accessToken) { return { ok: false, error: "Not authenticated." }; }
+  if (!session?.accessToken) {
+    return { ok: false, error: "Not authenticated." };
+  }
 
   const doRequest = () => {
     const form = new FormData();
-    form.append("upload_id",   uploadId);
+    form.append("upload_id", uploadId);
     form.append("chunk_index", String(chunkIndex));
-    form.append("chunk", new Blob([Buffer.from(chunk)], { type: "video/webm" }), `chunk_${chunkIndex}.webm`);
-    return axios.post(
-      `${API_BASE_URL}${VIDEO_UPLOAD_CHUNK_PATH}`,
-      form,
-      { timeout: 60000, headers: { Authorization: `Bearer ${session.accessToken}` } }
+    form.append(
+      "chunk",
+      new Blob([Buffer.from(chunk)], { type: "video/webm" }),
+      `chunk_${chunkIndex}.webm`
     );
+    return axios.post(`${API_BASE_URL}${VIDEO_UPLOAD_CHUNK_PATH}`, form, {
+      timeout: 60000,
+      headers: { Authorization: `Bearer ${session.accessToken}` },
+    });
   };
 
   try {
@@ -495,13 +567,19 @@ async function uploadVideoChunk({ uploadId, chunkIndex, chunk }) {
     if (err.response?.status === 401) {
       const refreshed = await _refreshTokens();
       if (refreshed) {
-        try { await doRequest(); return { ok: true }; } catch (e2) {
+        try {
+          await doRequest();
+          return { ok: true };
+        } catch (e2) {
           return { ok: false, error: e2.response?.data?.message || e2.message };
         }
       }
       return { ok: false, error: "Session expired." };
     }
-    return { ok: false, error: err.response?.data?.message || err.message || "Chunk upload failed." };
+    return {
+      ok: false,
+      error: err.response?.data?.message || err.message || "Chunk upload failed.",
+    };
   }
 }
 
@@ -512,13 +590,22 @@ async function uploadVideoChunk({ uploadId, chunkIndex, chunk }) {
  * @returns {Promise<{ ok: boolean, error?: string }>}
  */
 async function completeVideoUpload(uploadId) {
-  if (!session?.accessToken) { return { ok: false, error: "Not authenticated." }; }
+  if (!session?.accessToken) {
+    return { ok: false, error: "Not authenticated." };
+  }
 
-  const doRequest = () => axios.post(
-    `${API_BASE_URL}${VIDEO_UPLOAD_COMPLETE_PATH}`,
-    { upload_id: uploadId },
-    { timeout: 20000, headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.accessToken}` } }
-  );
+  const doRequest = () =>
+    axios.post(
+      `${API_BASE_URL}${VIDEO_UPLOAD_COMPLETE_PATH}`,
+      { upload_id: uploadId },
+      {
+        timeout: 20000,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.accessToken}`,
+        },
+      }
+    );
 
   try {
     await doRequest();
@@ -527,13 +614,19 @@ async function completeVideoUpload(uploadId) {
     if (err.response?.status === 401) {
       const refreshed = await _refreshTokens();
       if (refreshed) {
-        try { await doRequest(); return { ok: true }; } catch (e2) {
+        try {
+          await doRequest();
+          return { ok: true };
+        } catch (e2) {
           return { ok: false, error: e2.response?.data?.message || e2.message };
         }
       }
       return { ok: false, error: "Session expired." };
     }
-    return { ok: false, error: err.response?.data?.message || err.message || "Complete upload failed." };
+    return {
+      ok: false,
+      error: err.response?.data?.message || err.message || "Complete upload failed.",
+    };
   }
 }
 
@@ -543,12 +636,15 @@ async function completeVideoUpload(uploadId) {
  * @returns {Promise<{ ok: boolean, status?: string, videoUrl?: string, error?: string }>}
  */
 async function getVideoUploadStatus(uploadId) {
-  if (!session?.accessToken) { return { ok: false, error: "Not authenticated." }; }
+  if (!session?.accessToken) {
+    return { ok: false, error: "Not authenticated." };
+  }
 
-  const doRequest = () => axios.get(
-    `${API_BASE_URL}${VIDEO_UPLOAD_STATUS_PATH}${uploadId}/`,
-    { timeout: 15000, headers: { Authorization: `Bearer ${session.accessToken}` } }
-  );
+  const doRequest = () =>
+    axios.get(`${API_BASE_URL}${VIDEO_UPLOAD_STATUS_PATH}${uploadId}/`, {
+      timeout: 15000,
+      headers: { Authorization: `Bearer ${session.accessToken}` },
+    });
 
   try {
     const res = await doRequest();
@@ -561,12 +657,21 @@ async function getVideoUploadStatus(uploadId) {
         try {
           const res2 = await doRequest();
           const data2 = res2.data?.data || res2.data || {};
-          return { ok: true, status: data2.status || null, videoUrl: data2.interview?.video_url || null };
-        } catch (e2) { return { ok: false, error: e2.response?.data?.message || e2.message }; }
+          return {
+            ok: true,
+            status: data2.status || null,
+            videoUrl: data2.interview?.video_url || null,
+          };
+        } catch (e2) {
+          return { ok: false, error: e2.response?.data?.message || e2.message };
+        }
       }
       return { ok: false, error: "Session expired." };
     }
-    return { ok: false, error: err.response?.data?.message || err.message || "Status check failed." };
+    return {
+      ok: false,
+      error: err.response?.data?.message || err.message || "Status check failed.",
+    };
   }
 }
 
@@ -577,12 +682,26 @@ function getUser() {
 
 /** Tokens for the interview hand-off (main-process use only). */
 function getTokens() {
-  if (!session) { return null; }
+  if (!session) {
+    return null;
+  }
   return { accessToken: session.accessToken, refreshToken: session.refreshToken };
 }
 
 module.exports = {
-  init, verifySession, login, logout, getUser, getTokens,
-  getCandidateProfile, fetchProfileImage, submitVoiceSample, submitFaceVerification, submitRole,
-  startVideoUpload, uploadVideoChunk, completeVideoUpload, getVideoUploadStatus,
+  init,
+  verifySession,
+  login,
+  logout,
+  getUser,
+  getTokens,
+  getCandidateProfile,
+  fetchProfileImage,
+  submitVoiceSample,
+  submitFaceVerification,
+  submitRole,
+  startVideoUpload,
+  uploadVideoChunk,
+  completeVideoUpload,
+  getVideoUploadStatus,
 };

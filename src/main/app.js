@@ -1,8 +1,5 @@
 /**
- * src/main/app.js
- * ───────────────
- * Electron app lifecycle manager.
- *
+ * Electron app lifecycle manager:
  * Handles:
  *   - app.whenReady()  → logger init, auth restore, IPC, window, auto-updater
  *   - window-all-closed
@@ -26,9 +23,6 @@ const updater = require("./updater");
 const startDetection = require("../detector/systemChecks");
 const authManager = require("./authManager");
 
-/**
- * Wires up the violation callback and forwards it to the detection module.
- */
 function safeViolation(event, severity) {
   try {
     const win = getWindow();
@@ -57,9 +51,13 @@ async function onReady() {
   const sessionResult = await authManager.verifySession();
 
   if (sessionResult.valid) {
-    logger.info(`[app] startup auth: valid session${sessionResult.offline ? " (offline grace)" : ""}`);
+    logger.info(
+      `[app] startup auth: valid session${sessionResult.offline ? " (offline grace)" : ""}`
+    );
   } else {
-    logger.info(`[app] startup auth: no valid session (${sessionResult.reason}) — routing to login`);
+    logger.info(
+      `[app] startup auth: no valid session (${sessionResult.reason}) — routing to login`
+    );
   }
 
   // 2. Register all IPC channels
@@ -86,17 +84,15 @@ async function onReady() {
   });
 
   // 6. Configure screen capture to allow interview webcam/screen share
-  session.defaultSession.setDisplayMediaRequestHandler(
-    async (_request, callback) => {
-      try {
-        const sources = await desktopCapturer.getSources({ types: ["screen"] });
-        callback({ video: sources.length ? sources[0] : null });
-      } catch (err) {
-        logger.warn("[app] screen capture handler error:", err.message);
-        callback({ video: null });
-      }
+  session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
+    try {
+      const sources = await desktopCapturer.getSources({ types: ["screen"] });
+      callback({ video: sources.length ? sources[0] : null });
+    } catch (err) {
+      logger.warn("[app] screen capture handler error:", err.message);
+      callback({ video: null });
     }
-  );
+  });
 
   // 7. Auto-updater — initialised LAST so the window exists for early events.
   //    Interview-safe: checks/installs are gated on interview state internally.
@@ -105,9 +101,12 @@ async function onReady() {
 
 /** Registers all top-level Electron app event listeners. */
 function registerAppEvents() {
-  app.whenReady().then(onReady).catch((err) => {
-    logger.error("[app] startup failed:", err.message);
-  });
+  app
+    .whenReady()
+    .then(onReady)
+    .catch((err) => {
+      logger.error("[app] startup failed:", err.message);
+    });
 
   app.on("window-all-closed", () => {
     app.quit();

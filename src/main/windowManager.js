@@ -1,6 +1,4 @@
 /**
- * src/main/windowManager.js
- * ─────────────────────────
  * Owns the full BrowserWindow lifecycle:
  *   - Window creation and configuration
  *   - Security hardening (input lockdown, navigation guardrails, CSP)
@@ -24,8 +22,6 @@ let isInterviewActive = false;
 
 /** @type {string | null} — base64 JPEG captured during identity verification, injected into the interview SPA sessionStorage on dom-ready */
 let _candidatePhotoBase64 = null;
-
-// ─── Window Creation ─────────────────────────────────────────────────────────
 
 /**
  * Creates and configures the main application window.
@@ -87,8 +83,7 @@ function createWindow(onViolation, startPage = "login") {
   return win;
 }
 
-// ─── Interview End ─────────────────────────────────────────────────────
-
+// ─── Interview End
 /**
  * Called when the interview session ends (signal received from interview.letshyre.com).
  * Clears the lockdown flag and restores normal window behaviour so the candidate
@@ -115,7 +110,7 @@ function endInterview(reason) {
   logger.info(`[window] interview ended (reason: ${reason}) — window restrictions lifted`);
 }
 
-// ─── Self-Enforced Violation ─────────────────────────────────────────────
+// ─── Self-Enforced Violation
 
 /**
  * Failsafe: fires when a hard-block violation was pushed to the website but
@@ -154,7 +149,7 @@ function enforceViolation(reason) {
   logger.warn(`[window] self-enforced violation — IPC retry sent: ${reason}`);
 }
 
-// ─── Interview Lockdown ──────────────────────────────────────────────────
+// ─── Interview Lockdown
 
 /**
  * Activates full interview lockdown mode and injects auth tokens + candidate
@@ -253,7 +248,7 @@ function clearInterviewSessionData() {
     .catch((err) => logger.warn("[window] clearInterviewSessionData failed:", err.message));
 }
 
-// ─── Internal Hardening ──────────────────────────────────────────────────────
+// ─── Internal Hardening
 
 /** Blocks DevTools, Ctrl+Shift+I, Meta+Alt+I, and Alt+F4 key combos. */
 function _applyInputLockdown() {
@@ -366,7 +361,7 @@ function _applyCSPHeaders() {
   });
 }
 
-// ─── Accessors ───────────────────────────────────────────────────────────────
+// ─── Accessors
 
 function getWindow() {
   return win;

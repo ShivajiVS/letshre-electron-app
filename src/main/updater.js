@@ -1,6 +1,4 @@
 /**
- * src/main/updater.js
- * ───────────────────
  * Auto-update orchestration (GitHub releases via electron-updater).
  *
  * All update activity is gated on interview state — never check/download/install
@@ -28,8 +26,6 @@ let lastPercent = 0; // most recent download-progress %, for getState() recovery
 // until install/reset, so installUpdate() can't refuse a ready update.
 let downloaded = false;
 
-// ─── Renderer messaging ──────────────────────────────────────────────────────
-
 function send(channel, payload) {
   const win = getWindow();
   if (win && !win.isDestroyed()) {
@@ -49,8 +45,6 @@ function setState(next, extra = {}) {
     ...extra,
   });
 }
-
-// ─── Init ────────────────────────────────────────────────────────────────────
 
 /**
  * Wires the updater. Call once during onReady (after the window exists so early
@@ -131,8 +125,6 @@ function init() {
   }, UPDATE_CHECK_INTERVAL_MS);
 }
 
-// ─── Actions ─────────────────────────────────────────────────────────────────
-
 /** Triggers a check unless an interview is active. */
 function checkForUpdates() {
   if (getIsInterviewActive()) {
@@ -161,9 +153,9 @@ function downloadUpdate() {
     return false;
   }
   logger.info("[updater] downloading update:", latestInfo?.version);
-  autoUpdater.downloadUpdate().catch((err) =>
-    logger.warn("[updater] downloadUpdate failed:", err.message)
-  );
+  autoUpdater
+    .downloadUpdate()
+    .catch((err) => logger.warn("[updater] downloadUpdate failed:", err.message));
   return true;
 }
 
@@ -230,9 +222,7 @@ function getState() {
     version: latestInfo?.version || null,
     releaseNotes: latestInfo?.releaseNotes || null,
     sizeBytes:
-      Array.isArray(latestInfo?.files) && latestInfo.files[0]
-        ? latestInfo.files[0].size
-        : null,
+      Array.isArray(latestInfo?.files) && latestInfo.files[0] ? latestInfo.files[0].size : null,
     percent: lastPercent,
     downloaded,
     error: lastError,

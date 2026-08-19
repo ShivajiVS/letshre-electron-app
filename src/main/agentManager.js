@@ -17,8 +17,8 @@ const logger = require("./logger");
 const appState = require("./appState");
 const {
   AGENT_PORT,
-  AGENT_PING_TIMEOUT_MS,
   AGENT_POLL_INTERVAL_MS,
+  AGENT_READY_TIMEOUT_MS,
   AGENT_REQUEST_TIMEOUT_MS,
 } = require("../shared/constants");
 
@@ -44,6 +44,49 @@ let _respawnTimer = null;
 let _cmdId = 0;
 const _pending = new Map(); // id → { resolve, timer }
 let _stdoutBuf = ""; // accumulates partial stdout lines
+
+// Readiness state — the SINGLE owner of "is the agent up?". Everything that used
+// to poll on its own (pre-warm, ensureAgent, the preflight agent check) now goes
+// through whenAgentReady() so no two pollers can disagree and kill a live agent.
+let _isReady = false;
+let _readyPromise = null; // resolves when the current child signals ready
+let _readyResolve = null;
+let _readyWait = null; // shared in-flight whenAgentReady() drive
+let _spawnedAt = 0; // ms timestamp of the last spawn — the startup grace window
+
+function _sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/** Re-arms the readiness promise for a fresh child. Called at every spawn. */
+function _resetReadiness() {
+  _isReady = false;
+  _readyPromise = new Promise((resolve) => {
+    _readyResolve = resolve;
+  });
+}
+_resetReadiness();
+
+/** Marks the agent ready and wakes every waiter. Idempotent. */
+function _markReady(via) {
+  if (_isReady) {
+    return;
+  }
+  _isReady = true;
+  logger.info(`[agent] ready (via ${via})`);
+  _readyResolve?.();
+}
+
+/** Fails every in-flight pipe command instead of letting callers hang until
+ *  their own timeout. Runs on explicit kill as well as on process exit. */
+function _flushPending() {
+  for (const [, entry] of _pending) {
+    clearTimeout(entry.timer);
+    entry.resolve(null);
+  }
+  _pending.clear();
+  _stdoutBuf = "";
+}
 
 /**
  * Resolves the absolute path to the agent binary (packaged vs. dev).
@@ -91,6 +134,12 @@ function _consumeStdout(chunk) {
       msg = JSON.parse(line);
     } catch {
       // Not protocol JSON (shouldn't happen — logs go to stderr). Ignore.
+      continue;
+    }
+    // Unsolicited startup event: {"event":"ready", ...} carries no `id`, so it
+    // has to be handled before the response-matching lookup below.
+    if (msg.event === "ready") {
+      _markReady(`event agent_version=${msg.agent_version} pid=${msg.pid}`);
       continue;
     }
     const entry = _pending.get(msg.id);
@@ -142,7 +191,14 @@ function killStaleAgent() {
     if (process.platform === "win32") {
       // Step 1: Kill all agent.exe by image name (safe — we haven't spawned ours yet)
       const killByName = spawn("taskkill", ["/IM", "agent.exe", "/F"], { shell: false });
-      killByName.on("close", () => {
+      killByName.on("close", (code) => {
+        // taskkill exits non-zero (128) when no agent.exe existed. Nothing stale
+        // to clear, so skip the cold PowerShell netstat sweep and the settle
+        // wait — they cost 1.4-5.2s on every spawn, cold-start included.
+        if (code !== 0) {
+          return resolve();
+        }
+        logger.info("[agent] stale agent.exe killed — sweeping port as well");
         // Step 2: Fallback — kill anything else on the agent port
         // Use PowerShell for reliable netstat parsing (cmd /c for is fragile)
         const psCmd = `
@@ -210,6 +266,8 @@ async function spawnAgent() {
     return;
   }
   _spawning = true;
+  // A new child means a new readiness question — nothing carries over.
+  _resetReadiness();
   // A spawn supersedes any pending auto-respawn.
   if (_respawnTimer) {
     clearTimeout(_respawnTimer);
@@ -247,12 +305,19 @@ async function spawnAgent() {
         },
       });
       agentProcess = child;
+      _spawnedAt = Date.now();
 
       child.stdout.on("data", (d) => _consumeStdout(d.toString()));
       // stderr is the agent's normal log channel now (logs moved off stdout).
       child.stderr.on("data", (d) => logger.info("[agent]", d.toString().trim()));
 
       child.on("exit", (code) => {
+        // Flush unless a NEWER child already owns the pipe state — those pending
+        // commands belong to it. On an explicit kill agentProcess is already
+        // null, and killAgent() has flushed; this stays a no-op then.
+        if (agentProcess === null || agentProcess === child) {
+          _flushPending();
+        }
         // Ignore exit events from a process we've already replaced — otherwise an
         // old child's exit would null the NEW agentProcess and trigger a stray
         // respawn (kill/respawn thrash).
@@ -261,13 +326,7 @@ async function spawnAgent() {
         }
         logger.warn(`[agent] exited with code ${code}`);
         agentProcess = null;
-        // Fail any in-flight commands so callers don't hang until timeout.
-        for (const [, entry] of _pending) {
-          clearTimeout(entry.timer);
-          entry.resolve(null);
-        }
-        _pending.clear();
-        _stdoutBuf = "";
+        _isReady = false;
 
         // Auto-respawn on unexpected death (not during app shutdown). Tracked in
         // _respawnTimer so killAgent()/shutdown can cancel it (otherwise it could
@@ -294,38 +353,102 @@ async function spawnAgent() {
 }
 
 /**
- * Pings the agent over the pipe every AGENT_POLL_INTERVAL_MS until it responds
- * or maxMs elapses. No longer depends on the HTTP port being reachable.
- * @param {number} [maxMs]
- * @returns {Promise<boolean>} Resolves true if agent responds, false on timeout.
+ * Drives the agent to readiness: spawns one if none is tracked, then waits for
+ * either the startup `ready` event or a successful ping, whichever lands first.
+ *
+ * The ping poll is the backward-compatibility path: resources/agent.exe is
+ * gitignored and may predate the ready event, so an old binary is only ever
+ * observable by probing it.
+ * @param {number} timeoutMs
+ * @returns {Promise<boolean>}
  */
-async function waitForAgent(maxMs = AGENT_PING_TIMEOUT_MS) {
-  const started = Date.now();
-  while (Date.now() - started < maxMs) {
-    const res = await sendAgentCommand("ping", 400);
-    if (res && res.alive) {
+async function _driveReadiness(timeoutMs) {
+  if (!agentProcess && !_spawning) {
+    await spawnAgent();
+  }
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (_isReady) {
       return true;
     }
-    await new Promise((r) => setTimeout(r, AGENT_POLL_INTERVAL_MS));
+    // Race the event against a poll tick, then probe once. A busy agent that
+    // answers late is still ready — it is never treated as dead here.
+    const viaEvent = await Promise.race([
+      _readyPromise.then(() => true),
+      _sleep(AGENT_POLL_INTERVAL_MS).then(() => false),
+    ]);
+    if (viaEvent || _isReady) {
+      return true;
+    }
+    const res = await sendAgentCommand("ping", AGENT_REQUEST_TIMEOUT_MS);
+    if (res && res.alive) {
+      _markReady("ping");
+      return true;
+    }
   }
-  logger.warn("[agent] did not respond within", maxMs, "ms");
+  logger.warn(`[agent] not ready within ${timeoutMs}ms`);
   return false;
 }
 
 /**
- * Ensures the agent is alive, respawning it if it has died. Called before each
- * preflight so a transient agent failure (crash, AV kill) is recoverable simply
- * by re-scanning, rather than permanently blocking the candidate.
+ * Synchronous, non-committal read of the readiness flag — no spawn, no probe.
+ * Only for deciding what to TELL the user while they wait (see the preflight's
+ * "starting" card). Never gate anything on it: false here means "not up yet",
+ * not "dead". whenAgentReady() is the answer that counts.
+ * @returns {boolean}
+ */
+function isAgentReady() {
+  return _isReady && !!agentProcess;
+}
+
+/**
+ * The one way to ask "is the agent up?". Resolves true once the agent has
+ * signalled ready (event) or answered a ping, false on timeout — never hangs,
+ * never kills. Concurrent callers share a single drive, so there is exactly one
+ * spawn and one poll loop no matter how many pages/scans ask at once.
+ * @param {number} [timeoutMs]
+ * @returns {Promise<boolean>}
+ */
+async function whenAgentReady(timeoutMs = AGENT_READY_TIMEOUT_MS) {
+  if (_isReady && agentProcess) {
+    return true;
+  }
+  if (!_readyWait) {
+    _readyWait = _driveReadiness(AGENT_READY_TIMEOUT_MS).finally(() => {
+      _readyWait = null;
+    });
+  }
+  // Callers with a tighter budget than the shared drive give up on their own
+  // clock without cancelling it for everyone else.
+  let timer;
+  const bounded = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(_isReady), timeoutMs);
+  });
+  return await Promise.race([_readyWait, bounded]).finally(() => clearTimeout(timer));
+}
+
+/**
+ * Ensures the agent is alive, respawning it only if it genuinely failed. Called
+ * before each preflight so a transient agent failure (crash, AV kill) is
+ * recoverable by re-scanning rather than permanently blocking the candidate.
  * @returns {Promise<boolean>} true if the agent is alive (or came back).
  */
 async function ensureAgent() {
-  const res = await sendAgentCommand("ping", 600);
-  if (res && res.alive) {
+  if (_isReady && agentProcess) {
     return true;
   }
-  logger.warn("[agent] not responding — attempting respawn before preflight");
+  // A process spawned moments ago is STARTING, not dead: a cold PyInstaller
+  // unpack easily outlasts any ping budget. Killing it here restarted the
+  // cold-start clock and was the main cause of "agent failed to start".
+  if (agentProcess && Date.now() - _spawnedAt < AGENT_READY_TIMEOUT_MS) {
+    return await whenAgentReady();
+  }
+  if (await whenAgentReady()) {
+    return true;
+  }
+  logger.warn("[agent] readiness timed out — respawning before preflight");
   await spawnAgent();
-  return await waitForAgent();
+  return await whenAgentReady();
 }
 
 /**
@@ -346,12 +469,18 @@ function killAgent() {
       logger.warn("[agent] kill failed:", err.message);
     }
     agentProcess = null;
+    _isReady = false;
+    // The child's exit event can't do this for us — agentProcess is already
+    // null by then, so its guard short-circuits and pending commands would
+    // hang for their full timeout.
+    _flushPending();
   }
 }
 
 module.exports = {
   spawnAgent,
-  waitForAgent,
+  whenAgentReady,
+  isAgentReady,
   killAgent,
   getAgentPath,
   getAgentSecret,

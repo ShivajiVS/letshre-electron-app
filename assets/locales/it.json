@@ -151,6 +151,8 @@
     "ready": "Pronto",
     "required": "Obbligatorio",
     "runningDeepScan": "Scansione comportamentale approfondita in corso…",
+    "starting": "Avvio in corso",
+    "agentStarting": "Avvio dell’agente di sicurezza…",
     "appsReopening": "Alcune app continuano a riaprirsi. Chiudile manualmente, quindi fai clic su «Rescan».",
     "hdmiUnverified": "Impossibile verificare gli schermi esterni. Fai clic su «Rescan».",
     "hdmiDetected": "Scollega tutti gli schermi/cavi esterni.",

@@ -41,7 +41,7 @@ const {
   setInterviewSession,
   resetInterviewSession,
 } = require("./protocolHandler");
-const { ensureAgent, killAgent } = require("./agentManager");
+const { whenAgentReady, killAgent } = require("./agentManager");
 const authManager = require("./authManager");
 const localeManager = require("./localeManager");
 const startDetection = require("../detector/systemChecks");
@@ -75,13 +75,21 @@ function validateProcessName(value) {
 
 /**
  * Fire-and-forget spawn of the security agent as the security-check page opens,
- * so it is warming up before the preflight scan pings it. ensureAgent() is
- * idempotent (pings first, spawns only if dead) and spawnAgent() guards against
- * concurrent spawns, so this never races the RUN_PREFLIGHT ensureAgent().
+ * so it is warming up before the preflight scan probes it. whenAgentReady() is
+ * the single readiness owner — concurrent callers share one spawn and one poll,
+ * so this can't race the preflight's own readiness wait.
  */
 function prewarmAgent() {
-  ensureAgent().catch((err) => logger.warn("[ipc] agent pre-warm failed:", err.message));
+  whenAgentReady().catch((err) => logger.warn("[ipc] agent pre-warm failed:", err.message));
 }
+
+// Security-check page generation. Bumped whenever that page's lifecycle
+// restarts, so an in-flight scan from a previous visit (whose agent was killed
+// on the way out) can never be joined and reported by the new page.
+let _pageGeneration = 0;
+/** @type {Promise<object> | null} */
+let _preflightInFlight = null;
+let _preflightGeneration = -1;
 
 /**
  * Sanitises the role-selection payload sent by the role-selection renderer before
@@ -165,6 +173,7 @@ function registerIpcHandlers() {
     }
     logger.info("[ipc] start-interview — entering security check");
     setInterviewSession(tokens.accessToken, tokens.refreshToken);
+    _pageGeneration++;
     prewarmAgent();
     loadSecurityCheck();
   });
@@ -209,6 +218,7 @@ function registerIpcHandlers() {
   ipcMain.on(IPC.LOAD_DASHBOARD, () => {
     logger.info("[ipc] load-dashboard (back nav)");
     stopPreProceedMonitor();
+    _pageGeneration++; // leaving the page — any scan still running is orphaned
     // Leaving the security-check → interview flow: stop the agent (it is only
     // needed on the preflight page and during the interview). No-op if already
     // stopped (e.g. after interview completion).
@@ -219,6 +229,7 @@ function registerIpcHandlers() {
   ipcMain.on(IPC.LOAD_SECURITY_CHECK, () => {
     logger.info("[ipc] load-security-check (back nav)");
     stopPreProceedMonitor();
+    _pageGeneration++;
     prewarmAgent();
     loadSecurityCheck();
   });
@@ -303,25 +314,23 @@ function registerIpcHandlers() {
 
   // ── Preflight
 
-  // In-flight preflight, shared by concurrent callers. A renderer-side timeout
-  // used to abandon its invoke and immediately fire another, stacking two full
-  // scans (and two agent respawns) on top of each other while the abandoned
-  // one's progress events still repainted the new scan's cards.
-  let _preflightInFlight = null;
-
+  // In-flight preflight, shared by concurrent callers WITHIN one page
+  // generation. A renderer-side timeout used to abandon its invoke and
+  // immediately fire another, stacking two full scans on top of each other;
+  // dedupe fixes that, but only a scan from the current visit may be joined —
+  // an older one's agent was killed on the way out to the dashboard.
   ipcMain.handle(IPC.RUN_PREFLIGHT, async (event) => {
-    if (_preflightInFlight) {
+    const generation = _pageGeneration;
+    if (_preflightInFlight && _preflightGeneration === generation) {
       logger.info("[ipc] run-preflight-scans — joining in-flight scan");
       return await _preflightInFlight;
     }
     logger.info("[ipc] run-preflight-scans invoked");
 
-    // ensureAgent() deliberately not awaited — a cold spawn can take up to
-    // AGENT_PING_TIMEOUT_MS (15s), which used to block the first card and blow
-    // the scan budget on slow machines. It's pre-warmed on page load instead;
-    // if still unavailable, the agent card degrades to "unverified" while the
-    // other five checks resolve, and this call self-heals it for next Re-scan.
-    ensureAgent().catch((err) => logger.warn("[ipc] ensureAgent failed:", err.message));
+    // Not awaited — a cold spawn can take up to AGENT_READY_TIMEOUT_MS, which
+    // would block the first card. This shares the same readiness promise the
+    // agent check awaits, so it can no longer trigger its own spawn or kill.
+    whenAgentReady().catch((err) => logger.warn("[ipc] agent readiness failed:", err.message));
 
     // Streaming preflight: each verdict is pushed the moment its check lands.
     // event.sender.send() is safe to call from within an ipcMain.handle() handler.
@@ -333,11 +342,16 @@ function registerIpcHandlers() {
       }
     };
 
-    _preflightInFlight = startDetection.runChecksOnce(onProgress).finally(() => {
-      _preflightInFlight = null;
+    const scan = startDetection.runChecksOnce(onProgress).finally(() => {
+      // Only clear our own entry — a newer generation may already have claimed it.
+      if (_preflightInFlight === scan) {
+        _preflightInFlight = null;
+      }
     });
+    _preflightInFlight = scan;
+    _preflightGeneration = generation;
 
-    const result = await _preflightInFlight;
+    const result = await scan;
 
     // Start the background pre-proceed watcher as soon as preflight is done.
     // It polls checkProcesses() every 2s and pushes { clean, apps } to the

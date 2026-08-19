@@ -46,7 +46,7 @@ function createWindow(onViolation, startPage = "login") {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
-      // ADD-10: Explicit Electron security checklist hardening
+      // Explicit Electron security checklist hardening
       webSecurity: true,
       allowRunningInsecureContent: false,
       experimentalFeatures: false,
@@ -67,7 +67,7 @@ function createWindow(onViolation, startPage = "login") {
     win = null;
   });
 
-  // ADD-10: Block DevTools in production builds
+  //  Block DevTools in production builds
   if (app.isPackaged) {
     win.webContents.on("devtools-opened", () => {
       win.webContents.closeDevTools();

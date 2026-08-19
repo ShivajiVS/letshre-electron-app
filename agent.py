@@ -29,7 +29,7 @@ import tempfile
 import csv
 import io
 from datetime import datetime
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 # Force stdout/stderr to UTF-8 to prevent Windows cp1252 crash on non-ascii
 # (stdout carries protocol JSON; stderr carries logs with arrows like →).
@@ -43,6 +43,11 @@ if sys.stderr.encoding != 'utf-8':
 # ─────────────────────────────────────────────
 PORT          = 9999
 SCAN_INTERVAL = 3  # seconds between scans
+
+# Delay before the FIRST background scan, so the candidate-facing "scan" command
+# (which arrives within a second or two of spawn) starts the scan itself instead
+# of waiting on a cold background scan that is already in flight.
+FIRST_SCAN_DELAY = 2
 
 # IMP-12: Single version source — passed via APP_VERSION env by agentManager.js.
 # Previously there were 3 different version strings in the codebase.
@@ -222,21 +227,17 @@ scan_results = {
 }
 scan_lock = threading.Lock()
 
-# Serializes EXECUTION of run_full_scan() — separate from scan_lock, which only
-# protects the shared scan_results VARIABLE. background_scanner() runs its first
-# scan immediately at startup; if Electron's on-demand "scan" command (the
-# preflight's deep-scan probe) lands around the same moment — which it reliably
-# does, since prewarmAgent() spawns the agent and the preflight page requests a
-# scan within a second or two of that — both the background thread and the
-# stdio thread end up inside run_full_scan() AT THE SAME TIME, each spawning its
-# own PowerShell/tasklist/WMI subprocesses. That contention is what made the
-# very first scan slow enough to blow the preflight's 8s agent deadline (report
-# "agent failed to start") while every later scan — never colliding with a
-# background iteration once the two fell out of lockstep — came back quickly.
-# Holding this lock for the whole call turns "two scans fighting for the same
-# OS resources" into "one scan, then the other," which is what made Rescan
-# appear to fix it: by then the collision window had simply passed.
+# Serializes EXECUTION of the scan body — separate from scan_lock, which only
+# protects the shared scan_results VARIABLE. Two scans running at once each spawn
+# their own PowerShell/tasklist/WMI subprocesses and slow each other down badly.
 scan_run_lock = threading.Lock()
+
+# Coalescing gate. A caller arriving mid-scan waits for the IN-FLIGHT scan and
+# returns its result rather than queueing a second full scan behind it.
+_scan_inflight = None            # threading.Event set when the running scan ends
+_scan_inflight_lock = threading.Lock()
+SCAN_WAIT_TIMEOUT = 60           # seconds a coalesced waiter waits before giving up
+
 event_log = []
 
 # ─────────────────────────────────────────────
@@ -945,6 +946,38 @@ def count_physical_monitors():
 # ─────────────────────────────────────────────
 def run_full_scan():
     """
+    Run a full scan, or join the one already in flight.
+
+    Coalescing: the first caller executes the scan; callers that arrive while it
+    runs wait for it and return ITS result. Waiters always return a real stored
+    scan result (fail-closed initial value if none has completed yet) — never a
+    fabricated clean one.
+    """
+    global _scan_inflight
+
+    with _scan_inflight_lock:
+        pending = _scan_inflight
+        if pending is None:
+            _scan_inflight = pending = threading.Event()
+            owner = True
+        else:
+            owner = False
+
+    if not owner:
+        pending.wait(SCAN_WAIT_TIMEOUT)
+        with scan_lock:
+            return dict(scan_results)
+
+    try:
+        return _execute_full_scan()
+    finally:
+        with _scan_inflight_lock:
+            _scan_inflight = None
+        pending.set()
+
+
+def _execute_full_scan():
+    """
     Run all 8 behavioral deep-detection checks and compile results.
     Process/display/screen-sharing checks are handled by the Electron
     preflight (Node.js) and are intentionally excluded here.
@@ -955,12 +988,6 @@ def run_full_scan():
     """
     global scan_results, event_log
 
-    # See scan_run_lock's own comment: this serializes against
-    # background_scanner()'s periodic scan so the two can never spawn their
-    # PowerShell/tasklist/WMI subprocesses concurrently and slow each other
-    # down. A caller that lands mid-scan simply waits for that scan to finish —
-    # one full scan's worth of latency at worst, not two contending for the
-    # same OS resources.
     with scan_run_lock:
         threats = []
         checks = {}
@@ -1066,6 +1093,8 @@ def run_full_scan():
 def background_scanner():
     """Continuously scan every SCAN_INTERVAL seconds."""
     logger.info("Background scanner started.")
+    # Let the parent's first on-demand scan win the race — see FIRST_SCAN_DELAY.
+    time.sleep(FIRST_SCAN_DELAY)
     while True:
         try:
             run_full_scan()
@@ -1155,7 +1184,8 @@ def start_http_server():
     cannot start. HTTP remains available for any consumer that still uses it.
     """
     try:
-        server = HTTPServer(("127.0.0.1", PORT), AgentHandler)
+        # Threading server: a slow /scan must not block /ping on this channel.
+        server = ThreadingHTTPServer(("127.0.0.1", PORT), AgentHandler)
         logger.info(f"HTTP server running at http://127.0.0.1:{PORT}")
         server.serve_forever()
     except OSError as e:
@@ -1198,13 +1228,51 @@ def _handle_command(cmd):
         return {"log": event_log}
     return {"error": "unknown_cmd", "cmd": cmd}
 
+# Commands cheap enough to answer inline on the read loop. Everything else runs
+# on a worker thread so a slow scan can never delay the liveness ping behind it.
+_INLINE_CMDS = ("ping", "status", "log")
+
+# Concurrent scans all coalesce onto one scan, so a thread per request is fine —
+# this cap only stops a pathological client from spawning threads without bound.
+MAX_WORKER_THREADS = 8
+_worker_count = 0
+_worker_count_lock = threading.Lock()
+
+def _dispatch(req_id, cmd):
+    """Run one command and write its response. Responses carry `id`, so the
+    parent matches them regardless of arrival order."""
+    try:
+        resp = _handle_command(cmd)
+    except Exception as e:
+        logger.warning(f"command error: {e}")
+        resp = {"error": str(e)}
+    resp["id"] = req_id
+    _write_response(resp)
+
+def _dispatch_worker(req_id, cmd):
+    global _worker_count
+    try:
+        _dispatch(req_id, cmd)
+    finally:
+        with _worker_count_lock:
+            _worker_count -= 1
+
 def stdio_protocol_loop():
     """
     Blocking read loop over stdin. Keeps the process alive for as long as the
     parent holds the pipe open — when Electron exits and closes stdin, the loop
     ends and the agent terminates cleanly (no orphan).
     """
+    global _worker_count
     logger.info("stdio pipe protocol ready (primary channel).")
+    # Unsolicited event (no `id`) emitted exactly once, right as the reader is
+    # about to start consuming — this is the parent's "agent is up" signal.
+    _write_response({
+        "event": "ready",
+        "agent_version": AGENT_VERSION,
+        "contract_version": CONTRACT_VERSION,
+        "pid": os.getpid(),
+    })
     for line in sys.stdin:
         line = line.strip()
         if not line:
@@ -1214,13 +1282,24 @@ def stdio_protocol_loop():
         except Exception:
             continue  # ignore malformed input
         req_id = req.get("id")
-        try:
-            resp = _handle_command(req.get("cmd"))
-        except Exception as e:
-            logger.warning(f"command error: {e}")
-            resp = {"error": str(e)}
-        resp["id"] = req_id
-        _write_response(resp)
+        cmd = req.get("cmd")
+
+        if cmd in _INLINE_CMDS:
+            _dispatch(req_id, cmd)
+            continue
+
+        with _worker_count_lock:
+            if _worker_count >= MAX_WORKER_THREADS:
+                busy = True
+            else:
+                _worker_count += 1
+                busy = False
+        if busy:
+            _write_response({"id": req_id, "error": "busy", "cmd": cmd})
+            continue
+        threading.Thread(
+            target=_dispatch_worker, args=(req_id, cmd), daemon=True
+        ).start()
     logger.info("stdin closed — agent shutting down.")
 
 # ─────────────────────────────────────────────

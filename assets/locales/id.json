@@ -151,6 +151,8 @@
     "ready": "Siap",
     "required": "Wajib",
     "runningDeepScan": "Menjalankan pemindaian perilaku mendalam…",
+    "starting": "Memulai",
+    "agentStarting": "Memulai agen keamanan…",
     "appsReopening": "Beberapa aplikasi terus terbuka kembali. Tutup secara manual, lalu klik «Rescan».",
     "hdmiUnverified": "Tidak dapat memverifikasi tampilan eksternal. Klik «Rescan».",
     "hdmiDetected": "Putuskan semua tampilan/kabel eksternal.",

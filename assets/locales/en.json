@@ -151,6 +151,8 @@
     "ready": "Ready",
     "required": "Required",
     "runningDeepScan": "Running deep behavioral scan…",
+    "starting": "Starting",
+    "agentStarting": "Starting the security agent…",
     "appsReopening": "Some apps keep reopening. Close them manually, then click Rescan.",
     "hdmiUnverified": "Could not verify external displays. Click Rescan.",
     "hdmiDetected": "Disconnect all external displays/cables.",

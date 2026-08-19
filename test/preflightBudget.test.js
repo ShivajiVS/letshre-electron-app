@@ -24,6 +24,8 @@ const {
   PREFLIGHT_GLOBAL_DEADLINE_MS,
   PREFLIGHT_RENDERER_TIMEOUT_MS,
   AGENT_POLL_INTERVAL_MS,
+  AGENT_READY_TIMEOUT_MS,
+  AGENT_SCAN_TIMEOUT_MS,
 } = require("../src/shared/constants");
 
 test("every per-check deadline fits inside the global deadline", () => {
@@ -72,6 +74,37 @@ test("the agent budget leaves real time BOTH to wait for spawn and to scan", () 
     livenessWindow / AGENT_POLL_INTERVAL_MS >= 4,
     "the liveness wait should allow multiple poll attempts"
   );
+});
+
+test("the agent budget is exactly its two halves — spawn wait plus deep scan", () => {
+  // scanAgent() spends (deadline - RESERVE) waiting for readiness and the
+  // RESERVE on the scan. Both halves have their own authoritative constant, so
+  // the deadline must be their sum: any other value silently over- or
+  // under-funds one of them, which is how the liveness wait got starved before.
+  assert.strictEqual(
+    PREFLIGHT_AGENT_DEADLINE_MS,
+    AGENT_READY_TIMEOUT_MS + AGENT_SCAN_TIMEOUT_MS,
+    "agent deadline must equal the readiness budget plus the scan budget"
+  );
+  assert.strictEqual(
+    PREFLIGHT_AGENT_SCAN_RESERVE_MS,
+    AGENT_SCAN_TIMEOUT_MS,
+    "the reserve must match the scan's own timeout, or withDeadline() cuts off " +
+      "a scan agentClient is still waiting on"
+  );
+  // The liveness half must be the full readiness budget — not a shortened one.
+  assert.strictEqual(
+    PREFLIGHT_AGENT_DEADLINE_MS - PREFLIGHT_AGENT_SCAN_RESERVE_MS,
+    AGENT_READY_TIMEOUT_MS
+  );
+});
+
+test("agentClient's request timeouts come from the shared constants", () => {
+  // These lived as literals in agentClient.js and drifted from the preflight
+  // budget that has to contain them.
+  const src = fs.readFileSync(path.join(__dirname, "../src/detector/agentClient.js"), "utf8");
+  assert.match(src, /AGENT_REQUEST_TIMEOUT_MS: TIMEOUT_MS/);
+  assert.match(src, /AGENT_SCAN_TIMEOUT_MS: SCAN_TIMEOUT_MS/);
 });
 
 test("preflight.js SCAN_TIMEOUT_MS still mirrors PREFLIGHT_RENDERER_TIMEOUT_MS", () => {

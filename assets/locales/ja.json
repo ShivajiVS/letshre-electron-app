@@ -151,6 +151,8 @@
     "ready": "準備完了",
     "required": "必須",
     "runningDeepScan": "詳細な動作スキャンを実行中…",
+    "starting": "起動中",
+    "agentStarting": "セキュリティエージェントを起動しています…",
     "appsReopening": "一部のアプリが繰り返し再起動しています。手動で閉じてから「Rescan」をクリックしてください。",
     "hdmiUnverified": "外部ディスプレイを確認できませんでした。「Rescan」をクリックしてください。",
     "hdmiDetected": "すべての外部ディスプレイ/ケーブルを取り外してください。",

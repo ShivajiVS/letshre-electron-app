@@ -151,6 +151,8 @@
     "ready": "Gereed",
     "required": "Vereist",
     "runningDeepScan": "Diepgaande gedragsscan wordt uitgevoerd…",
+    "starting": "Starten",
+    "agentStarting": "Beveiligingsagent wordt gestart…",
     "appsReopening": "Sommige apps blijven opnieuw openen. Sluit ze handmatig en klik daarna op «Rescan».",
     "hdmiUnverified": "Externe schermen konden niet worden geverifieerd. Klik op «Rescan».",
     "hdmiDetected": "Koppel alle externe schermen/kabels los.",

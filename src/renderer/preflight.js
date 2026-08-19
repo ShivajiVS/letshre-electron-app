@@ -90,9 +90,9 @@ let _proceedReady = false;
 // Renderer-side abort. MIRRORS PREFLIGHT_RENDERER_TIMEOUT_MS in
 // src/shared/constants.js (preload can't require local modules, so it's
 // duplicated, not imported); test/preflightBudget.test.js checks they match.
-// Must stay above main's PREFLIGHT_GLOBAL_DEADLINE_MS (10s) — a cold agent
-// spawn used to blow past the old 20000ms budget and trigger a retry storm.
-const SCAN_TIMEOUT_MS = 27000;
+// Must stay above main's PREFLIGHT_GLOBAL_DEADLINE_MS — a cold agent spawn used
+// to blow past the old 20000ms budget and trigger a retry storm.
+const SCAN_TIMEOUT_MS = 29000;
 const MAX_SCAN_RETRIES = 3;
 const MAX_AUTO_RESCANS = 3;
 let _scanRetryCount = 0;
@@ -426,18 +426,40 @@ function setLoadingState(btnProceed, btnRescan, finalStatus) {
   renderAgentPending();
 }
 
+// In-progress copy for the agent card, keyed by phase. "starting" covers the
+// cold spawn — the agent binary unpacking and booting — which is the only wait
+// long enough that a bare "Scanning" reads as a hang. Neither state is a
+// verdict; both are replaced by renderAgentCard() when the real one lands.
+const AGENT_PHASE_COPY = {
+  starting: {
+    descKey: "preflightResults.agentStarting",
+    descFallback: "Starting the security agent…",
+    badgeKey: "preflightResults.starting",
+    badgeFallback: "Starting",
+  },
+  scanning: {
+    descKey: "preflightResults.runningDeepScan",
+    descFallback: "Running deep behavioral scan…",
+    badgeKey: "preflightResults.scanning",
+    badgeFallback: "Scanning",
+  },
+};
+
 /**
- * Renders the Deep Scan Agent card in a scanning state, matching the static
+ * Renders the Deep Scan Agent card in an in-progress state, matching the static
  * cards. Without this the agent card was absent during the scan and popped in
- * already resolved; now it shows "Scanning" first, then pass/fail.
+ * already resolved; now it shows its progress first, then pass/fail.
+ *
+ * @param {"starting"|"scanning"} [phase]
  */
-function renderAgentPending() {
+function renderAgentPending(phase = "scanning") {
   document.getElementById("card-agent")?.remove();
   const container = document.querySelector(".sc-cards");
   if (!container) {
     return;
   }
 
+  const copy = AGENT_PHASE_COPY[phase] || AGENT_PHASE_COPY.scanning;
   const card = document.createElement("div");
   card.id = "card-agent";
   card.className = "sc-card";
@@ -447,10 +469,10 @@ function renderAgentPending() {
         <div class="sc-card__icon">${ICONS.loading}</div>
         <div class="sc-card__body">
           <h3 class="sc-card__title">${tr("preflightResults.agentTitle", "Deep Scan Agent")}</h3>
-          <p class="sc-card__desc">${tr("preflightResults.runningDeepScan", "Running deep behavioral scan…")}</p>
+          <p class="sc-card__desc">${tr(copy.descKey, copy.descFallback)}</p>
         </div>
       </div>
-      <div class="sc-badge sc-badge--scanning">${tr("preflightResults.scanning", "Scanning")}</div>
+      <div class="sc-badge sc-badge--scanning">${tr(copy.badgeKey, copy.badgeFallback)}</div>
     </div>`;
   container.appendChild(card);
 }
@@ -468,6 +490,19 @@ function applyVerdict(v) {
   if (!v || !v.id) {
     return;
   }
+
+  // Progress-only event (no status): repaints the in-progress card and returns
+  // WITHOUT recording a verdict. Nothing downstream — _lastVerdicts, the
+  // Proceed gate, the diagnostics blob — may ever see a phase as a result, so
+  // an agent that never finishes booting still falls through to the scan's
+  // fail-closed timeout rather than sitting on a friendly "Starting" forever.
+  if (v.phase) {
+    if (v.id === "agent") {
+      renderAgentPending(v.phase);
+    }
+    return;
+  }
+
   // Record for diagnostics — if the scan later times out, these streamed
   // verdicts are the only per-check state we have to show the candidate reported.
   if (v.scanId) {

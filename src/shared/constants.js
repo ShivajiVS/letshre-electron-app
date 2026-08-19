@@ -13,19 +13,31 @@ const AGENT_PORT = 9999;
 /** Loopback host for the Python security agent. */
 const AGENT_HOST = "127.0.0.1";
 
-/** Max ms to wait for agent to become ready after spawn. */
-const AGENT_PING_TIMEOUT_MS = 15000;
-
 /** Interval between each poll attempt while waiting for agent. */
 const AGENT_POLL_INTERVAL_MS = 500;
 
-/** Max wait per individual HTTP request to agent. */
+/**
+ * Budget for whenAgentReady(): covers a cold spawn (stale-kill + PyInstaller
+ * unpack + interpreter boot) before the agent is declared not-ready. Doubles as
+ * the startup grace window during which a booting agent is never killed and
+ * respawned.
+ *
+ * The agent now announces itself with a `ready` event the moment its stdin loop
+ * is live, so this only has to cover process start — not a first scan. Measured
+ * spawn→ready is ~1.6s; 10s leaves ~6x headroom for a slow disk.
+ */
+const AGENT_READY_TIMEOUT_MS = 10000;
+
+/** Max wait for a fast agent command (ping / cached status). */
 const AGENT_REQUEST_TIMEOUT_MS = 2000;
+
+/** Max wait for a full deep scan — the agent runs all 8 checks under this. */
+const AGENT_SCAN_TIMEOUT_MS = 12000;
 
 // ─── URLs
 
 /** Base URL of the interview web app. */
-const INTERVIEW_BASE_URL = "https://interview.letshyre.com";
+const INTERVIEW_BASE_URL = process.env.INTERVIEW_FRONTEND_BASE_URL || "http://localhost:5173";
 
 /** Base URL of the LetsHyre REST API. Overridable via env for staging / tests. */
 const API_BASE_URL = process.env.API_BASE_URL || "https://api.letshyre.com";
@@ -43,7 +55,6 @@ const VIDEO_UPLOAD_COMPLETE_PATH = "/user/v1/candidate_interview/video_upload/co
 const VIDEO_UPLOAD_STATUS_PATH = "/user/v1/candidate_interview/video_upload/status/";
 
 // ─── Detection / Violation
-
 /** Minimum ms between repeated reports of the same violation event. */
 const VIOLATION_COOLDOWN_MS = 15000;
 
@@ -74,7 +85,6 @@ const INDETERMINATE_ESCALATION_THRESHOLD = 3;
  */
 const HARD_BLOCK_GRACE_MS = 8000;
 
-// ─── Preflight scan budget
 // Checks run concurrently, each under its own deadline. A check that misses
 // its deadline is reported "unverified" (fail-closed, blocks Proceed) rather
 // than failing the whole scan.
@@ -91,24 +101,27 @@ const PREFLIGHT_HDMI_DEADLINE_MS = 1000;
 const PREFLIGHT_PROCESS_DEADLINE_MS = 4000;
 
 /**
- * Deadline for the agent probe. Has to absorb a cold agent spawn: pre-warming
- * starts the agent as the page opens, but the probe runs milliseconds later, and
- * spawning costs killStaleAgent() (~1.5-2.5s) plus a cold PyInstaller unpack
- * (2-5s). A warm agent answers in ~200ms — this ceiling only bites on the first
- * scan after launch.
+ * Time reserved at the end of the agent budget for the deep scan itself, once
+ * the agent answers; the rest is spent waiting for it to exist. Equal to the
+ * scan's own timeout by definition — reserving less would let withDeadline()
+ * cut off a scan the agent client is still legitimately waiting on.
  */
-const PREFLIGHT_AGENT_DEADLINE_MS = 20000;
+const PREFLIGHT_AGENT_SCAN_RESERVE_MS = AGENT_SCAN_TIMEOUT_MS;
 
-/** Time reserved at the end of the agent budget for the deep scan itself, once
- *  the agent answers. The rest of the budget is spent waiting for it to exist. */
-const PREFLIGHT_AGENT_SCAN_RESERVE_MS = 6000;
+/**
+ * Deadline for the agent probe: wait for a cold spawn, then run the deep scan.
+ * Derived rather than tuned, so the two halves can't be changed independently
+ * and leave the liveness wait quietly starved (the original failure mode).
+ */
+const PREFLIGHT_AGENT_DEADLINE_MS = AGENT_READY_TIMEOUT_MS + AGENT_SCAN_TIMEOUT_MS;
 
-/** Ceiling for one whole preflight pass in the main process. */
-const PREFLIGHT_GLOBAL_DEADLINE_MS = 22000;
+/** Ceiling for one whole preflight pass in the main process. The agent is the
+ *  slowest probe by a wide margin; the margin covers verdict assembly. */
+const PREFLIGHT_GLOBAL_DEADLINE_MS = PREFLIGHT_AGENT_DEADLINE_MS + 2000;
 
 /** Renderer-side abort. Must exceed the global deadline so the main process is
  *  always the component that decides a scan is over. */
-const PREFLIGHT_RENDERER_TIMEOUT_MS = 27000;
+const PREFLIGHT_RENDERER_TIMEOUT_MS = PREFLIGHT_GLOBAL_DEADLINE_MS + 5000;
 
 /** Results older than this are considered stale and will not enable Proceed. */
 const PREFLIGHT_RESULT_MAX_AGE_MS = 60000;
@@ -144,7 +157,7 @@ const KILL_RELAUNCH_POLL_MS = 600;
  */
 const KILL_ELEVATE_TIMEOUT_MS = 60000;
 
-// ─── IPC Channel Names
+//IPC Channel Names
 // Keep these in sync with preload.js exposures and ipcHandlers.js registrations.
 //
 // Convention:
@@ -314,9 +327,10 @@ const PROTOCOL_SCHEME = "letshyre";
 module.exports = {
   AGENT_PORT,
   AGENT_HOST,
-  AGENT_PING_TIMEOUT_MS,
   AGENT_POLL_INTERVAL_MS,
+  AGENT_READY_TIMEOUT_MS,
   AGENT_REQUEST_TIMEOUT_MS,
+  AGENT_SCAN_TIMEOUT_MS,
   INTERVIEW_BASE_URL,
   API_BASE_URL,
   AUTH_LOGIN_PATH,

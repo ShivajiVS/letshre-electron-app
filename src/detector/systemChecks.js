@@ -10,7 +10,6 @@ const {
   PREFLIGHT_PROCESS_DEADLINE_MS,
   PREFLIGHT_AGENT_DEADLINE_MS,
   PREFLIGHT_AGENT_SCAN_RESERVE_MS,
-  AGENT_POLL_INTERVAL_MS,
   PREFLIGHT_GLOBAL_DEADLINE_MS,
   PREFLIGHT_RESULT_MAX_AGE_MS,
 } = require("../shared/constants");
@@ -27,7 +26,8 @@ const {
   canProceed,
 } = require("./preflightVerdict");
 const { getDisplayName } = require("../shared/appList");
-const { pingAgent, fetchAgentStatus, triggerAgentScan } = require("./agentClient");
+const { fetchAgentStatus, triggerAgentScan } = require("./agentClient");
+const { whenAgentReady, isAgentReady } = require("../main/agentManager");
 const logger = require("../main/logger");
 
 const violationCache = new Map(); // event key → last-fired timestamp
@@ -482,30 +482,34 @@ const agentUnreachable = () => ({ alive: false, status: null });
  * "agent alive but scan didn't come back" (unverified) — those used to be
  * indistinguishable, with the second one rendering as a clean pass.
  *
+ * @param {number} [budgetMs]
+ * @param {((phase: "starting"|"scanning") => void)} [onPhase] - progress only;
+ *        reports which half of the budget we are in so the card can say
+ *        "starting" instead of implying the scan is already running.
  * @returns {Promise<{alive: boolean, status: object|null}>}
  */
-async function scanAgent(budgetMs = PREFLIGHT_AGENT_DEADLINE_MS) {
-  // Poll for agent liveness within the budget instead of asking once:
-  // sendAgentCommand() resolves null synchronously if no agent process exists
-  // yet, and the agent (spawned when the security-check page opens) can take
-  // several seconds to come up (stale-process kill + cold PyInstaller unpack).
-  // A one-shot check right after page load used to catch it mid-spawn and
-  // report a false "failed to start". Time is reserved at the end of the
-  // budget for the scan itself; a genuinely dead agent still fails, just at
-  // the deadline instead of instantly.
-  const deadline = Date.now() + budgetMs;
-  const livenessDeadline = deadline - PREFLIGHT_AGENT_SCAN_RESERVE_MS;
+async function scanAgent(budgetMs = PREFLIGHT_AGENT_DEADLINE_MS, onPhase = null) {
+  // Liveness is owned by agentManager (ready event, with a ping poll for older
+  // agent binaries). Polling here independently used to race the pre-warm and
+  // report a false "failed to start" while the agent was still booting. The
+  // rest of the budget is reserved for the deep scan itself; a genuinely dead
+  // agent still fails, just at the deadline instead of instantly.
+  const livenessBudget = budgetMs - PREFLIGHT_AGENT_SCAN_RESERVE_MS;
 
-  let alive = await pingAgent();
-  while (!alive && Date.now() < livenessDeadline) {
-    await new Promise((r) => setTimeout(r, AGENT_POLL_INTERVAL_MS));
-    alive = await pingAgent();
+  // A cold spawn is the one wait long enough to need explaining. Only announce
+  // it when the agent genuinely isn't up — on the warm path both phases would
+  // land in the same tick and the card would flicker for nothing.
+  if (!isAgentReady()) {
+    onPhase?.("starting");
   }
+
+  const alive = await whenAgentReady(livenessBudget);
 
   if (!alive) {
     return { alive: false, status: null };
   }
 
+  onPhase?.("scanning");
   const status = await triggerAgentScan();
   return { alive: true, status: status && !status.error ? status : null };
 }
@@ -574,8 +578,13 @@ async function _runChecksOnceInner(onProgress, scanId, startedAt, timings) {
     detectMirroring(), PREFLIGHT_PROCESS_DEADLINE_MS, mirrorUnverified(), "process scan",
     { timings, key: "process" }
   );
+  // `phase` events carry no verdict — they only repaint the pending card while
+  // the agent boots. Deliberately not a status: an in-progress agent must never
+  // be able to reach the gate, and the fail-closed timeout fallback below is
+  // still what decides the card if the agent never arrives.
   const agentPromise = withDeadline(
-    scanAgent(), PREFLIGHT_AGENT_DEADLINE_MS, agentUnreachable(), "agent deep scan",
+    scanAgent(PREFLIGHT_AGENT_DEADLINE_MS, (phase) => emit({ id: "agent", phase })),
+    PREFLIGHT_AGENT_DEADLINE_MS, agentUnreachable(), "agent deep scan",
     { timings, key: "agent" }
   );
 

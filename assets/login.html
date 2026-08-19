@@ -36,8 +36,10 @@
               type="email"
               autocomplete="username"
               placeholder="you@example.com"
+              aria-describedby="email-error"
               required
             />
+            <p class="field__error" id="email-error" role="alert"></p>
           </div>
 
           <div class="field">
@@ -49,8 +51,10 @@
               type="password"
               autocomplete="current-password"
               placeholder="••••••••"
+              aria-describedby="password-error"
               required
             />
+            <p class="field__error" id="password-error" role="alert"></p>
             <div class="field__show-password">
               <input type="checkbox" id="show-password" />
               <label for="show-password" data-i18n="login.showPassword">Show password</label>

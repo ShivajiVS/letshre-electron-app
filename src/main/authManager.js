@@ -40,6 +40,7 @@ let session = null;
 const AUTH_ERROR = {
   INVALID_CREDENTIALS: "invalid_credentials",
   MISSING_FIELDS: "missing_fields",
+  INVALID_EMAIL: "invalid_email",
   ACCOUNT_INACTIVE: "account_inactive",
   WRONG_ROLE: "wrong_role",
   RATE_LIMITED: "rate_limited",

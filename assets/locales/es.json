@@ -33,7 +33,11 @@
       "network": "No se pudo conectar con el servidor. Comprueba tu conexión a internet y vuelve a intentarlo.",
       "timeout": "Esto tardó demasiado. Por favor, vuelve a intentarlo.",
       "generic": "Error al iniciar sesión. Por favor, vuelve a intentarlo.",
-      "unavailable": "El inicio de sesión no está disponible en este entorno."
+      "unavailable": "El inicio de sesión no está disponible en este entorno.",
+      "emailRequired": "Por favor, introduce tu dirección de correo electrónico.",
+      "emailTooLong": "Esa dirección de correo electrónico es demasiado larga.",
+      "passwordRequired": "Por favor, introduce tu contraseña.",
+      "passwordRequirements": "La contraseña debe tener al menos 8 caracteres e incluir una mayúscula, una minúscula, un número y un símbolo."
     }
   },
   "dashboard": {

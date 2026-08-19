@@ -33,7 +33,11 @@
       "network": "Tidak dapat menjangkau server. Periksa koneksi internet Anda dan coba lagi.",
       "timeout": "Ini memakan waktu terlalu lama. Silakan coba lagi.",
       "generic": "Login gagal. Silakan coba lagi.",
-      "unavailable": "Login tidak tersedia di lingkungan ini."
+      "unavailable": "Login tidak tersedia di lingkungan ini.",
+      "emailRequired": "Silakan masukkan alamat email Anda.",
+      "emailTooLong": "Alamat email tersebut terlalu panjang.",
+      "passwordRequired": "Silakan masukkan kata sandi Anda.",
+      "passwordRequirements": "Kata sandi harus terdiri dari minimal 8 karakter dan menyertakan huruf besar, huruf kecil, angka, dan simbol."
     }
   },
   "dashboard": {

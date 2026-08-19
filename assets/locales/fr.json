@@ -33,7 +33,11 @@
       "network": "Impossible de joindre le serveur. Vérifiez votre connexion internet et réessayez.",
       "timeout": "Cela a pris trop de temps. Veuillez réessayer.",
       "generic": "Échec de la connexion. Veuillez réessayer.",
-      "unavailable": "La connexion n'est pas disponible dans cet environnement."
+      "unavailable": "La connexion n'est pas disponible dans cet environnement.",
+      "emailRequired": "Veuillez saisir votre adresse e-mail.",
+      "emailTooLong": "Cette adresse e-mail est trop longue.",
+      "passwordRequired": "Veuillez saisir votre mot de passe.",
+      "passwordRequirements": "Le mot de passe doit comporter au moins 8 caractères et inclure une majuscule, une minuscule, un chiffre et un symbole."
     }
   },
   "dashboard": {

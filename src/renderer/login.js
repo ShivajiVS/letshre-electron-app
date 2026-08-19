@@ -49,8 +49,64 @@ const AUTH_ERROR_KEYS = {
   unknown: ["login.errors.generic", "Login failed. Please try again."],
 };
 
-/** Basic shape check — catches typos before a wasted round trip. Not RFC-exhaustive on purpose. */
-const EMAIL_RE = /^\S+@\S+\.\S+$/;
+// ─── Field validation ─────────────────────────────────────────────────────
+// Hand-mirrored from src/shared/authValidators.js — the renderer is sandboxed
+// (no require()), same convention as APP_DISPLAY_NAMES mirroring
+// shared/appList.js in preflight.js. test/loginValidators.test.js asserts
+// these values haven't drifted from the shared source.
+//
+// Password complexity is INFORMATIONAL ONLY: it never blocks the Sign In
+// click. The backend, not this file, is the actual authority on whether a
+// password is valid for a given account — a real account created before this
+// policy existed (or with a different one) must still be able to log in.
+// Only empty email, malformed email, and empty password block submission.
+const EMAIL_MAX_LEN = 254;
+const PASSWORD_MAX_LEN = 256;
+const PASSWORD_MIN_LEN = 8;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const PASSWORD_RULES = [
+  { id: "minLength", test: (v) => v.length >= PASSWORD_MIN_LEN },
+  { id: "uppercase", test: (v) => /[A-Z]/.test(v) },
+  { id: "lowercase", test: (v) => /[a-z]/.test(v) },
+  { id: "digit", test: (v) => /\d/.test(v) },
+  { id: "symbol", test: (v) => /[!"#$%&'()*+,\-./:;<=>?@[\]^_`{|}~]/.test(v) },
+];
+
+function validateEmail(value) {
+  const v = typeof value === "string" ? value.trim() : "";
+  if (!v) {
+    return { valid: false, code: "required" };
+  }
+  if (v.length > EMAIL_MAX_LEN) {
+    return { valid: false, code: "tooLong" };
+  }
+  if (!EMAIL_REGEX.test(v)) {
+    return { valid: false, code: "invalid" };
+  }
+  return { valid: true, code: null };
+}
+
+function validatePassword(value) {
+  const v = typeof value === "string" ? value : "";
+  if (!v) {
+    return { valid: false, code: "required", failedRules: [] };
+  }
+  if (v.length > PASSWORD_MAX_LEN) {
+    return { valid: false, code: "tooLong", failedRules: [] };
+  }
+  const failedRules = PASSWORD_RULES.filter((r) => !r.test(v)).map((r) => r.id);
+  // NOT reflected in `valid` — see the file-level note above. A complexity
+  // miss is reported (failedRules is non-empty) but never fails the field.
+  return { valid: true, code: null, failedRules };
+}
+
+const EMAIL_ERROR_KEYS = {
+  required: ["login.errors.emailRequired", "Please enter your email address."],
+  tooLong: ["login.errors.emailTooLong", "That email address is too long."],
+  // Reuses the existing invalidEmail key (already translated) rather than
+  // duplicating the same message under a new key.
+  invalid: ["login.errors.invalidEmail", "Please enter a valid email address."],
+};
 
 /** Rejects if `promise` doesn't settle within `ms` — guards a wedged IPC channel. */
 function withTimeout(promise, ms) {
@@ -71,12 +127,90 @@ document.addEventListener("DOMContentLoaded", async () => {
   const form = document.getElementById("login-form");
   const emailEl = document.getElementById("email");
   const passwordEl = document.getElementById("password");
+  const emailErrorEl = document.getElementById("email-error");
+  const passwordErrorEl = document.getElementById("password-error");
   const errorEl = document.getElementById("auth-error");
   const submitBtn = document.getElementById("submit-btn");
   const showPasswordCb = document.getElementById("show-password");
 
+  // A field only shows inline errors after the user has left it once —
+  // avoids painting red the instant someone starts typing.
+  const touched = { email: false, password: false };
+
   showPasswordCb.addEventListener("change", () => {
     passwordEl.type = showPasswordCb.checked ? "text" : "password";
+  });
+
+  function setFieldError(inputEl, errorEl_, message) {
+    if (message) {
+      errorEl_.textContent = message;
+      errorEl_.classList.add("show");
+      inputEl.classList.add("field__input--invalid");
+      inputEl.setAttribute("aria-invalid", "true");
+    } else {
+      errorEl_.textContent = "";
+      errorEl_.classList.remove("show");
+      inputEl.classList.remove("field__input--invalid");
+      inputEl.removeAttribute("aria-invalid");
+    }
+  }
+
+  /** @returns {boolean} true if the email field is valid (blocks submit if not) */
+  function checkEmail() {
+    const result = validateEmail(emailEl.value);
+    if (!result.valid) {
+      const [key, fallback] = EMAIL_ERROR_KEYS[result.code];
+      setFieldError(emailEl, emailErrorEl, tr(key, fallback));
+      return false;
+    }
+    setFieldError(emailEl, emailErrorEl, null);
+    return true;
+  }
+
+  /** Always returns true — password complexity never blocks submit, see file header. */
+  function checkPassword() {
+    const raw = passwordEl.value;
+    if (!raw) {
+      setFieldError(
+        passwordEl,
+        passwordErrorEl,
+        tr("login.errors.passwordRequired", "Please enter your password.")
+      );
+      return false; // emptiness IS a hard blocker, unlike complexity below
+    }
+    const result = validatePassword(raw);
+    if (result.failedRules.length > 0) {
+      setFieldError(
+        passwordEl,
+        passwordErrorEl,
+        tr(
+          "login.errors.passwordRequirements",
+          "Password must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a symbol."
+        )
+      );
+    } else {
+      setFieldError(passwordEl, passwordErrorEl, null);
+    }
+    return true;
+  }
+
+  emailEl.addEventListener("blur", () => {
+    touched.email = true;
+    checkEmail();
+  });
+  emailEl.addEventListener("input", () => {
+    if (touched.email) {
+      checkEmail();
+    }
+  });
+  passwordEl.addEventListener("blur", () => {
+    touched.password = true;
+    checkPassword();
+  });
+  passwordEl.addEventListener("input", () => {
+    if (touched.password) {
+      checkPassword();
+    }
   });
 
   function showError(message) {
@@ -105,19 +239,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     e.preventDefault();
     clearError();
 
+    // Submit always re-validates every field regardless of touched state —
+    // catches autofill and paste-then-immediate-submit, neither of which
+    // fires blur.
+    touched.email = true;
+    touched.password = true;
+    const emailOk = checkEmail();
+    const passwordOk = checkPassword();
+
+    if (!emailOk || !passwordOk) {
+      // Never disable the submit button on validation state (an accessibility
+      // anti-pattern — screen reader users get no explanation for an inert
+      // button). Instead: show every inline error and move focus to the
+      // first invalid field.
+      (emailOk ? passwordEl : emailEl).focus();
+      return;
+    }
+
     // Defensive caps mirror ipcHandlers.js — well above any real input, just
     // insurance against a pathological paste.
-    const email = emailEl.value.trim().slice(0, 254);
-    const password = passwordEl.value.slice(0, 256);
-
-    if (!email || !password) {
-      showErrorForCode("missing_fields");
-      return;
-    }
-    if (!EMAIL_RE.test(email)) {
-      showErrorForCode("invalid_email");
-      return;
-    }
+    const email = emailEl.value.trim().slice(0, EMAIL_MAX_LEN);
+    const password = passwordEl.value.slice(0, PASSWORD_MAX_LEN);
 
     if (!window.electronAPI?.login) {
       showError(tr("login.errors.unavailable", "Login is unavailable in this environment."));

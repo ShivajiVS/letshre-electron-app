@@ -33,7 +33,11 @@
       "network": "Não foi possível acessar o servidor. Verifique sua conexão com a internet e tente novamente.",
       "timeout": "Isso demorou muito. Por favor, tente novamente.",
       "generic": "Falha no login. Por favor, tente novamente.",
-      "unavailable": "O login não está disponível neste ambiente."
+      "unavailable": "O login não está disponível neste ambiente.",
+      "emailRequired": "Por favor, insira seu endereço de e-mail.",
+      "emailTooLong": "Esse endereço de e-mail é muito longo.",
+      "passwordRequired": "Por favor, insira sua senha.",
+      "passwordRequirements": "A senha deve ter pelo menos 8 caracteres e incluir uma letra maiúscula, uma letra minúscula, um número e um símbolo."
     }
   },
   "dashboard": {

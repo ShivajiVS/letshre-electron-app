@@ -73,6 +73,24 @@
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
+.field__input.field__input--invalid {
+  border-color: var(--danger);
+}
+.field__input.field__input--invalid:focus {
+  box-shadow: 0 0 0 3px var(--danger-soft);
+}
+
+/* Per-field inline error, empty/hidden until JS populates it */
+.field__error {
+  display: none;
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--danger);
+}
+.field__error.show {
+  display: block;
+}
 
 /* Show password checkbox */
 .field__show-password {

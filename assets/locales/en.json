@@ -33,7 +33,11 @@
       "network": "Can't reach the server. Check your internet connection and try again.",
       "timeout": "That took too long. Please try again.",
       "generic": "Login failed. Please try again.",
-      "unavailable": "Login is unavailable in this environment."
+      "unavailable": "Login is unavailable in this environment.",
+      "emailRequired": "Please enter your email address.",
+      "emailTooLong": "That email address is too long.",
+      "passwordRequired": "Please enter your password.",
+      "passwordRequirements": "Password must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a symbol."
     }
   },
   "dashboard": {

@@ -33,7 +33,11 @@
       "network": "Kan de server niet bereiken. Controleer je internetverbinding en probeer het opnieuw.",
       "timeout": "Dit duurde te lang. Probeer het opnieuw.",
       "generic": "Inloggen mislukt. Probeer het opnieuw.",
-      "unavailable": "Inloggen is niet beschikbaar in deze omgeving."
+      "unavailable": "Inloggen is niet beschikbaar in deze omgeving.",
+      "emailRequired": "Voer je e-mailadres in.",
+      "emailTooLong": "Dat e-mailadres is te lang.",
+      "passwordRequired": "Voer je wachtwoord in.",
+      "passwordRequirements": "Het wachtwoord moet minstens 8 tekens lang zijn en een hoofdletter, een kleine letter, een cijfer en een symbool bevatten."
     }
   },
   "dashboard": {

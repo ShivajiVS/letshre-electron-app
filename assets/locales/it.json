@@ -33,7 +33,11 @@
       "network": "Impossibile raggiungere il server. Controlla la tua connessione internet e riprova.",
       "timeout": "L'operazione ha impiegato troppo tempo. Riprova.",
       "generic": "Accesso non riuscito. Riprova.",
-      "unavailable": "L'accesso non è disponibile in questo ambiente."
+      "unavailable": "L'accesso non è disponibile in questo ambiente.",
+      "emailRequired": "Inserisci il tuo indirizzo e-mail.",
+      "emailTooLong": "Questo indirizzo e-mail è troppo lungo.",
+      "passwordRequired": "Inserisci la tua password.",
+      "passwordRequirements": "La password deve contenere almeno 8 caratteri e includere una lettera maiuscola, una minuscola, un numero e un simbolo."
     }
   },
   "dashboard": {

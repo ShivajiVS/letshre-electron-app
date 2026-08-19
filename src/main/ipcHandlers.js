@@ -43,6 +43,7 @@ const {
 } = require("./protocolHandler");
 const { whenAgentReady, killAgent } = require("./agentManager");
 const authManager = require("./authManager");
+const authValidators = require("../shared/authValidators");
 const localeManager = require("./localeManager");
 const startDetection = require("../detector/systemChecks");
 const screenRecorder = require("./screenRecorder");
@@ -136,6 +137,17 @@ function registerIpcHandlers() {
     const password = typeof creds?.password === "string" ? creds.password.slice(0, 256) : "";
     if (!email || !password) {
       return { success: false, code: authManager.AUTH_ERROR.MISSING_FIELDS };
+    }
+    // Backstop, not the primary gate — the renderer already validates before
+    // ever calling this. Electron's threat model assumes the renderer can be
+    // compromised, so main re-checks rather than trusting it alone. Email
+    // shape is safe to reject here (a malformed email can't match a real
+    // account either way); password complexity is NOT re-checked — the
+    // backend is the actual authority on whether a password is valid for a
+    // given account, and rejecting here on a guessed policy risks blocking a
+    // real login the server would have accepted.
+    if (!authValidators.validateEmail(email).valid) {
+      return { success: false, code: authManager.AUTH_ERROR.INVALID_EMAIL };
     }
     logger.info("[ipc] auth-login for", email);
     return await authManager.login(email, password);

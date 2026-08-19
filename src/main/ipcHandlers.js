@@ -130,10 +130,12 @@ function registerIpcHandlers() {
   // receives display-safe user fields.
 
   ipcMain.handle(IPC.AUTH_LOGIN, async (_event, creds) => {
-    const email = typeof creds?.email === "string" ? creds.email.trim() : "";
-    const password = typeof creds?.password === "string" ? creds.password : "";
+    // Defensive caps against a pathological paste — well above any real
+    // email/password, cheap insurance before this ever reaches axios.
+    const email = typeof creds?.email === "string" ? creds.email.trim().slice(0, 254) : "";
+    const password = typeof creds?.password === "string" ? creds.password.slice(0, 256) : "";
     if (!email || !password) {
-      return { success: false, message: "Email and password are required." };
+      return { success: false, code: authManager.AUTH_ERROR.MISSING_FIELDS };
     }
     logger.info("[ipc] auth-login for", email);
     return await authManager.login(email, password);

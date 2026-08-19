@@ -19,7 +19,22 @@
     "submit": "로그인",
     "footSecured": "면접을 위해 세션이 보호됩니다.",
     "footHowItWorksPrefix": "무엇을 기대해야 할지 잘 모르시나요?",
-    "howItWorksLink": "진행 방식 보기 →"
+    "howItWorksLink": "진행 방식 보기 →",
+    "loading": "로그인 중…",
+    "errors": {
+      "invalidCredentials": "이메일 또는 비밀번호가 올바르지 않습니다.",
+      "missingFields": "이메일과 비밀번호를 입력해 주세요.",
+      "invalidEmail": "유효한 이메일 주소를 입력해 주세요.",
+      "accountInactive": "계정이 비활성화되어 있습니다. 도움이 필요하면 고객지원에 문의하세요.",
+      "wrongRole": "이 계정은 지원자 계정이 아닙니다. 올바른 포털을 이용해 주세요.",
+      "rateLimited": "시도 횟수가 너무 많습니다. 잠시 기다린 후 다시 시도해 주세요.",
+      "rateLimitedCountdown": "시도 횟수가 너무 많습니다. {seconds}초 기다린 후 다시 시도해 주세요.",
+      "serverError": "저희 쪽에서 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.",
+      "network": "서버에 연결할 수 없습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.",
+      "timeout": "시간이 너무 오래 걸렸습니다. 다시 시도해 주세요.",
+      "generic": "로그인에 실패했습니다. 다시 시도해 주세요.",
+      "unavailable": "이 환경에서는 로그인을 사용할 수 없습니다."
+    }
   },
   "dashboard": {
     "logout": "로그아웃",

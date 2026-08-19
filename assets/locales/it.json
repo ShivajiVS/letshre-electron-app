@@ -19,7 +19,22 @@
     "submit": "Accedi",
     "footSecured": "La tua sessione è protetta per il colloquio.",
     "footHowItWorksPrefix": "Non sei sicuro di cosa aspettarti?",
-    "howItWorksLink": "Scopri come funziona →"
+    "howItWorksLink": "Scopri come funziona →",
+    "loading": "Accesso in corso…",
+    "errors": {
+      "invalidCredentials": "E-mail o password errati.",
+      "missingFields": "Inserisci la tua e-mail e password.",
+      "invalidEmail": "Inserisci un indirizzo e-mail valido.",
+      "accountInactive": "Il tuo account è inattivo. Contatta l'assistenza per aiuto.",
+      "wrongRole": "Questo account non è un account candidato. Utilizza il portale corretto.",
+      "rateLimited": "Troppi tentativi. Attendi e riprova.",
+      "rateLimitedCountdown": "Troppi tentativi. Attendi {seconds}s e riprova.",
+      "serverError": "Si è verificato un errore da parte nostra. Riprova a breve.",
+      "network": "Impossibile raggiungere il server. Controlla la tua connessione internet e riprova.",
+      "timeout": "L'operazione ha impiegato troppo tempo. Riprova.",
+      "generic": "Accesso non riuscito. Riprova.",
+      "unavailable": "L'accesso non è disponibile in questo ambiente."
+    }
   },
   "dashboard": {
     "logout": "Esci",

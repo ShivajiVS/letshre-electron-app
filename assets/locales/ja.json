@@ -19,7 +19,22 @@
     "submit": "サインイン",
     "footSecured": "面接のためにセッションは保護されています。",
     "footHowItWorksPrefix": "何が起こるかわかりませんか?",
-    "howItWorksLink": "仕組みを見る →"
+    "howItWorksLink": "仕組みを見る →",
+    "loading": "サインイン中…",
+    "errors": {
+      "invalidCredentials": "メールアドレスまたはパスワードが正しくありません。",
+      "missingFields": "メールアドレスとパスワードを入力してください。",
+      "invalidEmail": "有効なメールアドレスを入力してください。",
+      "accountInactive": "アカウントが無効になっています。サポートにお問い合わせください。",
+      "wrongRole": "このアカウントは候補者アカウントではありません。正しいポータルをご利用ください。",
+      "rateLimited": "試行回数が多すぎます。しばらく待ってから再試行してください。",
+      "rateLimitedCountdown": "試行回数が多すぎます。{seconds}秒待ってから再試行してください。",
+      "serverError": "こちら側で問題が発生しました。しばらくしてから再試行してください。",
+      "network": "サーバーに接続できません。インターネット接続を確認して再試行してください。",
+      "timeout": "時間がかかりすぎました。もう一度お試しください。",
+      "generic": "ログインに失敗しました。もう一度お試しください。",
+      "unavailable": "この環境ではログインを利用できません。"
+    }
   },
   "dashboard": {
     "logout": "ログアウト",

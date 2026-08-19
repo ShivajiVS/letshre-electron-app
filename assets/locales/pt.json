@@ -19,7 +19,22 @@
     "submit": "Entrar",
     "footSecured": "Sua sessão está protegida para a entrevista.",
     "footHowItWorksPrefix": "Não sabe o que esperar?",
-    "howItWorksLink": "Veja como funciona →"
+    "howItWorksLink": "Veja como funciona →",
+    "loading": "Entrando…",
+    "errors": {
+      "invalidCredentials": "E-mail ou senha incorretos.",
+      "missingFields": "Por favor, insira seu e-mail e senha.",
+      "invalidEmail": "Por favor, insira um endereço de e-mail válido.",
+      "accountInactive": "Sua conta está inativa. Entre em contato com o suporte para obter ajuda.",
+      "wrongRole": "Esta conta não é uma conta de candidato. Use o portal correto.",
+      "rateLimited": "Muitas tentativas. Aguarde e tente novamente.",
+      "rateLimitedCountdown": "Muitas tentativas. Aguarde {seconds}s e tente novamente.",
+      "serverError": "Algo deu errado do nosso lado. Tente novamente em breve.",
+      "network": "Não foi possível acessar o servidor. Verifique sua conexão com a internet e tente novamente.",
+      "timeout": "Isso demorou muito. Por favor, tente novamente.",
+      "generic": "Falha no login. Por favor, tente novamente.",
+      "unavailable": "O login não está disponível neste ambiente."
+    }
   },
   "dashboard": {
     "logout": "Sair",

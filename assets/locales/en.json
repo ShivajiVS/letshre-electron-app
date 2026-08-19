@@ -19,7 +19,22 @@
     "submit": "Sign in",
     "footSecured": "Your session is secured for the interview.",
     "footHowItWorksPrefix": "Not sure what to expect?",
-    "howItWorksLink": "See how it works →"
+    "howItWorksLink": "See how it works →",
+    "loading": "Signing in…",
+    "errors": {
+      "invalidCredentials": "Incorrect email or password.",
+      "missingFields": "Please enter your email and password.",
+      "invalidEmail": "Please enter a valid email address.",
+      "accountInactive": "Your account is inactive. Contact support for help.",
+      "wrongRole": "This account isn't a candidate account. Please use the correct portal.",
+      "rateLimited": "Too many attempts. Please wait and try again.",
+      "rateLimitedCountdown": "Too many attempts. Please wait {seconds}s and try again.",
+      "serverError": "Something went wrong on our end. Please try again shortly.",
+      "network": "Can't reach the server. Check your internet connection and try again.",
+      "timeout": "That took too long. Please try again.",
+      "generic": "Login failed. Please try again.",
+      "unavailable": "Login is unavailable in this environment."
+    }
   },
   "dashboard": {
     "logout": "Log out",

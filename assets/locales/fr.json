@@ -19,7 +19,22 @@
     "submit": "Se connecter",
     "footSecured": "Votre session est sécurisée pour l'entretien.",
     "footHowItWorksPrefix": "Vous ne savez pas à quoi vous attendre ?",
-    "howItWorksLink": "Voir comment ça marche →"
+    "howItWorksLink": "Voir comment ça marche →",
+    "loading": "Connexion en cours…",
+    "errors": {
+      "invalidCredentials": "E-mail ou mot de passe incorrect.",
+      "missingFields": "Veuillez saisir votre e-mail et votre mot de passe.",
+      "invalidEmail": "Veuillez saisir une adresse e-mail valide.",
+      "accountInactive": "Votre compte est inactif. Contactez le support pour obtenir de l'aide.",
+      "wrongRole": "Ce compte n'est pas un compte candidat. Veuillez utiliser le bon portail.",
+      "rateLimited": "Trop de tentatives. Veuillez patienter et réessayer.",
+      "rateLimitedCountdown": "Trop de tentatives. Veuillez patienter {seconds}s et réessayer.",
+      "serverError": "Une erreur s'est produite de notre côté. Veuillez réessayer sous peu.",
+      "network": "Impossible de joindre le serveur. Vérifiez votre connexion internet et réessayez.",
+      "timeout": "Cela a pris trop de temps. Veuillez réessayer.",
+      "generic": "Échec de la connexion. Veuillez réessayer.",
+      "unavailable": "La connexion n'est pas disponible dans cet environnement."
+    }
   },
   "dashboard": {
     "logout": "Déconnexion",

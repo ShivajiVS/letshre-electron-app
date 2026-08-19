@@ -19,7 +19,22 @@
     "submit": "Masuk",
     "footSecured": "Sesi Anda diamankan untuk wawancara.",
     "footHowItWorksPrefix": "Tidak yakin apa yang akan terjadi?",
-    "howItWorksLink": "Lihat cara kerjanya →"
+    "howItWorksLink": "Lihat cara kerjanya →",
+    "loading": "Sedang masuk…",
+    "errors": {
+      "invalidCredentials": "Email atau kata sandi salah.",
+      "missingFields": "Silakan masukkan email dan kata sandi Anda.",
+      "invalidEmail": "Silakan masukkan alamat email yang valid.",
+      "accountInactive": "Akun Anda tidak aktif. Hubungi dukungan untuk bantuan.",
+      "wrongRole": "Akun ini bukan akun kandidat. Silakan gunakan portal yang benar.",
+      "rateLimited": "Terlalu banyak percobaan. Silakan tunggu dan coba lagi.",
+      "rateLimitedCountdown": "Terlalu banyak percobaan. Silakan tunggu {seconds} detik dan coba lagi.",
+      "serverError": "Terjadi kesalahan di pihak kami. Silakan coba lagi sebentar lagi.",
+      "network": "Tidak dapat menjangkau server. Periksa koneksi internet Anda dan coba lagi.",
+      "timeout": "Ini memakan waktu terlalu lama. Silakan coba lagi.",
+      "generic": "Login gagal. Silakan coba lagi.",
+      "unavailable": "Login tidak tersedia di lingkungan ini."
+    }
   },
   "dashboard": {
     "logout": "Keluar",

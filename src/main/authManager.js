@@ -31,6 +31,63 @@ const {
 /** @type {{ accessToken: string, refreshToken: string, user: object } | null} */
 let session = null;
 
+/**
+ * Stable, backend-independent failure codes for login(). The renderer maps
+ * each to a localized string via window.t() — the server's own `message`
+ * field is diagnostic-only (logged, never shown) so UI copy never depends on
+ * backend wording or language.
+ */
+const AUTH_ERROR = {
+  INVALID_CREDENTIALS: "invalid_credentials",
+  MISSING_FIELDS: "missing_fields",
+  ACCOUNT_INACTIVE: "account_inactive",
+  WRONG_ROLE: "wrong_role",
+  RATE_LIMITED: "rate_limited",
+  SERVER_ERROR: "server_error",
+  NETWORK_ERROR: "network_error",
+  TIMEOUT: "timeout",
+  MALFORMED_RESPONSE: "malformed_response",
+  UNKNOWN: "unknown",
+};
+
+/** This app is candidate-only; any other role must be blocked, not silently let in. */
+const EXPECTED_ROLE = "Candidate";
+
+/**
+ * Classifies a failed axios call against the login endpoint into a stable
+ * AUTH_ERROR code. Never returns the server's raw message text — only a code
+ * plus (for rate limiting) a numeric retry hint.
+ * @param {import("axios").AxiosError} err
+ * @returns {{ code: string, retryAfterSeconds?: number }}
+ */
+function _classifyLoginError(err) {
+  if (err.code === "ECONNABORTED") {
+    return { code: AUTH_ERROR.TIMEOUT };
+  }
+  const status = err.response?.status;
+  if (!status) {
+    // No response at all — DNS failure, connection refused, offline. Never
+    // surface err.message here: it's a raw Node/axios string ("getaddrinfo
+    // ENOTFOUND ...") that leaks internal detail to the candidate's screen.
+    return { code: AUTH_ERROR.NETWORK_ERROR };
+  }
+  if (status === 429) {
+    const raw = err.response.headers?.["retry-after"];
+    const seconds = Number(raw);
+    return {
+      code: AUTH_ERROR.RATE_LIMITED,
+      retryAfterSeconds: Number.isFinite(seconds) && seconds > 0 ? seconds : undefined,
+    };
+  }
+  if (status >= 500) {
+    return { code: AUTH_ERROR.SERVER_ERROR };
+  }
+  // 400/401/422 etc. — the documented shape for bad credentials. Some backends
+  // answer this with success:false + 200 instead; that path is handled in
+  // login() itself, not here.
+  return { code: AUTH_ERROR.INVALID_CREDENTIALS };
+}
+
 function _sessionFilePath() {
   return path.join(app.getPath("userData"), "session.enc");
 }
@@ -134,49 +191,74 @@ async function _refreshTokens() {
 
 /**
  * Logs in with email/password and stores the session in main.
+ *
+ * Never returns the backend's free-text `message` — only a stable `code` (see
+ * AUTH_ERROR) that the renderer maps to a localized string. The server's
+ * message is logged for diagnostics only.
+ *
  * @param {string} email
  * @param {string} password
- * @returns {Promise<{ success: boolean, message: string, user?: object }>}
+ * @returns {Promise<{ success: boolean, code?: string, retryAfterSeconds?: number, user?: object }>}
  */
 async function login(email, password) {
+  let res;
   try {
-    const res = await axios.post(
+    res = await axios.post(
       `${API_BASE_URL}${AUTH_LOGIN_PATH}`,
-      { email, password, role: "Candidate" },
+      { email, password, role: EXPECTED_ROLE },
       { timeout: 15000, headers: { "Content-Type": "application/json" } }
     );
-
-    const body = res.data || {};
-    const data = body.data || {};
-    if (!body.success || !data.access_token) {
-      return { success: false, message: body.message || "Login failed." };
-    }
-
-    // Keep tokens here; expose only display-safe fields to the renderer.
-    session = {
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token || null,
-      user: {
-        id: data.id,
-        name: data.name,
-        username: data.username,
-        email: data.email,
-        role: data.role,
-      },
-    };
-
-    _saveSession();
-    logger.info("[auth] login success:", data.email);
-    return { success: true, message: body.message || "Login successful.", user: session.user };
   } catch (err) {
-    const message =
-      err.response?.data?.message ||
-      (err.response?.status ? `Login failed (HTTP ${err.response.status}).` : null) ||
-      err.message ||
-      "Login failed.";
-    logger.warn("[auth] login failed:", message);
-    return { success: false, message };
+    const { code, retryAfterSeconds } = _classifyLoginError(err);
+    logger.warn(
+      `[auth] login failed for ${email}: code=${code} status=${err.response?.status ?? "n/a"} ` +
+        `server-message=${JSON.stringify(err.response?.data?.message)}`
+    );
+    return { success: false, code, retryAfterSeconds };
   }
+
+  const body = res.data || {};
+  const data = body.data || {};
+
+  // Some backends answer bad credentials with 200 + success:false instead of
+  // a 4xx status — both transport shapes are documented as possible, so both
+  // are handled. body.message is logged only, never returned to the renderer.
+  if (!body.success) {
+    logger.warn(`[auth] login rejected for ${email}: server-message=${JSON.stringify(body.message)}`);
+    return { success: false, code: AUTH_ERROR.INVALID_CREDENTIALS };
+  }
+
+  if (!data.access_token || !data.id || !data.email) {
+    logger.warn(`[auth] login response missing required fields for ${email}`);
+    return { success: false, code: AUTH_ERROR.MALFORMED_RESPONSE };
+  }
+
+  if (data.is_active === false) {
+    logger.warn(`[auth] login blocked — account inactive: ${email}`);
+    return { success: false, code: AUTH_ERROR.ACCOUNT_INACTIVE };
+  }
+
+  if (data.role !== EXPECTED_ROLE) {
+    logger.warn(`[auth] login blocked — unexpected role "${data.role}" for ${email}`);
+    return { success: false, code: AUTH_ERROR.WRONG_ROLE };
+  }
+
+  // Keep tokens here; expose only display-safe fields to the renderer.
+  session = {
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token || null,
+    user: {
+      id: data.id,
+      name: data.name,
+      username: data.username,
+      email: data.email,
+      role: data.role,
+    },
+  };
+
+  _saveSession();
+  logger.info("[auth] login success:", data.email);
+  return { success: true, user: session.user };
 }
 
 /**
@@ -689,6 +771,7 @@ function getTokens() {
 }
 
 module.exports = {
+  AUTH_ERROR,
   init,
   verifySession,
   login,

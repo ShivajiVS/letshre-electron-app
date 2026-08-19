@@ -19,7 +19,22 @@
     "submit": "Inloggen",
     "footSecured": "Je sessie is beveiligd voor het gesprek.",
     "footHowItWorksPrefix": "Weet je niet wat je kunt verwachten?",
-    "howItWorksLink": "Bekijk hoe het werkt →"
+    "howItWorksLink": "Bekijk hoe het werkt →",
+    "loading": "Bezig met inloggen…",
+    "errors": {
+      "invalidCredentials": "E-mailadres of wachtwoord onjuist.",
+      "missingFields": "Voer je e-mailadres en wachtwoord in.",
+      "invalidEmail": "Voer een geldig e-mailadres in.",
+      "accountInactive": "Je account is inactief. Neem contact op met support voor hulp.",
+      "wrongRole": "Dit is geen kandidaataccount. Gebruik het juiste portaal.",
+      "rateLimited": "Te veel pogingen. Wacht even en probeer het opnieuw.",
+      "rateLimitedCountdown": "Te veel pogingen. Wacht {seconds}s en probeer het opnieuw.",
+      "serverError": "Er is iets misgegaan aan onze kant. Probeer het zo weer.",
+      "network": "Kan de server niet bereiken. Controleer je internetverbinding en probeer het opnieuw.",
+      "timeout": "Dit duurde te lang. Probeer het opnieuw.",
+      "generic": "Inloggen mislukt. Probeer het opnieuw.",
+      "unavailable": "Inloggen is niet beschikbaar in deze omgeving."
+    }
   },
   "dashboard": {
     "logout": "Uitloggen",

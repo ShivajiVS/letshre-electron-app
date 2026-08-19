@@ -19,7 +19,22 @@
     "submit": "Anmelden",
     "footSecured": "Ihre Sitzung ist für das Interview gesichert.",
     "footHowItWorksPrefix": "Nicht sicher, was Sie erwartet?",
-    "howItWorksLink": "So funktioniert es →"
+    "howItWorksLink": "So funktioniert es →",
+    "loading": "Anmeldung läuft…",
+    "errors": {
+      "invalidCredentials": "E-Mail oder Passwort ist falsch.",
+      "missingFields": "Bitte geben Sie Ihre E-Mail-Adresse und Ihr Passwort ein.",
+      "invalidEmail": "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
+      "accountInactive": "Ihr Konto ist inaktiv. Bitte wenden Sie sich an den Support.",
+      "wrongRole": "Dies ist kein Kandidatenkonto. Bitte verwenden Sie das richtige Portal.",
+      "rateLimited": "Zu viele Versuche. Bitte warten Sie und versuchen Sie es erneut.",
+      "rateLimitedCountdown": "Zu viele Versuche. Bitte warten Sie {seconds}s und versuchen Sie es erneut.",
+      "serverError": "Auf unserer Seite ist ein Fehler aufgetreten. Bitte versuchen Sie es in Kürze erneut.",
+      "network": "Server nicht erreichbar. Überprüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.",
+      "timeout": "Das hat zu lange gedauert. Bitte versuchen Sie es erneut.",
+      "generic": "Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.",
+      "unavailable": "Die Anmeldung ist in dieser Umgebung nicht verfügbar."
+    }
   },
   "dashboard": {
     "logout": "Abmelden",

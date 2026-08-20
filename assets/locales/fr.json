@@ -42,13 +42,18 @@
   },
   "dashboard": {
     "logout": "Déconnexion",
+    "loggingOut": "Déconnexion…",
     "welcome": "Bienvenue",
+    "welcomeName": "Bienvenue, {name}",
     "cardText": "Lorsque vous êtes prêt, commencez votre entretien. Nous effectuerons d'abord une vérification de sécurité rapide pour nous assurer que votre environnement est correctement configuré.",
     "attemptsUsed": "Tentatives utilisées",
     "attemptsRemaining": "{remaining} sur {max} restantes",
     "attemptsExhausted": "Vous avez utilisé toutes vos tentatives d'entretien. Contactez le support si vous en avez besoin de plus.",
     "takeInterview": "Passer l'entretien",
+    "starting": "Démarrage…",
     "securityNote": "Une vérification de sécurité est effectuée avant le début de l'entretien.",
+    "startUnavailable": "Impossible de démarrer — veuillez redémarrer l'application.",
+    "startTimedOut": "Cela a pris trop de temps. Veuillez réessayer.",
     "howItWorksLink": "Comment se déroule le processus ? →"
   },
   "hiw": {

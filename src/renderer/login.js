@@ -117,13 +117,6 @@ function withTimeout(promise, ms) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  if (window.i18n?.ready) {
-    // Guarantees window.t reflects the loaded bundle before any error can be
-    // shown — without this a slow locale fetch can race an error message
-    // into rendering in stale/default English.
-    await window.i18n.ready;
-  }
-
   const form = document.getElementById("login-form");
   const emailEl = document.getElementById("email");
   const passwordEl = document.getElementById("password");
@@ -136,6 +129,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   // A field only shows inline errors after the user has left it once —
   // avoids painting red the instant someone starts typing.
   const touched = { email: false, password: false };
+
+  // Transient render state that renderI18n() below re-derives text from —
+  // isLoading drives the submit button label, lastAuthError the banner.
+  let isLoading = false;
+  let lastAuthError = null; // { code, params } | null
 
   showPasswordCb.addEventListener("change", () => {
     passwordEl.type = showPasswordCb.checked ? "text" : "password";
@@ -218,14 +216,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     errorEl.classList.add("show");
   }
   function showErrorForCode(code, params) {
+    lastAuthError = { code, params };
     const [key, fallback] = AUTH_ERROR_KEYS[code] || AUTH_ERROR_KEYS.unknown;
     showError(tr(key, fallback, params));
   }
   function clearError() {
+    lastAuthError = null;
     errorEl.textContent = "";
     errorEl.classList.remove("show");
   }
   function setLoading(loading) {
+    isLoading = loading;
     submitBtn.disabled = loading;
     submitBtn.textContent = loading
       ? tr("login.loading", "Signing in…")
@@ -233,6 +234,33 @@ document.addEventListener("DOMContentLoaded", async () => {
     emailEl.disabled = loading;
     passwordEl.disabled = loading;
     showPasswordCb.disabled = loading;
+  }
+
+  // i18n render hook — re-derives every tr()-rendered string from current
+  // state. Registered synchronously below, ahead of the readiness wait, so
+  // it runs as part of the pre-reveal pass and never paints English
+  // defaults for a non-English locale.
+  function renderI18n() {
+    submitBtn.textContent = isLoading ? tr("login.loading", "Signing in…") : tr("login.submit", "Sign in");
+    if (lastAuthError) {
+      showErrorForCode(lastAuthError.code, lastAuthError.params);
+    }
+    // Only re-validate fields the user already touched — re-running these
+    // must not newly flag an untouched field, and neither call moves focus.
+    if (touched.email) {
+      checkEmail();
+    }
+    if (touched.password) {
+      checkPassword();
+    }
+  }
+  window.i18n?.registerRenderer(renderI18n);
+
+  if (window.i18n?.ready) {
+    // Guarantees window.t reflects the loaded bundle before any error can be
+    // shown — without this a slow locale fetch can race an error message
+    // into rendering in stale/default English.
+    await window.i18n.ready;
   }
 
   form.addEventListener("submit", async (e) => {

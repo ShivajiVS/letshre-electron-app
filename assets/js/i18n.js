@@ -76,7 +76,46 @@
         if (attr && key) {el.setAttribute(attr, t(key));}
       });
     });
+  }
 
+  // Page controllers own every string they render through window.t(); the
+  // [data-i18n] sweep above cannot reach those (and must not fight the
+  // controller for the same element). Each page registers one renderer that
+  // re-derives its own text from current state — run once before the page is
+  // revealed, and again after every locale change so a mid-session switch
+  // re-translates JS-rendered text instead of leaving it in the old language.
+  let _bundleLoaded = false;
+  const _renderers = new Set();
+
+  /**
+   * @param {() => void} fn Re-renders every window.t()-derived string on the
+   *   page from current state. Must be idempotent — it is called repeatedly.
+   */
+  function registerRenderer(fn) {
+    if (typeof fn !== "function") {return;}
+    _renderers.add(fn);
+    // Registered after the bundle landed (late script, or a page that awaited
+    // i18n.ready first) — run it now so it never misses the initial pass.
+    if (_bundleLoaded) {_safeRender(fn);}
+  }
+
+  function _safeRender(fn) {
+    try {
+      fn();
+    } catch (err) {
+      // One page's broken renderer must not block the reveal below and leave
+      // the whole window stuck at visibility:hidden.
+      // eslint-disable-next-line no-console
+      console.warn("[i18n] renderer threw:", err);
+    }
+  }
+
+  function _runRenderers() {
+    _bundleLoaded = true;
+    _renderers.forEach(_safeRender);
+  }
+
+  function _reveal() {
     document.documentElement.classList.remove("i18n-pending");
   }
 
@@ -90,7 +129,8 @@
   async function initI18n() {
     if (!window.electronAPI?.getLocale) {
       // Running outside Electron (or preload failed) — reveal page as-is.
-      document.documentElement.classList.remove("i18n-pending");
+      _runRenderers();
+      _reveal();
       _resolveReady();
       return;
     }
@@ -103,6 +143,9 @@
       _bundle = {};
     }
     _applyToDOM();
+    // Before _reveal(), so JS-owned text is already translated on first paint.
+    _runRenderers();
+    _reveal();
     _resolveReady();
 
     // Live update if the locale changes from the switcher without a reload.
@@ -110,6 +153,7 @@
       _locale = newLocale;
       _bundle = await window.electronAPI.getTranslations(newLocale);
       _applyToDOM();
+      _runRenderers();
       window.dispatchEvent(new CustomEvent("i18n:changed", { detail: { locale: newLocale } }));
     });
   }
@@ -119,7 +163,7 @@
   }
 
   window.t = t;
-  window.i18n = { initI18n, getLocale, ready: readyPromise };
+  window.i18n = { initI18n, getLocale, registerRenderer, ready: readyPromise };
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", initI18n);

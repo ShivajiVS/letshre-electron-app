@@ -42,13 +42,18 @@
   },
   "dashboard": {
     "logout": "ログアウト",
+    "loggingOut": "ログアウトしています…",
     "welcome": "ようこそ",
+    "welcomeName": "{name} さん、ようこそ",
     "cardText": "準備ができたら面接を開始してください。まず環境が正しく設定されているか、簡単なセキュリティチェックを行います。",
     "attemptsUsed": "使用した回数",
     "attemptsRemaining": "{max}回中{remaining}回残り",
     "attemptsExhausted": "面接の試行回数をすべて使用しました。追加が必要な場合はサポートにお問い合わせください。",
     "takeInterview": "面接を受ける",
+    "starting": "開始しています…",
     "securityNote": "面接開始前にセキュリティチェックが実行されます。",
+    "startUnavailable": "開始できません — アプリを再起動してください。",
+    "startTimedOut": "時間がかかりすぎました。もう一度お試しください。",
     "howItWorksLink": "プロセスの流れを見る →"
   },
   "hiw": {

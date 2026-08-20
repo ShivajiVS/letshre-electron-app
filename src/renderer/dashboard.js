@@ -6,14 +6,22 @@
 
 "use strict";
 
-document.addEventListener("DOMContentLoaded", async () => {
-  // Ensure the i18n bundle is loaded before we build any dynamic strings
-  // below (window.t exists immediately, but reads against an empty bundle
-  // until this resolves).
-  if (window.i18n?.ready) {
-    await window.i18n.ready;
-  }
+/** Translate with an English fallback for the non-Electron preview (window.t absent). */
+function tr(key, fallback, params) {
+  return window.t ? window.t(key, params) : fallback;
+}
 
+const LOGOUT_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+    <polyline points="16 17 21 12 16 7"/>
+    <line x1="21" y1="12" x2="9" y2="12"/>
+  </svg>`;
+
+const TAKE_ARROW = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+  </svg>`;
+
+document.addEventListener("DOMContentLoaded", async () => {
   const welcomeEl = document.getElementById("welcome");
   const takeBtn = document.getElementById("take-interview-btn");
   const logoutBtn = document.getElementById("logout-btn");
@@ -28,6 +36,97 @@ document.addEventListener("DOMContentLoaded", async () => {
   const attemptTracker = document.getElementById("attempt-tracker");
   const attemptDots = document.getElementById("attempt-dots");
   const attemptCount = document.getElementById("attempt-count");
+
+  // ── State the i18n renderer re-derives its strings from. Every mutation of
+  // these must be followed by the matching render*() call, never a direct
+  // textContent/innerHTML write, or a locale switch would revert it.
+  let firstName = null;
+  let noteState = "default"; // "default" | "exhausted" | "unavailable" | "timedOut"
+  let attempts = null; // { remaining, max } once the tracker is visible
+  let startState = "idle"; // "idle" | "starting"
+  let logoutState = "idle"; // "idle" | "loggingOut"
+
+  function renderWelcome() {
+    welcomeEl.textContent = firstName
+      ? tr("dashboard.welcomeName", `Welcome, ${firstName}`, { name: firstName })
+      : tr("dashboard.welcome", "Welcome");
+  }
+
+  function renderNote() {
+    switch (noteState) {
+      case "exhausted":
+        dashNote.textContent = tr(
+          "dashboard.attemptsExhausted",
+          "You've used all your interview attempts. Contact support if you need more."
+        );
+        break;
+      case "unavailable":
+        dashNote.textContent = tr(
+          "dashboard.startUnavailable",
+          "Unable to start — please restart the app."
+        );
+        break;
+      case "timedOut":
+        dashNote.textContent = tr(
+          "dashboard.startTimedOut",
+          "That took too long. Please try again."
+        );
+        break;
+      default:
+        dashNote.textContent = tr(
+          "dashboard.securityNote",
+          "A security check runs before the interview begins."
+        );
+    }
+    dashNote.classList.toggle("exhausted-note", noteState !== "default");
+  }
+
+  function setNoteState(next) {
+    noteState = next;
+    renderNote();
+  }
+
+  function renderTakeButton() {
+    takeBtn.innerHTML =
+      startState === "starting"
+        ? `<span>${window.escHtml(tr("dashboard.starting", "Starting…"))}</span>`
+        : `<span>${window.escHtml(tr("dashboard.takeInterview", "Take interview"))}</span>${TAKE_ARROW}`;
+  }
+
+  function renderLogoutButton() {
+    const label =
+      logoutState === "loggingOut"
+        ? tr("dashboard.loggingOut", "Logging out…")
+        : tr("dashboard.logout", "Log out");
+    logoutBtn.innerHTML = `${LOGOUT_ICON}<span>${window.escHtml(label)}</span>`;
+  }
+
+  function renderAttemptCount() {
+    if (!attempts) {
+      return;
+    }
+    attemptCount.textContent = tr(
+      "dashboard.attemptsRemaining",
+      `${attempts.remaining} of ${attempts.max} remaining`,
+      attempts
+    );
+  }
+
+  function renderI18n() {
+    renderWelcome();
+    renderNote();
+    renderTakeButton();
+    renderLogoutButton();
+    renderAttemptCount();
+  }
+  window.i18n?.registerRenderer(renderI18n);
+
+  // Ensure the i18n bundle is loaded before we build any dynamic strings
+  // below (window.t exists immediately, but reads against an empty bundle
+  // until this resolves).
+  if (window.i18n?.ready) {
+    await window.i18n.ready;
+  }
 
   function initials(name) {
     const parts = String(name || "")
@@ -79,7 +178,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Populate topbar immediately from session data (no network wait)
   const displayNameFallback = sessionUser.name || sessionUser.email || "User";
-  welcomeEl.textContent = `Welcome, ${String(displayNameFallback).trim().split(/\s+/)[0]}`;
+  firstName = String(displayNameFallback).trim().split(/\s+/)[0];
+  renderWelcome();
 
   // ── Fetch candidate profile
   let profile = null;
@@ -102,7 +202,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (profile) {
     const displayName = profile.name || displayNameFallback;
 
-    welcomeEl.textContent = `Welcome, ${String(displayName).trim().split(/\s+/)[0]}`;
+    firstName = String(displayName).trim().split(/\s+/)[0];
+    renderWelcome();
 
     profileName.innerHTML = "";
     profileName.textContent = displayName;
@@ -157,9 +258,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         dot.className = `attempt-dot${i < used ? " used" : ""}`;
         attemptDots.appendChild(dot);
       }
-      attemptCount.textContent = window.t
-        ? window.t("dashboard.attemptsRemaining", { remaining, max })
-        : `${remaining} of ${max} remaining`;
+      attempts = { remaining, max };
+      renderAttemptCount();
       if (remaining <= 0) {
         attemptCount.classList.add("exhausted");
       }
@@ -167,10 +267,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (remaining <= 0) {
       takeBtn.disabled = true;
-      dashNote.textContent = window.t
-        ? window.t("dashboard.attemptsExhausted")
-        : "You've used all your interview attempts. Contact support if you need more.";
-      dashNote.classList.add("exhausted-note");
+      setNoteState("exhausted");
     }
   } else {
     // Profile fetch failed — clear skeletons with session data
@@ -188,19 +285,22 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     // Fail loud if the bridge method is missing — never spin forever silently.
     if (typeof window.electronAPI?.startInterview !== "function") {
-      dashNote.textContent = "Unable to start — please restart the app.";
-      dashNote.classList.add("exhausted-note");
+      setNoteState("unavailable");
       return;
     }
     takeBtn.disabled = true;
-    takeBtn.innerHTML = "Starting&hellip;";
+    startState = "starting";
+    renderTakeButton();
     window.electronAPI.startInterview();
     // Watchdog: successful navigation tears down this page (timer dies with it).
     // If the timer fires, navigation never happened — restore the button.
     window.armButtonRestore(takeBtn, takeBtnHTML, {
       onRestore: () => {
-        dashNote.textContent = "That took too long. Please try again.";
-        dashNote.classList.add("exhausted-note");
+        startState = "idle";
+        setNoteState("timedOut");
+        // The restored innerHTML is a snapshot from page load; re-run in case
+        // the locale changed since then so the button isn't left stale.
+        renderTakeButton();
       },
     });
   });
@@ -208,13 +308,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ── Logout
   logoutBtn.addEventListener("click", async () => {
     logoutBtn.disabled = true;
-    logoutBtn.innerHTML = `
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-        <polyline points="16 17 21 12 16 7"/>
-        <line x1="21" y1="12" x2="9" y2="12"/>
-      </svg>
-      Logging out…`;
+    logoutState = "loggingOut";
+    renderLogoutButton();
     try {
       await window.electronAPI?.logout?.();
     } catch {

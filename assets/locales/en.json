@@ -42,13 +42,18 @@
   },
   "dashboard": {
     "logout": "Log out",
+    "loggingOut": "Logging out…",
     "welcome": "Welcome",
+    "welcomeName": "Welcome, {name}",
     "cardText": "When you're ready, start your interview. We'll run a quick security check first to make sure your environment is set up correctly.",
     "attemptsUsed": "Attempts used",
     "attemptsRemaining": "{remaining} of {max} remaining",
     "attemptsExhausted": "You've used all your interview attempts. Contact support if you need more.",
     "takeInterview": "Take interview",
+    "starting": "Starting…",
     "securityNote": "A security check runs before the interview begins.",
+    "startUnavailable": "Unable to start — please restart the app.",
+    "startTimedOut": "That took too long. Please try again.",
     "howItWorksLink": "How does the process work? →"
   },
   "hiw": {

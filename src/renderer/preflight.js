@@ -119,6 +119,108 @@ let _lastScanError = null;
 
 const PROCEED_ENABLED_CLASS = "sc-btn-proceed sc-btn-proceed--enabled";
 const PROCEED_DISABLED_CLASS = "sc-btn-proceed sc-btn-proceed--disabled";
+const PROCEED_ARROW =
+  '<svg class="sc-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
+  '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path></svg>';
+
+const STATIC_CARD_IDS = ["hdmi", "meeting", "screen", "wireless", "ai"];
+
+// ─── Render state ─────────────────────────────────────────────────────────────
+// Every string this page paints through tr() is derived from the state below,
+// so renderI18n() can repaint the page in a new locale from what is already
+// known. Nothing here is a source of truth for the Proceed gate — that stays
+// `results.canProceed` from main, recorded separately in _lastVerdicts.
+
+/** Scanning copy per static card — the markup no longer carries data-i18n for it. */
+const CARD_SCANNING_COPY = {
+  hdmi: {
+    key: "preflight.hdmiScanning",
+    fallback: "Scanning for external display connections...",
+  },
+  meeting: {
+    key: "preflight.meetingScanning",
+    fallback: "Scanning for active communication software...",
+  },
+  screen: {
+    key: "preflight.screenScanning",
+    fallback: "Scanning for recording or streaming applications...",
+  },
+  wireless: {
+    key: "preflight.wirelessScanning",
+    fallback: "Scanning for wireless casting or browser activity...",
+  },
+  ai: { key: "preflight.aiScanning", fallback: "Scanning for interview copilots and cheating tools..." },
+};
+
+/** {key, fallback, params, className} for #final-status. A null key means the fallback is literal. */
+let _statusState = {
+  key: "preflight.runningDiagnostics",
+  fallback: "Running security diagnostics...",
+  params: null,
+  className: "sc-status",
+};
+
+/** id -> {phase:"scanning"} | {status, reasonKey, reasonParams, blockedApps} | {status, text}. */
+const _cardState = {};
+STATIC_CARD_IDS.forEach((id) => {
+  _cardState[id] = { phase: "scanning" };
+});
+
+/** null (card absent) | {phase} | {verdict}. */
+let _agentState = null;
+let _proceedLoading = false;
+let _diagnosticsNote = null;
+
+// Keyed by element so a rebuilt card drops its rows' state along with the rows,
+// exactly as before — a fresh row is a fresh (idle) button.
+const _killRowState = new WeakMap();
+const _killAllState = new WeakMap();
+
+/**
+ * Repaints every tr()-derived string on the page from the state above.
+ * PURELY COSMETIC: no IPC, no scan, no verdict, and no change to
+ * btn-proceed.disabled — the gate is owned by processResults() alone.
+ */
+function renderI18n() {
+  paintStatus();
+  // rebuildActions=false: kill rows are relabelled in place below, so a locale
+  // switch can't discard an in-flight kill or detach the button it will paint.
+  STATIC_CARD_IDS.forEach((id) => renderStaticCard(id, false));
+  paintAgentCard();
+  repaintKillRows();
+  renderProceedButton();
+  renderDiagnosticsControl();
+  renderUpdateCard();
+}
+
+function setStatus(key, fallback, params, className) {
+  _statusState = { key, fallback, params: params || null, className };
+  paintStatus();
+}
+
+function paintStatus() {
+  const el = document.getElementById("final-status");
+  if (!el || !_statusState) {
+    return;
+  }
+  const params =
+    typeof _statusState.params === "function" ? _statusState.params() : _statusState.params;
+  el.textContent = _statusState.key
+    ? tr(_statusState.key, _statusState.fallback, params)
+    : _statusState.fallback;
+  el.className = _statusState.className;
+}
+
+/** Text only — the enabled/disabled state and class are set by the gate paths. */
+function renderProceedButton() {
+  const btn = document.getElementById("btn-proceed");
+  if (!btn) {
+    return;
+  }
+  btn.innerHTML = _proceedLoading
+    ? `${ICONS.loading} ${tr("preflightResults.loading", "Loading...")}`
+    : `<span>${tr("common.continue", "Continue")}</span>${PROCEED_ARROW}`;
+}
 
 /** Rejects if `promise` doesn't settle within `ms` — bounds a hung native scan. */
 function withTimeout(promise, ms, label) {
@@ -143,17 +245,11 @@ function withTimeout(promise, ms, label) {
  *        DISPLAY names (not raw process names) — this text goes to textContent.
  */
 function scheduleAutoRescan(evidence) {
-  const finalStatus = document.getElementById("final-status");
   const respawned = evidence?.respawned || [];
   const accessDenied = evidence?.accessDenied || [];
 
-  const halt = (key, fallback, names) => {
-    if (!finalStatus) {
-      return;
-    }
-    finalStatus.className = "sc-status sc-status--fail";
-    finalStatus.textContent = tr(key, fallback, { names: names.join(", ") });
-  };
+  const halt = (key, fallback, names) =>
+    setStatus(key, fallback, { names: names.join(", ") }, "sc-status sc-status--fail");
 
   if (respawned.length > 0) {
     halt(
@@ -174,13 +270,12 @@ function scheduleAutoRescan(evidence) {
   }
 
   if (_autoRescanCount >= MAX_AUTO_RESCANS) {
-    if (finalStatus) {
-      finalStatus.className = "sc-status sc-status--fail";
-      finalStatus.textContent = tr(
-        "preflightResults.appsReopening",
-        "Some apps keep reopening. Close them manually, then click Rescan."
-      );
-    }
+    setStatus(
+      "preflightResults.appsReopening",
+      "Some apps keep reopening. Close them manually, then click Rescan.",
+      null,
+      "sc-status sc-status--fail"
+    );
     return;
   }
   _autoRescanCount += 1;
@@ -191,13 +286,16 @@ function scheduleAutoRescan(evidence) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+  // Synchronously, before any await — the initial pre-reveal pass only reaches
+  // renderers that are already registered when the bundle lands.
+  window.i18n?.registerRenderer?.(renderI18n);
+
   if (window.i18n?.ready) {
     await window.i18n.ready;
   }
 
   const btnRescan = document.getElementById("btn-rescan");
   const btnProceed = document.getElementById("btn-proceed");
-  const finalStatus = document.getElementById("final-status");
 
   if (window.electronAPI) {
     try {
@@ -289,7 +387,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!_proceedReady) {
       return;
     } // only gate once preflight has passed
-    applyLiveProceedStatus(clean, apps || [], btnProceed, finalStatus);
+    applyLiveProceedStatus(clean, apps || [], btnProceed);
   });
 
   async function runScans() {
@@ -301,11 +399,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     _isAutoRescan = false;
 
-    setLoadingState(btnProceed, btnRescan, finalStatus);
+    setLoadingState(btnProceed, btnRescan);
 
     if (!window.electronAPI) {
       // Non-Electron preview fallback
-      setTimeout(() => setMockPassedState(finalStatus, btnProceed), 1000);
+      setTimeout(() => setMockPassedState(btnProceed), 1000);
       return;
     }
 
@@ -337,14 +435,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       } // a newer scan owns the UI
       // Cards are already painted from the streaming events; this re-applies
       // them (idempotent) and sets the final button state.
-      processResults(results, btnProceed, btnRescan, finalStatus);
+      processResults(results, btnProceed, btnRescan);
       _scanRetryCount = 0; // a completed scan (pass or fail) breaks the retry chain
     } catch (err) {
       if (myGeneration !== _scanGeneration) {
         return;
       }
       console.error("[preflight] scan error:", err);
-      showScanError(finalStatus, btnRescan, err?.message || "Unknown error");
+      showScanError(btnRescan, err?.message || "Unknown error");
     } finally {
       // Always clean up the listener to prevent leaks on rescan
       window.electronAPI.removePreflightProgressListener?.();
@@ -361,27 +459,34 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Fail loud if the bridge method is missing — never spin forever silently
     // (synced with the other nav buttons hardened in renderer-production-hardening).
     if (typeof window.electronAPI?.loadPermissionsPage !== "function") {
-      finalStatus.textContent = tr(
+      setStatus(
         "preflightResults.restartApp",
-        "Unable to continue — please restart the app."
+        "Unable to continue — please restart the app.",
+        null,
+        "sc-status sc-status--fail"
       );
-      finalStatus.className = "sc-status sc-status--fail";
       return;
     }
     btnProceed.disabled = true;
     btnProceed.className = "sc-btn-proceed sc-btn-proceed--loading";
-    btnProceed.innerHTML = `${ICONS.loading} ${tr("preflightResults.loading", "Loading...")}`;
+    _proceedLoading = true;
+    renderProceedButton();
     window.electronAPI.loadPermissionsPage();
     // Watchdog: successful navigation tears down this page (timer dies with it).
     // If it fires, navigation never happened — restore the button for a retry.
     window.armButtonRestore(btnProceed, proceedBtnHTML, {
       onRestore: () => {
         btnProceed.className = PROCEED_ENABLED_CLASS;
-        finalStatus.textContent = tr(
+        // Re-render rather than trust the captured HTML: it was captured in
+        // whatever locale was active at load.
+        _proceedLoading = false;
+        renderProceedButton();
+        setStatus(
           "preflightResults.tooLong",
-          "That took too long. Please try again."
+          "That took too long. Please try again.",
+          null,
+          "sc-status sc-status--fail"
         );
-        finalStatus.className = "sc-status sc-status--fail";
       },
     });
   });
@@ -389,7 +494,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   runScans();
 });
 
-function setLoadingState(btnProceed, btnRescan, finalStatus) {
+function setLoadingState(btnProceed, btnRescan) {
   // A scan is starting — the previous pass no longer authorises anything.
   // Otherwise a pre-proceed push with clean:true, arriving mid-rescan, could
   // re-enable Proceed off a process-only poll before the new cards resolve.
@@ -399,27 +504,17 @@ function setLoadingState(btnProceed, btnRescan, finalStatus) {
 
   btnProceed.disabled = true;
   btnProceed.className = "sc-btn-proceed sc-btn-proceed--loading";
+  _proceedLoading = false;
+  renderProceedButton();
   btnRescan.disabled = true;
-  finalStatus.textContent = tr("preflight.runningDiagnostics", "Running security diagnostics...");
-  finalStatus.className = "sc-status";
+  setStatus(
+    "preflight.runningDiagnostics",
+    "Running security diagnostics...",
+    null,
+    "sc-status"
+  );
 
-  ["hdmi", "meeting", "screen", "wireless", "ai"].forEach((id) => {
-    const iconEl = document.getElementById(`icon-${id}`);
-    const badgeEl = document.getElementById(`badge-${id}`);
-    const actionsEl = document.getElementById(`actions-${id}`);
-
-    if (iconEl) {
-      iconEl.innerHTML = ICONS.loading;
-      iconEl.className = "sc-card__icon";
-    }
-    if (badgeEl) {
-      badgeEl.className = "sc-badge sc-badge--scanning";
-      badgeEl.textContent = tr("preflightResults.scanning", "Scanning");
-    }
-    if (actionsEl) {
-      actionsEl.innerHTML = "";
-    }
-  });
+  STATIC_CARD_IDS.forEach((id) => setCardState(id, { phase: "scanning" }));
 
   // Show the agent card in a pending/scanning state (like the static cards)
   // until its result arrives. renderAgentCard() replaces it with pass/fail.
@@ -453,6 +548,11 @@ const AGENT_PHASE_COPY = {
  * @param {"starting"|"scanning"} [phase]
  */
 function renderAgentPending(phase = "scanning") {
+  _agentState = { phase };
+  paintAgentCard();
+}
+
+function paintAgentPending(phase) {
   document.getElementById("card-agent")?.remove();
   const container = document.querySelector(".sc-cards");
   if (!container) {
@@ -475,6 +575,18 @@ function renderAgentPending(phase = "scanning") {
       <div class="sc-badge sc-badge--scanning">${tr(copy.badgeKey, copy.badgeFallback)}</div>
     </div>`;
   container.appendChild(card);
+}
+
+/** Redraws the agent card from _agentState. No state — no card, as before the scan. */
+function paintAgentCard() {
+  if (!_agentState) {
+    return;
+  }
+  if (_agentState.phase) {
+    paintAgentPending(_agentState.phase);
+  } else {
+    paintAgentVerdict(_agentState.verdict);
+  }
 }
 
 /**
@@ -520,7 +632,12 @@ function applyVerdict(v) {
     renderAgentCard(v);
     return;
   }
-  updateCard(v.id, v.status, verdictText(v), v.blockedApps || []);
+  setCardState(v.id, {
+    status: v.status,
+    reasonKey: v.reasonKey,
+    reasonParams: v.reasonParams,
+    blockedApps: v.blockedApps || [],
+  });
 }
 
 /**
@@ -530,7 +647,7 @@ function applyVerdict(v) {
  * Proceed is gated on `results.canProceed`, computed in main — the renderer
  * never derives it, since main re-verifies the same value on click.
  */
-function processResults(results, btnProceed, btnRescan, finalStatus) {
+function processResults(results, btnProceed, btnRescan) {
   const verdicts = Array.isArray(results?.verdicts) ? results.verdicts : [];
   verdicts.forEach(applyVerdict);
 
@@ -552,11 +669,12 @@ function processResults(results, btnProceed, btnRescan, finalStatus) {
 
   if (allPassed) {
     _autoRescanCount = 0; // the kill→rescan loop resolved — re-arm auto-rescan
-    finalStatus.textContent = tr(
+    setStatus(
       "preflightResults.allPassed",
-      "All security checks passed. You are ready to start."
+      "All security checks passed. You are ready to start.",
+      null,
+      "sc-status sc-status--pass"
     );
-    finalStatus.className = "sc-status sc-status--pass";
     btnProceed.disabled = false;
     btnProceed.className = PROCEED_ENABLED_CLASS;
   } else {
@@ -564,16 +682,21 @@ function processResults(results, btnProceed, btnRescan, finalStatus) {
     // Only the first is actionable by the candidate; telling someone to
     // "resolve the security alerts" when a probe failed sends them hunting for
     // a problem that isn't theirs.
-    finalStatus.textContent = anyUnverified
-      ? tr(
-          "preflightResults.someUnverified",
-          "Some checks could not be verified. Click Re-scan to try again."
-        )
-      : tr(
-          "preflightResults.resolveAlerts",
-          "Please resolve the security alerts above to proceed."
-        );
-    finalStatus.className = "sc-status sc-status--fail";
+    if (anyUnverified) {
+      setStatus(
+        "preflightResults.someUnverified",
+        "Some checks could not be verified. Click Re-scan to try again.",
+        null,
+        "sc-status sc-status--fail"
+      );
+    } else {
+      setStatus(
+        "preflightResults.resolveAlerts",
+        "Please resolve the security alerts above to proceed.",
+        null,
+        "sc-status sc-status--fail"
+      );
+    }
     btnProceed.disabled = true;
     btnProceed.className = PROCEED_DISABLED_CLASS;
   }
@@ -584,30 +707,47 @@ function processResults(results, btnProceed, btnRescan, finalStatus) {
  * app is launched after preflight passes but before the user clicks Proceed,
  * disable Proceed again; re-enable when the screen is clean.
  */
-function applyLiveProceedStatus(clean, apps, btnProceed, finalStatus) {
+function applyLiveProceedStatus(clean, apps, btnProceed) {
   if (clean) {
-    finalStatus.textContent = tr(
+    setStatus(
       "preflightResults.allPassed",
-      "All security checks passed. You are ready to start."
+      "All security checks passed. You are ready to start.",
+      null,
+      "sc-status sc-status--pass"
     );
-    finalStatus.className = "sc-status sc-status--pass";
     btnProceed.disabled = false;
     btnProceed.className = PROCEED_ENABLED_CLASS;
   } else {
     const names = apps.map((p) => getDisplayName(p)).join(", ");
-    finalStatus.textContent = tr(
+    setStatus(
       "preflightResults.blockedAppLaunched",
       `A blocked app was launched: ${names}. Close it to proceed.`,
-      { names }
+      { names },
+      "sc-status sc-status--fail"
     );
-    finalStatus.className = "sc-status sc-status--fail";
     btnProceed.disabled = true;
     btnProceed.className = PROCEED_DISABLED_CLASS;
   }
 }
 
+/** Records a static card's state and repaints it (rebuilding its kill rows). */
+function setCardState(id, state) {
+  _cardState[id] = state;
+  renderStaticCard(id, true);
+}
+
+/** The card's description text for its current state. */
+function cardDescText(id, state) {
+  if (state.phase) {
+    const copy = CARD_SCANNING_COPY[id];
+    return copy ? tr(copy.key, copy.fallback) : "";
+  }
+  // Preview-mode literal (no verdict from main), otherwise the verdict reason.
+  return typeof state.text === "string" ? state.text : verdictText(state);
+}
+
 /**
- * Paints one static card in one of three states.
+ * Paints one static card in one of four states.
  *
  * `unverified` is visually distinct from `fail` on purpose: it blocks Proceed
  * just as hard, but it means "we could not establish this", not "you did
@@ -615,11 +755,15 @@ function applyLiveProceedStatus(clean, apps, btnProceed, finalStatus) {
  * candidate to close, the check simply did not complete.
  *
  * @param {string} id
- * @param {"pass"|"fail"|"unverified"} status
- * @param {string} msg
- * @param {string[]} [blockedApps]
+ * @param {boolean} rebuildActions Rebuild the kill rows from scratch. False for
+ *   a locale repaint, which must leave live rows (and any in-flight kill they
+ *   are waiting on) attached and only relabel them.
  */
-function updateCard(id, status, msg, blockedApps = []) {
+function renderStaticCard(id, rebuildActions) {
+  const state = _cardState[id];
+  if (!state) {
+    return;
+  }
   const cardEl = document.getElementById(`card-${id}`);
   const iconEl = document.getElementById(`icon-${id}`);
   const descEl = document.getElementById(`desc-${id}`);
@@ -629,10 +773,24 @@ function updateCard(id, status, msg, blockedApps = []) {
     return;
   }
 
-  if (actionsEl) {
+  if (actionsEl && rebuildActions) {
     actionsEl.innerHTML = "";
   }
-  descEl.textContent = msg;
+  descEl.textContent = cardDescText(id, state);
+
+  if (state.phase) {
+    cardEl.className = "sc-card";
+    iconEl.innerHTML = ICONS.loading;
+    iconEl.className = "sc-card__icon";
+    descEl.className = "sc-card__desc";
+    if (badgeEl) {
+      badgeEl.className = "sc-badge sc-badge--scanning";
+      badgeEl.textContent = tr("preflightResults.scanning", "Scanning");
+    }
+    return;
+  }
+
+  const status = state.status;
 
   if (status === PASS) {
     cardEl.className = "sc-card";
@@ -666,7 +824,8 @@ function updateCard(id, status, msg, blockedApps = []) {
     badgeEl.className = "sc-badge sc-badge--fail";
     badgeEl.textContent = tr("preflightResults.actionRequired", "Action Required");
   }
-  if (blockedApps.length > 0) {
+  const blockedApps = state.blockedApps || [];
+  if (rebuildActions && actionsEl && blockedApps.length > 0) {
     renderKillButtons(actionsEl, blockedApps);
   }
 }
@@ -675,6 +834,8 @@ function updateCard(id, status, msg, blockedApps = []) {
 // per-outcome branches below stay readable.
 const KILL_ICON = {
   x: '<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>',
+  close:
+    '<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>',
   check:
     '<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>',
   spin: '<svg class="sc-icon-xs spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>',
@@ -713,21 +874,79 @@ function renderKillButtons(container, blockedApps) {
       </div>`;
 
     const btn = document.createElement("button");
-    btn.className = "sc-kill-btn";
-    btn.innerHTML = `<svg class="sc-icon-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> ${tr("preflightResults.closeApp", `Close ${safeDisplay}`, { name: safeDisplay })}`;
     btn.addEventListener("click", () => handleKillApp(btn, appName, row));
 
     row.appendChild(btn);
     container.appendChild(row);
+    setKillRowState(row, btn, appName, { kind: "idle" });
   });
 
   if (blockedApps.length > 1) {
     const closeAllBtn = document.createElement("button");
-    closeAllBtn.className = "sc-kill-all-btn";
-    closeAllBtn.innerHTML = `<svg class="sc-icon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> ${tr("preflightResults.closeAllRescan", "Close All & Re-scan")}`;
     closeAllBtn.addEventListener("click", () => handleKillAll(closeAllBtn, blockedApps));
     container.appendChild(closeAllBtn);
+    setKillAllState(closeAllBtn, { kind: "idle" });
   }
+}
+
+// ─── Kill row / Close-All painting ────────────────────────────────────────────
+// State lives beside the element so a locale repaint can redraw a row's label
+// without re-running the kill, and so a card rebuild drops it with the row.
+
+/** Records a row's state and paints it. Returns the coarse category, if any. */
+function setKillRowState(row, btn, processName, state) {
+  _killRowState.set(row, state);
+  return paintKillRow(row, btn, processName, state);
+}
+
+function setKillAllState(btn, state) {
+  _killAllState.set(btn, state);
+  paintKillAllBtn(btn, state);
+}
+
+/** Relabels every rendered kill control in place from its retained state. */
+function repaintKillRows() {
+  document.querySelectorAll(".sc-kill-row").forEach((row) => {
+    const btn = row.querySelector(".sc-kill-btn");
+    const state = _killRowState.get(row);
+    if (btn && state) {
+      paintKillRow(row, btn, row.dataset.process, state);
+    }
+  });
+  document.querySelectorAll(".sc-kill-all-btn").forEach((btn) => {
+    const state = _killAllState.get(btn);
+    if (state) {
+      paintKillAllBtn(btn, state);
+    }
+  });
+}
+
+const REFRESH_PATH =
+  '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>';
+const KILL_ALL_SPINNER = `<svg class="sc-icon-sm spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">${REFRESH_PATH}</svg>`;
+const KILL_ALL_REFRESH = `<svg class="sc-icon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24">${REFRESH_PATH}</svg>`;
+const CHECK_PATH =
+  '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>';
+const X_PATH =
+  '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>';
+
+function paintKillAllBtn(btn, state) {
+  if (state.kind === "idle") {
+    btn.disabled = false;
+    btn.className = "sc-kill-all-btn";
+    btn.innerHTML = `${KILL_ALL_REFRESH} ${tr("preflightResults.closeAllRescan", "Close All & Re-scan")}`;
+    return;
+  }
+  if (state.kind === "killing") {
+    btn.disabled = true;
+    btn.className = "sc-kill-all-btn sc-kill-all-btn--killing";
+    btn.innerHTML = `${KILL_ALL_SPINNER} ${tr("preflightResults.closingAll", "Closing all apps...")}`;
+    return;
+  }
+  // Summary — reached only after the killing state disabled the button.
+  btn.disabled = true;
+  btn.className = `sc-kill-all-btn sc-kill-all-btn--${state.variant}`;
+  btn.innerHTML = `<svg class="sc-icon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24">${state.icon}</svg> ${tr(state.key, state.fallback, state.params)}`;
 }
 
 // ─── Kill Result Contract ─────────────────────────────────────────────────────
@@ -810,8 +1029,47 @@ function clearKillHint(row) {
  * different actions from the candidate.
  */
 function applyKillOutcome(row, btn, processName, norm) {
+  return setKillRowState(row, btn, processName, { kind: "outcome", norm });
+}
+
+/**
+ * Draws one kill row for its retained state. Deterministic and free of side
+ * effects beyond the row itself — the auto-rescan decisions live in the kill
+ * handlers, which act on the category this returns.
+ */
+function paintKillRow(row, btn, processName, state) {
   const display = getDisplayName(processName);
   const safeName = window.escHtml(display);
+
+  if (state.kind === "idle") {
+    clearKillHint(row);
+    row.classList.remove("sc-kill-row--closed", "sc-kill-row--respawned", "sc-kill-row--blocked");
+    btn.disabled = false;
+    btn.className = "sc-kill-btn";
+    btn.innerHTML = `${KILL_ICON.close} ${tr("preflightResults.closeApp", `Close ${safeName}`, { name: safeName })}`;
+    return null;
+  }
+
+  if (state.kind === "closing") {
+    btn.disabled = true;
+    btn.className = "sc-kill-btn sc-kill-btn--killing";
+    btn.innerHTML = `${KILL_ICON.spin} ${
+      state.elevated
+        ? tr("preflightResults.killElevateWaiting", "Waiting for permission...")
+        : tr("preflightResults.closing", "Closing...")
+    }`;
+    return null;
+  }
+
+  if (state.kind === "error") {
+    clearKillHint(row);
+    btn.className = "sc-kill-btn sc-kill-btn--failed";
+    btn.innerHTML = `${KILL_ICON.x} ${tr("preflightResults.closeErrorManual", `Error — close ${safeName} manually`, { name: safeName })}`;
+    btn.disabled = false;
+    return null;
+  }
+
+  const norm = state.norm;
 
   row.classList.remove("sc-kill-row--closed", "sc-kill-row--respawned", "sc-kill-row--blocked");
 
@@ -929,19 +1187,17 @@ function applyKillOutcome(row, btn, processName, norm) {
 // ─── Kill Handlers ────────────────────────────────────────────────────────────
 
 async function handleKillApp(btn, processName, row) {
-  btn.disabled = true;
-  btn.className = "sc-kill-btn sc-kill-btn--killing";
-  btn.innerHTML = `${KILL_ICON.spin} ${tr("preflightResults.closing", "Closing...")}`;
-
   // This click is explicit consent to elevate (the button was relabelled for
   // it) — never an automatic fallback, and never repeated: recorded either way
-  // so a failed or declined prompt can't loop back.
+  // so a failed or declined prompt can't loop back. Read before painting, since
+  // the paint owns the button's markup from here on.
   const elevated = btn.dataset.mode === "elevate";
   if (elevated) {
     delete btn.dataset.mode;
     _elevationTried.add(processName);
-    btn.innerHTML = `${KILL_ICON.spin} ${tr("preflightResults.killElevateWaiting", "Waiting for permission...")}`;
   }
+
+  setKillRowState(row, btn, processName, { kind: "closing", elevated });
 
   let raw;
   try {
@@ -949,11 +1205,7 @@ async function handleKillApp(btn, processName, row) {
       ? await window.electronAPI.killProcessElevated?.(processName)
       : await window.electronAPI.killProcess(processName);
   } catch {
-    clearKillHint(row);
-    btn.className = "sc-kill-btn sc-kill-btn--failed";
-    const safeName = window.escHtml(getDisplayName(processName));
-    btn.innerHTML = `${KILL_ICON.x} ${tr("preflightResults.closeErrorManual", `Error — close ${safeName} manually`, { name: safeName })}`;
-    btn.disabled = false;
+    setKillRowState(row, btn, processName, { kind: "error" });
     return;
   }
 
@@ -996,18 +1248,10 @@ function findKillRow(container, processName) {
 
 async function handleKillAll(btn, processNames) {
   const container = btn.parentElement;
-  btn.disabled = true;
-  btn.className = "sc-kill-all-btn sc-kill-all-btn--killing";
-  btn.innerHTML = `<svg class="sc-icon-sm spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> ${tr("preflightResults.closingAll", "Closing all apps...")}`;
+  setKillAllState(btn, { kind: "killing" });
 
-  const setSummary = (variant, icon, label) => {
-    btn.className = `sc-kill-all-btn sc-kill-all-btn--${variant}`;
-    btn.innerHTML = `<svg class="sc-icon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24">${icon}</svg> ${label}`;
-  };
-  const CHECK_PATH =
-    '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>';
-  const X_PATH =
-    '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>';
+  const setSummary = (variant, icon, key, fallback, params) =>
+    setKillAllState(btn, { kind: "summary", variant, icon, key, fallback, params: params || null });
 
   let results;
   try {
@@ -1016,7 +1260,8 @@ async function handleKillAll(btn, processNames) {
     setSummary(
       "failed",
       X_PATH,
-      tr("preflightResults.someFailedToClose", "Some apps failed to close")
+      "preflightResults.someFailedToClose",
+      "Some apps failed to close"
     );
     scheduleAutoRescan();
     return;
@@ -1028,7 +1273,8 @@ async function handleKillAll(btn, processNames) {
     setSummary(
       "success",
       CHECK_PATH,
-      tr("preflightResults.allClosedRescanning", "All apps closed — re-scanning...")
+      "preflightResults.allClosedRescanning",
+      "All apps closed — re-scanning..."
     );
     scheduleAutoRescan();
     return;
@@ -1097,7 +1343,8 @@ async function handleKillAll(btn, processNames) {
     setSummary(
       "success",
       CHECK_PATH,
-      tr("preflightResults.allClosedRescanning", "All apps closed — re-scanning...")
+      "preflightResults.allClosedRescanning",
+      "All apps closed — re-scanning..."
     );
     scheduleAutoRescan();
     return;
@@ -1107,23 +1354,23 @@ async function handleKillAll(btn, processNames) {
     setSummary(
       "failed",
       X_PATH,
-      tr("preflightResults.killAllReopened", "Some apps reopened themselves")
+      "preflightResults.killAllReopened",
+      "Some apps reopened themselves"
     );
   } else if (closedCount === 0) {
     setSummary(
       "failed",
       X_PATH,
-      tr("preflightResults.someFailedToClose", "Some apps failed to close")
+      "preflightResults.someFailedToClose",
+      "Some apps failed to close"
     );
   } else {
     setSummary(
       "partial",
       X_PATH,
-      tr(
-        "preflightResults.killAllPartial",
-        `${closedCount} of ${total} closed — close the rest manually`,
-        { closed: closedCount, total }
-      )
+      "preflightResults.killAllPartial",
+      `${closedCount} of ${total} closed — close the rest manually`,
+      { closed: closedCount, total }
     );
   }
 
@@ -1148,6 +1395,11 @@ async function handleKillAll(btn, processNames) {
  * @param {{status: string, reasonKey: string, reasonParams?: object, threats?: object[]}} v
  */
 function renderAgentCard(v) {
+  _agentState = { verdict: v };
+  paintAgentCard();
+}
+
+function paintAgentVerdict(v) {
   document.getElementById("card-agent")?.remove();
   const container = document.querySelector(".sc-cards");
   if (!container) {
@@ -1263,11 +1515,11 @@ function renderAgentCard(v) {
 
 // ─── Mock Fallback (non-Electron preview) ─────────────────────────────────────
 
-function setMockPassedState(finalStatus, btnProceed) {
-  ["hdmi", "meeting", "screen", "wireless", "ai"].forEach((id) =>
-    updateCard(id, PASS, "Check passed (preview mode).")
+function setMockPassedState(btnProceed) {
+  STATIC_CARD_IDS.forEach((id) =>
+    setCardState(id, { status: PASS, text: "Check passed (preview mode)." })
   );
-  finalStatus.textContent = "Preview mode — all checks simulated as passed.";
+  setStatus(null, "Preview mode — all checks simulated as passed.", null, "sc-status");
   btnProceed.disabled = false;
 }
 
@@ -1276,11 +1528,10 @@ function setMockPassedState(finalStatus, btnProceed) {
 /**
  * Displays a structured scan-failure message with an auto-retry countdown.
  * Replaces the silent "Error running diagnostics." grey text.
- * @param {HTMLElement} finalStatus
  * @param {HTMLButtonElement} btnRescan
  * @param {string} message
  */
-function showScanError(finalStatus, btnRescan, message) {
+function showScanError(btnRescan, message) {
   btnRescan.disabled = false;
   _lastScanError = message;
 
@@ -1288,11 +1539,11 @@ function showScanError(finalStatus, btnRescan, message) {
   // stop counting down and leave a manual Rescan prompt instead of hammering
   // the backend forever.
   if (_scanRetryCount >= MAX_SCAN_RETRIES) {
-    finalStatus.className = "sc-status sc-status--fail";
-    finalStatus.textContent = tr(
+    setStatus(
       "preflightResults.diagnosticsFailedRetry",
       `Diagnostics failed: ${message}. Please click Rescan to try again.`,
-      { message }
+      { message },
+      "sc-status sc-status--fail"
     );
     // The candidate is now genuinely stuck. Give them something to send support
     // instead of a screenshot of a red line — this is the only point in the flow
@@ -1302,21 +1553,29 @@ function showScanError(finalStatus, btnRescan, message) {
   }
 
   _scanRetryCount += 1;
-  const attempt = tr("preflightResults.attempt", `attempt ${_scanRetryCount}/${MAX_SCAN_RETRIES}`, {
-    current: _scanRetryCount,
-    max: MAX_SCAN_RETRIES,
-  });
+  const attemptNo = _scanRetryCount;
   let seconds = 5;
 
-  const renderCountdown = () =>
-    tr(
+  // A function, not a fixed object: `attempt` is itself translated, so it has
+  // to be re-derived when the locale changes mid-countdown.
+  const countdownParams = () => ({
+    message,
+    seconds,
+    attempt: tr("preflightResults.attempt", `attempt ${attemptNo}/${MAX_SCAN_RETRIES}`, {
+      current: attemptNo,
+      max: MAX_SCAN_RETRIES,
+    }),
+  });
+
+  const paintCountdown = () =>
+    setStatus(
       "preflightResults.diagnosticsFailedCountdown",
-      `Diagnostics failed: ${message} — retrying in ${seconds}s… (${attempt})`,
-      { message, seconds, attempt }
+      `Diagnostics failed: ${message} — retrying in ${seconds}s… (attempt ${attemptNo}/${MAX_SCAN_RETRIES})`,
+      countdownParams,
+      "sc-status sc-status--warn"
     );
 
-  finalStatus.className = "sc-status sc-status--warn";
-  finalStatus.textContent = renderCountdown();
+  paintCountdown();
 
   const timer = setInterval(() => {
     seconds -= 1;
@@ -1325,7 +1584,7 @@ function showScanError(finalStatus, btnRescan, message) {
       _isAutoRescan = true; // preserve the retry cap across this programmatic rescan
       btnRescan.click();
     } else {
-      finalStatus.textContent = renderCountdown();
+      paintCountdown();
     }
   }, 1000);
 }
@@ -1494,6 +1753,31 @@ async function copyToClipboard(text) {
 /** Removes the diagnostics control and any fallback textarea. */
 function removeDiagnosticsControl() {
   document.getElementById("diagnostics-wrap")?.remove();
+  _diagnosticsNote = null;
+}
+
+const DIAGNOSTICS_NOTE_COPY = {
+  copied: {
+    key: "preflightResults.diagnosticsCopied",
+    fallback: "Diagnostics copied. Paste them in your message to support.",
+  },
+  failed: {
+    key: "preflightResults.diagnosticsCopyFailed",
+    fallback: "Could not copy automatically. Select the text below and copy it.",
+  },
+};
+
+/** Relabels the diagnostics control if it is on screen. */
+function renderDiagnosticsControl() {
+  const btn = document.getElementById("btn-diagnostics");
+  if (btn) {
+    btn.textContent = tr("preflightResults.copyDiagnostics", "Copy diagnostics");
+  }
+  const copy = DIAGNOSTICS_NOTE_COPY[_diagnosticsNote];
+  const note = document.querySelector("#diagnostics-wrap .sc-diagnostics__note");
+  if (note && copy) {
+    note.textContent = tr(copy.key, copy.fallback);
+  }
 }
 
 /**
@@ -1534,17 +1818,11 @@ function showDiagnosticsControl() {
       console.error("[preflight] diagnostics build failed:", e);
     }
     const copied = text ? await copyToClipboard(text) : false;
+    _diagnosticsNote = copied ? "copied" : "failed";
+    renderDiagnosticsControl();
     if (copied) {
-      note.textContent = tr(
-        "preflightResults.diagnosticsCopied",
-        "Diagnostics copied. Paste them in your message to support."
-      );
       wrap.querySelector("textarea")?.remove();
     } else {
-      note.textContent = tr(
-        "preflightResults.diagnosticsCopyFailed",
-        "Could not copy automatically. Select the text below and copy it."
-      );
       let ta = wrap.querySelector("textarea");
       if (!ta) {
         ta = document.createElement("textarea");

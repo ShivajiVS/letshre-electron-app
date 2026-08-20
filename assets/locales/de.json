@@ -42,13 +42,18 @@
   },
   "dashboard": {
     "logout": "Abmelden",
+    "loggingOut": "Wird abgemeldet…",
     "welcome": "Willkommen",
+    "welcomeName": "Willkommen, {name}",
     "cardText": "Wenn Sie bereit sind, beginnen Sie Ihr Interview. Wir führen zunächst eine schnelle Sicherheitsprüfung durch, um sicherzustellen, dass Ihre Umgebung korrekt eingerichtet ist.",
     "attemptsUsed": "Verwendete Versuche",
     "attemptsRemaining": "{remaining} von {max} verbleibend",
     "attemptsExhausted": "Sie haben alle Ihre Interviewversuche aufgebraucht. Wenden Sie sich an den Support, wenn Sie weitere benötigen.",
     "takeInterview": "Interview starten",
+    "starting": "Wird gestartet…",
     "securityNote": "Vor Beginn des Interviews wird eine Sicherheitsprüfung durchgeführt.",
+    "startUnavailable": "Start nicht möglich — bitte starten Sie die App neu.",
+    "startTimedOut": "Das hat zu lange gedauert. Bitte versuchen Sie es erneut.",
     "howItWorksLink": "Wie läuft der Prozess ab? →"
   },
   "hiw": {

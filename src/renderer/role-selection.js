@@ -11,11 +11,11 @@ function tr(key, fallback, params) {
   return window.t ? window.t(key, params) : fallback;
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
-  if (window.i18n?.ready) {
-    await window.i18n.ready;
-  }
+const ARROW_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>`;
+const START_ICON = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>`;
+const SPINNER = `<span class="rs-spinner"></span>`;
 
+document.addEventListener("DOMContentLoaded", async () => {
   const stepPills = [
     document.getElementById("step-pill-confirm"),
     document.getElementById("step-pill-input"),
@@ -65,13 +65,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Error banner (inline display:none/flex — see role-selection.html note)
   const rsError = document.getElementById("rs-error");
   const rsErrorText = document.getElementById("rs-error-text");
-  function showError(msg) {
-    rsErrorText.textContent = msg;
-    rsError.style.display = "flex";
-  }
-  function hideError() {
-    rsError.style.display = "none";
-  }
 
   const SIDEBAR = [
     {
@@ -104,9 +97,74 @@ document.addEventListener("DOMContentLoaded", async () => {
     },
   ];
 
+  // State renderI18n() re-derives text from — kept in sync by the step/submit
+  // logic below so a locale switch mid-flow can redraw without reverting it.
+  let currentStepIdx = 0;
+  let isBusy = false; // btnYes / btnSubmitRole / btnConfirmClarify request in flight
+  let isStartingInterview = false; // btnStartInterview post-click, own lifecycle
+  let selectedClarifyRole = "";
+  let skillsEmpty = false;
+  let errorState = null; // { key, fallback } | { raw: string } | null
+
+  function confirmClarifyLabel(role) {
+    return role
+      ? `${tr("role.confirmWithRole", "Confirm — {role}", { role: window.escHtml(role) })} ${ARROW_ICON}`
+      : `${tr("role.confirmSelection", "Confirm selection")} ${ARROW_ICON}`;
+  }
+
+  function renderI18n() {
+    sidebarTitle.textContent = tr(...SIDEBAR[currentStepIdx].titleKey);
+    sidebarDesc.textContent = tr(...SIDEBAR[currentStepIdx].descKey);
+
+    if (isBusy) {
+      btnYes.innerHTML = `${SPINNER} ${tr("role.loading", "Loading…")}`;
+      btnSubmitRole.innerHTML = `${SPINNER} ${tr("role.checkingRole", "Checking role…")}`;
+      btnConfirmClarify.innerHTML = `${SPINNER} ${tr("role.confirming", "Confirming…")}`;
+    } else {
+      btnYes.innerHTML = `${tr("role.yes", "Yes, continue")} ${ARROW_ICON}`;
+      btnSubmitRole.innerHTML = `${tr("role.continueToInterview", "Continue to Interview")} ${ARROW_ICON}`;
+      btnConfirmClarify.innerHTML = confirmClarifyLabel(selectedClarifyRole);
+    }
+
+    btnStartInterview.innerHTML = isStartingInterview
+      ? `${SPINNER} ${tr("role.starting", "Starting…")}`
+      : `${tr("role.startInterview", "Start Interview")} ${START_ICON}`;
+
+    if (skillsEmpty) {
+      skillsGrid.innerHTML = `<p class="rs-skills-empty">${tr("role.noSkillsListed", "No specific skills listed — the interview will adapt in real-time.")}</p>`;
+    }
+
+    if (errorState) {
+      rsErrorText.textContent =
+        "raw" in errorState ? errorState.raw : tr(errorState.key, errorState.fallback);
+    }
+  }
+
+  window.i18n?.registerRenderer?.(renderI18n);
+
+  if (window.i18n?.ready) {
+    await window.i18n.ready;
+  }
+
+  function showError(msg) {
+    rsErrorText.textContent = msg;
+    rsError.style.display = "flex";
+  }
+  function hideError() {
+    errorState = null;
+    rsError.style.display = "none";
+  }
+  function showTranslatedError(key, fallback) {
+    errorState = { key, fallback };
+    showError(tr(key, fallback));
+  }
+  function showRawError(text) {
+    errorState = { raw: text };
+    showError(text);
+  }
+
   let profileRole = ""; // role from candidate profile
   let pendingRole = ""; // last submitted role string
-  let selectedClarifyRole = ""; // picked in clarification step
 
   // Role-decision state, handed to the interview site at Start Interview.
   //   Yes (keep assigned role) → is_custom_role: false; backend uses the profile role.
@@ -116,9 +174,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   let finalSkills = []; // the skills shown on the skills panel
 
   function goToStep(idx) {
+    currentStepIdx = idx;
     hideError();
-    sidebarTitle.textContent = tr(...SIDEBAR[idx].titleKey);
-    sidebarDesc.textContent = tr(...SIDEBAR[idx].descKey);
+    renderI18n();
 
     stepPills.forEach((el, i) => {
       el.classList.remove("rs-step--active", "rs-step--done");
@@ -205,18 +263,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  const startInterviewHTML = btnStartInterview.innerHTML; // capture for restore
   btnStartInterview.addEventListener("click", () => {
     if (btnStartInterview.disabled) {
       return;
     }
     // Fail loud if the bridge method is missing — never spin forever silently.
     if (typeof window.electronAPI?.proceedToInterview !== "function") {
-      showError(tr("role.startUnavailable", "Unable to start the interview. Please restart the app."));
+      showTranslatedError("role.startUnavailable", "Unable to start the interview. Please restart the app.");
       return;
     }
+    const idleHTML = btnStartInterview.innerHTML; // capture for restore
     btnStartInterview.disabled = true;
-    btnStartInterview.innerHTML = `<span class="rs-spinner"></span> ${tr("role.starting", "Starting…")}`;
+    isStartingInterview = true;
+    renderI18n();
     // Hand the role decision to the interview site. Yes → is_custom_role:false
     // only; No → is_custom_role:true with the chosen role + detected skills.
     const payload = isCustomRole
@@ -225,8 +284,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.electronAPI.proceedToInterview(payload);
     // Watchdog: successful navigation tears down this page. If this fires,
     // navigation never happened — restore the button so the user can retry.
-    window.armButtonRestore(btnStartInterview, startInterviewHTML, {
-      onRestore: () => showError(tr("role.startTimedOut", "That took too long. Please try again.")),
+    window.armButtonRestore(btnStartInterview, idleHTML, {
+      onRestore: () => {
+        isStartingInterview = false;
+        renderI18n();
+        showTranslatedError("role.startTimedOut", "That took too long. Please try again.");
+      },
     });
   });
 
@@ -234,14 +297,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     pendingRole = role;
     hideError();
     if (typeof window.electronAPI?.submitRole !== "function") {
-      showError(tr("role.actionUnavailable", "This action is unavailable. Please restart the app."));
+      showTranslatedError("role.actionUnavailable", "This action is unavailable. Please restart the app.");
       setSubmitting(false);
       return;
     }
     try {
       const res = await window.electronAPI.submitRole(role);
       if (!res?.ok) {
-        showError(res?.error || tr("role.roleProcessFailed", "Couldn't process that role. Please try again."));
+        if (res?.error) {
+          showRawError(res.error);
+        } else {
+          showTranslatedError("role.roleProcessFailed", "Couldn't process that role. Please try again.");
+        }
         setSubmitting(false);
         return;
       }
@@ -254,44 +321,27 @@ document.addEventListener("DOMContentLoaded", async () => {
         goToStep(3);
       }
     } catch {
-      showError(tr("role.networkError", "Network error. Check your connection and try again."));
+      showTranslatedError("role.networkError", "Network error. Check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
   }
 
-  const ARROW_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>`;
-  const SPINNER = `<span class="rs-spinner"></span>`;
-
-  function confirmClarifyLabel(role) {
-    return role
-      ? `${tr("role.confirmWithRole", "Confirm — {role}", { role: window.escHtml(role) })} ${ARROW_ICON}`
-      : `${tr("role.confirmSelection", "Confirm selection")} ${ARROW_ICON}`;
-  }
-
   function setSubmitting(busy) {
+    isBusy = busy;
     btnYes.disabled = busy;
     btnSubmitRole.disabled = busy;
     btnConfirmClarify.disabled = busy;
-
-    if (busy) {
-      btnYes.innerHTML = `${SPINNER} ${tr("role.loading", "Loading…")}`;
-      btnSubmitRole.innerHTML = `${SPINNER} ${tr("role.checkingRole", "Checking role…")}`;
-      btnConfirmClarify.innerHTML = `${SPINNER} ${tr("role.confirming", "Confirming…")}`;
-    } else {
-      btnYes.innerHTML = `${tr("role.yes", "Yes, continue")} ${ARROW_ICON}`;
+    if (!busy) {
       btnSubmitRole.disabled = roleInput.value.trim().length === 0;
-      btnSubmitRole.innerHTML = `${tr("role.continueToInterview", "Continue to Interview")} ${ARROW_ICON}`;
-
       btnConfirmClarify.disabled = selectedClarifyRole.length === 0;
-      btnConfirmClarify.innerHTML = confirmClarifyLabel(selectedClarifyRole);
     }
+    renderI18n();
   }
 
   function renderClarification(suggestions) {
     selectedClarifyRole = "";
     btnConfirmClarify.disabled = true;
-    btnConfirmClarify.innerHTML = confirmClarifyLabel("");
     ambiguousRoleLabel.textContent = pendingRole;
     roleCardsEl.innerHTML = "";
 
@@ -320,8 +370,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     finalSkills = Array.isArray(skills) ? skills : [];
     confirmedRoleLabel.textContent = role;
     skillsGrid.innerHTML = "";
+    skillsEmpty = finalSkills.length === 0;
 
-    if (skills.length === 0) {
+    if (skillsEmpty) {
       skillsGrid.innerHTML = `<p class="rs-skills-empty">${tr("role.noSkillsListed", "No specific skills listed — the interview will adapt in real-time.")}</p>`;
       return;
     }

@@ -132,8 +132,8 @@
                 />
               </svg>
             </div>
-            <h3 class="iv-sidebar__title" id="sidebar-title" data-i18n="identity.sidebarVoiceTitle">Voice Verification</h3>
-            <p class="iv-sidebar__desc" id="sidebar-desc" data-i18n="identity.sidebarVoiceDesc">
+            <h3 class="iv-sidebar__title" id="sidebar-title">Voice Verification</h3>
+            <p class="iv-sidebar__desc" id="sidebar-desc">
               We need a short audio sample to verify your identity and ensure a secure session.
             </p>
           </aside>
@@ -173,8 +173,10 @@
               <div class="iv-statement" id="iv-statement">
                 <!-- The read-aloud attestation. This is a legal statement and drives
                      voice/STT matching on the backend — always render it from
-                     attestation.statement, never hardcode a translation here. -->
-                <p class="iv-statement__text" id="attestation-text" data-i18n="attestation.statement">
+                     attestation.statement, never hardcode a translation here.
+                     Owned by the controller (renderAttestation), which pins it to
+                     the recorded wording once a sample exists. -->
+                <p class="iv-statement__text" id="attestation-text">
                   "I confirm that I am the person taking this interview, and I will follow the
                   instructions."
                 </p>
@@ -253,7 +255,7 @@
                     >
                       <polygon points="5 3 19 12 5 21 5 3" />
                     </svg>
-                    <span id="playback-label" data-i18n="identity.listenBack">Listen back</span>
+                    <span id="playback-label">Listen back</span>
                   </button>
                   <div class="iv-playback-divider"></div>
                   <button class="iv-btn iv-btn--ghost" id="btn-retake-voice">
@@ -274,7 +276,7 @@
                   </button>
                 </div>
                 <button class="iv-btn iv-btn--primary iv-btn--lg" id="btn-continue-voice">
-                  <span data-i18n="common.continue">Continue</span>
+                  <span>Continue</span>
                   <svg
                     width="18"
                     height="18"
@@ -346,7 +348,7 @@
                     ></video>
                     <img id="iv-captured" class="iv-photo-frame__img" alt="Captured" hidden />
                     <canvas id="iv-canvas" hidden></canvas>
-                    <div class="iv-photo-frame__badge iv-photo-frame__badge--live" id="live-badge" data-i18n="identity.positionFace">
+                    <div class="iv-photo-frame__badge iv-photo-frame__badge--live" id="live-badge">
                       POSITION YOUR FACE
                     </div>
                   </div>
@@ -406,7 +408,7 @@
                     <polyline points="16 3 12 7 8 3" />
                     <line x1="12" y1="3" x2="12" y2="15" />
                   </svg>
-                  <span data-i18n="identity.confirmSubmit">Confirm &amp; Submit</span>
+                  <span>Confirm &amp; Submit</span>
                 </button>
               </div>
 
@@ -463,7 +465,7 @@
 
               <div class="iv-result-cta">
                 <button class="iv-btn iv-btn--primary iv-btn--lg" id="btn-begin-interview" hidden>
-                  <span data-i18n="common.continue">Continue</span>
+                  <span>Continue</span>
                   <svg
                     width="20"
                     height="20"

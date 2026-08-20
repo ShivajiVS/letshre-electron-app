@@ -42,13 +42,18 @@
   },
   "dashboard": {
     "logout": "Esci",
+    "loggingOut": "Disconnessione…",
     "welcome": "Benvenuto",
+    "welcomeName": "Benvenuto, {name}",
     "cardText": "Quando sei pronto, inizia il colloquio. Prima eseguiremo un rapido controllo di sicurezza per assicurarci che il tuo ambiente sia configurato correttamente.",
     "attemptsUsed": "Tentativi utilizzati",
     "attemptsRemaining": "{remaining} su {max} rimanenti",
     "attemptsExhausted": "Hai utilizzato tutti i tuoi tentativi di colloquio. Contatta l'assistenza se ne hai bisogno di altri.",
     "takeInterview": "Sostieni il colloquio",
+    "starting": "Avvio…",
     "securityNote": "Prima dell'inizio del colloquio viene eseguito un controllo di sicurezza.",
+    "startUnavailable": "Impossibile avviare — riavvia l'app.",
+    "startTimedOut": "L'operazione ha impiegato troppo tempo. Riprova.",
     "howItWorksLink": "Come funziona il processo? →"
   },
   "hiw": {

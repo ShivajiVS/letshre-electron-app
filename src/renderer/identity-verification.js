@@ -6,10 +6,6 @@ function tr(key, fallback, params) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  if (window.i18n?.ready) {
-    await window.i18n.ready;
-  }
-
   let audioBlob = null;
   let audioMimeType = "";
   let audioURL = null;
@@ -20,6 +16,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   let capturedDataUrl = null;
   let videoStream = null;
   let profilePhotoSrc = "";
+
+  // Metadata captured when the recording is finalised — see startRecording().
+  let recordingMeta = null;
+
+  let currentStep = 1;
+  let voiceSubmitting = false;
+  let photoVerifying = false;
+  let beginLoading = false;
+  let lastResultMatch = null;
+  let lastError = null;
 
   const errorBanner = document.getElementById("iv-error");
   const errorText = document.getElementById("iv-error-text");
@@ -33,6 +39,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const voiceIconWrap = document.getElementById("voice-icon-wrap");
   const ivStatement = document.getElementById("iv-statement");
+  const attestationText = document.getElementById("attestation-text");
   const ivWaveform = document.getElementById("iv-waveform");
   const ctaIdle = document.getElementById("voice-cta-idle");
   const ctaRecording = document.getElementById("voice-cta-recording");
@@ -92,22 +99,143 @@ document.addEventListener("DOMContentLoaded", async () => {
     },
   };
 
-  function showError(msg) {
-    errorText.textContent = msg;
+  const ATTESTATION_FALLBACK =
+    "I confirm that I am the person taking this interview, and I will follow the instructions.";
+  const CONTINUE_ICON_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>`;
+  const BEGIN_ICON_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>`;
+  const CONFIRM_SUBMIT_ICON_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><polyline points="16 3 12 7 8 3"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
+
+  // Must be registered synchronously, before the first await below: i18n runs
+  // the renderers once before revealing the page, and a late registration
+  // misses that pass and paints untranslated text.
+  window.i18n?.registerRenderer?.(renderI18n);
+
+  if (window.i18n?.ready) {
+    await window.i18n.ready;
+  }
+
+  // ── i18n render hook: every string this file writes, re-derived from state.
+  function renderI18n() {
+    sidebarTitle.textContent = tr(...SIDEBAR[currentStep].titleKey);
+    sidebarDesc.textContent = tr(...SIDEBAR[currentStep].descKey);
+    renderAttestation();
+    renderLiveBadge();
+    renderPlaybackBtn();
+    renderContinueVoiceButton();
+    renderSubmitPhotoButton();
+    renderBeginButton();
+    renderResult();
+    renderError();
+  }
+
+  // Once a sample exists the on-screen statement is pinned to the words that
+  // were actually recorded — switching the UI language must not show the
+  // candidate a different sentence than the one they read and submitted.
+  function renderAttestation() {
+    attestationText.textContent = recordingMeta?.statementText
+      ? recordingMeta.statementText
+      : tr("attestation.statement", ATTESTATION_FALLBACK);
+  }
+
+  function renderLiveBadge() {
+    liveBadge.textContent = capturedDataUrl
+      ? tr("identity.photoCaptured", "PHOTO CAPTURED")
+      : tr("identity.positionFace", "POSITION YOUR FACE");
+  }
+
+  function renderPlaybackBtn() {
+    if (isPlaying) {
+      playbackIcon.innerHTML = `<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>`;
+      playbackLabel.textContent = tr("identity.pause", "Pause");
+    } else {
+      playbackIcon.innerHTML = `<polygon points="5 3 19 12 5 21 5 3"/>`;
+      playbackLabel.textContent = tr("identity.listenBack", "Listen back");
+    }
+  }
+
+  function renderContinueVoiceButton() {
+    btnContinueVoice.disabled = voiceSubmitting;
+    btnContinueVoice.innerHTML = voiceSubmitting
+      ? `<span class="iv-spinner"></span>${tr("identity.submitting", "Submitting…")}`
+      : `${tr("common.continue", "Continue")} ${CONTINUE_ICON_SVG}`;
+  }
+
+  function renderSubmitPhotoButton() {
+    btnSubmitPhoto.disabled = photoVerifying;
+    btnSubmitPhoto.innerHTML = photoVerifying
+      ? `<span class="iv-spinner"></span>${tr("identity.verifyingIdentity", "Verifying Identity…")}`
+      : `${CONFIRM_SUBMIT_ICON_SVG} ${tr("identity.confirmSubmit", "Confirm & Submit")}`;
+  }
+
+  function renderBeginButton() {
+    btnBegin.disabled = beginLoading;
+    btnBegin.innerHTML = beginLoading
+      ? `<span class="iv-spinner"></span> ${tr("identity.loading", "Loading…")}`
+      : `${tr("common.continue", "Continue")} ${BEGIN_ICON_SVG}`;
+  }
+
+  function renderResult() {
+    if (lastResultMatch === null) {
+      return;
+    }
+    const matchLabel = lastResultMatch
+      ? tr("identity.matched", "Matched")
+      : tr("identity.noMatch", "No Match");
+    resultMatchBadge.innerHTML = `<span class="iv-result-match__pill ${lastResultMatch ? "iv-result-match__pill--match" : "iv-result-match__pill--no-match"}">${matchLabel}</span>`;
+
+    if (lastResultMatch) {
+      resultStatus.className = "iv-result-status iv-result-status--match";
+      resultStatus.innerHTML = `
+        <div class="iv-result-status__icon">${checkLgSVG("#16a34a")}</div>
+        <div>
+          <p class="iv-result-status__heading" style="color:#14532d">${tr("identity.identityVerified", "Identity Verified")}</p>
+          <p class="iv-result-status__sub">${tr("identity.livenessSuccess", "Liveness check successful")}</p>
+        </div>`;
+      resultMsg.textContent = tr(
+        "identity.verifiedMessage",
+        "Your identity has been successfully confirmed. You are now cleared to enter the interview."
+      );
+    } else {
+      resultStatus.className = "iv-result-status iv-result-status--no-match";
+      resultStatus.innerHTML = `
+        <div class="iv-result-status__icon">${crossSVG("#dc2626")}</div>
+        <div>
+          <p class="iv-result-status__heading" style="color:#7f1d1d">${tr("identity.verificationFailed", "Verification Failed")}</p>
+          <p class="iv-result-status__sub">${tr("identity.realignFace", "Please try re-aligning your face")}</p>
+        </div>`;
+      resultMsg.textContent = tr(
+        "identity.noMatchMessage",
+        "We couldn't match your live photo with our records. Ensure you are in a well-lit area and looking directly at the camera."
+      );
+    }
+  }
+
+  function renderError() {
+    if (!lastError) {
+      return;
+    }
+    // Backend-supplied text has no translation key — re-render it verbatim
+    // rather than dropping the banner on a locale change.
+    errorText.textContent =
+      lastError.raw !== undefined
+        ? lastError.raw
+        : tr(lastError.key, lastError.fallback, lastError.params);
     errorBanner.hidden = false;
   }
 
-  function hideError() {
-    errorBanner.hidden = true;
+  function showError(key, fallback, params) {
+    lastError = { key, fallback, params };
+    renderError();
   }
 
-  function setLoading(btn, loading, labelText) {
-    if (loading) {
-      btn.disabled = true;
-      btn.innerHTML = `<span class="iv-spinner"></span>${labelText}`;
-    } else {
-      btn.disabled = false;
-    }
+  function showRawError(text) {
+    lastError = { raw: text };
+    renderError();
+  }
+
+  function hideError() {
+    lastError = null;
+    errorBanner.hidden = true;
   }
 
   function checkSVG() {
@@ -124,13 +252,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function goToStep(n) {
     hideError();
+    currentStep = n;
 
     panelVoice.hidden = n !== 1;
     panelPhoto.hidden = n !== 2;
     panelResult.hidden = n !== 3;
-
-    sidebarTitle.textContent = tr(...SIDEBAR[n].titleKey);
-    sidebarDesc.textContent = tr(...SIDEBAR[n].descKey);
 
     stepPills.forEach((pill, i) => {
       const step = i + 1;
@@ -165,20 +291,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Entering the voice step from any path — ensure the Continue button is not
     // left in a stale disabled/spinner state (e.g. after a submit + back nav).
     if (n === 1) {
-      btnContinueVoice.disabled = false;
-      btnContinueVoice.innerHTML = `${tr("common.continue", "Continue")} ${CONTINUE_ICON_SVG}`;
+      voiceSubmitting = false;
     }
-  }
 
-  const CONTINUE_ICON_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>`;
-  function resetContinueVoiceButton() {
-    btnContinueVoice.disabled = false;
-    btnContinueVoice.innerHTML = `${tr("identity.continueToStep2", "Continue to Step 2")} ${CONTINUE_ICON_SVG}`;
-  }
-  const CONFIRM_SUBMIT_ICON_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><polyline points="16 3 12 7 8 3"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
-  function resetSubmitPhotoButton() {
-    btnSubmitPhoto.disabled = false;
-    btnSubmitPhoto.innerHTML = `${CONFIRM_SUBMIT_ICON_SVG} ${tr("identity.confirmSubmit", "Confirm & Submit")}`;
+    renderI18n();
   }
 
   // ── Load profile photo
@@ -268,12 +384,23 @@ document.addEventListener("DOMContentLoaded", async () => {
         // don't advance to review with an empty sample that fails silently at submit.
         if (!audioBlob || audioBlob.size === 0) {
           audioBlob = null;
+          recordingMeta = null;
           setVoiceState("idle");
           showError(
-            tr("identity.noAudioCaptured", "No audio was captured. Please check your microphone and record again.")
+            "identity.noAudioCaptured",
+            "No audio was captured. Please check your microphone and record again."
           );
           return;
         }
+
+        // Pinned to the sample, not to submit time: the candidate can switch the
+        // UI language afterwards, which rewrites the attestation in place. The
+        // backend picks its STT/voice-match language model from these fields, so
+        // they must describe what was actually spoken into this blob.
+        recordingMeta = {
+          locale: window.i18n?.getLocale?.(),
+          statementText: attestationText?.textContent?.trim(),
+        };
 
         if (audioURL) {
           URL.revokeObjectURL(audioURL);
@@ -287,18 +414,17 @@ document.addEventListener("DOMContentLoaded", async () => {
       mediaRecorder.onerror = (e) => {
         stream.getTracks().forEach((t) => t.stop());
         audioBlob = null;
+        recordingMeta = null;
         setVoiceState("idle");
-        showError(
-          tr("identity.recordingInterrupted", "Recording was interrupted: {error}. Please try again.", {
-            error: e.error?.message || "microphone error",
-          })
-        );
+        showError("identity.recordingInterrupted", "Recording was interrupted: {error}. Please try again.", {
+          error: e.error?.message || "microphone error",
+        });
       };
 
       mediaRecorder.start();
       setVoiceState("recording");
     } catch {
-      showError(tr("identity.micAccessDenied", "Microphone access denied or hardware error."));
+      showError("identity.micAccessDenied", "Microphone access denied or hardware error.");
     }
   }
 
@@ -314,10 +440,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       audioURL = null;
     }
     audioBlob = null;
+    recordingMeta = null;
     isPlaying = false;
     audioPlayer.pause();
     audioPlayer.src = "";
     setVoiceState("idle");
+    renderAttestation();
+    renderPlaybackBtn();
   }
 
   async function togglePlayback() {
@@ -327,32 +456,22 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (isPlaying) {
       audioPlayer.pause();
       isPlaying = false;
-      updatePlaybackBtn();
+      renderPlaybackBtn();
       return;
     }
     audioPlayer.src = audioURL;
     audioPlayer.onended = () => {
       isPlaying = false;
-      updatePlaybackBtn();
+      renderPlaybackBtn();
     };
     try {
       await audioPlayer.play();
       isPlaying = true;
     } catch (err) {
       isPlaying = false;
-      showError(tr("identity.audioPlaybackError", "Could not play back audio: {error}", { error: err.message }));
+      showError("identity.audioPlaybackError", "Could not play back audio: {error}", { error: err.message });
     }
-    updatePlaybackBtn();
-  }
-
-  function updatePlaybackBtn() {
-    if (isPlaying) {
-      playbackIcon.innerHTML = `<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>`;
-      playbackLabel.textContent = tr("identity.pause", "Pause");
-    } else {
-      playbackIcon.innerHTML = `<polygon points="5 3 19 12 5 21 5 3"/>`;
-      playbackLabel.textContent = tr("identity.listenBack", "Listen back");
-    }
+    renderPlaybackBtn();
   }
 
   function setVoiceState(s) {
@@ -367,16 +486,19 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   async function submitVoice() {
     if (!audioBlob || audioBlob.size === 0) {
-      showError(tr("identity.recordVoiceFirst", "Please record a voice sample first."));
+      showError("identity.recordVoiceFirst", "Please record a voice sample first.");
       return;
     }
-    setLoading(btnContinueVoice, true, tr("identity.submitting", "Submitting…"));
+    voiceSubmitting = true;
+    renderContinueVoiceButton();
     try {
       const buffer = await audioBlob.arrayBuffer();
-      // Send the active locale + the exact attestation text the candidate read
-      // aloud, so backend STT/voice-match uses the right language model.
-      const statementText = document.getElementById("attestation-text")?.textContent?.trim();
-      const meta = { locale: window.i18n?.getLocale?.(), statementText };
+      // Snapshot taken when the sample was finalised; the DOM read is only a
+      // safety net for a recording that somehow produced no snapshot.
+      const meta = recordingMeta || {
+        locale: window.i18n?.getLocale?.(),
+        statementText: attestationText?.textContent?.trim(),
+      };
       const result = await window.electronAPI?.submitVoiceSample?.(
         new Uint8Array(buffer),
         audioMimeType,
@@ -385,12 +507,18 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (result?.ok) {
         goToStep(2);
       } else {
-        showError(result?.error || tr("identity.voiceSubmitFailed", "Voice submission failed. Please try again."));
-        resetContinueVoiceButton();
+        if (result?.error) {
+          showRawError(result.error);
+        } else {
+          showError("identity.voiceSubmitFailed", "Voice submission failed. Please try again.");
+        }
+        voiceSubmitting = false;
+        renderContinueVoiceButton();
       }
     } catch {
-      showError(tr("identity.networkError", "Network error. Please try again."));
-      resetContinueVoiceButton();
+      showError("identity.networkError", "Network error. Please try again.");
+      voiceSubmitting = false;
+      renderContinueVoiceButton();
     }
   }
 
@@ -404,11 +532,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       ivCaptured.hidden = true;
       photoCaptureBtn.hidden = false;
       photoConfirmCta.hidden = true;
-      liveBadge.textContent = tr("identity.positionFace", "POSITION YOUR FACE");
       liveBadge.className = "iv-photo-frame__badge iv-photo-frame__badge--live";
+      renderLiveBadge();
       liveFrame.classList.remove("iv-photo-frame--captured");
     } catch {
-      showError(tr("identity.cameraAccessDenied", "Camera access denied."));
+      showError("identity.cameraAccessDenied", "Camera access denied.");
     }
   }
 
@@ -435,9 +563,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     stopCamera();
 
     liveFrame.classList.add("iv-photo-frame--captured");
-    liveBadge.textContent = tr("identity.photoCaptured", "PHOTO CAPTURED");
     liveBadge.classList.remove("iv-photo-frame__badge--live");
     liveBadge.classList.add("iv-photo-frame__badge--captured");
+    renderLiveBadge();
 
     photoCaptureBtn.hidden = true;
     photoConfirmCta.hidden = false;
@@ -452,26 +580,33 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!capturedDataUrl) {
       return;
     }
-    setLoading(btnSubmitPhoto, true, tr("identity.verifyingIdentity", "Verifying Identity…"));
+    photoVerifying = true;
+    renderSubmitPhotoButton();
     btnRetakePhoto.disabled = true;
     try {
       const result = await window.electronAPI?.submitFaceVerification?.(capturedDataUrl);
       if (result?.ok) {
         await showResult(result.data);
       } else {
-        showError(result?.error || tr("identity.faceVerificationFailed", "Face verification failed. Please try again."));
-        resetSubmitPhotoButton();
+        if (result?.error) {
+          showRawError(result.error);
+        } else {
+          showError("identity.faceVerificationFailed", "Face verification failed. Please try again.");
+        }
+        photoVerifying = false;
+        renderSubmitPhotoButton();
         btnRetakePhoto.disabled = false;
       }
     } catch {
-      showError(tr("identity.networkError", "Network error. Please try again."));
-      resetSubmitPhotoButton();
+      showError("identity.networkError", "Network error. Please try again.");
+      photoVerifying = false;
+      renderSubmitPhotoButton();
       btnRetakePhoto.disabled = false;
     }
   }
 
   async function showResult(data) {
-    const isMatch = !!data?.match;
+    lastResultMatch = !!data?.match;
 
     // Fill comparison images — proxy registered photo through main to avoid CSP
     if (profilePhotoSrc) {
@@ -479,40 +614,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     resultCaptured.src = capturedDataUrl; // already a local data: URL — no proxy needed
 
-    const matchLabel = isMatch ? tr("identity.matched", "Matched") : tr("identity.noMatch", "No Match");
-    resultMatchBadge.innerHTML = `<span class="iv-result-match__pill ${isMatch ? "iv-result-match__pill--match" : "iv-result-match__pill--no-match"}">${matchLabel}</span>`;
-
-    if (isMatch) {
-      resultStatus.className = "iv-result-status iv-result-status--match";
-      resultStatus.innerHTML = `
-        <div class="iv-result-status__icon">${checkLgSVG("#16a34a")}</div>
-        <div>
-          <p class="iv-result-status__heading" style="color:#14532d">${tr("identity.identityVerified", "Identity Verified")}</p>
-          <p class="iv-result-status__sub">${tr("identity.livenessSuccess", "Liveness check successful")}</p>
-        </div>`;
-      resultMsg.textContent = tr(
-        "identity.verifiedMessage",
-        "Your identity has been successfully confirmed. You are now cleared to enter the interview."
-      );
-      btnBegin.hidden = false;
-      btnRetryPhoto.hidden = true;
-      resultTip.hidden = true;
-    } else {
-      resultStatus.className = "iv-result-status iv-result-status--no-match";
-      resultStatus.innerHTML = `
-        <div class="iv-result-status__icon">${crossSVG("#dc2626")}</div>
-        <div>
-          <p class="iv-result-status__heading" style="color:#7f1d1d">${tr("identity.verificationFailed", "Verification Failed")}</p>
-          <p class="iv-result-status__sub">${tr("identity.realignFace", "Please try re-aligning your face")}</p>
-        </div>`;
-      resultMsg.textContent = tr(
-        "identity.noMatchMessage",
-        "We couldn't match your live photo with our records. Ensure you are in a well-lit area and looking directly at the camera."
-      );
-      btnBegin.hidden = true;
-      btnRetryPhoto.hidden = false;
-      resultTip.hidden = false;
-    }
+    btnBegin.hidden = !lastResultMatch;
+    btnRetryPhoto.hidden = lastResultMatch;
+    resultTip.hidden = lastResultMatch;
 
     goToStep(3);
   }
@@ -529,23 +633,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   btnBackToVoice.addEventListener("click", () => {
     stopCamera();
     capturedDataUrl = null;
-    // Restore voice continue button — may have been left in spinner state after a successful submit
-    resetContinueVoiceButton();
     goToStep(1);
   });
 
-  const beginBtnHTML = btnBegin.innerHTML; // capture original for restore
   btnBegin.addEventListener("click", async () => {
     if (btnBegin.disabled) {
       return;
     }
     // Fail loud if the bridge method is missing — never spin forever silently.
     if (typeof window.electronAPI?.loadRoleSelection !== "function") {
-      showError(tr("identity.startUnavailable", "Unable to continue. Please restart the app."));
+      showError("identity.startUnavailable", "Unable to continue. Please restart the app.");
       return;
     }
-    btnBegin.disabled = true;
-    btnBegin.innerHTML = `<span class="iv-spinner"></span> ${tr("identity.loading", "Loading…")}`;
+    beginLoading = true;
+    renderBeginButton();
     // Hand the verified live photo to the main process so it can inject it into
     // sessionStorage on the interview window before the React SPA boots.
     try {
@@ -556,15 +657,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.electronAPI.loadRoleSelection();
     // Watchdog: successful navigation tears down this page. If this fires,
     // navigation never happened — restore the button so the user can retry.
-    window.armButtonRestore(btnBegin, beginBtnHTML, {
-      onRestore: () => showError(tr("identity.startTimedOut", "That took too long. Please try again.")),
+    // renderBeginButton() rebuilds the label from state, so there is no HTML
+    // snapshot for the watchdog to replay.
+    window.armButtonRestore(btnBegin, "", {
+      onRestore: () => {
+        beginLoading = false;
+        renderBeginButton();
+        showError("identity.startTimedOut", "That took too long. Please try again.");
+      },
     });
   });
 
   btnRetryPhoto.addEventListener("click", () => {
     capturedDataUrl = null;
     // Restore photo buttons — may have been left in spinner/disabled state after a successful submit
-    resetSubmitPhotoButton();
+    photoVerifying = false;
     btnRetakePhoto.disabled = false;
     goToStep(2);
   });

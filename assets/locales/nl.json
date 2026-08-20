@@ -42,13 +42,18 @@
   },
   "dashboard": {
     "logout": "Uitloggen",
+    "loggingOut": "Uitloggen…",
     "welcome": "Welkom",
+    "welcomeName": "Welkom, {name}",
     "cardText": "Wanneer je er klaar voor bent, start je je sollicitatiegesprek. We voeren eerst een snelle beveiligingscontrole uit om te controleren of je omgeving correct is ingesteld.",
     "attemptsUsed": "Gebruikte pogingen",
     "attemptsRemaining": "{remaining} van {max} resterend",
     "attemptsExhausted": "Je hebt al je sollicitatiegesprekpogingen gebruikt. Neem contact op met support als je er meer nodig hebt.",
     "takeInterview": "Gesprek starten",
+    "starting": "Starten…",
     "securityNote": "Voordat het gesprek begint, wordt een beveiligingscontrole uitgevoerd.",
+    "startUnavailable": "Kan niet starten — start de app opnieuw.",
+    "startTimedOut": "Dit duurde te lang. Probeer het opnieuw.",
     "howItWorksLink": "Hoe werkt het proces? →"
   },
   "hiw": {

@@ -42,13 +42,18 @@
   },
   "dashboard": {
     "logout": "Cerrar sesión",
+    "loggingOut": "Cerrando sesión…",
     "welcome": "Bienvenido",
+    "welcomeName": "Bienvenido, {name}",
     "cardText": "Cuando estés listo, comienza tu entrevista. Primero realizaremos una rápida verificación de seguridad para asegurarnos de que tu entorno esté configurado correctamente.",
     "attemptsUsed": "Intentos usados",
     "attemptsRemaining": "{remaining} de {max} restantes",
     "attemptsExhausted": "Has usado todos tus intentos de entrevista. Contacta con soporte si necesitas más.",
     "takeInterview": "Realizar entrevista",
+    "starting": "Iniciando…",
     "securityNote": "Se realiza una verificación de seguridad antes de comenzar la entrevista.",
+    "startUnavailable": "No se puede iniciar — reinicia la aplicación.",
+    "startTimedOut": "Esto tardó demasiado. Inténtalo de nuevo.",
     "howItWorksLink": "¿Cómo funciona el proceso? →"
   },
   "hiw": {

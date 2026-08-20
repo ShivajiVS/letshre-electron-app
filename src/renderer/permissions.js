@@ -16,10 +16,6 @@ function tr(key, fallback, params) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  if (window.i18n?.ready) {
-    await window.i18n.ready;
-  }
-
   const state = { camera: "idle", mic: "idle", screen: "idle" };
 
   const ICON = {
@@ -110,13 +106,54 @@ document.addEventListener("DOMContentLoaded", async () => {
   const btnStart = document.getElementById("btn-start");
   const permNote = document.getElementById("perm-note");
 
+  // The note under the Start button has more sources than "are all perms
+  // granted": a deny hint, an unavailable-bridge message, or a watchdog
+  // timeout can each overwrite it after the fact. renderI18n() needs to know
+  // which one is currently showing to reproduce it (not the generic note) in
+  // the new language, so every write goes through setNoteState().
+  let noteState = { kind: "sync" };
+  let startState = "idle"; // "idle" | "starting" — drives the Start button label
+
+  function renderNote() {
+    switch (noteState.kind) {
+      case "hint":
+        permNote.textContent = permissionErrorHint(noteState.perm, noteState.errName);
+        permNote.classList.remove("all-granted");
+        break;
+      case "unavailable":
+        permNote.textContent = tr("perm.startUnavailable", "Unable to continue — please restart the app.");
+        permNote.classList.remove("all-granted");
+        break;
+      case "timedOut":
+        permNote.textContent = tr("perm.startTimedOut", "That took too long. Please try again.");
+        permNote.classList.remove("all-granted");
+        break;
+      default: {
+        const allGranted = Object.values(state).every((s) => s === "granted");
+        permNote.textContent = allGranted
+          ? tr("perm.allGranted", "All permissions granted — you're ready to begin.")
+          : tr("perm.continueNote", "Allow all three permissions above to continue.");
+        permNote.classList.toggle("all-granted", allGranted);
+      }
+    }
+  }
+
+  function setNoteState(next) {
+    noteState = next;
+    renderNote();
+  }
+
   function syncStartButton() {
     const allGranted = Object.values(state).every((s) => s === "granted");
     btnStart.disabled = !allGranted;
-    permNote.textContent = allGranted
-      ? tr("perm.allGranted", "All permissions granted — you're ready to begin.")
-      : tr("perm.continueNote", "Allow all three permissions above to continue.");
-    permNote.classList.toggle("all-granted", allGranted);
+    setNoteState({ kind: "sync" });
+  }
+
+  function renderStartButtonLabel() {
+    const label = document.getElementById("btn-start-label");
+    if (!label) {return;}
+    label.textContent =
+      startState === "starting" ? tr("perm.starting", "Starting…") : tr("common.continue", "Continue");
   }
 
   // ── Permission requests
@@ -153,11 +190,36 @@ document.addEventListener("DOMContentLoaded", async () => {
     return tr("perm.errorGeneric", "Could not access {label}. Please click Try again.", { label });
   }
 
-  // applyState(...) ends by calling syncStartButton(), which rewrites permNote —
-  // so the hint must be set AFTER applyState to win.
+  // applyState(...) ends by calling syncStartButton(), which resets the note to
+  // "sync" — so the hint must be set AFTER applyState to win.
   function denyWithHint(perm, err) {
     applyState(perm, "denied");
-    permNote.textContent = permissionErrorHint(perm, err?.name);
+    setNoteState({ kind: "hint", perm, errName: err?.name });
+  }
+
+  // ── i18n render hook — re-derives every tr()-rendered string from current
+  // state. Registered synchronously below, ahead of the readiness wait, so
+  // it runs as part of the pre-reveal pass and the page never paints
+  // English defaults for a non-English locale.
+  function renderI18n() {
+    ["camera", "mic", "screen"].forEach((perm) => {
+      const badge = document.getElementById(`badge-${perm}`);
+      const btn = document.getElementById(`btn-${perm}`);
+      badge.textContent = badgeFor(state[perm]).text;
+      if (state[perm] === "denied") {
+        btn.textContent = tr("perm.tryAgain", "Try again");
+      } else if (state[perm] !== "granted") {
+        const [key, fallback] = BTN_LABEL_KEY[perm];
+        btn.textContent = tr(key, fallback);
+      }
+    });
+    renderStartButtonLabel();
+    renderNote();
+  }
+  window.i18n?.registerRenderer(renderI18n);
+
+  if (window.i18n?.ready) {
+    await window.i18n.ready;
   }
 
   async function requestCamera() {
@@ -207,12 +269,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     // Fail loud if the bridge method is missing — never spin forever silently.
     if (typeof window.electronAPI?.loadIdentityVerification !== "function") {
-      permNote.textContent = tr("perm.startUnavailable", "Unable to continue — please restart the app.");
+      setNoteState({ kind: "unavailable" });
       return;
     }
     btnStart.disabled = true;
+    startState = "starting";
     // Query fresh nodes (restore below replaces these by innerHTML).
-    document.getElementById("btn-start-label").textContent = tr("perm.starting", "Starting…");
+    renderStartButtonLabel();
     document.getElementById("btn-start-icon").outerHTML =
       `<svg class="perm-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>`;
     window.electronAPI.loadIdentityVerification();
@@ -220,7 +283,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     // navigation never happened — restore the button so the user can retry.
     window.armButtonRestore(btnStart, startBtnHTML, {
       onRestore: () => {
-        permNote.textContent = tr("perm.startTimedOut", "That took too long. Please try again.");
+        startState = "idle";
+        setNoteState({ kind: "timedOut" });
+        // The restored innerHTML is a snapshot from page load; re-run in case
+        // the locale changed since then so the button isn't left stale.
+        renderStartButtonLabel();
       },
     });
   });

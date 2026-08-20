@@ -42,13 +42,18 @@
   },
   "dashboard": {
     "logout": "Keluar",
+    "loggingOut": "Sedang keluar…",
     "welcome": "Selamat datang",
+    "welcomeName": "Selamat datang, {name}",
     "cardText": "Saat Anda siap, mulai wawancara Anda. Kami akan menjalankan pemeriksaan keamanan singkat terlebih dahulu untuk memastikan lingkungan Anda diatur dengan benar.",
     "attemptsUsed": "Percobaan yang digunakan",
     "attemptsRemaining": "{remaining} dari {max} tersisa",
     "attemptsExhausted": "Anda telah menggunakan semua percobaan wawancara Anda. Hubungi dukungan jika Anda memerlukan lebih banyak.",
     "takeInterview": "Ikuti wawancara",
+    "starting": "Memulai…",
     "securityNote": "Pemeriksaan keamanan dijalankan sebelum wawancara dimulai.",
+    "startUnavailable": "Tidak dapat memulai — silakan mulai ulang aplikasi.",
+    "startTimedOut": "Prosesnya terlalu lama. Silakan coba lagi.",
     "howItWorksLink": "Bagaimana prosesnya berjalan? →"
   },
   "hiw": {

@@ -201,7 +201,6 @@
     "sidebarPhotoDesc": "簡単なライブ写真を登録済みのプロフィール画像と照合します。",
     "sidebarResultTitle": "認証結果",
     "sidebarResultDesc": "本人確認の処理が完了しました。もう少しです!",
-    "continueToStep2": "ステップ2へ進む",
     "submitting": "送信中…",
     "pause": "一時停止",
     "loading": "読み込み中…",

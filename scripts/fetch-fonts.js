@@ -19,17 +19,29 @@ const ROOT = path.join(__dirname, "..");
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
 
+// Non-Latin families intentionally use 400/600/700, not the full 5-weight
+// range Inter gets: this app packs assets/fonts into the Electron installer
+// (asar: true, "assets/**/*" in package.json's build.files) rather than
+// serving it lazily over HTTP, so every file here is a fixed cost on every
+// install regardless of the user's locale — weight count matters far more
+// than it would on a website. CSS weight-matching substitutes the nearest
+// available real face (500→600, 800→700) rather than faking bold, so this
+// is a real size cut with no synthetic-bold fallback involved.
+//
+// ja/ko (CJK) are deliberately NOT self-hosted: Windows and macOS both ship
+// excellent native CJK fonts, so OS fallback carries negligible missing-
+// glyph risk — unlike the Indic/Arabic scripts below, where OS coverage is
+// far less consistent. Self-hosting them cost 18.4MB (71% of the font
+// total) for the two locales that needed it least.
 const FAMILIES = [
   ["inter", "Inter:wght@400;500;600;700;800"],
-  ["noto-sans-devanagari", "Noto+Sans+Devanagari:wght@400;500;600;700;800"],
-  ["noto-sans-bengali", "Noto+Sans+Bengali:wght@400;500;600;700;800"],
-  ["noto-sans-tamil", "Noto+Sans+Tamil:wght@400;500;600;700;800"],
-  ["noto-sans-telugu", "Noto+Sans+Telugu:wght@400;500;600;700;800"],
-  ["noto-sans-kannada", "Noto+Sans+Kannada:wght@400;500;600;700;800"],
-  ["noto-sans-malayalam", "Noto+Sans+Malayalam:wght@400;500;600;700;800"],
-  ["noto-sans-arabic", "Noto+Sans+Arabic:wght@400;500;600;700;800"],
-  ["noto-sans-jp", "Noto+Sans+JP:wght@400;700"],
-  ["noto-sans-kr", "Noto+Sans+KR:wght@400;700"],
+  ["noto-sans-devanagari", "Noto+Sans+Devanagari:wght@400;600;700"],
+  ["noto-sans-bengali", "Noto+Sans+Bengali:wght@400;600;700"],
+  ["noto-sans-tamil", "Noto+Sans+Tamil:wght@400;600;700"],
+  ["noto-sans-telugu", "Noto+Sans+Telugu:wght@400;600;700"],
+  ["noto-sans-kannada", "Noto+Sans+Kannada:wght@400;600;700"],
+  ["noto-sans-malayalam", "Noto+Sans+Malayalam:wght@400;600;700"],
+  ["noto-sans-arabic", "Noto+Sans+Arabic:wght@400;600;700"],
   // Not renamed to the shared "Noto Sans" family below — its unicode-range
   // covers the same Arabic block as Noto Sans Arabic, so merging it in could
   // get it picked for `ar` text too. Applied only via [lang="ur"] in i18n.css.

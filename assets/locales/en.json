@@ -88,7 +88,19 @@
     "allowCamera": "Allow camera",
     "allowMic": "Allow microphone",
     "allowScreen": "Allow screen",
-    "continueNote": "Allow all three permissions above to continue."
+    "continueNote": "Allow all three permissions above to continue.",
+    "requesting": "Requesting…",
+    "allowed": "✓ Allowed",
+    "denied": "✗ Denied",
+    "tryAgain": "Try again",
+    "starting": "Starting…",
+    "allGranted": "All permissions granted — you're ready to begin.",
+    "startUnavailable": "Unable to continue — please restart the app.",
+    "startTimedOut": "That took too long. Please try again.",
+    "errorBlocked": "{label} access is blocked. Enable it in your system Settings › Privacy, then click Try again.",
+    "errorNoDevice": "No {label} device was found. Connect one and click Try again.",
+    "errorInUse": "Your {label} is in use by another app. Close it and click Try again.",
+    "errorGeneric": "Could not access {label}. Please click Try again."
   },
   "preflight": {
     "title": "Security Checks",

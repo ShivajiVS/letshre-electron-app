@@ -88,7 +88,19 @@
     "allowCamera": "Izinkan kamera",
     "allowMic": "Izinkan mikrofon",
     "allowScreen": "Izinkan layar",
-    "continueNote": "Izinkan ketiga izin di atas untuk melanjutkan."
+    "continueNote": "Izinkan ketiga izin di atas untuk melanjutkan.",
+    "requesting": "Meminta…",
+    "allowed": "✓ Diizinkan",
+    "denied": "✗ Ditolak",
+    "tryAgain": "Coba lagi",
+    "starting": "Memulai…",
+    "allGranted": "Semua izin telah diberikan — Anda siap untuk memulai.",
+    "startUnavailable": "Tidak dapat melanjutkan — silakan mulai ulang aplikasi.",
+    "startTimedOut": "Prosesnya terlalu lama. Silakan coba lagi.",
+    "errorBlocked": "Akses {label} diblokir. Aktifkan di Pengaturan sistem › Privasi, lalu klik Coba lagi.",
+    "errorNoDevice": "Perangkat {label} tidak ditemukan. Sambungkan satu perangkat lalu klik Coba lagi.",
+    "errorInUse": "{label} Anda sedang digunakan oleh aplikasi lain. Tutup aplikasi tersebut lalu klik Coba lagi.",
+    "errorGeneric": "Tidak dapat mengakses {label}. Silakan klik Coba lagi."
   },
   "preflight": {
     "title": "Pemeriksaan Keamanan",

@@ -88,7 +88,19 @@
     "allowCamera": "Consenti fotocamera",
     "allowMic": "Consenti microfono",
     "allowScreen": "Consenti schermo",
-    "continueNote": "Consenti tutti e tre i permessi sopra indicati per continuare."
+    "continueNote": "Consenti tutti e tre i permessi sopra indicati per continuare.",
+    "requesting": "Richiesta in corso…",
+    "allowed": "✓ Consentito",
+    "denied": "✗ Negato",
+    "tryAgain": "Riprova",
+    "starting": "Avvio…",
+    "allGranted": "Tutti i permessi sono stati concessi — sei pronto per iniziare.",
+    "startUnavailable": "Impossibile continuare — riavvia l'app.",
+    "startTimedOut": "L'operazione ha impiegato troppo tempo. Riprova.",
+    "errorBlocked": "L'accesso a {label} è bloccato. Attivalo in Impostazioni di sistema › Privacy, quindi fai clic su Riprova.",
+    "errorNoDevice": "Nessun dispositivo {label} trovato. Collegane uno e fai clic su Riprova.",
+    "errorInUse": "{label} è in uso da un'altra app. Chiudila e fai clic su Riprova.",
+    "errorGeneric": "Impossibile accedere a {label}. Fai clic su Riprova."
   },
   "preflight": {
     "title": "Controlli di sicurezza",

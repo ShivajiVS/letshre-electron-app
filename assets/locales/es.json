@@ -88,7 +88,19 @@
     "allowCamera": "Permitir cámara",
     "allowMic": "Permitir micrófono",
     "allowScreen": "Permitir pantalla",
-    "continueNote": "Permite los tres permisos anteriores para continuar."
+    "continueNote": "Permite los tres permisos anteriores para continuar.",
+    "requesting": "Solicitando…",
+    "allowed": "✓ Permitido",
+    "denied": "✗ Denegado",
+    "tryAgain": "Intentar de nuevo",
+    "starting": "Iniciando…",
+    "allGranted": "Todos los permisos concedidos — estás listo para comenzar.",
+    "startUnavailable": "No se puede continuar — reinicia la aplicación.",
+    "startTimedOut": "Esto tardó demasiado. Inténtalo de nuevo.",
+    "errorBlocked": "El acceso a {label} está bloqueado. Actívalo en Configuración del sistema › Privacidad y luego haz clic en Intentar de nuevo.",
+    "errorNoDevice": "No se encontró ningún dispositivo de {label}. Conecta uno y haz clic en Intentar de nuevo.",
+    "errorInUse": "Tu {label} está siendo usado por otra aplicación. Ciérrala y haz clic en Intentar de nuevo.",
+    "errorGeneric": "No se pudo acceder a {label}. Haz clic en Intentar de nuevo."
   },
   "preflight": {
     "title": "Verificaciones de seguridad",

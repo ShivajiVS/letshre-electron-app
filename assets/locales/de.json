@@ -88,7 +88,19 @@
     "allowCamera": "Kamera erlauben",
     "allowMic": "Mikrofon erlauben",
     "allowScreen": "Bildschirm erlauben",
-    "continueNote": "Erlauben Sie alle drei oben genannten Berechtigungen, um fortzufahren."
+    "continueNote": "Erlauben Sie alle drei oben genannten Berechtigungen, um fortzufahren.",
+    "requesting": "Wird angefordert…",
+    "allowed": "✓ Erlaubt",
+    "denied": "✗ Abgelehnt",
+    "tryAgain": "Erneut versuchen",
+    "starting": "Wird gestartet…",
+    "allGranted": "Alle Berechtigungen erteilt — Sie können jetzt beginnen.",
+    "startUnavailable": "Fortfahren nicht möglich — bitte starten Sie die App neu.",
+    "startTimedOut": "Das hat zu lange gedauert. Bitte versuchen Sie es erneut.",
+    "errorBlocked": "Der Zugriff auf {label} ist blockiert. Aktivieren Sie ihn in den Systemeinstellungen › Datenschutz und klicken Sie dann auf Erneut versuchen.",
+    "errorNoDevice": "Es wurde kein {label}-Gerät gefunden. Schließen Sie eines an und klicken Sie auf Erneut versuchen.",
+    "errorInUse": "{label} wird bereits von einer anderen App verwendet. Schließen Sie die App und klicken Sie auf Erneut versuchen.",
+    "errorGeneric": "Zugriff auf {label} nicht möglich. Bitte klicken Sie auf Erneut versuchen."
   },
   "preflight": {
     "title": "Sicherheitsprüfungen",

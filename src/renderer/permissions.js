@@ -10,7 +10,16 @@
 
 "use strict";
 
-document.addEventListener("DOMContentLoaded", () => {
+/** Translate with an English fallback for the non-Electron preview (window.t absent). */
+function tr(key, fallback, params) {
+  return window.t ? window.t(key, params) : fallback;
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  if (window.i18n?.ready) {
+    await window.i18n.ready;
+  }
+
   const state = { camera: "idle", mic: "idle", screen: "idle" };
 
   const ICON = {
@@ -36,14 +45,24 @@ document.addEventListener("DOMContentLoaded", () => {
     <path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>`;
 
   // ── Badge config
-  const BADGE = {
-    idle: { text: "Required", cls: "perm-badge" },
-    requesting: { text: "Requesting…", cls: "perm-badge perm-badge--pending" },
-    granted: { text: "✓ Allowed", cls: "perm-badge perm-badge--granted" },
-    denied: { text: "✗ Denied", cls: "perm-badge perm-badge--denied" },
-  };
+  function badgeFor(newState) {
+    switch (newState) {
+      case "requesting":
+        return { text: tr("perm.requesting", "Requesting…"), cls: "perm-badge perm-badge--pending" };
+      case "granted":
+        return { text: tr("perm.allowed", "✓ Allowed"), cls: "perm-badge perm-badge--granted" };
+      case "denied":
+        return { text: tr("perm.denied", "✗ Denied"), cls: "perm-badge perm-badge--denied" };
+      default:
+        return { text: tr("common.required", "Required"), cls: "perm-badge" };
+    }
+  }
 
-  const BTN_LABEL = { camera: "Allow camera", mic: "Allow microphone", screen: "Allow screen" };
+  const BTN_LABEL_KEY = {
+    camera: ["perm.allowCamera", "Allow camera"],
+    mic: ["perm.allowMic", "Allow microphone"],
+    screen: ["perm.allowScreen", "Allow screen"],
+  };
 
   // ── Apply state
   function applyState(perm, newState) {
@@ -67,19 +86,21 @@ document.addEventListener("DOMContentLoaded", () => {
       icon.innerHTML = ICON[perm];
     }
 
-    badge.textContent = BADGE[newState].text;
-    badge.className = BADGE[newState].cls;
+    const badgeState = badgeFor(newState);
+    badge.textContent = badgeState.text;
+    badge.className = badgeState.cls;
 
     if (newState === "granted") {
       btn.style.display = "none";
     } else if (newState === "denied") {
       btn.style.display = "";
       btn.disabled = false;
-      btn.textContent = "Try again";
+      btn.textContent = tr("perm.tryAgain", "Try again");
     } else {
       btn.style.display = "";
       btn.disabled = newState === "requesting";
-      btn.textContent = BTN_LABEL[perm];
+      const [key, fallback] = BTN_LABEL_KEY[perm];
+      btn.textContent = tr(key, fallback);
     }
 
     syncStartButton();
@@ -93,8 +114,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const allGranted = Object.values(state).every((s) => s === "granted");
     btnStart.disabled = !allGranted;
     permNote.textContent = allGranted
-      ? "All permissions granted — you're ready to begin."
-      : "Allow all three permissions above to continue.";
+      ? tr("perm.allGranted", "All permissions granted — you're ready to begin.")
+      : tr("perm.continueNote", "Allow all three permissions above to continue.");
     permNote.classList.toggle("all-granted", allGranted);
   }
 
@@ -102,20 +123,34 @@ document.addEventListener("DOMContentLoaded", () => {
   // Map a getUserMedia rejection to actionable guidance. A plain "Try again" is
   // a dead-end when the block is permanent (OS-level denial) or the device is
   // missing / busy — the user needs to know WHAT to do before retrying.
-  const PERM_LABEL = { camera: "Camera", mic: "Microphone", screen: "Screen sharing" };
+  const PERM_NAME_KEY = {
+    camera: ["perm.cameraName", "Camera"],
+    mic: ["perm.micName", "Microphone"],
+    screen: ["perm.screenName", "Screen sharing"],
+  };
   function permissionErrorHint(perm, errName) {
-    const label = PERM_LABEL[perm];
-    const lower = label.toLowerCase();
+    const [nameKey, nameFallback] = PERM_NAME_KEY[perm];
+    const label = tr(nameKey, nameFallback);
     if (errName === "NotAllowedError" || errName === "SecurityError") {
-      return `${label} access is blocked. Enable it in your system Settings › Privacy, then click Try again.`;
+      return tr(
+        "perm.errorBlocked",
+        "{label} access is blocked. Enable it in your system Settings › Privacy, then click Try again.",
+        { label }
+      );
     }
     if (errName === "NotFoundError" || errName === "OverconstrainedError") {
-      return `No ${lower} device was found. Connect one and click Try again.`;
+      return tr("perm.errorNoDevice", "No {label} device was found. Connect one and click Try again.", {
+        label,
+      });
     }
     if (errName === "NotReadableError" || errName === "AbortError") {
-      return `Your ${lower} is in use by another app. Close it and click Try again.`;
+      return tr(
+        "perm.errorInUse",
+        "Your {label} is in use by another app. Close it and click Try again.",
+        { label }
+      );
     }
-    return `Could not access ${lower}. Please click Try again.`;
+    return tr("perm.errorGeneric", "Could not access {label}. Please click Try again.", { label });
   }
 
   // applyState(...) ends by calling syncStartButton(), which rewrites permNote —
@@ -172,12 +207,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     // Fail loud if the bridge method is missing — never spin forever silently.
     if (typeof window.electronAPI?.loadIdentityVerification !== "function") {
-      permNote.textContent = "Unable to continue — please restart the app.";
+      permNote.textContent = tr("perm.startUnavailable", "Unable to continue — please restart the app.");
       return;
     }
     btnStart.disabled = true;
     // Query fresh nodes (restore below replaces these by innerHTML).
-    document.getElementById("btn-start-label").textContent = "Starting…";
+    document.getElementById("btn-start-label").textContent = tr("perm.starting", "Starting…");
     document.getElementById("btn-start-icon").outerHTML =
       `<svg class="perm-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>`;
     window.electronAPI.loadIdentityVerification();
@@ -185,7 +220,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // navigation never happened — restore the button so the user can retry.
     window.armButtonRestore(btnStart, startBtnHTML, {
       onRestore: () => {
-        permNote.textContent = "That took too long. Please try again.";
+        permNote.textContent = tr("perm.startTimedOut", "That took too long. Please try again.");
       },
     });
   });

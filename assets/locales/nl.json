@@ -88,7 +88,19 @@
     "allowCamera": "Camera toestaan",
     "allowMic": "Microfoon toestaan",
     "allowScreen": "Scherm toestaan",
-    "continueNote": "Sta alle drie de bovenstaande machtigingen toe om door te gaan."
+    "continueNote": "Sta alle drie de bovenstaande machtigingen toe om door te gaan.",
+    "requesting": "Aanvragen…",
+    "allowed": "✓ Toegestaan",
+    "denied": "✗ Geweigerd",
+    "tryAgain": "Opnieuw proberen",
+    "starting": "Starten…",
+    "allGranted": "Alle machtigingen zijn verleend — je kunt beginnen.",
+    "startUnavailable": "Kan niet doorgaan — start de app opnieuw.",
+    "startTimedOut": "Dit duurde te lang. Probeer het opnieuw.",
+    "errorBlocked": "Toegang tot {label} is geblokkeerd. Schakel dit in bij Systeeminstellingen › Privacy en klik daarna op Opnieuw proberen.",
+    "errorNoDevice": "Er is geen {label}-apparaat gevonden. Sluit er een aan en klik op Opnieuw proberen.",
+    "errorInUse": "Je {label} wordt gebruikt door een andere app. Sluit deze en klik op Opnieuw proberen.",
+    "errorGeneric": "Kan geen toegang krijgen tot {label}. Klik op Opnieuw proberen."
   },
   "preflight": {
     "title": "Beveiligingscontroles",

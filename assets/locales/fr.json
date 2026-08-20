@@ -88,7 +88,19 @@
     "allowCamera": "Autoriser la caméra",
     "allowMic": "Autoriser le microphone",
     "allowScreen": "Autoriser l'écran",
-    "continueNote": "Autorisez les trois permissions ci-dessus pour continuer."
+    "continueNote": "Autorisez les trois permissions ci-dessus pour continuer.",
+    "requesting": "Demande en cours…",
+    "allowed": "✓ Autorisé",
+    "denied": "✗ Refusé",
+    "tryAgain": "Réessayer",
+    "starting": "Démarrage…",
+    "allGranted": "Toutes les autorisations sont accordées — vous êtes prêt à commencer.",
+    "startUnavailable": "Impossible de continuer — veuillez redémarrer l'application.",
+    "startTimedOut": "Cela a pris trop de temps. Veuillez réessayer.",
+    "errorBlocked": "L'accès à {label} est bloqué. Activez-le dans Réglages système › Confidentialité, puis cliquez sur Réessayer.",
+    "errorNoDevice": "Aucun appareil {label} n'a été trouvé. Connectez-en un puis cliquez sur Réessayer.",
+    "errorInUse": "Votre {label} est utilisé par une autre application. Fermez-la puis cliquez sur Réessayer.",
+    "errorGeneric": "Impossible d'accéder à {label}. Veuillez cliquer sur Réessayer."
   },
   "preflight": {
     "title": "Vérifications de sécurité",

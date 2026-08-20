@@ -118,6 +118,7 @@ const IPC = {
   SET_LOCALE: "set-locale",
   GET_TRANSLATIONS: "get-translations",
   GET_SUPPORTED_LOCALES: "get-supported-locales",
+  GET_I18N_BOOTSTRAP: "get-i18n-bootstrap",
   LOCALE_CHANGED: "locale-changed",
 };
 
@@ -164,6 +165,7 @@ const ALLOWED_INVOKE_CHANNELS = [
   IPC.SET_LOCALE,
   IPC.GET_TRANSLATIONS,
   IPC.GET_SUPPORTED_LOCALES,
+  IPC.GET_I18N_BOOTSTRAP,
 ];
 
 const ALLOWED_RECEIVE_CHANNELS = [
@@ -603,6 +605,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   /** Returns the list of supported locales: [{ code, name, dir }]. */
   getSupportedLocales: () => safeInvoke(IPC.GET_SUPPORTED_LOCALES),
+
+  /** One-call boot bootstrap: { locale, bundle }. Replaces getLocale + getTranslations at startup. */
+  getI18nBootstrap: () => safeInvoke(IPC.GET_I18N_BOOTSTRAP),
 
   /**
    * Subscribe to locale changes broadcast from other windows/instances.

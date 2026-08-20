@@ -315,7 +315,7 @@
   font-weight: 500;
   color: #ef4444;
   opacity: 0.65;
-  margin-left: 4px;
+  margin-inline-start: 4px;
 }
 .iv-voice__sub {
   font-size: 13.5px;

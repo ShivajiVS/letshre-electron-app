@@ -97,16 +97,40 @@ function getPreferred() {
   return _preferred;
 }
 
-/** Persists the candidate's chosen locale (survives app restarts). */
-function setPreferred(locale) {
+/** Reads preferences.json as an object, tolerating a missing/corrupt file. */
+async function _readPreferencesFile() {
+  try {
+    const raw = await fs.promises.readFile(_prefsFilePath(), "utf8");
+    const parsed = JSON.parse(raw);
+    return _isPlainObject(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Persists the candidate's chosen locale (survives app restarts).
+ * Read-modify-write rather than a blind overwrite, so any other keys a future
+ * feature stores in preferences.json aren't clobbered by a locale switch.
+ */
+async function setPreferred(locale) {
   const safe = SUPPORTED_CODES.has(locale) ? locale : DEFAULT_LOCALE;
   _preferred = safe;
   try {
-    fs.writeFileSync(_prefsFilePath(), JSON.stringify({ locale: safe }), "utf8");
+    const existing = await _readPreferencesFile();
+    const merged = { ...existing, locale: safe };
+    await fs.promises.writeFile(_prefsFilePath(), JSON.stringify(merged), "utf8");
   } catch (err) {
     logger.warn("[locale] preference persist failed:", err.message);
   }
   return safe;
+}
+
+/** Returns { locale, bundle } in one call — the boot-time payload the renderer needs. */
+function getBootstrap() {
+  const locale = getPreferred();
+  const bundle = getTranslations(locale);
+  return { locale, bundle };
 }
 
 /**
@@ -211,4 +235,5 @@ module.exports = {
   setPreferred,
   getTranslations,
   getSupportedLocales,
+  getBootstrap,
 };

@@ -120,7 +120,6 @@
     "wirelessScanning": "ワイヤレスキャストまたはブラウザの活動をスキャンしています...",
     "aiTitle": "AIアシスタント検出",
     "aiScanning": "面接用コパイロットや不正ツールをスキャンしています...",
-    "scanningBadge": "スキャン中",
     "rescan": "再スキャン",
     "runningDiagnostics": "セキュリティ診断を実行中..."
   },

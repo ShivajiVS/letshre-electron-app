@@ -287,6 +287,7 @@ const IPC = {
   SET_LOCALE: "set-locale",
   GET_TRANSLATIONS: "get-translations",
   GET_SUPPORTED_LOCALES: "get-supported-locales",
+  GET_I18N_BOOTSTRAP: "get-i18n-bootstrap",
 
   // Localization (main → renderer push, broadcast to all windows on change)
   LOCALE_CHANGED: "locale-changed",

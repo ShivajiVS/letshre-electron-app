@@ -120,7 +120,6 @@
     "wirelessScanning": "Recherche de diffusion sans fil ou d'activité de navigateur...",
     "aiTitle": "Détection d'assistant IA",
     "aiScanning": "Recherche de copilotes d'entretien et d'outils de triche...",
-    "scanningBadge": "Analyse en cours",
     "rescan": "Réanalyser",
     "runningDiagnostics": "Diagnostic de sécurité en cours..."
   },

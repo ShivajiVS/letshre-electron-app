@@ -120,7 +120,6 @@
     "wirelessScanning": "Scanning for wireless casting or browser activity...",
     "aiTitle": "AI Assistant Detection",
     "aiScanning": "Scanning for interview copilots and cheating tools...",
-    "scanningBadge": "Scanning",
     "rescan": "Rescan",
     "runningDiagnostics": "Running security diagnostics..."
   },

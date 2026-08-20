@@ -279,9 +279,11 @@ function registerIpcHandlers() {
     return localeManager.getTranslations(safeLocale || localeManager.getPreferred());
   });
 
-  ipcMain.handle(IPC.SET_LOCALE, (_event, locale) => {
+  ipcMain.handle(IPC.GET_I18N_BOOTSTRAP, () => localeManager.getBootstrap());
+
+  ipcMain.handle(IPC.SET_LOCALE, async (_event, locale) => {
     const safeLocale = typeof locale === "string" ? locale.slice(0, 20) : "";
-    const applied = localeManager.setPreferred(safeLocale);
+    const applied = await localeManager.setPreferred(safeLocale);
     logger.info("[ipc] set-locale:", applied);
     // Broadcast so every open window (there's normally only one, but this is
     // cheap and future-proof) can re-apply translations without a reload.

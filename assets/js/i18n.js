@@ -127,7 +127,7 @@
   const readyPromise = new Promise((resolve) => { _resolveReady = resolve; });
 
   async function initI18n() {
-    if (!window.electronAPI?.getLocale) {
+    if (!window.electronAPI?.getI18nBootstrap) {
       // Running outside Electron (or preload failed) — reveal page as-is.
       _runRenderers();
       _reveal();
@@ -135,8 +135,9 @@
       return;
     }
     try {
-      _locale = await window.electronAPI.getLocale();
-      _bundle = await window.electronAPI.getTranslations(_locale);
+      const { locale, bundle } = await window.electronAPI.getI18nBootstrap();
+      _locale = locale;
+      _bundle = bundle;
     } catch (err) {
       // eslint-disable-next-line no-console
       console.warn("[i18n] failed to load translations, staying in English:", err);

@@ -30,7 +30,13 @@ const FAMILIES = [
   ["noto-sans-arabic", "Noto+Sans+Arabic:wght@400;500;600;700;800"],
   ["noto-sans-jp", "Noto+Sans+JP:wght@400;700"],
   ["noto-sans-kr", "Noto+Sans+KR:wght@400;700"],
+  // Not renamed to the shared "Noto Sans" family below — its unicode-range
+  // covers the same Arabic block as Noto Sans Arabic, so merging it in could
+  // get it picked for `ar` text too. Applied only via [lang="ur"] in i18n.css.
+  ["noto-nastaliq-urdu", "Noto+Nastaliq+Urdu:wght@400;500;600;700"],
 ];
+
+const KEEP_OWN_FAMILY_NAME = new Set(["inter", "noto-nastaliq-urdu"]);
 
 async function fetchText(url, extraHeaders) {
   const res = await fetch(url, { headers: { "User-Agent": UA, ...extraHeaders } });
@@ -76,7 +82,7 @@ async function main() {
       totalFiles++;
 
       let localBlock = block.replace(url, `../fonts/${slug}/${fname}`);
-      if (slug !== "inter") {
+      if (!KEEP_OWN_FAMILY_NAME.has(slug)) {
         localBlock = localBlock.replace(/font-family: '[^']*';/, "font-family: 'Noto Sans';");
       }
       familyCss += localBlock + "\n";

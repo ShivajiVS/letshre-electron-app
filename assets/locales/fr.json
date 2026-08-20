@@ -28,7 +28,7 @@
       "accountInactive": "Votre compte est inactif. Contactez le support pour obtenir de l'aide.",
       "wrongRole": "Ce compte n'est pas un compte candidat. Veuillez utiliser le bon portail.",
       "rateLimited": "Trop de tentatives. Veuillez patienter et réessayer.",
-      "rateLimitedCountdown": "Trop de tentatives. Veuillez patienter {seconds}s et réessayer.",
+      "rateLimitedCountdown": "Trop de tentatives. Veuillez patienter {seconds, plural, one {# seconde} other {# secondes}} et réessayer.",
       "serverError": "Une erreur s'est produite de notre côté. Veuillez réessayer sous peu.",
       "network": "Impossible de joindre le serveur. Vérifiez votre connexion internet et réessayez.",
       "timeout": "Cela a pris trop de temps. Veuillez réessayer.",

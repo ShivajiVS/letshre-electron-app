@@ -28,7 +28,7 @@
       "accountInactive": "Your account is inactive. Contact support for help.",
       "wrongRole": "This account isn't a candidate account. Please use the correct portal.",
       "rateLimited": "Too many attempts. Please wait and try again.",
-      "rateLimitedCountdown": "Too many attempts. Please wait {seconds}s and try again.",
+      "rateLimitedCountdown": "Too many attempts. Please wait {seconds, plural, one {# second} other {# seconds}} and try again.",
       "serverError": "Something went wrong on our end. Please try again shortly.",
       "network": "Can't reach the server. Check your internet connection and try again.",
       "timeout": "That took too long. Please try again.",

@@ -30,10 +30,61 @@
     return typeof node === "string" ? node : undefined;
   }
 
-  /** Interpolates {token} placeholders in a string with values from params. */
-  function _interpolate(str, params) {
+  /**
+   * Resolves ICU-lite plural blocks: {key, plural, one {# thing} other {# things}}.
+   * `#` inside a branch is replaced with the count. Falls back to the "other"
+   * branch if the locale's CLDR category (via Intl.PluralRules) has no branch
+   * of its own — so a string only needs to define the categories that
+   * actually differ, not all six. Branch bodies are plain text + `#` only, no
+   * nested {tokens} — every current use case only needs that.
+   */
+  function _pluralize(str, params, locale) {
     if (!params) {return str;}
-    return str.replace(/\{(\w+)\}/g, (match, token) =>
+    let out = "";
+    let cursor = 0;
+    const OPEN = /\{(\w+),\s*plural,\s*/g;
+    let match;
+    while ((match = OPEN.exec(str))) {
+      const key = match[1];
+      let depth = 1;
+      let i = OPEN.lastIndex;
+      while (i < str.length && depth > 0) {
+        if (str[i] === "{") {depth++;}
+        else if (str[i] === "}") {depth--;}
+        i++;
+      }
+      if (depth !== 0) {break;} // unbalanced braces — leave the rest untouched
+
+      out += str.slice(cursor, match.index);
+      const branches = str.slice(OPEN.lastIndex, i - 1);
+      const value = Number(params[key]);
+      let category = "other";
+      try {
+        category = new Intl.PluralRules(locale).select(value);
+      } catch {
+        /* unsupported locale tag — "other" already covers every string */
+      }
+      let chosen;
+      let fallback;
+      const BRANCH = /(\w+)\s*\{([^{}]*)\}/g;
+      let branchMatch;
+      while ((branchMatch = BRANCH.exec(branches))) {
+        if (branchMatch[1] === category) {chosen = branchMatch[2];}
+        if (branchMatch[1] === "other") {fallback = branchMatch[2];}
+      }
+      out += (chosen ?? fallback ?? "").replace(/#/g, String(value));
+
+      cursor = i;
+      OPEN.lastIndex = i;
+    }
+    return out + str.slice(cursor);
+  }
+
+  /** Interpolates {token} placeholders (and {key, plural, ...} blocks) with values from params. */
+  function _interpolate(str, params, locale) {
+    if (!params) {return str;}
+    const withPlurals = _pluralize(str, params, locale);
+    return withPlurals.replace(/\{(\w+)\}/g, (match, token) =>
       Object.prototype.hasOwnProperty.call(params, token) ? String(params[token]) : match
     );
   }
@@ -55,7 +106,7 @@
       }
       return key;
     }
-    return _interpolate(value, params);
+    return _interpolate(value, params, _locale);
   }
 
   function _applyToDOM() {
@@ -161,6 +212,14 @@
 
   function getLocale() {
     return _locale;
+  }
+
+  if (typeof window === "undefined") {
+    // Loaded under Node (tests) rather than a browser — export the pure,
+    // DOM-free functions instead of wiring up window/document globals.
+    // eslint-disable-next-line no-undef
+    module.exports = { _pluralize, _interpolate, _lookup };
+    return;
   }
 
   window.t = t;

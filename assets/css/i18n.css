@@ -56,3 +56,11 @@ html[dir="rtl"] .hiw-back svg {
 body {
   font-family: Inter, "Noto Sans", "Segoe UI", system-ui, sans-serif;
 }
+
+/* Urdu conventionally reads in Nastaliq, not the Naskh style "Noto Sans"
+   renders for Arabic script — kept as its own [lang] override rather than
+   folded into the shared "Noto Sans" name, since its unicode-range would
+   otherwise collide with Noto Sans Arabic's and could get picked for ar too. */
+html[lang="ur"] body {
+  font-family: "Noto Nastaliq Urdu", "Noto Sans", "Segoe UI", system-ui, sans-serif;
+}

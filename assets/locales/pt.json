@@ -28,7 +28,7 @@
       "accountInactive": "Sua conta está inativa. Entre em contato com o suporte para obter ajuda.",
       "wrongRole": "Esta conta não é uma conta de candidato. Use o portal correto.",
       "rateLimited": "Muitas tentativas. Aguarde e tente novamente.",
-      "rateLimitedCountdown": "Muitas tentativas. Aguarde {seconds}s e tente novamente.",
+      "rateLimitedCountdown": "Muitas tentativas. Aguarde {seconds, plural, one {# segundo} other {# segundos}} e tente novamente.",
       "serverError": "Algo deu errado do nosso lado. Tente novamente em breve.",
       "network": "Não foi possível acessar o servidor. Verifique sua conexão com a internet e tente novamente.",
       "timeout": "Isso demorou muito. Por favor, tente novamente.",

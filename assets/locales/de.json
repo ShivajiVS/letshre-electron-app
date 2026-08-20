@@ -28,7 +28,7 @@
       "accountInactive": "Ihr Konto ist inaktiv. Bitte wenden Sie sich an den Support.",
       "wrongRole": "Dies ist kein Kandidatenkonto. Bitte verwenden Sie das richtige Portal.",
       "rateLimited": "Zu viele Versuche. Bitte warten Sie und versuchen Sie es erneut.",
-      "rateLimitedCountdown": "Zu viele Versuche. Bitte warten Sie {seconds}s und versuchen Sie es erneut.",
+      "rateLimitedCountdown": "Zu viele Versuche. Bitte warten Sie {seconds, plural, one {# Sekunde} other {# Sekunden}} und versuchen Sie es erneut.",
       "serverError": "Auf unserer Seite ist ein Fehler aufgetreten. Bitte versuchen Sie es in Kürze erneut.",
       "network": "Server nicht erreichbar. Überprüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.",
       "timeout": "Das hat zu lange gedauert. Bitte versuchen Sie es erneut.",

@@ -28,7 +28,7 @@
       "accountInactive": "Il tuo account è inattivo. Contatta l'assistenza per aiuto.",
       "wrongRole": "Questo account non è un account candidato. Utilizza il portale corretto.",
       "rateLimited": "Troppi tentativi. Attendi e riprova.",
-      "rateLimitedCountdown": "Troppi tentativi. Attendi {seconds}s e riprova.",
+      "rateLimitedCountdown": "Troppi tentativi. Attendi {seconds, plural, one {# secondo} other {# secondi}} e riprova.",
       "serverError": "Si è verificato un errore da parte nostra. Riprova a breve.",
       "network": "Impossibile raggiungere il server. Controlla la tua connessione internet e riprova.",
       "timeout": "L'operazione ha impiegato troppo tempo. Riprova.",

@@ -46,19 +46,12 @@ html[dir="rtl"] .hiw-back svg {
    flip correctly because they use margin-inline-*. */
 
 /* ─── Fonts for non-Latin scripts ─────────────────────────────────────────
- * TODO(i18n-fonts): self-host Noto Sans subsets under assets/fonts/ and
- * restore @font-face rules here (with unicode-range so only the glyphs
- * actually used download). Deliberately NOT declared yet — pointing
- * @font-face at files that don't exist on disk produces a 404 + console
- * error per page load, so until the binaries are added this instead falls
- * through to whatever script-appropriate font each OS ships (Windows/macOS
- * both bundle Devanagari/CJK/Arabic-capable system fonts), which is a
- * degraded-but-error-free interim state.
- *
- * Needed before shipping: Devanagari (hi), Telugu (te), Tamil (ta),
- * Kannada (kn), Malayalam (ml), Bengali (bn), Japanese (ja), Korean (ko),
- * Arabic (ar, ur — Urdu commonly wants Nastaliq rather than Naskh, confirm
- * with a native speaker during translation review).
+ * Self-hosted under assets/fonts/ (@font-face rules in assets/css/fonts.css,
+ * loaded alongside this file). Every non-Latin family shares the single
+ * font-family name "Noto Sans" with per-script unicode-range blocks, so the
+ * browser selects the right glyphs per character automatically — no
+ * lang-attribute switching needed. Urdu (ur) still renders in Naskh via this
+ * stack rather than Nastaliq; revisit with a native speaker if that matters.
  */
 body {
   font-family: Inter, "Noto Sans", "Segoe UI", system-ui, sans-serif;

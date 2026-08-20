@@ -6,7 +6,16 @@
 
 "use strict";
 
+/** Translate with an English fallback for the non-Electron preview (window.t absent). */
+function tr(key, fallback, params) {
+  return window.t ? window.t(key, params) : fallback;
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
+  if (window.i18n?.ready) {
+    await window.i18n.ready;
+  }
+
   const stepPills = [
     document.getElementById("step-pill-confirm"),
     document.getElementById("step-pill-input"),
@@ -66,20 +75,32 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const SIDEBAR = [
     {
-      title: "Your Selected Role",
-      desc: "Review the role assigned to you. If it's correct, proceed directly to the interview. Otherwise, enter a different role.",
+      titleKey: ["role.sidebarTitle", "Your Selected Role"],
+      descKey: [
+        "role.sidebarDesc",
+        "Review the role assigned to you. If it's correct, proceed directly to the interview. Otherwise, enter a different role.",
+      ],
     },
     {
-      title: "Enter Your Role",
-      desc: "Type the role you're interviewing for. Our AI will tailor the interview questions to match your specific position.",
+      titleKey: ["role.sidebarInputTitle", "Enter Your Role"],
+      descKey: [
+        "role.sidebarInputDesc",
+        "Type the role you're interviewing for. Our AI will tailor the interview questions to match your specific position.",
+      ],
     },
     {
-      title: "Narrow It Down",
-      desc: "The role you entered covers several specialisations. Choose the one that best describes your expertise.",
+      titleKey: ["role.sidebarClarifyTitle", "Narrow It Down"],
+      descKey: [
+        "role.sidebarClarifyDesc",
+        "The role you entered covers several specialisations. Choose the one that best describes your expertise.",
+      ],
     },
     {
-      title: "Skills Detected",
-      desc: "These are the key skills we'll evaluate during your interview. Review them and start when you're ready.",
+      titleKey: ["role.sidebarSkillsTitle", "Skills Detected"],
+      descKey: [
+        "role.sidebarSkillsDesc",
+        "These are the key skills we'll evaluate during your interview. Review them and start when you're ready.",
+      ],
     },
   ];
 
@@ -96,8 +117,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function goToStep(idx) {
     hideError();
-    sidebarTitle.textContent = SIDEBAR[idx].title;
-    sidebarDesc.textContent = SIDEBAR[idx].desc;
+    sidebarTitle.textContent = tr(...SIDEBAR[idx].titleKey);
+    sidebarDesc.textContent = tr(...SIDEBAR[idx].descKey);
 
     stepPills.forEach((el, i) => {
       el.classList.remove("rs-step--active", "rs-step--done");
@@ -191,11 +212,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     // Fail loud if the bridge method is missing — never spin forever silently.
     if (typeof window.electronAPI?.proceedToInterview !== "function") {
-      showError("Unable to start the interview. Please restart the app.");
+      showError(tr("role.startUnavailable", "Unable to start the interview. Please restart the app."));
       return;
     }
     btnStartInterview.disabled = true;
-    btnStartInterview.innerHTML = `<span class="rs-spinner"></span> Starting…`;
+    btnStartInterview.innerHTML = `<span class="rs-spinner"></span> ${tr("role.starting", "Starting…")}`;
     // Hand the role decision to the interview site. Yes → is_custom_role:false
     // only; No → is_custom_role:true with the chosen role + detected skills.
     const payload = isCustomRole
@@ -205,7 +226,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Watchdog: successful navigation tears down this page. If this fires,
     // navigation never happened — restore the button so the user can retry.
     window.armButtonRestore(btnStartInterview, startInterviewHTML, {
-      onRestore: () => showError("That took too long. Please try again."),
+      onRestore: () => showError(tr("role.startTimedOut", "That took too long. Please try again.")),
     });
   });
 
@@ -213,14 +234,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     pendingRole = role;
     hideError();
     if (typeof window.electronAPI?.submitRole !== "function") {
-      showError("This action is unavailable. Please restart the app.");
+      showError(tr("role.actionUnavailable", "This action is unavailable. Please restart the app."));
       setSubmitting(false);
       return;
     }
     try {
       const res = await window.electronAPI.submitRole(role);
       if (!res?.ok) {
-        showError(res?.error || "Couldn't process that role. Please try again.");
+        showError(res?.error || tr("role.roleProcessFailed", "Couldn't process that role. Please try again."));
         setSubmitting(false);
         return;
       }
@@ -233,7 +254,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         goToStep(3);
       }
     } catch {
-      showError("Network error. Check your connection and try again.");
+      showError(tr("role.networkError", "Network error. Check your connection and try again."));
     } finally {
       setSubmitting(false);
     }
@@ -242,32 +263,35 @@ document.addEventListener("DOMContentLoaded", async () => {
   const ARROW_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>`;
   const SPINNER = `<span class="rs-spinner"></span>`;
 
+  function confirmClarifyLabel(role) {
+    return role
+      ? `${tr("role.confirmWithRole", "Confirm — {role}", { role: window.escHtml(role) })} ${ARROW_ICON}`
+      : `${tr("role.confirmSelection", "Confirm selection")} ${ARROW_ICON}`;
+  }
+
   function setSubmitting(busy) {
     btnYes.disabled = busy;
     btnSubmitRole.disabled = busy;
     btnConfirmClarify.disabled = busy;
 
     if (busy) {
-      btnYes.innerHTML = `${SPINNER} Loading…`;
-      btnSubmitRole.innerHTML = `${SPINNER} Checking role…`;
-      btnConfirmClarify.innerHTML = `${SPINNER} Confirming…`;
+      btnYes.innerHTML = `${SPINNER} ${tr("role.loading", "Loading…")}`;
+      btnSubmitRole.innerHTML = `${SPINNER} ${tr("role.checkingRole", "Checking role…")}`;
+      btnConfirmClarify.innerHTML = `${SPINNER} ${tr("role.confirming", "Confirming…")}`;
     } else {
-      btnYes.innerHTML = `Yes, continue ${ARROW_ICON}`;
+      btnYes.innerHTML = `${tr("role.yes", "Yes, continue")} ${ARROW_ICON}`;
       btnSubmitRole.disabled = roleInput.value.trim().length === 0;
-      btnSubmitRole.innerHTML = `Continue to Interview ${ARROW_ICON}`;
+      btnSubmitRole.innerHTML = `${tr("role.continueToInterview", "Continue to Interview")} ${ARROW_ICON}`;
 
-      const label = selectedClarifyRole
-        ? `Confirm — ${window.escHtml(selectedClarifyRole)} ${ARROW_ICON}`
-        : `Confirm selection ${ARROW_ICON}`;
       btnConfirmClarify.disabled = selectedClarifyRole.length === 0;
-      btnConfirmClarify.innerHTML = label;
+      btnConfirmClarify.innerHTML = confirmClarifyLabel(selectedClarifyRole);
     }
   }
 
   function renderClarification(suggestions) {
     selectedClarifyRole = "";
     btnConfirmClarify.disabled = true;
-    btnConfirmClarify.innerHTML = `Confirm selection ${ARROW_ICON}`;
+    btnConfirmClarify.innerHTML = confirmClarifyLabel("");
     ambiguousRoleLabel.textContent = pendingRole;
     roleCardsEl.innerHTML = "";
 
@@ -285,22 +309,20 @@ document.addEventListener("DOMContentLoaded", async () => {
         card.classList.add("rs-role-card--selected");
         selectedClarifyRole = role;
         btnConfirmClarify.disabled = false;
-        btnConfirmClarify.innerHTML = `Confirm — ${window.escHtml(role)} ${ARROW_ICON}`;
+        btnConfirmClarify.innerHTML = confirmClarifyLabel(role);
       });
       roleCardsEl.appendChild(card);
     });
   }
 
   function renderSkills(skills, role) {
-    // Capture the confirmed values — this panel is the single source of the
-    // role + skills sent to the interview site on Start Interview.
     finalRole = role;
     finalSkills = Array.isArray(skills) ? skills : [];
     confirmedRoleLabel.textContent = role;
     skillsGrid.innerHTML = "";
 
     if (skills.length === 0) {
-      skillsGrid.innerHTML = `<p class="rs-skills-empty">No specific skills listed — the interview will adapt in real-time.</p>`;
+      skillsGrid.innerHTML = `<p class="rs-skills-empty">${tr("role.noSkillsListed", "No specific skills listed — the interview will adapt in real-time.")}</p>`;
       return;
     }
 

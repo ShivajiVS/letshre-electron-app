@@ -26,7 +26,7 @@ const path = require("path");
 const {
   SCOPE,
   INTERVIEW_ORIGIN,
-  LOCAL_ORIGIN,
+  LOCAL_ORIGINS,
   isOriginAllowed,
   isTopFrame,
   isFrameAllowed,
@@ -35,10 +35,14 @@ const {
   registerSend,
 } = require("../src/main/ipcScope");
 
+const LOCAL_ORIGIN = "null";
+
 // ─── Pure predicate tests ──────────────────────────────────────────────────
 
-test("LOCAL_ORIGIN is Chromium's opaque-origin serialisation", () => {
-  assert.strictEqual(LOCAL_ORIGIN, "null");
+test("LOCAL_ORIGINS covers both Chromium's documented opaque origin and the string this app's installed Electron actually reports for loadFile() pages", () => {
+  assert.strictEqual(LOCAL_ORIGINS.has("null"), true);
+  assert.strictEqual(LOCAL_ORIGINS.has("file://"), true);
+  assert.strictEqual(LOCAL_ORIGINS.has(INTERVIEW_ORIGIN), false);
 });
 
 test("INTERVIEW_ORIGIN is derived from INTERVIEW_BASE_URL, not hardcoded", () => {
@@ -78,6 +82,11 @@ test("isTopFrame: a frame whose top is a different frame is nested", () => {
 
 test("isFrameAllowed: local scope passes a top-level file:// frame", () => {
   const frame = { origin: LOCAL_ORIGIN, top: null };
+  assert.strictEqual(isFrameAllowed(SCOPE.LOCAL, frame), true);
+});
+
+test("isFrameAllowed: local scope also passes the origin this app's Electron build actually reports for file:// (not just the RFC 6454 opaque form)", () => {
+  const frame = { origin: "file://", top: null };
   assert.strictEqual(isFrameAllowed(SCOPE.LOCAL, frame), true);
 });
 

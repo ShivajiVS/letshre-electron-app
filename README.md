@@ -74,7 +74,7 @@ Two cooperating detection tiers:
 
 | Area | Choice |
 |------|--------|
-| Desktop shell | **Electron 30** (`contextIsolation`, `sandbox`, no `nodeIntegration`) |
+| Desktop shell | **Electron 43** (`contextIsolation`, `sandbox`, no `nodeIntegration`) |
 | Main/renderer language | Node.js **20+** (CommonJS) |
 | Deep‑scan agent | **Python 3.12** + `psutil`, bundled to a single binary with **PyInstaller** |
 | UI | Static HTML + hand‑authored CSS |

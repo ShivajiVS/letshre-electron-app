@@ -23,12 +23,13 @@ const SCOPE = Object.freeze({ LOCAL: "local", INTERVIEW: "interview" });
 
 const INTERVIEW_ORIGIN = new URL(INTERVIEW_BASE_URL).origin;
 
-// Pages with no scheme/host/port triple (file://) get Chromium's opaque
-// origin, serialised per RFC 6454 as the literal string "null" — confirmed
-// against WebFrameMain#origin's doc comment in this app's installed Electron
-// version (node_modules/electron/electron.d.ts, 30.5.1) and against Node's
-// own URL parser, which serialises file:// origins the same way.
-const LOCAL_ORIGIN = "null";
+// electron.d.ts documents file:// as Chromium's opaque origin, "null" per RFC
+// 6454 — but the installed binary actually reports "file://" for our loadFile()
+// pages (confirmed by running the app; the doc comment is stale as of at least
+// Electron 43.4.1). Accepting both costs nothing: neither string can ever equal
+// INTERVIEW_ORIGIN, so this only widens what counts as local, never narrows the
+// interview check.
+const LOCAL_ORIGINS = new Set(["null", "file://"]);
 
 /**
  * Pure predicate: does `origin` satisfy `scope`? No Electron objects
@@ -38,7 +39,7 @@ const LOCAL_ORIGIN = "null";
  */
 function isOriginAllowed(scope, origin) {
   if (scope === SCOPE.LOCAL) {
-    return origin === LOCAL_ORIGIN;
+    return LOCAL_ORIGINS.has(origin);
   }
   if (scope === SCOPE.INTERVIEW) {
     return origin === INTERVIEW_ORIGIN;
@@ -145,7 +146,7 @@ function registerSend(channel, scope, handler) {
 module.exports = {
   SCOPE,
   INTERVIEW_ORIGIN,
-  LOCAL_ORIGIN,
+  LOCAL_ORIGINS,
   isOriginAllowed,
   isTopFrame,
   isFrameAllowed,

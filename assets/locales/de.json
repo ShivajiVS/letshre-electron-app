@@ -3,7 +3,9 @@
     "locale": "de",
     "name": "Deutsch",
     "dir": "ltr",
-    "note": "Certified-review pending — see attestation.statement before release."
+    "note": "Certified-review pending — see attestation.statement before release.",
+    "_reviewedBy": null,
+    "_sourceHash": "62b6a5be3c4e3ba6"
   },
   "common": {
     "back": "Zurück",
@@ -57,6 +59,7 @@
     "howItWorksLink": "Wie läuft der Prozess ab? →"
   },
   "hiw": {
+    "pageTitle": "How It Works — LetsHyre",
     "back": "Zurück",
     "eyebrow": "Interviewprozess",
     "title": "Alles, was vor Ihrer ersten Frage passiert",

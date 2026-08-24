@@ -119,6 +119,16 @@
       if (key) {el.textContent = t(key);}
     });
 
+    // Opt-in variant for the rare string that legitimately needs inline markup
+    // (e.g. a <strong> emphasis span). Bundle values are our own trusted JSON,
+    // never user input, so innerHTML here carries no XSS risk — but it must
+    // stay opt-in and separate from the [data-i18n] sweep above, which must
+    // keep using textContent everywhere else.
+    document.querySelectorAll("[data-i18n-html]").forEach((el) => {
+      const key = el.getAttribute("data-i18n-html");
+      if (key) {el.innerHTML = t(key);}
+    });
+
     document.querySelectorAll("[data-i18n-attr]").forEach((el) => {
       // format: data-i18n-attr="placeholder:key.a|aria-label:key.b"
       const spec = el.getAttribute("data-i18n-attr");

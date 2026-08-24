@@ -3,7 +3,9 @@
     "locale": "ta",
     "name": "தமிழ்",
     "dir": "ltr",
-    "note": "Certified-review pending — see attestation.statement before release."
+    "note": "Certified-review pending — see attestation.statement before release.",
+    "_reviewedBy": null,
+    "_sourceHash": "62b6a5be3c4e3ba6"
   },
   "common": {
     "back": "பின்னால்",
@@ -57,6 +59,7 @@
     "howItWorksLink": "இந்த செயல்முறை எவ்வாறு செயல்படுகிறது? →"
   },
   "hiw": {
+    "pageTitle": "How It Works — LetsHyre",
     "back": "திரும்பிச் செல்லவும்",
     "eyebrow": "நேர்காணல் செயல்முறை",
     "title": "உங்கள் முதல் கேள்விக்கு முன் நடக்கும் அனைத்தும்",

@@ -3,7 +3,9 @@
     "locale": "te",
     "name": "తెలుగు",
     "dir": "ltr",
-    "note": "Certified-review pending — see attestation.statement before release."
+    "note": "Certified-review pending — see attestation.statement before release.",
+    "_reviewedBy": null,
+    "_sourceHash": "62b6a5be3c4e3ba6"
   },
   "common": {
     "back": "వెనుకకు",
@@ -57,6 +59,7 @@
     "howItWorksLink": "ఈ ప్రక్రియ ఎలా పనిచేస్తుంది? →"
   },
   "hiw": {
+    "pageTitle": "How It Works — LetsHyre",
     "back": "వెనక్కి వెళ్ళండి",
     "eyebrow": "ఇంటర్వ్యూ ప్రక్రియ",
     "title": "మీ మొదటి ప్రశ్నకు ముందు జరిగే ప్రతిదీ",

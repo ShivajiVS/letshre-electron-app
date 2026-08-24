@@ -3,7 +3,9 @@
     "locale": "ja",
     "name": "日本語",
     "dir": "ltr",
-    "note": "Certified-review pending — see attestation.statement before release."
+    "note": "Certified-review pending — see attestation.statement before release.",
+    "_reviewedBy": null,
+    "_sourceHash": "62b6a5be3c4e3ba6"
   },
   "common": {
     "back": "戻る",
@@ -57,6 +59,7 @@
     "howItWorksLink": "プロセスの流れを見る →"
   },
   "hiw": {
+    "pageTitle": "How It Works — LetsHyre",
     "back": "戻る",
     "eyebrow": "面接プロセス",
     "title": "最初の質問の前に行われるすべてのこと",

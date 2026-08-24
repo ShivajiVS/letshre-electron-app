@@ -18,9 +18,20 @@ function getDisplayName(processName) {
   return APP_DISPLAY_NAMES[processName] || processName;
 }
 
-/** Translate with an English fallback for the non-Electron preview (window.t absent). */
+/**
+ * Translate with an English fallback for the non-Electron preview (window.t
+ * absent). window.t handles ICU-lite plurals/interpolation itself; the
+ * fallback path here only needs plain {token} substitution — REASON_FALLBACK
+ * strings don't use plural blocks.
+ */
 function tr(key, fallback, params) {
-  return window.t ? window.t(key, params) : fallback;
+  if (window.t) {
+    return window.t(key, params);
+  }
+  if (!params) {return fallback;}
+  return fallback.replace(/\{(\w+)\}/g, (match, token) =>
+    Object.prototype.hasOwnProperty.call(params, token) ? String(params[token]) : match
+  );
 }
 
 const ICONS = {
@@ -71,7 +82,7 @@ const REASON_FALLBACK = {
   "preflightResults.agentDegraded":
     "Deep scan finished with errors — this device could not be fully verified. Click Re-scan.",
   "preflightResults.agentThreatsDetected":
-    "Behavioral threats detected. Close the applications below and rescan.",
+    "{n} behavioral threat(s) detected. Close the applications below and rescan.",
 };
 
 /** Renders a verdict's reason through i18n, falling back to English in preview. */

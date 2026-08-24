@@ -24,6 +24,15 @@
       window.electronAPI.getLocale(),
     ]);
 
+    // Production gates to English-only until certified translations land
+    // (see localeManager.js's `_localeAllowed()`) — a single-option dropdown
+    // has nothing to switch between, so hide the switcher entirely rather
+    // than render it.
+    if (locales.length <= 1) {
+      container.style.display = "none";
+      return;
+    }
+
     const select = document.createElement("select");
     select.className = "lang-switcher__select";
     select.setAttribute("aria-label", window.t ? window.t("langSwitcher.label") : "Language");

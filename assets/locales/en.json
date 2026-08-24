@@ -3,7 +3,9 @@
     "locale": "en",
     "name": "English",
     "dir": "ltr",
-    "note": "Source-of-truth bundle. Every other locale file must have exactly the same keys (see test/locales.test.js)."
+    "note": "Source-of-truth bundle. Every other locale file must have exactly the same keys (see test/locales.test.js).",
+    "_reviewedBy": null,
+    "_sourceHash": "62b6a5be3c4e3ba6"
   },
   "common": {
     "back": "Back",
@@ -57,19 +59,20 @@
     "howItWorksLink": "How does the process work? →"
   },
   "hiw": {
+    "pageTitle": "How It Works — LetsHyre",
     "back": "Go back",
     "eyebrow": "Interview Process",
     "title": "Everything that happens before your first question",
     "subtitle": "Seven steps stand between you and the interview. Here's exactly what each one involves so there are no surprises on the day.",
     "step1title": "Sign In to Your Account",
-    "step1desc": "Log in with the email and password you registered with. If you don't have an account yet, visit letshyre.com to create a candidate profile. Your account holds your interview slot, profile photo, and results.",
+    "step1desc": "Log in with the email and password you registered with. If you don't have an account yet, visit <strong>letshyre.com</strong> to create a candidate profile. Your account holds your interview slot, profile photo, and results.",
     "step2title": "Start from Your Dashboard",
-    "step2desc": "After signing in you'll land on your personal dashboard showing your profile and available interview slots. Click Take Interview to begin — the app immediately runs a background security check before anything else opens.",
+    "step2desc": "After signing in you'll land on your personal dashboard showing your profile and available interview slots. Click <strong>Take Interview</strong> to begin — the app immediately runs a background security check before anything else opens.",
     "step3title": "Clear Your Environment",
     "step3desc": "The security scanner checks for applications that could compromise exam integrity — web browsers, screen recorders, AI assistants, and video-call tools. Any flagged app must be closed before you can proceed. The check re-runs until your environment is clean.",
     "step3tip": "Tip: close all other apps before clicking Take Interview",
     "step4title": "Grant Device Permissions",
-    "step4desc": "You'll be prompted to allow access to your microphone, camera, and screen. All three are required for live proctoring. Grant each permission when your operating system asks — the interview cannot proceed without them.",
+    "step4desc": "You'll be prompted to allow access to your <strong>microphone</strong>, <strong>camera</strong>, and <strong>screen</strong>. All three are required for live proctoring. Grant each permission when your operating system asks — the interview cannot proceed without them.",
     "step5title": "Verify Your Identity",
     "step5desc": "Read a short statement aloud for voice registration, then allow the camera to take a live photo. Your live image is compared against the profile photo you uploaded when creating your account. If the match fails, you'll be prompted to retake the photo in better lighting.",
     "step5tip": "Tip: face the camera directly in a well-lit room",
@@ -272,7 +275,7 @@
     "agentTitle": "Deep Scan Agent",
     "agentFailedStart": "Security agent failed to start — it is required to continue. Click Re-scan to retry.",
     "agentClear": "No AI tools, network anomalies, or automation frameworks detected.",
-    "agentThreatsDetected": "{n} behavioral threats detected. Close the applications below and rescan.",
+    "agentThreatsDetected": "{n, plural, one {# behavioral threat detected.} other {# behavioral threats detected.}} Close the applications below and rescan.",
     "diagnosticsFailedRetry": "Diagnostics failed: {message}. Please click Rescan to try again.",
     "diagnosticsFailedCountdown": "Diagnostics failed: {message} — retrying in {seconds}s… ({attempt})",
     "attempt": "attempt {current}/{max}",

@@ -61,6 +61,21 @@ test("every locale is valid JSON and parses to an object", () => {
   }
 });
 
+test("every locale (including en) has provenance metadata: _reviewedBy and _sourceHash", () => {
+  for (const code of localeFiles()) {
+    const bundle = loadBundle(code);
+    const reviewedBy = bundle?._meta?._reviewedBy;
+    assert.ok(
+      reviewedBy === null || typeof reviewedBy === "string",
+      `${code}.json _meta._reviewedBy must be null or a string, got ${JSON.stringify(reviewedBy)}`
+    );
+    assert.ok(
+      typeof bundle?._meta?._sourceHash === "string" && bundle._meta._sourceHash.length > 0,
+      `${code}.json is missing a non-empty _meta._sourceHash`
+    );
+  }
+});
+
 for (const code of localeFiles()) {
   if (code === SOURCE_LOCALE) {continue;}
 

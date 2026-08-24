@@ -15,6 +15,20 @@ const logger = require("./logger");
 const { SUPPORTED_LOCALES, DEFAULT_LOCALE } = require("../shared/constants");
 
 const SUPPORTED_CODES = new Set(SUPPORTED_LOCALES.map((l) => l.code));
+const REVIEWED_CODES = new Set(SUPPORTED_LOCALES.filter((l) => l.reviewed).map((l) => l.code));
+
+/**
+ * Production ships English-only until non-English bundles are certified by a
+ * human translator; dev/QA builds keep all 19 locales testable. Gated on
+ * `app.isPackaged` (true for a packaged/production build) rather than a
+ * hardcoded flag, so this tracks the real build channel automatically.
+ */
+function _localeAllowed(locale) {
+  if (!app.isPackaged) {
+    return SUPPORTED_CODES.has(locale);
+  }
+  return REVIEWED_CODES.has(locale);
+}
 
 /** @type {Map<string, object>} in-memory cache of parsed bundles */
 const _bundleCache = new Map();
@@ -59,11 +73,17 @@ function resolveInitialLocale() {
   try {
     const osLocale = app.getLocale();
     const matched = _matchOSLocale(osLocale);
-    if (matched) {
+    if (matched && _localeAllowed(matched)) {
       logger.info(`[locale] resolved OS locale "${osLocale}" -> "${matched}"`);
       return matched;
     }
-    logger.info(`[locale] OS locale "${osLocale}" unsupported — defaulting to ${DEFAULT_LOCALE}`);
+    if (matched) {
+      logger.info(
+        `[locale] resolved OS locale "${osLocale}" -> "${matched}" but it is gated in this build — defaulting to ${DEFAULT_LOCALE}`
+      );
+    } else {
+      logger.info(`[locale] OS locale "${osLocale}" unsupported — defaulting to ${DEFAULT_LOCALE}`);
+    }
   } catch (err) {
     logger.warn("[locale] resolveInitialLocale failed:", err.message);
   }
@@ -78,7 +98,11 @@ function _loadPreferenceFromDisk() {
     }
     const raw = fs.readFileSync(fp, "utf8");
     const parsed = JSON.parse(raw);
-    if (typeof parsed?.locale === "string" && SUPPORTED_CODES.has(parsed.locale)) {
+    if (
+      typeof parsed?.locale === "string" &&
+      SUPPORTED_CODES.has(parsed.locale) &&
+      _localeAllowed(parsed.locale)
+    ) {
       return parsed.locale;
     }
   } catch (err) {
@@ -114,7 +138,7 @@ async function _readPreferencesFile() {
  * feature stores in preferences.json aren't clobbered by a locale switch.
  */
 async function setPreferred(locale) {
-  const safe = SUPPORTED_CODES.has(locale) ? locale : DEFAULT_LOCALE;
+  const safe = SUPPORTED_CODES.has(locale) && _localeAllowed(locale) ? locale : DEFAULT_LOCALE;
   _preferred = safe;
   try {
     const existing = await _readPreferencesFile();
@@ -229,7 +253,7 @@ function _readBundleFile(code) {
 }
 
 function getSupportedLocales() {
-  return SUPPORTED_LOCALES;
+  return SUPPORTED_LOCALES.filter((l) => _localeAllowed(l.code));
 }
 
 module.exports = {

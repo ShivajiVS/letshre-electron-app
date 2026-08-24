@@ -3,7 +3,9 @@
     "locale": "ml",
     "name": "മലയാളം",
     "dir": "ltr",
-    "note": "Certified-review pending — see attestation.statement before release."
+    "note": "Certified-review pending — see attestation.statement before release.",
+    "_reviewedBy": null,
+    "_sourceHash": "62b6a5be3c4e3ba6"
   },
   "common": {
     "back": "തിരികെ",
@@ -57,6 +59,7 @@
     "howItWorksLink": "ഈ പ്രക്രിയ എങ്ങനെ പ്രവർത്തിക്കുന്നു? →"
   },
   "hiw": {
+    "pageTitle": "How It Works — LetsHyre",
     "back": "തിരികെ പോകുക",
     "eyebrow": "ഇന്റർവ്യൂ പ്രക്രിയ",
     "title": "നിങ്ങളുടെ ആദ്യ ചോദ്യത്തിന് മുമ്പ് സംഭവിക്കുന്ന എല്ലാം",

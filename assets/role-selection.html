@@ -10,12 +10,27 @@
     <link rel="stylesheet" href="./css/i18n.css" />
   </head>
   <body class="rs-body">
-
     <!-- Top bar -->
     <header class="rs-topbar">
-      <button class="btn-back-nav" id="btn-back" type="button" onclick="window.electronAPI?.loadIdentityVerification?.()">
-        <svg class="back-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
+      <button
+        class="btn-back-nav"
+        id="btn-back"
+        type="button"
+        onclick="window.electronAPI?.loadIdentityVerification?.()"
+      >
+        <svg
+          class="back-icon"
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M19 12H5" />
+          <path d="M12 19l-7-7 7-7" />
         </svg>
         <span data-i18n="common.back">Back</span>
       </button>
@@ -25,11 +40,13 @@
     <!-- Main -->
     <main class="rs-main">
       <div class="rs-card">
-
         <!-- ── Card header ─────────────────────────────────────────────── -->
         <div class="rs-card__header">
           <div>
-            <h1 class="rs-card__title"><span data-i18n="role.titleMain">Role</span> <span class="rs-card__title-accent" data-i18n="role.titleAccent">Selection</span></h1>
+            <h1 class="rs-card__title">
+              <span data-i18n="role.titleMain">Role</span>
+              <span class="rs-card__title-accent" data-i18n="role.titleAccent">Selection</span>
+            </h1>
             <div class="rs-card__title-bar"></div>
           </div>
 
@@ -63,29 +80,64 @@
         <div
           class="rs-error"
           id="rs-error"
-          style="display:none;align-items:center;gap:10px;margin:16px 0 0;padding:12px 16px;border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;border-radius:12px;font-size:14px;font-weight:500"
+          style="
+            display: none;
+            align-items: center;
+            gap: 10px;
+            margin: 16px 0 0;
+            padding: 12px 16px;
+            border: 1px solid #fecaca;
+            background: #fef2f2;
+            color: #b91c1c;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 500;
+          "
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            style="flex-shrink: 0"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
           <span id="rs-error-text"></span>
         </div>
 
         <!-- ── Body split ──────────────────────────────────────────────── -->
         <div class="rs-body-split">
-
           <!-- Sidebar -->
           <aside class="rs-sidebar">
             <div class="rs-sidebar__icon-wrap">
-              <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="2" y="7" width="20" height="14" rx="2"/>
-                <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
-                <line x1="12" y1="12" x2="12" y2="16"/>
-                <line x1="10" y1="14" x2="14" y2="14"/>
+              <svg
+                width="52"
+                height="52"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="var(--accent)"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="2" y="7" width="20" height="14" rx="2" />
+                <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+                <line x1="12" y1="12" x2="12" y2="16" />
+                <line x1="10" y1="14" x2="14" y2="14" />
               </svg>
             </div>
             <h3 class="rs-sidebar__title" id="sidebar-title">Your Selected Role</h3>
-            <p class="rs-sidebar__desc" id="sidebar-desc">Review the role assigned to you. If it's correct, proceed directly to the interview. Otherwise, enter a different role.</p>
+            <p class="rs-sidebar__desc" id="sidebar-desc">
+              Review the role assigned to you. If it's correct, proceed directly to the interview.
+              Otherwise, enter a different role.
+            </p>
             <div class="rs-sidebar__dots">
               <span class="rs-sidebar__dot rs-sidebar__dot--active" id="dot-1"></span>
               <span class="rs-sidebar__dot" id="dot-2"></span>
@@ -96,18 +148,32 @@
 
           <!-- Content -->
           <div class="rs-content">
-
             <!-- ── Panel 1: Confirm ────────────────────────────────────── -->
             <div class="rs-panel" id="panel-confirm">
               <!-- Skeleton while profile loads -->
               <div id="confirm-skeleton" class="rs-confirm__skeleton-wrap">
-                <div class="rs-skeleton" style="width:68px;height:68px;border-radius:18px"></div>
-                <div class="rs-skeleton" style="width:120px;height:13px"></div>
-                <div class="rs-skeleton" style="width:200px;height:34px;border-radius:10px"></div>
-                <div class="rs-skeleton" style="width:100%;max-width:380px;height:72px;border-radius:16px;margin-top:8px"></div>
-                <div style="display:flex;gap:12px;width:100%;max-width:320px">
-                  <div class="rs-skeleton" style="flex:1;height:46px;border-radius:12px"></div>
-                  <div class="rs-skeleton" style="flex:1;height:46px;border-radius:12px"></div>
+                <div
+                  class="rs-skeleton"
+                  style="width: 68px; height: 68px; border-radius: 18px"
+                ></div>
+                <div class="rs-skeleton" style="width: 120px; height: 13px"></div>
+                <div
+                  class="rs-skeleton"
+                  style="width: 200px; height: 34px; border-radius: 10px"
+                ></div>
+                <div
+                  class="rs-skeleton"
+                  style="
+                    width: 100%;
+                    max-width: 380px;
+                    height: 72px;
+                    border-radius: 16px;
+                    margin-top: 8px;
+                  "
+                ></div>
+                <div style="display: flex; gap: 12px; width: 100%; max-width: 320px">
+                  <div class="rs-skeleton" style="flex: 1; height: 46px; border-radius: 12px"></div>
+                  <div class="rs-skeleton" style="flex: 1; height: 46px; border-radius: 12px"></div>
                 </div>
               </div>
 
@@ -115,30 +181,71 @@
               <div id="confirm-content" hidden>
                 <div class="rs-confirm__badge">
                   <div class="rs-confirm__badge-icon">
-                    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                      <rect x="2" y="7" width="20" height="14" rx="2"/>
-                      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
-                      <line x1="12" y1="12" x2="12" y2="16"/>
-                      <line x1="10" y1="14" x2="14" y2="14"/>
+                    <svg
+                      width="30"
+                      height="30"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="var(--accent)"
+                      stroke-width="1.8"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <rect x="2" y="7" width="20" height="14" rx="2" />
+                      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+                      <line x1="12" y1="12" x2="12" y2="16" />
+                      <line x1="10" y1="14" x2="14" y2="14" />
                     </svg>
                   </div>
-                  <p class="rs-confirm__badge-label" data-i18n="role.confirmBadgeLabel">Selected Role</p>
+                  <p class="rs-confirm__badge-label" data-i18n="role.confirmBadgeLabel">
+                    Selected Role
+                  </p>
                   <h2 class="rs-confirm__role-name" id="confirm-role-name">–</h2>
                   <div class="rs-confirm__role-bar"></div>
                 </div>
 
                 <div class="rs-confirm__question">
-                  <p><span data-i18n="role.confirmQuestionPrefix">You have been assigned</span> <strong id="confirm-role-inline">–</strong>. <span data-i18n="role.confirmQuestionSuffix">Do you want to continue to the interview with this role?</span></p>
+                  <p>
+                    <span data-i18n="role.confirmQuestionPrefix">You have been assigned</span>
+                    <strong id="confirm-role-inline">–</strong>.
+                    <span data-i18n="role.confirmQuestionSuffix"
+                      >Do you want to continue to the interview with this role?</span
+                    >
+                  </p>
                 </div>
 
                 <div class="rs-confirm__actions">
                   <button class="rs-btn rs-btn--outline" id="btn-no" type="button">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    <svg
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
                     <span data-i18n="role.no">No, change role</span>
                   </button>
                   <button class="rs-btn rs-btn--primary" id="btn-yes" type="button">
                     <span>Yes, continue</span>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+                    <svg
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M5 12h14" />
+                      <path d="M12 5l7 7-7 7" />
+                    </svg>
                   </button>
                 </div>
               </div>
@@ -148,39 +255,104 @@
             <div class="rs-panel" id="panel-input" hidden>
               <div class="rs-panel__header">
                 <p class="rs-panel__eyebrow" data-i18n="role.eyebrowSetup">Interview Setup</p>
-                <h3 class="rs-panel__title" data-i18n="role.inputTitle">What role are you interviewing for?</h3>
-                <p class="rs-panel__sub" data-i18n="role.inputSub">Enter your job title and we'll personalise your interview experience.</p>
+                <h3 class="rs-panel__title" data-i18n="role.inputTitle">
+                  What role are you interviewing for?
+                </h3>
+                <p class="rs-panel__sub" data-i18n="role.inputSub">
+                  Enter your job title and we'll personalise your interview experience.
+                </p>
               </div>
 
               <div class="rs-input-wrap">
-                <label class="rs-input-label" for="role-input" data-i18n="role.inputLabel">Job Title / Role</label>
+                <label class="rs-input-label" for="role-input" data-i18n="role.inputLabel"
+                  >Job Title / Role</label
+                >
                 <div class="rs-input-field">
-                  <svg class="rs-input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                  <svg
+                    class="rs-input-icon"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                   </svg>
-                  <input type="text" id="role-input" placeholder="e.g. Frontend Developer, Product Manager…" autocomplete="off" data-i18n-attr="placeholder:role.inputPlaceholder" />
+                  <input
+                    type="text"
+                    id="role-input"
+                    placeholder="e.g. Frontend Developer, Product Manager…"
+                    autocomplete="off"
+                    data-i18n-attr="placeholder:role.inputPlaceholder"
+                  />
                 </div>
               </div>
 
-              <button class="rs-btn rs-btn--primary rs-btn--full rs-btn--lg" id="btn-submit-role" type="button" disabled>
+              <button
+                class="rs-btn rs-btn--primary rs-btn--full rs-btn--lg"
+                id="btn-submit-role"
+                type="button"
+                disabled
+              >
                 <span>Continue to Interview</span>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M5 12h14" />
+                  <path d="M12 5l7 7-7 7" />
+                </svg>
               </button>
             </div>
 
             <!-- ── Panel 3: Clarification ──────────────────────────────── -->
             <div class="rs-panel" id="panel-clarify" hidden>
               <div class="rs-panel__header">
-                <p class="rs-panel__eyebrow" data-i18n="role.eyebrowClarify">Clarification Needed</p>
-                <h3 class="rs-panel__title"><span data-i18n="role.clarifyTitlePrefix">Which type of</span> <span id="ambiguous-role-label" class="rs-panel__title-accent">role</span> <span data-i18n="role.clarifyTitleSuffix">are you?</span></h3>
-                <p class="rs-panel__sub" data-i18n="role.clarifySub">Select the option that best describes your specialisation.</p>
+                <p class="rs-panel__eyebrow" data-i18n="role.eyebrowClarify">
+                  Clarification Needed
+                </p>
+                <h3 class="rs-panel__title">
+                  <span data-i18n="role.clarifyTitlePrefix">Which type of</span>
+                  <span id="ambiguous-role-label" class="rs-panel__title-accent">role</span>
+                  <span data-i18n="role.clarifyTitleSuffix">are you?</span>
+                </h3>
+                <p class="rs-panel__sub" data-i18n="role.clarifySub">
+                  Select the option that best describes your specialisation.
+                </p>
               </div>
 
               <div class="rs-role-cards" id="role-cards"></div>
 
-              <button class="rs-btn rs-btn--primary rs-btn--full rs-btn--lg" id="btn-confirm-clarify" type="button" disabled>
+              <button
+                class="rs-btn rs-btn--primary rs-btn--full rs-btn--lg"
+                id="btn-confirm-clarify"
+                type="button"
+                disabled
+              >
                 <span>Confirm selection</span>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M5 12h14" />
+                  <path d="M12 5l7 7-7 7" />
+                </svg>
               </button>
             </div>
 
@@ -188,22 +360,46 @@
             <div class="rs-panel" id="panel-skills" hidden>
               <div class="rs-panel__header">
                 <p class="rs-panel__eyebrow" data-i18n="role.eyebrowReady">Ready to Begin</p>
-                <h3 class="rs-panel__title"><span data-i18n="role.skillsTitlePrefix">Skills for</span> <span id="confirmed-role-label" class="rs-panel__title-accent">–</span></h3>
-                <p class="rs-panel__sub" data-i18n="role.skillsSub">Here are the key areas we'll cover in your interview. Review them and start when you're ready.</p>
+                <h3 class="rs-panel__title">
+                  <span data-i18n="role.skillsTitlePrefix">Skills for</span>
+                  <span id="confirmed-role-label" class="rs-panel__title-accent">–</span>
+                </h3>
+                <p class="rs-panel__sub" data-i18n="role.skillsSub">
+                  Here are the key areas we'll cover in your interview. Review them and start when
+                  you're ready.
+                </p>
               </div>
 
               <div class="rs-skills-grid" id="skills-grid"></div>
               <div class="rs-skills-divider"></div>
 
-              <button class="rs-btn rs-btn--begin rs-btn--full" id="btn-start-interview" type="button">
+              <button
+                class="rs-btn rs-btn--begin rs-btn--full"
+                id="btn-start-interview"
+                type="button"
+              >
                 <span>Start Interview</span>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M5 12h14" />
+                  <path d="M12 5l7 7-7 7" />
+                </svg>
               </button>
             </div>
-
-          </div><!-- /rs-content -->
-        </div><!-- /rs-body-split -->
-      </div><!-- /rs-card -->
+          </div>
+          <!-- /rs-content -->
+        </div>
+        <!-- /rs-body-split -->
+      </div>
+      <!-- /rs-card -->
     </main>
 
     <script src="./js/i18n.js"></script>

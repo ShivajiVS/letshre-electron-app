@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="./css/i18n.css" />
   </head>
   <body>
-    <div id="lang-switcher" style="position:absolute;top:16px;right:16px"></div>
+    <div id="lang-switcher" style="position: absolute; top: 16px; right: 16px"></div>
     <div class="auth-center">
       <div class="auth-card">
         <div class="brand">
@@ -17,7 +17,9 @@
         </div>
 
         <h1 class="auth-title" data-i18n="login.title">Sign in</h1>
-        <p class="auth-subtitle" data-i18n="login.subtitle">Log in to access your dashboard and start your interview.</p>
+        <p class="auth-subtitle" data-i18n="login.subtitle">
+          Log in to access your dashboard and start your interview.
+        </p>
 
         <div id="auth-error" class="auth-error" role="alert"></div>
 
@@ -38,7 +40,9 @@
           </div>
 
           <div class="field">
-            <label class="field__label" for="password" data-i18n="login.passwordLabel">Password</label>
+            <label class="field__label" for="password" data-i18n="login.passwordLabel"
+              >Password</label
+            >
             <input
               class="field__input"
               id="password"
@@ -59,10 +63,29 @@
           <button class="btn" id="submit-btn" type="submit">Sign in</button>
         </form>
 
-        <p class="auth-foot" data-i18n="login.footSecured">Your session is secured for the interview.</p>
-        <p class="auth-foot" style="margin-top:10px">
+        <p class="auth-foot" data-i18n="login.footSecured">
+          Your session is secured for the interview.
+        </p>
+        <p class="auth-foot" style="margin-top: 10px">
           <span data-i18n="login.footHowItWorksPrefix">Not sure what to expect?</span>
-          <button type="button" onclick="window.electronAPI?.loadHowItWorks?.()" style="background:none;border:none;padding:0;color:#2563eb;font-size:inherit;font-family:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:2px" data-i18n="login.howItWorksLink">See how it works →</button>
+          <button
+            type="button"
+            onclick="window.electronAPI?.loadHowItWorks?.()"
+            style="
+              background: none;
+              border: none;
+              padding: 0;
+              color: #2563eb;
+              font-size: inherit;
+              font-family: inherit;
+              cursor: pointer;
+              text-decoration: underline;
+              text-underline-offset: 2px;
+            "
+            data-i18n="login.howItWorksLink"
+          >
+            See how it works →
+          </button>
         </p>
       </div>
     </div>

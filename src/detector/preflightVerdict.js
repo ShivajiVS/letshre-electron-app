@@ -13,11 +13,7 @@
 
 "use strict";
 
-const {
-  MEETING_APPS,
-  SCREEN_SHARING_APPS,
-  AI_CHEATING_APPS,
-} = require("../shared/appList");
+const { MEETING_APPS, SCREEN_SHARING_APPS, AI_CHEATING_APPS } = require("../shared/appList");
 
 /** Verdict states. `unverified` is fail-closed — it blocks Proceed. */
 const PASS = "pass";
@@ -89,9 +85,7 @@ function mapProcesses(result) {
   // tool, which is what the "wireless" card covers.
   const other = procs.filter(
     (p) =>
-      !MEETING_APPS.includes(p) &&
-      !SCREEN_SHARING_APPS.includes(p) &&
-      !AI_CHEATING_APPS.includes(p)
+      !MEETING_APPS.includes(p) && !SCREEN_SHARING_APPS.includes(p) && !AI_CHEATING_APPS.includes(p)
   );
 
   const card = (id, found, runningKey, clearKey) =>

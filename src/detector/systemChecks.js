@@ -47,9 +47,9 @@ let lastViolationAckAt = 0; // ms timestamp of the renderer's most recent ack
 // ─── Pre-proceed monitor ↔ preflight scan mutual exclusion (Phase C) ──────────
 // The monitor and a preflight scan read the SAME process list and drive the SAME
 // Proceed button, so they must never run at once. See pausePreProceedMonitor().
-let _preProceedWin = null;       // window the monitor pushes to, for resume
-let _preProceedDesired = false;  // flow WANTS the monitor running (vs. paused)
-let _scanInProgress = false;     // a preflight scan currently owns the screen
+let _preProceedWin = null; // window the monitor pushes to, for resume
+let _preProceedDesired = false; // flow WANTS the monitor running (vs. paused)
+let _scanInProgress = false; // a preflight scan currently owns the screen
 
 /**
  * Result of the most recent preflight pass, used to re-verify the gate in the
@@ -82,7 +82,9 @@ function trackIndeterminate(win, key, label, status) {
   }
   const streak = (indeterminateStreak.get(key) || 0) + 1;
   indeterminateStreak.set(key, streak);
-  logger.warn(`[systemChecks] ${label} indeterminate (${streak}/${INDETERMINATE_ESCALATION_THRESHOLD})`);
+  logger.warn(
+    `[systemChecks] ${label} indeterminate (${streak}/${INDETERMINATE_ESCALATION_THRESHOLD})`
+  );
   if (streak >= INDETERMINATE_ESCALATION_THRESHOLD) {
     sendViolation(
       win,
@@ -130,7 +132,9 @@ let isFlushingReports = false;
  */
 async function postViolation(payload) {
   const token = getCurrentAccessToken();
-  if (!token) { return false; } // no session token yet — keep queued for retry
+  if (!token) {
+    return false;
+  } // no session token yet — keep queued for retry
   try {
     await axios.post(`${API_BASE_URL}/interview/violation`, payload, {
       headers: { Authorization: `Bearer ${token}` },
@@ -149,12 +153,16 @@ async function postViolation(payload) {
  * (triggered by the next violation or the heartbeat tick). Re-entrancy guarded.
  */
 async function flushReports() {
-  if (isFlushingReports) { return; }
+  if (isFlushingReports) {
+    return;
+  }
   isFlushingReports = true;
   try {
     while (pendingReports.length > 0) {
       const ok = await postViolation(pendingReports[0]);
-      if (!ok) { break; }
+      if (!ok) {
+        break;
+      }
       pendingReports.shift();
     }
   } finally {
@@ -172,11 +180,15 @@ function reportViolationToBackend(payload) {
 }
 
 function startHeartbeat() {
-  if (heartbeatInterval) {return;}
+  if (heartbeatInterval) {
+    return;
+  }
   heartbeatInterval = setInterval(async () => {
     try {
       const token = getCurrentAccessToken();
-      if (!token) {return;}
+      if (!token) {
+        return;
+      }
       await axios.post(
         `${API_BASE_URL}/interview/heartbeat`,
         { timestamp: new Date().toISOString() },
@@ -377,11 +389,15 @@ async function sendViolation(win, event, severity) {
  * @param {string} reason
  */
 function armHardBlockFailsafe(reason) {
-  if (hardBlockFailsafeTimer) { return; }
+  if (hardBlockFailsafeTimer) {
+    return;
+  }
   const armedAt = Date.now();
   hardBlockFailsafeTimer = setTimeout(() => {
     hardBlockFailsafeTimer = null;
-    if (!isSessionActive) { return; } // website already terminated the session
+    if (!isSessionActive) {
+      return;
+    } // website already terminated the session
 
     // If the renderer acknowledged a violation during the grace window, the
     // website is alive and owns the warning/termination UX — do NOT override it.
@@ -390,7 +406,9 @@ function armHardBlockFailsafe(reason) {
       return;
     }
 
-    logger.warn("[systemChecks] hard-block failsafe fired (no renderer ack) — self-enforcing locally");
+    logger.warn(
+      "[systemChecks] hard-block failsafe fired (no renderer ack) — self-enforcing locally"
+    );
     try {
       require("../main/windowManager").enforceViolation(reason);
     } catch (err) {
@@ -431,7 +449,9 @@ function withDeadline(promise, ms, fallback, label, record = {}) {
   const startedAt = Date.now();
   const { timings, key } = record;
   const note = (outcome) => {
-    if (!timings || !key) { return; }
+    if (!timings || !key) {
+      return;
+    }
     timings[key] = {
       durationMs: Date.now() - startedAt,
       deadlineMs: ms,
@@ -453,12 +473,16 @@ function withDeadline(promise, ms, fallback, label, record = {}) {
       (value) => {
         // A probe that resolves after its deadline already fired must not
         // overwrite the recorded "timeout" outcome with a late "ok".
-        if (!timings?.[key]) { note("ok"); }
+        if (!timings?.[key]) {
+          note("ok");
+        }
         return value;
       },
       (err) => {
         logger.warn(`[preflight] ${label} threw: ${err.message}`);
-        if (!timings?.[key]) { note("error"); }
+        if (!timings?.[key]) {
+          note("error");
+        }
         return fallback;
       }
     ),
@@ -469,8 +493,17 @@ function withDeadline(promise, ms, fallback, label, record = {}) {
 // "Could not verify" sentinels. These are FACTORIES, not shared constants: a
 // shared object handed out as a timeout fallback can be mutated by a caller and
 // then silently poisons every later scan in the process. Each call gets its own.
-const hdmiUnverified = () => ({ detected: false, status: "indeterminate", monitors: [], reason: "" });
-const mirrorUnverified = () => ({ detected: false, status: "indeterminate", details: { processes: [] } });
+const hdmiUnverified = () => ({
+  detected: false,
+  status: "indeterminate",
+  monitors: [],
+  reason: "",
+});
+const mirrorUnverified = () => ({
+  detected: false,
+  status: "indeterminate",
+  details: { processes: [] },
+});
 const agentUnreachable = () => ({ alive: false, status: null });
 
 /**
@@ -571,11 +604,17 @@ async function _runChecksOnceInner(onProgress, scanId, startedAt, timings) {
 
   // Kick all three probes off together.
   const hdmiPromise = withDeadline(
-    detectHDMIWindows(), PREFLIGHT_HDMI_DEADLINE_MS, hdmiUnverified(), "display probe",
+    detectHDMIWindows(),
+    PREFLIGHT_HDMI_DEADLINE_MS,
+    hdmiUnverified(),
+    "display probe",
     { timings, key: "display" }
   );
   const mirrorPromise = withDeadline(
-    detectMirroring(), PREFLIGHT_PROCESS_DEADLINE_MS, mirrorUnverified(), "process scan",
+    detectMirroring(),
+    PREFLIGHT_PROCESS_DEADLINE_MS,
+    mirrorUnverified(),
+    "process scan",
     { timings, key: "process" }
   );
   // `phase` events carry no verdict — they only repaint the pending card while
@@ -584,7 +623,9 @@ async function _runChecksOnceInner(onProgress, scanId, startedAt, timings) {
   // still what decides the card if the agent never arrives.
   const agentPromise = withDeadline(
     scanAgent(PREFLIGHT_AGENT_DEADLINE_MS, (phase) => emit({ id: "agent", phase })),
-    PREFLIGHT_AGENT_DEADLINE_MS, agentUnreachable(), "agent deep scan",
+    PREFLIGHT_AGENT_DEADLINE_MS,
+    agentUnreachable(),
+    "agent deep scan",
     { timings, key: "agent" }
   );
 
@@ -754,7 +795,9 @@ function resetState() {
 function startPreProceedMonitor(win) {
   _preProceedDesired = true;
   _preProceedWin = win;
-  if (preProceedInterval) {return;} // already running
+  if (preProceedInterval) {
+    return;
+  } // already running
   // A scan owns the process list and the screen right now; the resume hook
   // installed by pausePreProceedMonitor() will start us when it finishes.
   if (_scanInProgress) {
@@ -765,10 +808,14 @@ function startPreProceedMonitor(win) {
   preProceedInterval = setInterval(async () => {
     // Belt-and-braces with pausePreProceedMonitor(): a tick already queued when
     // the pause happened must not spawn tasklist or push a status mid-scan.
-    if (_scanInProgress) { return; }
+    if (_scanInProgress) {
+      return;
+    }
     try {
       const { found } = await checkProcesses();
-      if (_scanInProgress) { return; } // a scan started while we were probing
+      if (_scanInProgress) {
+        return;
+      } // a scan started while we were probing
       const payload = { clean: found.length === 0, apps: found };
       if (win && !win.isDestroyed()) {
         win.webContents.send(IPC.PUSH_PRE_PROCEED_STATUS, payload);
@@ -821,7 +868,9 @@ function pausePreProceedMonitor() {
 
   let resumed = false;
   return function resumePreProceedMonitor() {
-    if (resumed) { return; }
+    if (resumed) {
+      return;
+    }
     resumed = true;
     _scanInProgress = false;
     const win = _preProceedWin;

@@ -225,7 +225,9 @@ async function login(email, password) {
   // a 4xx status — both transport shapes are documented as possible, so both
   // are handled. body.message is logged only, never returned to the renderer.
   if (!body.success) {
-    logger.warn(`[auth] login rejected for ${email}: server-message=${JSON.stringify(body.message)}`);
+    logger.warn(
+      `[auth] login rejected for ${email}: server-message=${JSON.stringify(body.message)}`
+    );
     return { success: false, code: AUTH_ERROR.INVALID_CREDENTIALS };
   }
 

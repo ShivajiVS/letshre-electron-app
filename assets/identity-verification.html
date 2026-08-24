@@ -44,7 +44,8 @@
         <div class="iv-card__header">
           <div>
             <h1 class="iv-card__title">
-              <span data-i18n="identity.titleMain">Identity</span> <span class="iv-card__title-accent" data-i18n="identity.titleAccent">Check</span>
+              <span data-i18n="identity.titleMain">Identity</span>
+              <span class="iv-card__title-accent" data-i18n="identity.titleAccent">Check</span>
             </h1>
             <div class="iv-card__title-bar"></div>
           </div>
@@ -157,7 +158,10 @@
                 </div>
                 <div>
                   <p class="iv-voice__label">
-                    <span data-i18n="identity.voiceLabel">Voice Recording</span> <span class="iv-required">(<span data-i18n="common.required">Required</span>)</span>
+                    <span data-i18n="identity.voiceLabel">Voice Recording</span>
+                    <span class="iv-required"
+                      >(<span data-i18n="common.required">Required</span>)</span
+                    >
                   </p>
                   <p class="iv-voice__sub" data-i18n="identity.voiceSub">
                     Read the statement clearly so we can verify your identity.
@@ -293,7 +297,9 @@
               <div class="iv-photo-grid">
                 <!-- Registered -->
                 <div class="iv-photo-col">
-                  <span class="iv-photo-label" data-i18n="identity.registeredImage">Registered Image</span>
+                  <span class="iv-photo-label" data-i18n="identity.registeredImage"
+                    >Registered Image</span
+                  >
                   <div class="iv-photo-frame iv-photo-frame--ref" style="background: #f0ede6">
                     <!-- img hidden until JS sets a valid src -->
                     <img
@@ -327,12 +333,16 @@
                         <circle cx="12" cy="7" r="4" />
                       </svg>
                     </div>
-                    <div class="iv-photo-frame__badge" data-i18n="identity.referencePhoto">REFERENCE PHOTO</div>
+                    <div class="iv-photo-frame__badge" data-i18n="identity.referencePhoto">
+                      REFERENCE PHOTO
+                    </div>
                   </div>
                 </div>
                 <!-- Live -->
                 <div class="iv-photo-col">
-                  <span class="iv-photo-label iv-photo-label--live" data-i18n="identity.liveCamera">Live Camera</span>
+                  <span class="iv-photo-label iv-photo-label--live" data-i18n="identity.liveCamera"
+                    >Live Camera</span
+                  >
                   <div class="iv-photo-frame iv-photo-frame--live" id="live-frame">
                     <video
                       id="iv-video"
@@ -434,7 +444,9 @@
                     alt="Registered"
                     class="iv-result-photo__img iv-result-photo__img--ref"
                   />
-                  <span class="iv-result-photo__tag" data-i18n="identity.registered">REGISTERED</span>
+                  <span class="iv-result-photo__tag" data-i18n="identity.registered"
+                    >REGISTERED</span
+                  >
                 </div>
 
                 <div class="iv-result-match" id="result-match-badge">
@@ -448,7 +460,9 @@
                     alt="Live capture"
                     class="iv-result-photo__img"
                   />
-                  <span class="iv-result-photo__tag" data-i18n="identity.liveCapture">LIVE CAPTURE</span>
+                  <span class="iv-result-photo__tag" data-i18n="identity.liveCapture"
+                    >LIVE CAPTURE</span
+                  >
                 </div>
               </div>
 
@@ -491,7 +505,10 @@
                   <span data-i18n="identity.tryAgain">Try Again</span>
                 </button>
                 <p class="iv-result-tip" id="result-tip" hidden>
-                  <span data-i18n="identity.professionalTip">Professional tip:</span> <span data-i18n="identity.tipRemoveGlasses">Remove glasses or masks for better accuracy.</span>
+                  <span data-i18n="identity.professionalTip">Professional tip:</span>
+                  <span data-i18n="identity.tipRemoveGlasses"
+                    >Remove glasses or masks for better accuracy.</span
+                  >
                 </p>
               </div>
             </section>

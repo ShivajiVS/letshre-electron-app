@@ -241,7 +241,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   // it runs as part of the pre-reveal pass and never paints English
   // defaults for a non-English locale.
   function renderI18n() {
-    submitBtn.textContent = isLoading ? tr("login.loading", "Signing in…") : tr("login.submit", "Sign in");
+    submitBtn.textContent = isLoading
+      ? tr("login.loading", "Signing in…")
+      : tr("login.submit", "Sign in");
     if (lastAuthError) {
       showErrorForCode(lastAuthError.code, lastAuthError.params);
     }

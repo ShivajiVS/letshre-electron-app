@@ -9,15 +9,24 @@
     <link rel="stylesheet" href="./css/i18n.css" />
   </head>
   <body>
-
     <!-- Top bar -->
     <header class="hiw-topbar">
       <img src="./logo.png" alt="LetsHyre" class="hiw-topbar__logo" />
-      <div style="margin-left:auto;display:flex;align-items:center;gap:12px">
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 12px">
         <div id="lang-switcher"></div>
         <button class="hiw-back" onclick="window.history.back()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M19 12H5" />
+            <path d="M12 19l-7-7 7-7" />
           </svg>
           <span data-i18n="hiw.back">Go back</span>
         </button>
@@ -25,39 +34,63 @@
     </header>
 
     <div class="hiw-page">
-
       <!-- Hero -->
       <div class="hiw-hero">
         <div class="hiw-hero__eyebrow">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
           <span data-i18n="hiw.eyebrow">Interview Process</span>
         </div>
-        <h1 class="hiw-hero__title" data-i18n="hiw.title">Everything that happens before your first question</h1>
+        <h1 class="hiw-hero__title" data-i18n="hiw.title">
+          Everything that happens before your first question
+        </h1>
         <p class="hiw-hero__sub" data-i18n="hiw.subtitle">
-          Seven steps stand between you and the interview. Here's exactly what each one involves so there are no surprises on the day.
+          Seven steps stand between you and the interview. Here's exactly what each one involves so
+          there are no surprises on the day.
         </p>
       </div>
 
       <!-- Timeline -->
       <div class="hiw-timeline">
-
         <!-- Step 1 -->
         <div class="hiw-step">
           <div class="hiw-step__badge">1</div>
           <div class="hiw-step__body">
             <div class="hiw-step__head">
               <div class="hiw-step__icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
                 </svg>
               </div>
               <h2 class="hiw-step__title" data-i18n="hiw.step1title">Sign In to Your Account</h2>
             </div>
             <p class="hiw-step__desc" data-i18n="hiw.step1desc">
-              Log in with the email and password you registered with. If you don't have an account yet, visit
-              <strong>letshyre.com</strong> to create a candidate profile. your account holds your interview slot, profile photo, and results.
+              Log in with the email and password you registered with. If you don't have an account
+              yet, visit
+              <strong>letshyre.com</strong> to create a candidate profile. your account holds your
+              interview slot, profile photo, and results.
             </p>
           </div>
         </div>
@@ -68,14 +101,26 @@
           <div class="hiw-step__body">
             <div class="hiw-step__head">
               <div class="hiw-step__icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <path d="M9 9h6M9 12h6M9 15h4" />
                 </svg>
               </div>
               <h2 class="hiw-step__title" data-i18n="hiw.step2title">Start from Your Dashboard</h2>
             </div>
             <p class="hiw-step__desc" data-i18n="hiw.step2desc">
-              After signing in you'll land on your personal dashboard showing your profile and available interview slots. Click <strong>Take Interview</strong> to begin — the app immediately runs a background security check before anything else opens.
+              After signing in you'll land on your personal dashboard showing your profile and
+              available interview slots. Click <strong>Take Interview</strong> to begin — the app
+              immediately runs a background security check before anything else opens.
             </p>
           </div>
         </div>
@@ -86,18 +131,43 @@
           <div class="hiw-step__body">
             <div class="hiw-step__head">
               <div class="hiw-step__icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                 </svg>
               </div>
               <h2 class="hiw-step__title" data-i18n="hiw.step3title">Clear Your Environment</h2>
             </div>
             <p class="hiw-step__desc" data-i18n="hiw.step3desc">
-              The security scanner checks for applications that could compromise exam integrity — web browsers, screen recorders, AI assistants, and video-call tools. Any flagged app must be closed before you can proceed. The check re-runs until your environment is clean.
+              The security scanner checks for applications that could compromise exam integrity —
+              web browsers, screen recorders, AI assistants, and video-call tools. Any flagged app
+              must be closed before you can proceed. The check re-runs until your environment is
+              clean.
             </p>
             <span class="hiw-step__tip">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-              <span data-i18n="hiw.step3tip">Tip: close all other apps before clicking Take Interview</span>
+              <svg
+                width="11"
+                height="11"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <span data-i18n="hiw.step3tip"
+                >Tip: close all other apps before clicking Take Interview</span
+              >
             </span>
           </div>
         </div>
@@ -108,14 +178,27 @@
           <div class="hiw-step__body">
             <div class="hiw-step__head">
               <div class="hiw-step__icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
                 </svg>
               </div>
               <h2 class="hiw-step__title" data-i18n="hiw.step4title">Grant Device Permissions</h2>
             </div>
             <p class="hiw-step__desc" data-i18n="hiw.step4desc">
-              You'll be prompted to allow access to your <strong>microphone</strong>, <strong>camera</strong>, and <strong>screen</strong>. All three are required for live proctoring. Grant each permission when your operating system asks — the interview cannot proceed without them.
+              You'll be prompted to allow access to your <strong>microphone</strong>,
+              <strong>camera</strong>, and <strong>screen</strong>. All three are required for live
+              proctoring. Grant each permission when your operating system asks — the interview
+              cannot proceed without them.
             </p>
           </div>
         </div>
@@ -126,17 +209,43 @@
           <div class="hiw-step__body">
             <div class="hiw-step__head">
               <div class="hiw-step__icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
+                  />
+                  <circle cx="12" cy="13" r="4" />
                 </svg>
               </div>
               <h2 class="hiw-step__title" data-i18n="hiw.step5title">Verify Your Identity</h2>
             </div>
             <p class="hiw-step__desc" data-i18n="hiw.step5desc">
-              Read a short statement aloud for voice registration, then allow the camera to take a live photo. Your live image is compared against the profile photo you uploaded when creating your account. If the match fails, you'll be prompted to retake the photo in better lighting.
+              Read a short statement aloud for voice registration, then allow the camera to take a
+              live photo. Your live image is compared against the profile photo you uploaded when
+              creating your account. If the match fails, you'll be prompted to retake the photo in
+              better lighting.
             </p>
             <span class="hiw-step__tip">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              <svg
+                width="11"
+                height="11"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
               <span data-i18n="hiw.step5tip">Tip: face the camera directly in a well-lit room</span>
             </span>
           </div>
@@ -148,14 +257,27 @@
           <div class="hiw-step__body">
             <div class="hiw-step__head">
               <div class="hiw-step__icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+                  />
                 </svg>
               </div>
               <h2 class="hiw-step__title" data-i18n="hiw.step6title">Choose Your Interview Role</h2>
             </div>
             <p class="hiw-step__desc" data-i18n="hiw.step6desc">
-              Select the position you're interviewing for. You can proceed with the role assigned during onboarding, or choose a different slot if multiple are available to you. The question set is tailored to the role you select here.
+              Select the position you're interviewing for. You can proceed with the role assigned
+              during onboarding, or choose a different slot if multiple are available to you. The
+              question set is tailored to the role you select here.
             </p>
           </div>
         </div>
@@ -166,18 +288,29 @@
           <div class="hiw-step__body">
             <div class="hiw-step__head">
               <div class="hiw-step__icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polygon points="5 3 19 12 5 21 5 3"/>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polygon points="5 3 19 12 5 21 5 3" />
                 </svg>
               </div>
               <h2 class="hiw-step__title" data-i18n="hiw.step7title">Begin Your Interview</h2>
             </div>
             <p class="hiw-step__desc" data-i18n="hiw.step7desc">
-              You're all set. The interview window opens in full-screen with screen recording active. Answer each question within the allocated time — you can navigate between questions before the session timer runs out. Stay in the window at all times; navigating away counts as a violation.
+              You're all set. The interview window opens in full-screen with screen recording
+              active. Answer each question within the allocated time — you can navigate between
+              questions before the session timer runs out. Stay in the window at all times;
+              navigating away counts as a violation.
             </p>
           </div>
         </div>
-
       </div>
       <!-- /timeline -->
 
@@ -185,16 +318,29 @@
       <div class="hiw-cta">
         <div class="hiw-cta__text">
           <p class="hiw-cta__heading" data-i18n="hiw.ctaHeading">Ready to get started?</p>
-          <p class="hiw-cta__sub" data-i18n="hiw.ctaSub">Sign in to your account and click Take Interview when you're prepared.</p>
+          <p class="hiw-cta__sub" data-i18n="hiw.ctaSub">
+            Sign in to your account and click Take Interview when you're prepared.
+          </p>
         </div>
-        <button class="hiw-cta__btn" onclick="window.electronAPI?.loadDashboard?.() || window.history.back()">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 5l7 7-7 7"/>
+        <button
+          class="hiw-cta__btn"
+          onclick="window.electronAPI?.loadDashboard?.() || window.history.back()"
+        >
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M9 5l7 7-7 7" />
           </svg>
           <span data-i18n="hiw.ctaBtn">Let's go</span>
         </button>
       </div>
-
     </div>
     <script src="./js/i18n.js"></script>
     <script src="../src/renderer/languageSwitcher.js"></script>

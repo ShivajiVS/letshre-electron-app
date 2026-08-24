@@ -149,7 +149,10 @@ const CARD_SCANNING_COPY = {
     key: "preflight.wirelessScanning",
     fallback: "Scanning for wireless casting or browser activity...",
   },
-  ai: { key: "preflight.aiScanning", fallback: "Scanning for interview copilots and cheating tools..." },
+  ai: {
+    key: "preflight.aiScanning",
+    fallback: "Scanning for interview copilots and cheating tools...",
+  },
 };
 
 /** {key, fallback, params, className} for #final-status. A null key means the fallback is literal. */
@@ -507,12 +510,7 @@ function setLoadingState(btnProceed, btnRescan) {
   _proceedLoading = false;
   renderProceedButton();
   btnRescan.disabled = true;
-  setStatus(
-    "preflight.runningDiagnostics",
-    "Running security diagnostics...",
-    null,
-    "sc-status"
-  );
+  setStatus("preflight.runningDiagnostics", "Running security diagnostics...", null, "sc-status");
 
   STATIC_CARD_IDS.forEach((id) => setCardState(id, { phase: "scanning" }));
 
@@ -1257,12 +1255,7 @@ async function handleKillAll(btn, processNames) {
   try {
     results = await window.electronAPI.killAllProcesses(processNames);
   } catch {
-    setSummary(
-      "failed",
-      X_PATH,
-      "preflightResults.someFailedToClose",
-      "Some apps failed to close"
-    );
+    setSummary("failed", X_PATH, "preflightResults.someFailedToClose", "Some apps failed to close");
     scheduleAutoRescan();
     return;
   }
@@ -1358,12 +1351,7 @@ async function handleKillAll(btn, processNames) {
       "Some apps reopened themselves"
     );
   } else if (closedCount === 0) {
-    setSummary(
-      "failed",
-      X_PATH,
-      "preflightResults.someFailedToClose",
-      "Some apps failed to close"
-    );
+    setSummary("failed", X_PATH, "preflightResults.someFailedToClose", "Some apps failed to close");
   } else {
     setSummary(
       "partial",

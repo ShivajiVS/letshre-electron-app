@@ -269,7 +269,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     // Fail loud if the bridge method is missing — never spin forever silently.
     if (typeof window.electronAPI?.proceedToInterview !== "function") {
-      showTranslatedError("role.startUnavailable", "Unable to start the interview. Please restart the app.");
+      showTranslatedError(
+        "role.startUnavailable",
+        "Unable to start the interview. Please restart the app."
+      );
       return;
     }
     const idleHTML = btnStartInterview.innerHTML; // capture for restore
@@ -297,7 +300,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     pendingRole = role;
     hideError();
     if (typeof window.electronAPI?.submitRole !== "function") {
-      showTranslatedError("role.actionUnavailable", "This action is unavailable. Please restart the app.");
+      showTranslatedError(
+        "role.actionUnavailable",
+        "This action is unavailable. Please restart the app."
+      );
       setSubmitting(false);
       return;
     }
@@ -307,7 +313,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (res?.error) {
           showRawError(res.error);
         } else {
-          showTranslatedError("role.roleProcessFailed", "Couldn't process that role. Please try again.");
+          showTranslatedError(
+            "role.roleProcessFailed",
+            "Couldn't process that role. Please try again."
+          );
         }
         setSubmitting(false);
         return;
@@ -321,7 +330,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         goToStep(3);
       }
     } catch {
-      showTranslatedError("role.networkError", "Network error. Check your connection and try again.");
+      showTranslatedError(
+        "role.networkError",
+        "Network error. Check your connection and try again."
+      );
     } finally {
       setSubmitting(false);
     }

@@ -95,7 +95,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     },
     3: {
       titleKey: ["identity.sidebarResultTitle", "Verification Result"],
-      descKey: ["identity.sidebarResultDesc", "Our system has processed your identity check. Almost there!"],
+      descKey: [
+        "identity.sidebarResultDesc",
+        "Our system has processed your identity check. Almost there!",
+      ],
     },
   };
 
@@ -416,9 +419,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         audioBlob = null;
         recordingMeta = null;
         setVoiceState("idle");
-        showError("identity.recordingInterrupted", "Recording was interrupted: {error}. Please try again.", {
-          error: e.error?.message || "microphone error",
-        });
+        showError(
+          "identity.recordingInterrupted",
+          "Recording was interrupted: {error}. Please try again.",
+          {
+            error: e.error?.message || "microphone error",
+          }
+        );
       };
 
       mediaRecorder.start();
@@ -469,7 +476,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       isPlaying = true;
     } catch (err) {
       isPlaying = false;
-      showError("identity.audioPlaybackError", "Could not play back audio: {error}", { error: err.message });
+      showError("identity.audioPlaybackError", "Could not play back audio: {error}", {
+        error: err.message,
+      });
     }
     renderPlaybackBtn();
   }
@@ -591,7 +600,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (result?.error) {
           showRawError(result.error);
         } else {
-          showError("identity.faceVerificationFailed", "Face verification failed. Please try again.");
+          showError(
+            "identity.faceVerificationFailed",
+            "Face verification failed. Please try again."
+          );
         }
         photoVerifying = false;
         renderSubmitPhotoButton();

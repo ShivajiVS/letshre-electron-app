@@ -168,7 +168,10 @@ function getTranslations(locale) {
     // a healthy build: test/locales.test.js fails CI on any key drift.
     const gaps = _missingKeys(english, parsed);
     if (gaps.length > 0) {
-      logger.warn(`[locale] "${code}" is missing ${gaps.length} key(s), using English:`, gaps.join(", "));
+      logger.warn(
+        `[locale] "${code}" is missing ${gaps.length} key(s), using English:`,
+        gaps.join(", ")
+      );
     }
     _bundleCache.set(code, merged);
     return merged;

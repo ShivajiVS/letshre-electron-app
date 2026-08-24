@@ -44,7 +44,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   function badgeFor(newState) {
     switch (newState) {
       case "requesting":
-        return { text: tr("perm.requesting", "Requesting…"), cls: "perm-badge perm-badge--pending" };
+        return {
+          text: tr("perm.requesting", "Requesting…"),
+          cls: "perm-badge perm-badge--pending",
+        };
       case "granted":
         return { text: tr("perm.allowed", "✓ Allowed"), cls: "perm-badge perm-badge--granted" };
       case "denied":
@@ -121,7 +124,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         permNote.classList.remove("all-granted");
         break;
       case "unavailable":
-        permNote.textContent = tr("perm.startUnavailable", "Unable to continue — please restart the app.");
+        permNote.textContent = tr(
+          "perm.startUnavailable",
+          "Unable to continue — please restart the app."
+        );
         permNote.classList.remove("all-granted");
         break;
       case "timedOut":
@@ -151,9 +157,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function renderStartButtonLabel() {
     const label = document.getElementById("btn-start-label");
-    if (!label) {return;}
+    if (!label) {
+      return;
+    }
     label.textContent =
-      startState === "starting" ? tr("perm.starting", "Starting…") : tr("common.continue", "Continue");
+      startState === "starting"
+        ? tr("perm.starting", "Starting…")
+        : tr("common.continue", "Continue");
   }
 
   // ── Permission requests
@@ -176,9 +186,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       );
     }
     if (errName === "NotFoundError" || errName === "OverconstrainedError") {
-      return tr("perm.errorNoDevice", "No {label} device was found. Connect one and click Try again.", {
-        label,
-      });
+      return tr(
+        "perm.errorNoDevice",
+        "No {label} device was found. Connect one and click Try again.",
+        {
+          label,
+        }
+      );
     }
     if (errName === "NotReadableError" || errName === "AbortError") {
       return tr(

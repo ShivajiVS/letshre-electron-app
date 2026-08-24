@@ -22,6 +22,22 @@ const { applyArgvDeepLink } = require("./protocolHandler");
 const updater = require("./updater");
 const startDetection = require("../detector/systemChecks");
 const authManager = require("./authManager");
+const { SCOPE, isFrameAllowed, isUrlOriginAllowed } = require("./ipcScope");
+
+// Screen share and getUserMedia are legitimately requested from two places:
+// local file:// pages (permissions.html probes screen/camera/mic during
+// preflight; identity-verification.html probes camera/mic) and the interview
+// origin, in case the SPA ever requests media directly instead of going
+// through the hidden recorder window (which uses desktopCapturer +
+// chromeMediaSourceId and never goes through either handler below). Nothing
+// else in this app calls either API, so every other origin is refused.
+function isMediaFrameAllowed(frame) {
+  return isFrameAllowed(SCOPE.LOCAL, frame) || isFrameAllowed(SCOPE.INTERVIEW, frame);
+}
+
+function isMediaUrlAllowed(url) {
+  return isUrlOriginAllowed(SCOPE.LOCAL, url) || isUrlOriginAllowed(SCOPE.INTERVIEW, url);
+}
 
 function safeViolation(event, severity) {
   try {
@@ -83,8 +99,20 @@ async function onReady() {
     }
   });
 
-  // 6. Configure screen capture to allow interview webcam/screen share
-  session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
+  // 6. Configure screen capture to allow interview webcam/screen share.
+  // Previously granted sources[0] to ANY requester with no origin check at
+  // all — bounded in practice only by the navigation guard, but that guard
+  // protects navigation, not getDisplayMedia() calls from whatever page is
+  // currently loaded. Now refuses any frame that isn't local or the
+  // interview origin before ever calling desktopCapturer.
+  session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
+    if (!isMediaFrameAllowed(request.frame)) {
+      logger.warn(
+        `[app] screen capture denied — untrusted origin: ${request.frame ? request.frame.origin : "(no frame)"}`
+      );
+      callback({ video: null });
+      return;
+    }
     try {
       const sources = await desktopCapturer.getSources({ types: ["screen"] });
       callback({ video: sources.length ? sources[0] : null });
@@ -92,6 +120,23 @@ async function onReady() {
       logger.warn("[app] screen capture handler error:", err.message);
       callback({ video: null });
     }
+  });
+
+  // 6b. No permission handler existed at all before this — camera, mic,
+  // geolocation, notifications, and clipboard-read all took Electron's
+  // defaults for whatever page happened to request them. Explicitly deny
+  // everything except the two permissions the local preflight/identity pages
+  // actually use, and only from an origin allowed to use them.
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
+    const isMediaPermission = permission === "media" || permission === "display-capture";
+    const allowed =
+      isMediaPermission && details.isMainFrame !== false && isMediaUrlAllowed(details.requestingUrl);
+    if (!allowed) {
+      logger.warn(
+        `[app] permission "${permission}" denied for ${details.requestingUrl || "(no url)"}`
+      );
+    }
+    callback(allowed);
   });
 
   // 7. Auto-updater — initialised LAST so the window exists for early events.

@@ -1,6 +1,8 @@
 /**
  * Centralised registration of ALL ipcMain channels.
- * This is the only file that calls ipcMain.handle() or ipcMain.on().
+ * This is the only file that registers ipcMain handlers, always through
+ * ipcScope's registerHandler()/registerSend() so every channel declares a
+ * sender scope ("local" | "interview") up front — see ipcScope.js.
  * Channel names come from shared/constants.js — no raw strings here.
  *
  * Call `registerIpcHandlers()` once during app initialisation.
@@ -9,11 +11,12 @@
 "use strict";
 
 const path = require("path");
-const { ipcMain, app } = require("electron");
+const { app } = require("electron");
 const updater = require("./updater");
 const logger = require("./logger");
 const appState = require("./appState");
 const { IPC } = require("../shared/constants");
+const { SCOPE, registerHandler, registerSend } = require("./ipcScope");
 const {
   killSingleProcess,
   killAllProcesses,
@@ -130,7 +133,10 @@ function registerIpcHandlers() {
   // Tokens are handled entirely in main (authManager); the renderer only ever
   // receives display-safe user fields.
 
-  ipcMain.handle(IPC.AUTH_LOGIN, async (_event, creds) => {
+  // Auth, profile, and navigation channels are all local-only: the candidate
+  // authenticates and moves through login/dashboard/preflight entirely on
+  // file:// pages, before the window ever navigates to the interview origin.
+  registerHandler(IPC.AUTH_LOGIN, SCOPE.LOCAL, async (_event, creds) => {
     // Defensive caps against a pathological paste — well above any real
     // email/password, cheap insurance before this ever reaches axios.
     const email = typeof creds?.email === "string" ? creds.email.trim().slice(0, 254) : "";
@@ -153,7 +159,7 @@ function registerIpcHandlers() {
     return await authManager.login(email, password);
   });
 
-  ipcMain.handle(IPC.AUTH_LOGOUT, async () => {
+  registerHandler(IPC.AUTH_LOGOUT, SCOPE.LOCAL, async () => {
     logger.info("[ipc] auth-logout received");
     const result = await authManager.logout();
     // Wipe all per-user state so the next account starts clean — no stale face
@@ -165,21 +171,21 @@ function registerIpcHandlers() {
     return result;
   });
 
-  ipcMain.handle(IPC.GET_AUTH_USER, () => authManager.getUser());
+  registerHandler(IPC.GET_AUTH_USER, SCOPE.LOCAL, () => authManager.getUser());
 
-  ipcMain.handle(IPC.GET_CANDIDATE_PROFILE, async () => {
+  registerHandler(IPC.GET_CANDIDATE_PROFILE, SCOPE.LOCAL, async () => {
     logger.info("[ipc] get-candidate-profile");
     return await authManager.getCandidateProfile();
   });
 
   // Proxy image through main process — renderer CSP blocks external CDN URLs
-  ipcMain.handle(IPC.FETCH_PROFILE_IMAGE, async (_event, url) => {
+  registerHandler(IPC.FETCH_PROFILE_IMAGE, SCOPE.LOCAL, async (_event, url) => {
     return await authManager.fetchProfileImage(url);
   });
 
   // Dashboard "Take Interview": set the interview session from the logged-in
   // tokens, then hand off to the EXISTING security-check screen.
-  ipcMain.on(IPC.START_INTERVIEW, () => {
+  registerSend(IPC.START_INTERVIEW, SCOPE.LOCAL, () => {
     const tokens = authManager.getTokens();
     if (!tokens) {
       logger.warn("[ipc] start-interview rejected — not authenticated");
@@ -194,7 +200,7 @@ function registerIpcHandlers() {
 
   // Preflight "Proceed" → load the permissions page (NOT locked down yet;
   // the OS needs to present native mic/camera/screen dialogs).
-  ipcMain.on(IPC.LOAD_PERMISSIONS_PAGE, () => {
+  registerSend(IPC.LOAD_PERMISSIONS_PAGE, SCOPE.LOCAL, () => {
     logger.info("[ipc] load-permissions-page");
 
     // Authoritative preflight gate — the renderer enabling its Proceed button
@@ -210,7 +216,7 @@ function registerIpcHandlers() {
     loadPermissionsPage();
   });
 
-  ipcMain.on(IPC.LOAD_IDENTITY_VERIFICATION, () => {
+  registerSend(IPC.LOAD_IDENTITY_VERIFICATION, SCOPE.LOCAL, () => {
     logger.info("[ipc] load-identity-verification");
     loadIdentityVerificationPage();
   });
@@ -218,18 +224,18 @@ function registerIpcHandlers() {
   // Identity verification — voice sample upload (blob arrives as Uint8Array over IPC).
   // meta.locale/statementText tell the backend which language the candidate read
   // the attestation in, so STT/voice-match uses the right language model.
-  ipcMain.handle(IPC.SUBMIT_VOICE_SAMPLE, async (_event, uint8Array, mimeType, meta) => {
+  registerHandler(IPC.SUBMIT_VOICE_SAMPLE, SCOPE.LOCAL, async (_event, uint8Array, mimeType, meta) => {
     logger.info("[ipc] submit-voice-sample");
     return await authManager.submitVoiceSample(uint8Array, mimeType, meta);
   });
 
   // Identity verification — face photo upload (data URL string).
-  ipcMain.handle(IPC.SUBMIT_FACE_VERIFICATION, async (_event, dataUrl) => {
+  registerHandler(IPC.SUBMIT_FACE_VERIFICATION, SCOPE.LOCAL, async (_event, dataUrl) => {
     logger.info("[ipc] submit-face-verification");
     return await authManager.submitFaceVerification(dataUrl);
   });
 
-  ipcMain.on(IPC.LOAD_DASHBOARD, () => {
+  registerSend(IPC.LOAD_DASHBOARD, SCOPE.LOCAL, () => {
     logger.info("[ipc] load-dashboard (back nav)");
     stopPreProceedMonitor();
     _pageGeneration++; // leaving the page — any scan still running is orphaned
@@ -240,7 +246,7 @@ function registerIpcHandlers() {
     loadDashboard();
   });
 
-  ipcMain.on(IPC.LOAD_SECURITY_CHECK, () => {
+  registerSend(IPC.LOAD_SECURITY_CHECK, SCOPE.LOCAL, () => {
     logger.info("[ipc] load-security-check (back nav)");
     stopPreProceedMonitor();
     _pageGeneration++;
@@ -248,18 +254,18 @@ function registerIpcHandlers() {
     loadSecurityCheck();
   });
 
-  ipcMain.on(IPC.LOAD_ROLE_SELECTION, () => {
+  registerSend(IPC.LOAD_ROLE_SELECTION, SCOPE.LOCAL, () => {
     logger.info("[ipc] load-role-selection");
     loadRoleSelectionPage();
   });
 
-  ipcMain.on(IPC.LOAD_HOW_IT_WORKS, () => {
+  registerSend(IPC.LOAD_HOW_IT_WORKS, SCOPE.LOCAL, () => {
     logger.info("[ipc] load-how-it-works");
     loadHowItWorksPage();
   });
 
   // Role selection — submit role → get skills or clarification suggestions.
-  ipcMain.handle(IPC.SUBMIT_ROLE, async (_event, role) => {
+  registerHandler(IPC.SUBMIT_ROLE, SCOPE.LOCAL, async (_event, role) => {
     const safeRole = typeof role === "string" ? role.trim().slice(0, 200) : "";
     if (!safeRole) {
       return { ok: false, error: "Role is required." };
@@ -269,19 +275,22 @@ function registerIpcHandlers() {
   });
 
   // ── Localization
+  // The interview site's locale is never read via this bridge (README/A3: not
+  // part of the documented contract — the candidate's locale choice does not
+  // currently reach the SPA at all), so these all stay local-only.
 
-  ipcMain.handle(IPC.GET_LOCALE, () => localeManager.getPreferred());
+  registerHandler(IPC.GET_LOCALE, SCOPE.LOCAL, () => localeManager.getPreferred());
 
-  ipcMain.handle(IPC.GET_SUPPORTED_LOCALES, () => localeManager.getSupportedLocales());
+  registerHandler(IPC.GET_SUPPORTED_LOCALES, SCOPE.LOCAL, () => localeManager.getSupportedLocales());
 
-  ipcMain.handle(IPC.GET_TRANSLATIONS, (_event, locale) => {
+  registerHandler(IPC.GET_TRANSLATIONS, SCOPE.LOCAL, (_event, locale) => {
     const safeLocale = typeof locale === "string" ? locale.slice(0, 20) : undefined;
     return localeManager.getTranslations(safeLocale || localeManager.getPreferred());
   });
 
-  ipcMain.handle(IPC.GET_I18N_BOOTSTRAP, () => localeManager.getBootstrap());
+  registerHandler(IPC.GET_I18N_BOOTSTRAP, SCOPE.LOCAL, () => localeManager.getBootstrap());
 
-  ipcMain.handle(IPC.SET_LOCALE, async (_event, locale) => {
+  registerHandler(IPC.SET_LOCALE, SCOPE.LOCAL, async (_event, locale) => {
     const safeLocale = typeof locale === "string" ? locale.slice(0, 20) : "";
     const applied = await localeManager.setPreferred(safeLocale);
     logger.info("[ipc] set-locale:", applied);
@@ -296,25 +305,25 @@ function registerIpcHandlers() {
 
   // ── App Control
 
-  ipcMain.handle(IPC.GET_APP_LIST, () => ({
+  registerHandler(IPC.GET_APP_LIST, SCOPE.LOCAL, () => ({
     meetingApps: MEETING_APPS,
     screenSharingApps: SCREEN_SHARING_APPS,
     aiCheatingApps: AI_CHEATING_APPS,
     displayNames: APP_DISPLAY_NAMES,
   }));
 
-  ipcMain.on(IPC.QUIT_APP, () => {
+  registerSend(IPC.QUIT_APP, SCOPE.LOCAL, () => {
     logger.info("[ipc] quit-app received");
     appState.setQuitting();
     app.quit();
   });
 
   // Preflight UX: user can minimize to close other apps manually before rescanning
-  ipcMain.on(IPC.MINIMIZE_WINDOW, () => {
+  registerSend(IPC.MINIMIZE_WINDOW, SCOPE.LOCAL, () => {
     minimizeWindow();
   });
 
-  ipcMain.on(IPC.RECHECK_SYSTEM, () => {
+  registerSend(IPC.RECHECK_SYSTEM, SCOPE.LOCAL, () => {
     const win = getWindow();
     if (!win) {
       return;
@@ -335,7 +344,7 @@ function registerIpcHandlers() {
   // immediately fire another, stacking two full scans on top of each other;
   // dedupe fixes that, but only a scan from the current visit may be joined —
   // an older one's agent was killed on the way out to the dashboard.
-  ipcMain.handle(IPC.RUN_PREFLIGHT, async (event) => {
+  registerHandler(IPC.RUN_PREFLIGHT, SCOPE.LOCAL, async (event) => {
     const generation = _pageGeneration;
     if (_preflightInFlight && _preflightGeneration === generation) {
       logger.info("[ipc] run-preflight-scans — joining in-flight scan");
@@ -349,7 +358,7 @@ function registerIpcHandlers() {
     whenAgentReady().catch((err) => logger.warn("[ipc] agent readiness failed:", err.message));
 
     // Streaming preflight: each verdict is pushed the moment its check lands.
-    // event.sender.send() is safe to call from within an ipcMain.handle() handler.
+    // event.sender.send() is safe to call from within a registerHandler() callback.
     const onProgress = (verdict) => {
       try {
         event.sender.send(IPC.PREFLIGHT_PROGRESS, verdict);
@@ -379,12 +388,15 @@ function registerIpcHandlers() {
   });
 
   // Identity verification: store candidate photo for sessionStorage injection.
-  ipcMain.handle(IPC.STORE_CANDIDATE_PHOTO, (_event, dataUrl) => {
+  registerHandler(IPC.STORE_CANDIDATE_PHOTO, SCOPE.LOCAL, (_event, dataUrl) => {
     logger.info("[ipc] store-candidate-photo received");
     storeCandidatePhoto(dataUrl);
   });
 
-  ipcMain.on(IPC.PROCEED_TO_INTERVIEW, (_event, payload) => {
+  // Sent by role-selection.html — still a local file:// page at this point;
+  // this IS the call that triggers the navigation to the interview origin,
+  // so by definition it can never come from the interview site itself.
+  registerSend(IPC.PROCEED_TO_INTERVIEW, SCOPE.LOCAL, (_event, payload) => {
     const roleSelection = sanitizeRoleSelection(payload);
     logger.info("[ipc] proceed-to-interview received", {
       is_custom_role: roleSelection.is_custom_role,
@@ -416,7 +428,7 @@ function registerIpcHandlers() {
     }
   });
 
-  ipcMain.handle(IPC.KILL_BLOCKED_APP, async (_event, processName) => {
+  registerHandler(IPC.KILL_BLOCKED_APP, SCOPE.LOCAL, async (_event, processName) => {
     // IMP-03: Validate and sanitise before passing to processKiller
     const { valid, safe } = validateProcessName(processName);
     if (!valid) {
@@ -441,7 +453,7 @@ function registerIpcHandlers() {
   // Phase 5: does the candidate even have an admin account? Offering an elevated
   // retry to a standard user just produces a credential prompt they cannot
   // satisfy, which reads as the app being broken.
-  ipcMain.handle(IPC.CAN_ELEVATE, async () => {
+  registerHandler(IPC.CAN_ELEVATE, SCOPE.LOCAL, async () => {
     try {
       return await canElevate();
     } catch (err) {
@@ -450,7 +462,7 @@ function registerIpcHandlers() {
     }
   });
 
-  ipcMain.handle(IPC.KILL_BLOCKED_APP_ELEVATED, async (_event, processName) => {
+  registerHandler(IPC.KILL_BLOCKED_APP_ELEVATED, SCOPE.LOCAL, async (_event, processName) => {
     const { valid, safe } = validateProcessName(processName);
     if (!valid) {
       logger.warn("[ipc] kill-blocked-app-elevated rejected — invalid processName:", processName);
@@ -482,7 +494,7 @@ function registerIpcHandlers() {
     return result;
   });
 
-  ipcMain.handle(IPC.KILL_ALL_BLOCKED_APPS, async (_event, processNames) => {
+  registerHandler(IPC.KILL_ALL_BLOCKED_APPS, SCOPE.LOCAL, async (_event, processNames) => {
     // IMP-03: Validate array input
     if (!Array.isArray(processNames)) {
       logger.warn("[ipc] kill-all-blocked-apps rejected — not an array");
@@ -518,8 +530,9 @@ function registerIpcHandlers() {
     return results;
   });
 
-  // ── Auto-Updater
-  ipcMain.on(IPC.INSTALL_UPDATE, () => {
+  // ── Auto-Updater — updater UI lives on local pages only; the interview
+  // site never surfaces update state, so these stay local-only.
+  registerSend(IPC.INSTALL_UPDATE, SCOPE.LOCAL, () => {
     logger.info("[ipc] install-update received");
     // Gated internally — refuses during an active interview.
     updater.installUpdate();
@@ -527,27 +540,30 @@ function registerIpcHandlers() {
 
   // Renderer pulls the current updater snapshot on load to recover any
   // state/progress events it missed before its listeners were attached.
-  ipcMain.handle(IPC.GET_UPDATE_STATE, () => updater.getState());
+  registerHandler(IPC.GET_UPDATE_STATE, SCOPE.LOCAL, () => updater.getState());
 
   // Renderer asks for the running app version (shown in the preflight footer).
-  ipcMain.handle(IPC.GET_APP_VERSION, () => app.getVersion());
+  registerHandler(IPC.GET_APP_VERSION, SCOPE.LOCAL, () => app.getVersion());
 
-  // ADD-07: Exposes the in-memory audit log to the renderer (support diagnostics).
-  ipcMain.handle(IPC.GET_AUDIT_LOG, () => {
+  // ADD-07: Exposes the in-memory audit log to the renderer (support
+  // diagnostics). The audit log records auth/violation/session events —
+  // local-only, never the interview site's business.
+  registerHandler(IPC.GET_AUDIT_LOG, SCOPE.LOCAL, () => {
     return startDetection.getAuditLog ? startDetection.getAuditLog() : [];
   });
 
   // Signal sent by interview.letshyre.com when the session ends.
 
-  // Renderer acknowledges it received & is handling a violation — keeps the
-  // self-enforcement failsafe suppressed while the website stays responsive.
-  ipcMain.on(IPC.ACK_VIOLATION, () => {
+  // Contract channel #2 (README "Web app integration"): the interview site
+  // acknowledges every violation so Electron knows the page is alive.
+  registerSend(IPC.ACK_VIOLATION, SCOPE.INTERVIEW, () => {
     if (startDetection.acknowledgeViolation) {
       startDetection.acknowledgeViolation();
     }
   });
 
-  ipcMain.on(IPC.INTERVIEW_COMPLETE, (_event, { reason } = {}) => {
+  // Contract channel #3: the interview site signals the session is over.
+  registerSend(IPC.INTERVIEW_COMPLETE, SCOPE.INTERVIEW, (_event, { reason } = {}) => {
     const safeReason = typeof reason === "string" ? reason.slice(0, 40) : "unknown";
     logger.info(`[ipc] interview-complete received — reason: ${safeReason}`);
 
@@ -574,7 +590,7 @@ function registerIpcHandlers() {
   screenRecorder.registerRecorderIpc();
 
   // interview.letshyre.com → start recording
-  ipcMain.handle(IPC.PROCTORING_START, async (_event, meta = {}) => {
+  registerHandler(IPC.PROCTORING_START, SCOPE.INTERVIEW, async (_event, meta = {}) => {
     const safeSessionId = typeof meta?.sessionId === "string" ? meta.sessionId.slice(0, 100) : null;
     const safeInterviewId =
       typeof meta?.interviewId === "string" ? meta.interviewId.slice(0, 100) : null;
@@ -586,7 +602,7 @@ function registerIpcHandlers() {
   });
 
   // interview.letshyre.com → stop recording
-  ipcMain.on(IPC.PROCTORING_STOP, () => {
+  registerSend(IPC.PROCTORING_STOP, SCOPE.INTERVIEW, () => {
     logger.info("[ipc] proctoring-stop");
     screenRecorder.stop();
   });

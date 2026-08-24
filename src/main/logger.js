@@ -5,7 +5,8 @@
  *
  * File transport:
  *   Call logger.init(logDir) once after app.whenReady() to enable.
- *   Writes to <logDir>/secure-interview.log, auto-rotates at 5 MB.
+ *   Writes to <logDir>/secure-interview.log, auto-rotates at 5 MB —
+ *   both at startup and in place as a long-running session writes past the cap.
  *
  * Usage:
  *   const logger = require('./logger');
@@ -24,8 +25,24 @@ const LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
 const activeLevel = LEVELS[process.env.LOG_LEVEL] ?? LEVELS.info;
 const MAX_LOG_BYTES = 5 * 1024 * 1024; // 5 MB — rotate at this size
 
-/** @type {fs.WriteStream | null} */
-let logStream = null;
+/** @type {string | null} */
+let currentLogPath = null;
+
+/** @type {number} — bytes on disk for currentLogPath, tracked in memory so a rotation decision never needs a stat() per write */
+let currentLogBytes = 0;
+
+/**
+ * Renames logPath -> logPath.1.log (overwriting any previous .1.log).
+ * @param {string} logPath
+ */
+function rotate(logPath) {
+  const rotated = logPath.replace(".log", ".1.log");
+  if (fs.existsSync(rotated)) {
+    fs.unlinkSync(rotated);
+  }
+  fs.renameSync(logPath, rotated);
+  currentLogBytes = 0;
+}
 
 /**
  * Initialises the file transport. Must be called after app.whenReady().
@@ -33,32 +50,48 @@ let logStream = null;
  */
 function initFileLogger(logDir) {
   try {
-    const logPath = path.join(logDir, "secure-interview.log");
+    currentLogPath = path.join(logDir, "secure-interview.log");
 
     try {
-      const stat = fs.statSync(logPath);
+      const stat = fs.statSync(currentLogPath);
+      currentLogBytes = stat.size;
       if (stat.size > MAX_LOG_BYTES) {
-        const rotated = logPath.replace(".log", ".1.log");
-        if (fs.existsSync(rotated)) {
-          fs.unlinkSync(rotated);
-        }
-        fs.renameSync(logPath, rotated);
+        rotate(currentLogPath);
       }
     } catch {
-      // no existing log file
+      currentLogBytes = 0; // no existing log file
     }
 
-    logStream = fs.createWriteStream(logPath, { flags: "a" });
-    logStream.on("error", (err) => {
-      // eslint-disable-next-line no-console
-      console.warn("[logger] file stream error:", err.message);
-      logStream = null;
-    });
-
-    log("info", `[logger] file transport active: ${logPath}`);
+    log("info", `[logger] file transport active: ${currentLogPath}`);
   } catch (err) {
     // eslint-disable-next-line no-console
     console.warn("[logger] failed to init file transport:", err.message);
+    currentLogPath = null;
+  }
+}
+
+/**
+ * Appends one already-formatted line to the log file, rotating first if this
+ * write would push the file past the cap. Uses sync I/O — write volume here
+ * is low (structured app-lifecycle logging, not a hot path), and synchronous
+ * writes are what let rotation happen safely without racing an in-flight
+ * async write against the rename.
+ * @param {string} line
+ */
+function writeLine(line) {
+  if (!currentLogPath) {
+    return;
+  }
+  try {
+    const bytes = Buffer.byteLength(line);
+    if (currentLogBytes + bytes > MAX_LOG_BYTES) {
+      rotate(currentLogPath);
+    }
+    fs.appendFileSync(currentLogPath, line);
+    currentLogBytes += bytes;
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn("[logger] file write failed:", err.message);
   }
 }
 
@@ -77,10 +110,8 @@ function log(level, ...args) {
   // eslint-disable-next-line no-console
   console[level === "debug" || level === "info" ? "log" : level](prefix, ...args);
 
-  if (logStream) {
-    const line = `${prefix} ${args.map((a) => (typeof a === "object" ? JSON.stringify(a) : String(a))).join(" ")}\n`;
-    logStream.write(line);
-  }
+  const line = `${prefix} ${args.map((a) => (typeof a === "object" ? JSON.stringify(a) : String(a))).join(" ")}\n`;
+  writeLine(line);
 }
 
 const logger = {

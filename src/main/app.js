@@ -13,7 +13,7 @@
 
 "use strict";
 
-const { app, globalShortcut, desktopCapturer, session } = require("electron");
+const { app, globalShortcut, desktopCapturer, session, dialog } = require("electron");
 const logger = require("./logger");
 const { killAgent } = require("./agentManager");
 const { createWindow, getWindow, getIsInterviewActive } = require("./windowManager");
@@ -99,13 +99,37 @@ async function onReady() {
   updater.init();
 }
 
+/**
+ * Last-resort handlers for errors Electron would otherwise let crash the
+ * process silently. Logged and swallowed rather than rethrown — for a
+ * proctoring app, losing the whole interview session to an unrelated bug is
+ * worse than continuing in a possibly-degraded state.
+ */
+function registerProcessErrorHandlers() {
+  process.on("uncaughtException", (err) => {
+    logger.error("[app] uncaughtException:", err.stack || err.message);
+  });
+
+  process.on("unhandledRejection", (reason) => {
+    const detail = reason instanceof Error ? reason.stack || reason.message : String(reason);
+    logger.error("[app] unhandledRejection:", detail);
+  });
+}
+
 /** Registers all top-level Electron app event listeners. */
 function registerAppEvents() {
+  registerProcessErrorHandlers();
+
   app
     .whenReady()
     .then(onReady)
     .catch((err) => {
       logger.error("[app] startup failed:", err.message);
+      dialog.showErrorBox(
+        "Failed to start",
+        "LetsHyre Secure Interview could not start due to an unexpected error. Please restart the app. If this keeps happening, contact support."
+      );
+      app.quit();
     });
 
   app.on("window-all-closed", () => {
@@ -116,6 +140,36 @@ function registerAppEvents() {
     if (getWindow() === null) {
       createWindow(safeViolation);
     }
+  });
+
+  // Renderer crashed/was killed (OOM, GPU crash, sandbox violation, etc.) —
+  // the window is left blank with nothing running in it, so reload rather
+  // than leave the candidate staring at a dead screen.
+  app.on("render-process-gone", (_event, webContents, details) => {
+    logger.error(
+      `[app] render-process-gone: reason=${details.reason} exitCode=${details.exitCode}`
+    );
+
+    if (details.reason === "clean-exit") {
+      return;
+    }
+
+    const win = getWindow();
+    if (win && !win.isDestroyed() && win.webContents === webContents) {
+      dialog.showErrorBox(
+        "Application Error",
+        "The application ran into an unexpected error and needs to reload. If this happens again, please restart the app."
+      );
+      win.reload();
+    }
+  });
+
+  // Child process (GPU, utility, etc.) died — usually not fatal to the main
+  // window, so log only.
+  app.on("child-process-gone", (_event, details) => {
+    logger.error(
+      `[app] child-process-gone: type=${details.type} reason=${details.reason} exitCode=${details.exitCode}`
+    );
   });
 
   app.on("will-quit", () => {

@@ -19,29 +19,31 @@ const ROOT = path.join(__dirname, "..");
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
 
-// Non-Latin families intentionally use 400/600/700, not the full 5-weight
-// range Inter gets: this app packs assets/fonts into the Electron installer
-// (asar: true, "assets/**/*" in package.json's build.files) rather than
-// serving it lazily over HTTP, so every file here is a fixed cost on every
-// install regardless of the user's locale — weight count matters far more
-// than it would on a website. CSS weight-matching substitutes the nearest
-// available real face (500→600, 800→700) rather than faking bold, so this
-// is a real size cut with no synthetic-bold fallback involved.
+// This app packs assets/fonts into the Electron installer (asar: true,
+// "assets/**/*" in package.json's build.files) rather than serving it lazily
+// over HTTP, so every byte here is a fixed cost on every install regardless
+// of the user's locale. Google's CSS2 API returns one @font-face block per
+// (weight × unicode-range-subset), but most weights of a family share the
+// SAME variable-font file underneath — the fetch loop below downloads each
+// URL once and lets every weight block that references it point at the one
+// file on disk, so adding weights back is free once a subset's file is
+// already fetched. Don't hand-restore "dedup" by trimming weights instead;
+// check `node -e` md5sums across a family's files before assuming a weight
+// costs anything.
 //
 // ja/ko (CJK) are deliberately NOT self-hosted: Windows and macOS both ship
 // excellent native CJK fonts, so OS fallback carries negligible missing-
 // glyph risk — unlike the Indic/Arabic scripts below, where OS coverage is
-// far less consistent. Self-hosting them cost 18.4MB (71% of the font
-// total) for the two locales that needed it least.
+// far less consistent.
 const FAMILIES = [
   ["inter", "Inter:wght@400;500;600;700;800"],
-  ["noto-sans-devanagari", "Noto+Sans+Devanagari:wght@400;600;700"],
-  ["noto-sans-bengali", "Noto+Sans+Bengali:wght@400;600;700"],
-  ["noto-sans-tamil", "Noto+Sans+Tamil:wght@400;600;700"],
-  ["noto-sans-telugu", "Noto+Sans+Telugu:wght@400;600;700"],
-  ["noto-sans-kannada", "Noto+Sans+Kannada:wght@400;600;700"],
-  ["noto-sans-malayalam", "Noto+Sans+Malayalam:wght@400;600;700"],
-  ["noto-sans-arabic", "Noto+Sans+Arabic:wght@400;600;700"],
+  ["noto-sans-devanagari", "Noto+Sans+Devanagari:wght@400;500;600;700;800"],
+  ["noto-sans-bengali", "Noto+Sans+Bengali:wght@400;500;600;700;800"],
+  ["noto-sans-tamil", "Noto+Sans+Tamil:wght@400;500;600;700;800"],
+  ["noto-sans-telugu", "Noto+Sans+Telugu:wght@400;500;600;700;800"],
+  ["noto-sans-kannada", "Noto+Sans+Kannada:wght@400;500;600;700;800"],
+  ["noto-sans-malayalam", "Noto+Sans+Malayalam:wght@400;500;600;700;800"],
+  ["noto-sans-arabic", "Noto+Sans+Arabic:wght@400;500;600;700;800"],
   // Not renamed to the shared "Noto Sans" family below — its unicode-range
   // covers the same Arabic block as Noto Sans Arabic, so merging it in could
   // get it picked for `ar` text too. Applied only via [lang="ur"] in i18n.css.
@@ -79,19 +81,26 @@ async function main() {
 
     const blocks = css.match(/@font-face\s*\{[^}]*\}/g) || [];
     let familyCss = `\n/* ${slug} */\n`;
-    let i = 0;
+    // Many weights of a variable family share the exact same underlying
+    // file (same URL from Google) — fetch each URL once and let every
+    // @font-face block that references it point at the one file on disk.
+    const urlToFname = new Map();
+    let subsetIndex = 0;
     for (const block of blocks) {
       const urlMatch = block.match(/url\((https:\/\/fonts\.gstatic\.com\/[^)]+)\)/);
       if (!urlMatch) continue;
       const url = urlMatch[1];
-      const weightMatch = block.match(/font-weight:\s*(\d+)/);
-      const weight = weightMatch ? weightMatch[1] : "400";
-      i++;
-      const fname = `${weight}-${i}.woff2`;
-      const buf = await fetchBuffer(url);
-      fs.writeFileSync(path.join(dir, fname), buf);
-      totalBytes += buf.length;
-      totalFiles++;
+
+      let fname = urlToFname.get(url);
+      if (!fname) {
+        subsetIndex++;
+        fname = `subset-${subsetIndex}.woff2`;
+        const buf = await fetchBuffer(url);
+        fs.writeFileSync(path.join(dir, fname), buf);
+        totalBytes += buf.length;
+        totalFiles++;
+        urlToFname.set(url, fname);
+      }
 
       let localBlock = block.replace(url, `../fonts/${slug}/${fname}`);
       if (!KEEP_OWN_FAMILY_NAME.has(slug)) {
@@ -100,7 +109,7 @@ async function main() {
       familyCss += localBlock + "\n";
     }
     combined += familyCss;
-    console.log(`${slug}: ${blocks.length} blocks fetched`);
+    console.log(`${slug}: ${blocks.length} blocks, ${urlToFname.size} unique files fetched`);
   }
 
   fs.writeFileSync(path.join(ROOT, "assets/css/fonts.css"), combined);

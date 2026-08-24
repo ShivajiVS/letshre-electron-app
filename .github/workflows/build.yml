@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - "v*" # trigger on version tags, e.g. v1.2.0
+    branches:
+      - main # merge gate — runs the lint job only (see the `if` on the build jobs)
+  pull_request: # same: gate every PR on lint + tests before it can reach main
   workflow_dispatch: # allow manual trigger from GitHub UI
 
 jobs:
@@ -42,15 +45,11 @@ jobs:
       - name: Run tests
         run: pnpm test
 
-      # Non-blocking for now (the repo has pre-existing lint debt). Once that is
-      # cleared, drop `continue-on-error` to make this a hard release gate.
-      # - name: Run ESLint
-      #   run: pnpm run lint
-      #   continue-on-error: true
+      - name: Run ESLint
+        run: pnpm run lint
 
-      # - name: Check Prettier formatting
-      #   run: pnpm run format:check
-      #   continue-on-error: true
+      - name: Check Prettier formatting
+        run: pnpm run format:check
 
   # ──────────────────────────────────────────────────────────────
   # 1. Build agent.exe on Windows
@@ -59,6 +58,9 @@ jobs:
     name: Build agent.exe (Windows)
     runs-on: windows-latest
     needs: lint
+    # Only package/publish for a release. On a PR or a push to main the `lint`
+    # job above is the whole point — building here would publish from a branch.
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
 
@@ -127,6 +129,7 @@ jobs:
     name: Package Electron (Windows)
     runs-on: windows-latest
     needs: build-agent-windows
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
 

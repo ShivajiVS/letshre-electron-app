@@ -36,10 +36,11 @@ const AGENT_SCAN_TIMEOUT_MS = 12000;
 
 // ─── URLs
 
-/** Base URL of the interview web app. */
-const INTERVIEW_BASE_URL = process.env.INTERVIEW_FRONTEND_BASE_URL || "http://localhost:5173";
+// Base URL of the interview web app.
+const INTERVIEW_BASE_URL =
+  process.env.INTERVIEW_FRONTEND_BASE_URL || "https://interview.letshyre.com";
 
-/** Base URL of the LetsHyre REST API. Overridable via env for staging / tests. */
+// Base URL of the LetsHyre REST API. Overridable via env for staging / tests.
 const API_BASE_URL = process.env.API_BASE_URL || "https://api.letshyre.com";
 
 /** Auth API paths (relative to API_BASE_URL). */
@@ -157,9 +158,7 @@ const KILL_RELAUNCH_POLL_MS = 600;
  */
 const KILL_ELEVATE_TIMEOUT_MS = 60000;
 
-//IPC Channel Names
 // Keep these in sync with preload.js exposures and ipcHandlers.js registrations.
-//
 // Convention:
 //   - Plain names  → renderer invokes main (ipcRenderer.send / invoke)
 //   - PUSH_ prefix → main pushes to renderer (webContents.send)

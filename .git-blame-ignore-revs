@@ -1,0 +1,5 @@
+# Mechanical, no-behavior-change commits. Configure with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+f933e5da095d1d0df246047d02e0a12c649c9fa6 # chore: normalize line endings to LF
+4ee2291ebca93ef3f527e8491c3561ad33a59269 # style: apply prettier to close the remaining format:check gap

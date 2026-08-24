@@ -86,7 +86,10 @@ test("mapProcesses: an unrecognised blocked app lands on the wireless card", () 
 });
 
 test("mapAgent: a clean scan passes", () => {
-  const v = mapAgent({ alive: true, status: { threats: [], safe_to_proceed: true } });
+  const v = mapAgent({
+    alive: true,
+    status: { threats: [], safe_to_proceed: true, contract_version: 2 },
+  });
   assert.strictEqual(v.status, PASS);
 });
 
@@ -124,11 +127,14 @@ test("mapAgent: safe_to_proceed=false with no threats is unverified", () => {
   assert.strictEqual(v.status, UNVERIFIED);
 });
 
-test("mapAgent: an older agent build without the new fields still passes when clean", () => {
-  // Backwards compatibility: resources/agent.exe is gitignored and may lag the
-  // JS. Absent `degraded`/`safe_to_proceed` must not wedge the gate shut.
+test("mapAgent: an older agent build without the new fields is unverified, not a pass", () => {
+  // resources/agent.exe is gitignored and may lag the JS. This used to be
+  // backwards-compat'd as a pass: absent `degraded`/`safe_to_proceed` fell
+  // through every check and read as "nothing to flag". But a build old enough
+  // to omit those fields is also old enough to omit `contract_version`, which
+  // is exactly the stale-agent signal this now fails closed on.
   const v = mapAgent({ alive: true, status: { threats: [] } });
-  assert.strictEqual(v.status, PASS);
+  assert.strictEqual(v.status, UNVERIFIED);
 });
 
 // These fixtures are real output captured from `agent.py` contract v2 (via
@@ -190,17 +196,39 @@ test("agent contract v2: an unreadable monitor count does not read as 'no mirror
   assert.strictEqual((cantCount.physical_monitors || 0) > 1, false);
 });
 
-test("agent contract v1 (stale agent.exe): still passes when genuinely clean", () => {
-  // resources/agent.exe is gitignored and may lag the Python source — a build
-  // predating contract v2 must not wedge the gate shut.
+test("agent contract v1 (stale agent.exe): unverified even when it self-reports clean", () => {
+  // resources/agent.exe is gitignored and may lag the Python source. v1 has no
+  // `contract_version` key at all (added in v2) and no `degraded` concept, so
+  // its safe_to_proceed:true can't account for a check that silently errored —
+  // MINIMUM_SUPPORTED_CONTRACT_VERSION rejects it instead of trusting it.
   const v1 = { status: "CLEAR", threats: [], safe_to_proceed: true, physical_monitors: 1 };
-  assert.strictEqual(mapAgent({ alive: true, status: v1 }).status, PASS);
+  assert.strictEqual(mapAgent({ alive: true, status: v1 }).status, UNVERIFIED);
+});
+
+test("agent contract version: below MINIMUM_SUPPORTED_CONTRACT_VERSION is unverified", () => {
+  const belowMin = { ...AGENT_V2_CLEAN, contract_version: 1 };
+  assert.strictEqual(mapAgent({ alive: true, status: belowMin }).status, UNVERIFIED);
+});
+
+test("agent contract version: missing contract_version is unverified", () => {
+  const noVersion = { ...AGENT_V2_CLEAN };
+  delete noVersion.contract_version;
+  assert.strictEqual(mapAgent({ alive: true, status: noVersion }).status, UNVERIFIED);
+});
+
+test("agent contract version: at or above the minimum behaves exactly as today", () => {
+  assert.strictEqual(mapAgent({ alive: true, status: AGENT_V2_CLEAN }).status, PASS);
+  const future = { ...AGENT_V2_CLEAN, contract_version: 3 };
+  assert.strictEqual(mapAgent({ alive: true, status: future }).status, PASS);
 });
 
 const cleanRaw = {
   hdmi: { detected: false, status: "clear" },
   mirror: { detected: false, status: "clear", details: { processes: [] } },
-  agent: { alive: true, status: { threats: [], safe_to_proceed: true } },
+  agent: {
+    alive: true,
+    status: { threats: [], safe_to_proceed: true, contract_version: 2 },
+  },
 };
 
 test("buildVerdicts: returns one verdict per check, in display order", () => {

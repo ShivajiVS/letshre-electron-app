@@ -14,6 +14,7 @@
 "use strict";
 
 const { MEETING_APPS, SCREEN_SHARING_APPS, AI_CHEATING_APPS } = require("../shared/appList");
+const { MINIMUM_SUPPORTED_CONTRACT_VERSION } = require("../shared/constants");
 
 /** Verdict states. `unverified` is fail-closed — it blocks Proceed. */
 const PASS = "pass";
@@ -102,10 +103,11 @@ function mapProcesses(result) {
 }
 
 /**
- * Maps the security agent's deep scan. Three distinct cases: not alive → fail
+ * Maps the security agent's deep scan. Distinct cases: not alive → fail
  * (it's mandatory; Re-scan respawns it); alive but no scan result → unverified
- * (used to render as clean); alive and scanned but degraded → unverified (some
- * of its 8 checks errored).
+ * (used to render as clean); alive and scanned but on a stale contract_version
+ * → unverified (can't trust fields it predates); alive, current, but
+ * degraded → unverified (some of its 8 checks errored).
  *
  * @param {{alive: boolean, status: object|null}|null|undefined} agent
  * @returns {Verdict}
@@ -129,14 +131,22 @@ function mapAgent(agent) {
     });
   }
 
-  // Agent self-reports if some of its checks errored. Older builds omit the
-  // field, which reads as "not degraded" — fine, since safe_to_proceed still gates.
+  // A stale agent.exe (missing contract_version entirely, or below the minimum
+  // this Electron build depends on) predates fields like `degraded` — its
+  // `safe_to_proceed` can't be trusted to mean what it means today (see
+  // MINIMUM_SUPPORTED_CONTRACT_VERSION). Used to fall through and read as
+  // "not degraded" / "no verdict to override", i.e. a silent pass; that's the
+  // exact stale-binary bug this check exists to close.
+  if (!(status.contract_version >= MINIMUM_SUPPORTED_CONTRACT_VERSION)) {
+    return verdict("agent", UNVERIFIED, "preflightResults.agentUnverified");
+  }
+
+  // Agent self-reports if some of its checks errored.
   if (status.degraded === true) {
     return verdict("agent", UNVERIFIED, "preflightResults.agentDegraded");
   }
 
-  // Trust the agent's own verdict when present; older builds without the field
-  // leave this undefined and skip the check.
+  // Trust the agent's own verdict.
   if (status.safe_to_proceed === false) {
     return verdict("agent", UNVERIFIED, "preflightResults.agentUnverified");
   }

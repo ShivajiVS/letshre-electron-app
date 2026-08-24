@@ -34,6 +34,16 @@ const AGENT_REQUEST_TIMEOUT_MS = 2000;
 /** Max wait for a full deep scan — the agent runs all 8 checks under this. */
 const AGENT_SCAN_TIMEOUT_MS = 12000;
 
+/**
+ * Lowest agent.py `contract_version` the Electron side trusts. Below this (or
+ * missing entirely, true of every pre-v2 build) the response shape predates
+ * fields this verdict depends on — e.g. v1's `safe_to_proceed` never accounted
+ * for a check erroring, so a silent v1 "clean" can't be told apart from one
+ * that just didn't know to say otherwise. Bump this in lockstep with
+ * agent.py's CONTRACT_VERSION whenever a new field becomes load-bearing here.
+ */
+const MINIMUM_SUPPORTED_CONTRACT_VERSION = 2;
+
 // ─── URLs
 
 // Base URL of the interview web app.
@@ -297,28 +307,31 @@ const DEFAULT_LOCALE = "en";
 
 /**
  * Supported UI languages. `dir` drives document direction (RTL for Arabic).
- * Keep in sync with the JSON files under assets/locales/.
+ * `reviewed` marks human-certified-translator sign-off — only `en` is
+ * reviewed today; the rest gate to dev/QA builds until certified (see
+ * localeManager.js's `_localeAllowed()`). Keep in sync with the JSON files
+ * under assets/locales/.
  */
 const SUPPORTED_LOCALES = [
-  { code: "en", name: "English", dir: "ltr" },
-  { code: "hi", name: "हिन्दी", dir: "ltr" },
-  { code: "te", name: "తెలుగు", dir: "ltr" },
-  { code: "ta", name: "தமிழ்", dir: "ltr" },
-  { code: "kn", name: "ಕನ್ನಡ", dir: "ltr" },
-  { code: "ml", name: "മലയാളം", dir: "ltr" },
-  { code: "ja", name: "日本語", dir: "ltr" },
-  { code: "ru", name: "Русский", dir: "ltr" },
-  { code: "ar", name: "العربية", dir: "rtl" },
-  { code: "fr", name: "Français", dir: "ltr" },
-  { code: "ur", name: "اردو", dir: "rtl" },
-  { code: "bn", name: "বাংলা", dir: "ltr" },
-  { code: "es", name: "Español", dir: "ltr" },
-  { code: "de", name: "Deutsch", dir: "ltr" },
-  { code: "pt", name: "Português", dir: "ltr" },
-  { code: "it", name: "Italiano", dir: "ltr" },
-  { code: "nl", name: "Nederlands", dir: "ltr" },
-  { code: "ko", name: "한국어", dir: "ltr" },
-  { code: "id", name: "Bahasa Indonesia", dir: "ltr" },
+  { code: "en", name: "English", dir: "ltr", reviewed: true },
+  { code: "hi", name: "हिन्दी", dir: "ltr", reviewed: false },
+  { code: "te", name: "తెలుగు", dir: "ltr", reviewed: false },
+  { code: "ta", name: "தமிழ்", dir: "ltr", reviewed: false },
+  { code: "kn", name: "ಕನ್ನಡ", dir: "ltr", reviewed: false },
+  { code: "ml", name: "മലയാളം", dir: "ltr", reviewed: false },
+  { code: "ja", name: "日本語", dir: "ltr", reviewed: false },
+  { code: "ru", name: "Русский", dir: "ltr", reviewed: false },
+  { code: "ar", name: "العربية", dir: "rtl", reviewed: false },
+  { code: "fr", name: "Français", dir: "ltr", reviewed: false },
+  { code: "ur", name: "اردو", dir: "rtl", reviewed: false },
+  { code: "bn", name: "বাংলা", dir: "ltr", reviewed: false },
+  { code: "es", name: "Español", dir: "ltr", reviewed: false },
+  { code: "de", name: "Deutsch", dir: "ltr", reviewed: false },
+  { code: "pt", name: "Português", dir: "ltr", reviewed: false },
+  { code: "it", name: "Italiano", dir: "ltr", reviewed: false },
+  { code: "nl", name: "Nederlands", dir: "ltr", reviewed: false },
+  { code: "ko", name: "한국어", dir: "ltr", reviewed: false },
+  { code: "id", name: "Bahasa Indonesia", dir: "ltr", reviewed: false },
 ];
 
 /** The custom deep-link scheme registered with the OS. */
@@ -331,6 +344,7 @@ module.exports = {
   AGENT_READY_TIMEOUT_MS,
   AGENT_REQUEST_TIMEOUT_MS,
   AGENT_SCAN_TIMEOUT_MS,
+  MINIMUM_SUPPORTED_CONTRACT_VERSION,
   INTERVIEW_BASE_URL,
   API_BASE_URL,
   AUTH_LOGIN_PATH,

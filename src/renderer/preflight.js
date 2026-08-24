@@ -28,7 +28,9 @@ function tr(key, fallback, params) {
   if (window.t) {
     return window.t(key, params);
   }
-  if (!params) {return fallback;}
+  if (!params) {
+    return fallback;
+  }
   return fallback.replace(/\{(\w+)\}/g, (match, token) =>
     Object.prototype.hasOwnProperty.call(params, token) ? String(params[token]) : match
   );

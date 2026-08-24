@@ -127,17 +127,21 @@ async function onReady() {
   // defaults for whatever page happened to request them. Explicitly deny
   // everything except the two permissions the local preflight/identity pages
   // actually use, and only from an origin allowed to use them.
-  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
-    const isMediaPermission = permission === "media" || permission === "display-capture";
-    const allowed =
-      isMediaPermission && details.isMainFrame !== false && isMediaUrlAllowed(details.requestingUrl);
-    if (!allowed) {
-      logger.warn(
-        `[app] permission "${permission}" denied for ${details.requestingUrl || "(no url)"}`
-      );
+  session.defaultSession.setPermissionRequestHandler(
+    (_webContents, permission, callback, details) => {
+      const isMediaPermission = permission === "media" || permission === "display-capture";
+      const allowed =
+        isMediaPermission &&
+        details.isMainFrame !== false &&
+        isMediaUrlAllowed(details.requestingUrl);
+      if (!allowed) {
+        logger.warn(
+          `[app] permission "${permission}" denied for ${details.requestingUrl || "(no url)"}`
+        );
+      }
+      callback(allowed);
     }
-    callback(allowed);
-  });
+  );
 
   // 7. Auto-updater — initialised LAST so the window exists for early events.
   //    Interview-safe: checks/installs are gated on interview state internally.

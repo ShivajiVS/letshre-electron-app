@@ -224,10 +224,14 @@ function registerIpcHandlers() {
   // Identity verification — voice sample upload (blob arrives as Uint8Array over IPC).
   // meta.locale/statementText tell the backend which language the candidate read
   // the attestation in, so STT/voice-match uses the right language model.
-  registerHandler(IPC.SUBMIT_VOICE_SAMPLE, SCOPE.LOCAL, async (_event, uint8Array, mimeType, meta) => {
-    logger.info("[ipc] submit-voice-sample");
-    return await authManager.submitVoiceSample(uint8Array, mimeType, meta);
-  });
+  registerHandler(
+    IPC.SUBMIT_VOICE_SAMPLE,
+    SCOPE.LOCAL,
+    async (_event, uint8Array, mimeType, meta) => {
+      logger.info("[ipc] submit-voice-sample");
+      return await authManager.submitVoiceSample(uint8Array, mimeType, meta);
+    }
+  );
 
   // Identity verification — face photo upload (data URL string).
   registerHandler(IPC.SUBMIT_FACE_VERIFICATION, SCOPE.LOCAL, async (_event, dataUrl) => {
@@ -281,7 +285,9 @@ function registerIpcHandlers() {
 
   registerHandler(IPC.GET_LOCALE, SCOPE.LOCAL, () => localeManager.getPreferred());
 
-  registerHandler(IPC.GET_SUPPORTED_LOCALES, SCOPE.LOCAL, () => localeManager.getSupportedLocales());
+  registerHandler(IPC.GET_SUPPORTED_LOCALES, SCOPE.LOCAL, () =>
+    localeManager.getSupportedLocales()
+  );
 
   registerHandler(IPC.GET_TRANSLATIONS, SCOPE.LOCAL, (_event, locale) => {
     const safeLocale = typeof locale === "string" ? locale.slice(0, 20) : undefined;

@@ -272,7 +272,7 @@ function registerIpcHandlers() {
   registerHandler(IPC.SUBMIT_ROLE, SCOPE.LOCAL, async (_event, role) => {
     const safeRole = typeof role === "string" ? role.trim().slice(0, 200) : "";
     if (!safeRole) {
-      return { ok: false, error: "Role is required." };
+      return { ok: false, code: "missing_role" };
     }
     logger.info("[ipc] submit-role:", safeRole);
     return await authManager.submitRole(safeRole);

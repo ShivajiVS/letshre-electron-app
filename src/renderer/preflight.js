@@ -87,9 +87,47 @@ const REASON_FALLBACK = {
     "{n} behavioral threat(s) detected. Close the applications below and rescan.",
 };
 
+/** Locale-aware "A, B and C" — ar wants "، ", ja/zh want "、", en/de/es want a terminal conjunction. */
+function formatNameList(names) {
+  try {
+    return new Intl.ListFormat(window.i18n?.getLocale?.() || "en", {
+      style: "long",
+      type: "conjunction",
+    }).format(names);
+  } catch {
+    return names.join(", ");
+  }
+}
+
 /** Renders a verdict's reason through i18n, falling back to English in preview. */
 function verdictText(v) {
   return tr(v.reasonKey, REASON_FALLBACK[v.reasonKey] || v.reasonKey, v.reasonParams);
+}
+
+// Severity strings the agent emits — translated for display, English kept as
+// the lookup key since that's what agent.py sends over the wire.
+const THREAT_SEVERITY_KEYS = {
+  CRITICAL: ["preflightResults.severityCritical", "Critical"],
+  HIGH: ["preflightResults.severityHigh", "High"],
+  MEDIUM: ["preflightResults.severityMedium", "Medium"],
+  LOW: ["preflightResults.severityLow", "Low"],
+};
+
+/** Translates a threat's severity, falling back to the raw value for an unrecognised one. */
+function severityText(severity) {
+  const entry = THREAT_SEVERITY_KEYS[severity];
+  return entry ? tr(entry[0], entry[1]) : severity;
+}
+
+/**
+ * "some_threat_type" -> "Some Threat Type". Unicode-aware (\p{L}, not \w) so a
+ * threat identifier is title-cased correctly regardless of script — agent.py's
+ * identifiers are ASCII today, but this renders in all 19 dev/QA locales.
+ */
+function titleCaseThreatType(type) {
+  return String(type)
+    .replace(/_/g, " ")
+    .replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase());
 }
 
 // True once preflight has fully passed — gates the live pre-proceed watcher.
@@ -265,12 +303,12 @@ function scheduleAutoRescan(evidence) {
   const accessDenied = evidence?.accessDenied || [];
 
   const halt = (key, fallback, names) =>
-    setStatus(key, fallback, { names: names.join(", ") }, "sc-status sc-status--fail");
+    setStatus(key, fallback, { names: formatNameList(names) }, "sc-status sc-status--fail");
 
   if (respawned.length > 0) {
     halt(
       "preflightResults.appsRespawnedStop",
-      `These apps restarted themselves: ${respawned.join(", ")}. Turn off their auto-start or sign out of their desktop apps, then click Rescan.`,
+      `These apps restarted themselves: ${formatNameList(respawned)}. Turn off their auto-start or sign out of their desktop apps, then click Rescan.`,
       respawned
     );
     return;
@@ -279,7 +317,7 @@ function scheduleAutoRescan(evidence) {
   if (accessDenied.length > 0) {
     halt(
       "preflightResults.appsNeedAdminStop",
-      `These apps need administrator rights to close: ${accessDenied.join(", ")}. Close them manually, then click Rescan.`,
+      `These apps need administrator rights to close: ${formatNameList(accessDenied)}. Close them manually, then click Rescan.`,
       accessDenied
     );
     return;
@@ -444,7 +482,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const results = await withTimeout(
         window.electronAPI.runPreflight(),
         SCAN_TIMEOUT_MS,
-        "Security scan timed out"
+        tr("preflightResults.tooLong", "That took too long. Please try again.")
       );
       if (myGeneration !== _scanGeneration) {
         return;
@@ -458,7 +496,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         return;
       }
       console.error("[preflight] scan error:", err);
-      showScanError(btnRescan, err?.message || "Unknown error");
+      showScanError(
+        btnRescan,
+        err?.message || tr("preflightResults.unknownError", "Something went wrong.")
+      );
     } finally {
       // Always clean up the listener to prevent leaks on rescan
       window.electronAPI.removePreflightProgressListener?.();
@@ -729,7 +770,7 @@ function applyLiveProceedStatus(clean, apps, btnProceed) {
     btnProceed.disabled = false;
     btnProceed.className = PROCEED_ENABLED_CLASS;
   } else {
-    const names = apps.map((p) => getDisplayName(p)).join(", ");
+    const names = formatNameList(apps.map((p) => getDisplayName(p)));
     setStatus(
       "preflightResults.blockedAppLaunched",
       `A blocked app was launched: ${names}. Close it to proceed.`,
@@ -1486,10 +1527,10 @@ function paintAgentVerdict(v) {
         <span class="sc-kill-dot"></span>
       </span>
       <div class="sc-threat-content">
-        <span class="sc-threat-title">${window.escHtml(t.type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()))}</span>
+        <span class="sc-threat-title">${window.escHtml(titleCaseThreatType(t.type))}</span>
         <p class="sc-threat-detail">${window.escHtml(t.detail)}</p>
       </div>
-      <span class="sc-threat-badge sc-threat-badge--${t.severity === "HIGH" ? "high" : "medium"}">${window.escHtml(t.severity)}</span>
+      <span class="sc-threat-badge sc-threat-badge--${t.severity === "HIGH" ? "high" : "medium"}">${window.escHtml(severityText(t.severity))}</span>
     </div>`
     )
     .join("");
@@ -1850,7 +1891,7 @@ function showDiagnosticsControl() {
 
 let _update = { kind: "idle", notesOpen: false };
 
-/** Formats a byte count as a compact human string (e.g. "12.4 MB"). */
+/** Formats a byte count as a compact, locale-formatted human string (e.g. "12.4 MB", "12,4 MB"). */
 function formatBytes(bytes) {
   if (!bytes || bytes < 0) {
     return "";
@@ -1862,7 +1903,12 @@ function formatBytes(bytes) {
     n /= 1024;
     i += 1;
   }
-  return `${n.toFixed(n < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
+  const digits = n < 10 && i > 0 ? 1 : 0;
+  const formatted = new Intl.NumberFormat(window.i18n?.getLocale?.() || "en", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(n);
+  return `${formatted} ${units[i]}`;
 }
 
 window.__updateAction = (action) => {
@@ -1945,12 +1991,16 @@ function updateCardBody(s) {
     }
     case "downloading": {
       const pct = Math.max(0, Math.min(100, s.percent ?? 0));
+      const pctText = new Intl.NumberFormat(window.i18n?.getLocale?.() || "en", {
+        style: "percent",
+        maximumFractionDigits: 0,
+      }).format(pct / 100);
       const sizeLine =
         s.transferred && s.total ? `${formatBytes(s.transferred)} / ${formatBytes(s.total)}` : "";
       return `
         ${head(tr("updater.downloading", "Downloading update"))}
         <div class="update-card__progress"><div class="update-card__progress-bar" style="width:${pct}%"></div></div>
-        <p class="update-card__meta"><span>${pct}%</span><span>${sizeLine}</span></p>`;
+        <p class="update-card__meta"><span>${pctText}</span><span>${sizeLine}</span></p>`;
     }
     case "downloaded":
       return `

@@ -8,8 +8,33 @@
 
 /** Translate with an English fallback for the non-Electron preview (window.t absent). */
 function tr(key, fallback, params) {
-  return window.t ? window.t(key, params) : fallback;
+  if (window.t) {
+    return window.t(key, params);
+  }
+  if (!params) {
+    return fallback;
+  }
+  return fallback.replace(/\{(\w+)\}/g, (match, token) =>
+    Object.prototype.hasOwnProperty.call(params, token) ? String(params[token]) : match
+  );
 }
+
+// Maps authManager's submitRole failure codes (see API_ERROR in
+// src/main/authManager.js, plus ipcHandlers.js's "missing_role") to i18n keys.
+// Same pattern as login.js's AUTH_ERROR_KEYS — the backend/axios message is
+// never shown, only logged in main.
+const ROLE_SUBMIT_ERROR_KEYS = {
+  missing_role: ["role.roleRequired", "Please enter a role."],
+  network_error: ["role.networkError", "Network error. Check your connection and try again."],
+  timeout: ["role.networkError", "Network error. Check your connection and try again."],
+  session_expired: [
+    "role.sessionExpired",
+    "Your session has expired. Please restart the app and sign in again.",
+  ],
+  server_error: ["role.roleProcessFailed", "Couldn't process that role. Please try again."],
+  request_failed: ["role.roleProcessFailed", "Couldn't process that role. Please try again."],
+  unknown: ["role.roleProcessFailed", "Couldn't process that role. Please try again."],
+};
 
 const ARROW_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>`;
 const START_ICON = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>`;
@@ -104,7 +129,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   let isStartingInterview = false; // btnStartInterview post-click, own lifecycle
   let selectedClarifyRole = "";
   let skillsEmpty = false;
-  let errorState = null; // { key, fallback } | { raw: string } | null
+  let errorState = null; // { key, fallback } | null
   let profileRole = ""; // role from candidate profile — feeds renderConfirmQuestion()
   let pendingRole = ""; // last submitted role string — feeds renderClarifyTitle()
   let finalRole = ""; // role shown on the skills panel — feeds renderSkillsTitle()
@@ -166,8 +191,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     if (errorState) {
-      rsErrorText.textContent =
-        "raw" in errorState ? errorState.raw : tr(errorState.key, errorState.fallback);
+      rsErrorText.textContent = tr(errorState.key, errorState.fallback);
     }
   }
 
@@ -189,9 +213,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     errorState = { key, fallback };
     showError(tr(key, fallback));
   }
-  function showRawError(text) {
-    errorState = { raw: text };
-    showError(text);
+  function showErrorForCode(code) {
+    const [key, fallback] = ROLE_SUBMIT_ERROR_KEYS[code] || ROLE_SUBMIT_ERROR_KEYS.unknown;
+    showTranslatedError(key, fallback);
   }
 
   // Role-decision state, handed to the interview site at Start Interview.
@@ -337,14 +361,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
       const res = await window.electronAPI.submitRole(role);
       if (!res?.ok) {
-        if (res?.error) {
-          showRawError(res.error);
-        } else {
-          showTranslatedError(
-            "role.roleProcessFailed",
-            "Couldn't process that role. Please try again."
-          );
-        }
+        showErrorForCode(res?.code);
         setSubmitting(false);
         return;
       }

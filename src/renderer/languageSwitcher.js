@@ -56,8 +56,16 @@
     container.innerHTML = "";
     container.appendChild(select);
 
-    window.addEventListener("i18n:changed", () => {
+    window.addEventListener("i18n:changed", (e) => {
       select.setAttribute("aria-label", window.t ? window.t("langSwitcher.label") : "Language");
+      // Keep the select's own value in sync — today this only ever fires from
+      // this dropdown's own change event, but ipcHandlers.js broadcasts
+      // LOCALE_CHANGED to every open window, so a future second window must
+      // not leave this one showing a stale selection.
+      const newLocale = e.detail?.locale;
+      if (newLocale && select.value !== newLocale) {
+        select.value = newLocale;
+      }
     });
   }
 

@@ -39,6 +39,47 @@ function flatten(obj, prefix = "") {
   return out;
 }
 
+/**
+ * Extracts every interpolation token a string requires a param for: plain
+ * `{token}` placeholders and the binding variable of each ICU-lite plural
+ * block (`{seconds, plural, one {# second} other {# seconds}}` requires
+ * `seconds`). A plain `/\{(\w+)\}/g` scan finds none of a plural block's
+ * tokens — the comma after the variable name defeats the `\w+\}` match — so
+ * a key whose only token lives inside a plural block was invisible to parity
+ * checking entirely, and a locale could drop it silently. Plural blocks are
+ * located first and their span removed before the plain-token scan so CLDR
+ * category labels (one/few/many/other) and the `#` count placeholder inside
+ * branch bodies are never mistaken for tokens.
+ */
+function extractTokens(str) {
+  const tokens = new Set();
+  const s = String(str);
+  const OPEN = /\{(\w+),\s*plural,\s*/g;
+  let match;
+  let lastEnd = 0;
+  const plainTokenSource = [];
+  while ((match = OPEN.exec(s))) {
+    tokens.add(match[1]);
+    plainTokenSource.push(s.slice(lastEnd, match.index));
+    let depth = 1;
+    let i = OPEN.lastIndex;
+    while (i < s.length && depth > 0) {
+      if (s[i] === "{") {depth++;}
+      else if (s[i] === "}") {depth--;}
+      i++;
+    }
+    lastEnd = i;
+    OPEN.lastIndex = i;
+  }
+  plainTokenSource.push(s.slice(lastEnd));
+  for (const chunk of plainTokenSource) {
+    for (const m of chunk.matchAll(/\{(\w+)\}/g)) {
+      tokens.add(m[1]);
+    }
+  }
+  return [...tokens].sort();
+}
+
 function localeFiles() {
   return fs
     .readdirSync(LOCALES_DIR)
@@ -105,12 +146,10 @@ for (const code of localeFiles()) {
   test(`${code}.json preserves every {token} interpolation placeholder from en.json`, () => {
     const flat = flatten(loadBundle(code));
     for (const [key, enValue] of Object.entries(sourceFlat)) {
-      const enTokens = [...String(enValue).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+      const enTokens = extractTokens(enValue);
       if (enTokens.length === 0) {continue;}
       const localizedValue = flat[key];
-      const localizedTokens = [...String(localizedValue).matchAll(/\{(\w+)\}/g)]
-        .map((m) => m[1])
-        .sort();
+      const localizedTokens = extractTokens(localizedValue);
       assert.deepStrictEqual(
         localizedTokens,
         enTokens,

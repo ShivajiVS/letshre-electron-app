@@ -2,6 +2,8 @@
 
 const test = require("node:test");
 const assert = require("node:assert");
+const fs = require("fs");
+const path = require("path");
 const { _pluralize, _interpolate, _lookup } = require("../assets/js/i18n.js");
 
 test("_pluralize picks the matching CLDR category (en: one/other)", () => {
@@ -67,3 +69,90 @@ test("_lookup resolves a dot-path key and ignores non-string leaves", () => {
   // behaves safely against an unset bundle, not the full runtime lookup.
   assert.strictEqual(_lookup("does.not.exist"), undefined);
 });
+
+/**
+ * The tests above exercise _pluralize against inline fixtures only — they
+ * say nothing about whether the real locale bundles actually ship complete
+ * plural blocks. A locale is allowed to define MORE branches than CLDR
+ * requires (an "other" catch-all is always safe to include even when a
+ * language doesn't strictly need it), but it must not be missing a category
+ * Intl.PluralRules says that locale requires — a missing category silently
+ * falls back to "other" at runtime (see _pluralize's fallback), which reads
+ * as broken grammar for the count that hit the missing branch.
+ */
+const LOCALES_DIR = path.join(__dirname, "../assets/locales");
+
+function localeFiles() {
+  return fs
+    .readdirSync(LOCALES_DIR)
+    .filter((f) => f.endsWith(".json"))
+    .map((f) => f.replace(/\.json$/, ""));
+}
+
+function flatten(obj, prefix = "") {
+  const out = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (key.startsWith("_")) {continue;}
+    const path_ = prefix ? `${prefix}.${key}` : key;
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      Object.assign(out, flatten(value, path_));
+    } else {
+      out[path_] = value;
+    }
+  }
+  return out;
+}
+
+/**
+ * Finds every ICU-lite plural block in a string and returns the set of CLDR
+ * category labels each one defines. Braces are depth-balanced (not a single
+ * regex) because branch bodies are themselves `{...}` groups.
+ */
+function extractPluralBlocks(str) {
+  const blocks = [];
+  const s = String(str);
+  const OPEN = /\{(\w+),\s*plural,\s*/g;
+  let match;
+  while ((match = OPEN.exec(s))) {
+    let depth = 1;
+    let i = OPEN.lastIndex;
+    while (i < s.length && depth > 0) {
+      if (s[i] === "{") {depth++;}
+      else if (s[i] === "}") {depth--;}
+      i++;
+    }
+    const body = s.slice(OPEN.lastIndex, i - 1);
+    const categories = [...body.matchAll(/(\w+)\s*\{/g)].map((m) => m[1]);
+    blocks.push({ variable: match[1], categories });
+    OPEN.lastIndex = i;
+  }
+  return blocks;
+}
+
+for (const code of localeFiles()) {
+  test(`${code}.json plural blocks cover every CLDR category Intl.PluralRules requires for "${code}"`, () => {
+    let required;
+    try {
+      required = new Intl.PluralRules(code).resolvedOptions().pluralCategories;
+    } catch {
+      required = ["other"]; // unsupported locale tag — matches _pluralize's own fallback
+    }
+    const raw = fs.readFileSync(path.join(LOCALES_DIR, `${code}.json`), "utf8");
+    const flat = flatten(JSON.parse(raw));
+    const problems = [];
+    for (const [key, value] of Object.entries(flat)) {
+      if (typeof value !== "string") {continue;}
+      for (const block of extractPluralBlocks(value)) {
+        const missing = required.filter((c) => !block.categories.includes(c));
+        if (missing.length > 0) {
+          problems.push(`${key} (${block.variable}) missing [${missing.join(", ")}]`);
+        }
+      }
+    }
+    assert.deepStrictEqual(
+      problems,
+      [],
+      `${code}.json has plural blocks missing required CLDR categories: ${problems.join("; ")}`
+    );
+  });
+}

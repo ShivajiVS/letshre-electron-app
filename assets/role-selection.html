@@ -205,13 +205,7 @@
                 </div>
 
                 <div class="rs-confirm__question">
-                  <p>
-                    <span data-i18n="role.confirmQuestionPrefix">You have been assigned</span>
-                    <strong id="confirm-role-inline">–</strong>.
-                    <span data-i18n="role.confirmQuestionSuffix"
-                      >Do you want to continue to the interview with this role?</span
-                    >
-                  </p>
+                  <p id="confirm-question"></p>
                 </div>
 
                 <div class="rs-confirm__actions">
@@ -321,11 +315,7 @@
                 <p class="rs-panel__eyebrow" data-i18n="role.eyebrowClarify">
                   Clarification Needed
                 </p>
-                <h3 class="rs-panel__title">
-                  <span data-i18n="role.clarifyTitlePrefix">Which type of</span>
-                  <span id="ambiguous-role-label" class="rs-panel__title-accent">role</span>
-                  <span data-i18n="role.clarifyTitleSuffix">are you?</span>
-                </h3>
+                <h3 class="rs-panel__title" id="clarify-title"></h3>
                 <p class="rs-panel__sub" data-i18n="role.clarifySub">
                   Select the option that best describes your specialisation.
                 </p>
@@ -360,10 +350,7 @@
             <div class="rs-panel" id="panel-skills" hidden>
               <div class="rs-panel__header">
                 <p class="rs-panel__eyebrow" data-i18n="role.eyebrowReady">Ready to Begin</p>
-                <h3 class="rs-panel__title">
-                  <span data-i18n="role.skillsTitlePrefix">Skills for</span>
-                  <span id="confirmed-role-label" class="rs-panel__title-accent">–</span>
-                </h3>
+                <h3 class="rs-panel__title" id="skills-title"></h3>
                 <p class="rs-panel__sub" data-i18n="role.skillsSub">
                   Here are the key areas we'll cover in your interview. Review them and start when
                   you're ready.

@@ -47,18 +47,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   const confirmSkeleton = document.getElementById("confirm-skeleton");
   const confirmContent = document.getElementById("confirm-content");
   const confirmRoleName = document.getElementById("confirm-role-name");
-  const confirmRoleInline = document.getElementById("confirm-role-inline");
+  const confirmQuestion = document.getElementById("confirm-question");
   const btnYes = document.getElementById("btn-yes");
   const btnNo = document.getElementById("btn-no");
 
   const roleInput = document.getElementById("role-input");
   const btnSubmitRole = document.getElementById("btn-submit-role");
 
-  const ambiguousRoleLabel = document.getElementById("ambiguous-role-label");
+  const clarifyTitle = document.getElementById("clarify-title");
   const roleCardsEl = document.getElementById("role-cards");
   const btnConfirmClarify = document.getElementById("btn-confirm-clarify");
 
-  const confirmedRoleLabel = document.getElementById("confirmed-role-label");
+  const skillsTitle = document.getElementById("skills-title");
   const skillsGrid = document.getElementById("skills-grid");
   const btnStartInterview = document.getElementById("btn-start-interview");
 
@@ -105,6 +105,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   let selectedClarifyRole = "";
   let skillsEmpty = false;
   let errorState = null; // { key, fallback } | { raw: string } | null
+  let profileRole = ""; // role from candidate profile — feeds renderConfirmQuestion()
+  let pendingRole = ""; // last submitted role string — feeds renderClarifyTitle()
+  let finalRole = ""; // role shown on the skills panel — feeds renderSkillsTitle()
 
   function confirmClarifyLabel(role) {
     return role
@@ -112,9 +115,37 @@ document.addEventListener("DOMContentLoaded", async () => {
       : `${tr("role.confirmSelection", "Confirm selection")} ${ARROW_ICON}`;
   }
 
+  // The dynamic role name sits mid-sentence for these three, so each renders
+  // through a single i18n key with a {role} token instead of stitching
+  // prefix/suffix spans around a DOM node — word order can't be assumed fixed
+  // across locales (SOV/VSO languages can't glue an English-order sentence
+  // back together from independently translated fragments).
+  function renderConfirmQuestion() {
+    confirmQuestion.innerHTML = tr(
+      "role.confirmQuestion",
+      "You have been assigned {role}. Do you want to continue to the interview with this role?",
+      { role: `<strong>${window.escHtml(profileRole)}</strong>` }
+    );
+  }
+
+  function renderClarifyTitle() {
+    clarifyTitle.innerHTML = tr("role.clarifyTitle", "Which type of {role} are you?", {
+      role: `<span class="rs-panel__title-accent">${window.escHtml(pendingRole)}</span>`,
+    });
+  }
+
+  function renderSkillsTitle() {
+    skillsTitle.innerHTML = tr("role.skillsTitle", "Skills for {role}", {
+      role: `<span class="rs-panel__title-accent">${window.escHtml(finalRole)}</span>`,
+    });
+  }
+
   function renderI18n() {
     sidebarTitle.textContent = tr(...SIDEBAR[currentStepIdx].titleKey);
     sidebarDesc.textContent = tr(...SIDEBAR[currentStepIdx].descKey);
+    renderConfirmQuestion();
+    renderClarifyTitle();
+    renderSkillsTitle();
 
     if (isBusy) {
       btnYes.innerHTML = `${SPINNER} ${tr("role.loading", "Loading…")}`;
@@ -163,14 +194,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     showError(text);
   }
 
-  let profileRole = ""; // role from candidate profile
-  let pendingRole = ""; // last submitted role string
-
   // Role-decision state, handed to the interview site at Start Interview.
   //   Yes (keep assigned role) → is_custom_role: false; backend uses the profile role.
   //   No  (chose a new role)   → is_custom_role: true + selected_role + manual_skills.
   let isCustomRole = false; // false = confirmed profile role, true = custom
-  let finalRole = ""; // the role shown on the skills panel
   let finalSkills = []; // the skills shown on the skills panel
 
   function goToStep(idx) {
@@ -215,7 +242,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   if (profileRole) {
     confirmRoleName.textContent = profileRole;
-    confirmRoleInline.textContent = profileRole;
+    renderConfirmQuestion();
     confirmSkeleton.setAttribute("hidden", "");
     confirmContent.removeAttribute("hidden");
     goToStep(0);
@@ -354,7 +381,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   function renderClarification(suggestions) {
     selectedClarifyRole = "";
     btnConfirmClarify.disabled = true;
-    ambiguousRoleLabel.textContent = pendingRole;
+    renderClarifyTitle();
     roleCardsEl.innerHTML = "";
 
     suggestions.forEach((role, i) => {
@@ -380,7 +407,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   function renderSkills(skills, role) {
     finalRole = role;
     finalSkills = Array.isArray(skills) ? skills : [];
-    confirmedRoleLabel.textContent = role;
+    renderSkillsTitle();
     skillsGrid.innerHTML = "";
     skillsEmpty = finalSkills.length === 0;
 

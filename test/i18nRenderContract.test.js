@@ -56,6 +56,8 @@ function idsWithI18nKey(html) {
  * True if the page's JS looks up this id. Covers both the literal form and the
  * template-literal form (`badge-${perm}`) — the latter is what hid three of the
  * original permissions.js conflicts from a naive grep, so it must stay covered.
+ * Also covers querySelector/querySelectorAll, whose id references can be
+ * compound (`#diagnostics-wrap .sc-diagnostics__note`) rather than bare.
  */
 function jsLooksUpId(js, id) {
   if (js.includes(`getElementById("${id}")`) || js.includes(`getElementById('${id}')`)) {
@@ -64,6 +66,13 @@ function jsLooksUpId(js, id) {
   for (const m of js.matchAll(/getElementById\(\s*`([^`$]*)\$\{/g)) {
     if (m[1].length > 0 && id.startsWith(m[1])) {
       return true;
+    }
+  }
+  for (const m of js.matchAll(/querySelectorAll?\(\s*(['"`])((?:(?!\1).)*)\1/g)) {
+    for (const idMatch of m[2].matchAll(/#([\w-]+)/g)) {
+      if (idMatch[1] === id) {
+        return true;
+      }
     }
   }
   return false;
@@ -161,6 +170,67 @@ test("i18n.js re-runs renderers on locale change", () => {
       "text stays in the previous language after a switch"
   );
 });
+
+/**
+ * pagePairs() above only checks pages that have a src/renderer/<name>.js
+ * controller — how-it-works.html has none (it's pure [data-i18n] markup, no
+ * JS-rendered text), so it was skipped by every other test in this file. That
+ * skip is how a data-i18n key pointing nowhere would ship silently. This
+ * doesn't need the full dual-ownership/renderer contract since there's no
+ * controller to conflict with; it only needs to confirm every key the HTML
+ * references actually resolves.
+ */
+function flatten(obj, prefix = "") {
+  const out = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (key.startsWith("_")) {
+      continue;
+    }
+    const path_ = prefix ? `${prefix}.${key}` : key;
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      Object.assign(out, flatten(value, path_));
+    } else {
+      out[path_] = value;
+    }
+  }
+  return out;
+}
+
+const EN_FLAT = flatten(
+  JSON.parse(fs.readFileSync(path.join(ROOT, "assets/locales/en.json"), "utf8"))
+);
+
+function dataI18nKeys(html) {
+  const keys = new Set();
+  for (const m of html.matchAll(/data-i18n="([\w.]+)"/g)) {
+    keys.add(m[1]);
+  }
+  for (const m of html.matchAll(/data-i18n-html="([\w.]+)"/g)) {
+    keys.add(m[1]);
+  }
+  for (const m of html.matchAll(/data-i18n-attr="([^"]+)"/g)) {
+    for (const pair of m[1].split("|")) {
+      const key = pair.split(":")[1]?.trim();
+      if (key) {
+        keys.add(key);
+      }
+    }
+  }
+  return keys;
+}
+
+for (const htmlFile of fs.readdirSync(ASSETS).filter((f) => f.endsWith(".html"))) {
+  const name = htmlFile.replace(/\.html$/, "");
+  test(`${name}.html: every data-i18n/data-i18n-html/data-i18n-attr key exists in en.json`, () => {
+    const html = fs.readFileSync(path.join(ASSETS, htmlFile), "utf8");
+    const missing = [...dataI18nKeys(html)].filter((k) => !(k in EN_FLAT));
+    assert.deepStrictEqual(
+      missing,
+      [],
+      `${htmlFile} references en.json keys that don't exist: ${missing.join(", ")}`
+    );
+  });
+}
 
 test("a renderer that throws cannot leave the page stuck at visibility:hidden", () => {
   const src = fs.readFileSync(path.join(ASSETS, "js/i18n.js"), "utf8");

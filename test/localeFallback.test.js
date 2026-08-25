@@ -22,7 +22,10 @@ const assert = require("node:assert");
 const fs = require("fs");
 const path = require("path");
 
+const { SUPPORTED_LOCALES } = require("../src/shared/constants");
+
 const LOCALE_MANAGER_PATH = require.resolve("../src/main/localeManager");
+const LOCALES_DIR = path.join(__dirname, "../assets/locales");
 
 /** Loads a fresh, uncached instance of localeManager. */
 function freshLocaleManager() {
@@ -44,7 +47,9 @@ const DE_PARTIAL_FIXTURE = {
 function mockReadFileSync(t, bundles, { onCall } = {}) {
   return t.mock.method(fs, "readFileSync", (fp, ...rest) => {
     const code = path.basename(String(fp), ".json");
-    if (onCall) {onCall(code);}
+    if (onCall) {
+      onCall(code);
+    }
     if (Object.prototype.hasOwnProperty.call(bundles, code)) {
       const value = bundles[code];
       if (value instanceof Error) {
@@ -82,13 +87,16 @@ test("nested objects merge key-by-key rather than being replaced wholesale", (t)
   assert.deepStrictEqual(Object.keys(de.common).sort(), ["back", "continue"]);
 });
 
-test("_meta.dir for a real ar bundle is still rtl after the merge (merge direction guard)", () => {
+test("_meta.dir for real ar/ur bundles is still rtl after the merge (merge direction guard)", () => {
   const lm = freshLocaleManager();
   const en = lm.getTranslations("en");
   const ar = lm.getTranslations("ar");
+  const ur = lm.getTranslations("ur");
   assert.notStrictEqual(en._meta.dir, "rtl");
   assert.strictEqual(ar._meta.dir, "rtl");
   assert.strictEqual(ar._meta.locale, "ar");
+  assert.strictEqual(ur._meta.dir, "rtl");
+  assert.strictEqual(ur._meta.locale, "ur");
 });
 
 test("repeated calls return the cached instance and read the file only once", (t) => {
@@ -124,4 +132,29 @@ test("an English bundle read/parse failure returns {} without infinite recursion
 
   const en = lm.getTranslations("en");
   assert.deepStrictEqual(en, {});
+});
+
+test("every SUPPORTED_LOCALES code has a corresponding assets/locales/<code>.json file on disk", () => {
+  const missing = SUPPORTED_LOCALES.map((l) => l.code).filter(
+    (code) => !fs.existsSync(path.join(LOCALES_DIR, `${code}.json`))
+  );
+  assert.deepStrictEqual(
+    missing,
+    [],
+    `SUPPORTED_LOCALES code(s) with no locale file on disk: ${missing.join(", ")}`
+  );
+});
+
+test("every assets/locales/*.json file on disk has a corresponding SUPPORTED_LOCALES entry", () => {
+  const codes = new Set(SUPPORTED_LOCALES.map((l) => l.code));
+  const extra = fs
+    .readdirSync(LOCALES_DIR)
+    .filter((f) => f.endsWith(".json"))
+    .map((f) => f.replace(/\.json$/, ""))
+    .filter((code) => !codes.has(code));
+  assert.deepStrictEqual(
+    extra,
+    [],
+    `locale file(s) on disk with no SUPPORTED_LOCALES entry: ${extra.join(", ")}`
+  );
 });

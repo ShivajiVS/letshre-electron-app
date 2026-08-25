@@ -138,6 +138,14 @@
     return _interpolate(value, params, _locale);
   }
 
+  // Button labels referenced by {token} from pages with no controller to
+  // supply them (e.g. how-it-works.html's step copy pointing at the
+  // dashboard's Take Interview button) — resolved fresh on every render so a
+  // mid-session locale switch updates them too.
+  function _globalParams() {
+    return { takeInterviewBtn: t("dashboard.takeInterview") };
+  }
+
   function _applyToDOM() {
     document.documentElement.lang = _locale;
     const dir = _bundle?._meta?.dir === "rtl" ? "rtl" : "ltr";
@@ -146,7 +154,7 @@
     document.querySelectorAll("[data-i18n]").forEach((el) => {
       const key = el.getAttribute("data-i18n");
       if (key) {
-        el.textContent = t(key);
+        el.textContent = t(key, _globalParams());
       }
     });
 
@@ -158,7 +166,7 @@
     document.querySelectorAll("[data-i18n-html]").forEach((el) => {
       const key = el.getAttribute("data-i18n-html");
       if (key) {
-        el.innerHTML = t(key);
+        el.innerHTML = t(key, _globalParams());
       }
     });
 

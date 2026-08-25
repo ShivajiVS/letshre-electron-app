@@ -24,6 +24,11 @@ function getDisplayName(processName) {
  * fallback path here only needs plain {token} substitution — REASON_FALLBACK
  * strings don't use plural blocks.
  */
+/** The Rescan button's own translated label, for {rescan} interpolation in status strings. */
+function rescanLabel() {
+  return tr("preflight.rescan", "Rescan");
+}
+
 function tr(key, fallback, params) {
   if (window.t) {
     return window.t(key, params);
@@ -99,9 +104,17 @@ function formatNameList(names) {
   }
 }
 
-/** Renders a verdict's reason through i18n, falling back to English in preview. */
+/**
+ * Renders a verdict's reason through i18n, falling back to English in preview.
+ * `rescan` is merged in for every key (not just the ones that use it) since the
+ * verdict itself is computed main-process-side and has no business owning a
+ * renderer button's translated label — an unused {rescan} token is harmless.
+ */
 function verdictText(v) {
-  return tr(v.reasonKey, REASON_FALLBACK[v.reasonKey] || v.reasonKey, v.reasonParams);
+  return tr(v.reasonKey, REASON_FALLBACK[v.reasonKey] || v.reasonKey, {
+    ...v.reasonParams,
+    rescan: rescanLabel(),
+  });
 }
 
 // Severity strings the agent emits — translated for display, English kept as
@@ -303,7 +316,12 @@ function scheduleAutoRescan(evidence) {
   const accessDenied = evidence?.accessDenied || [];
 
   const halt = (key, fallback, names) =>
-    setStatus(key, fallback, { names: formatNameList(names) }, "sc-status sc-status--fail");
+    setStatus(
+      key,
+      fallback,
+      { names: formatNameList(names), rescan: rescanLabel() },
+      "sc-status sc-status--fail"
+    );
 
   if (respawned.length > 0) {
     halt(
@@ -327,7 +345,7 @@ function scheduleAutoRescan(evidence) {
     setStatus(
       "preflightResults.appsReopening",
       "Some apps keep reopening. Close them manually, then click Rescan.",
-      null,
+      { rescan: rescanLabel() },
       "sc-status sc-status--fail"
     );
     return;
@@ -1155,7 +1173,7 @@ function paintKillRow(row, btn, processName, state) {
       tr(
         "preflightResults.killRespawnedHint",
         `${display} restarted itself after closing. Turn off its auto-start (or sign out of its desktop app), then click Rescan.`,
-        { name: display }
+        { name: display, rescan: rescanLabel() }
       ),
       "respawned"
     );
@@ -1193,7 +1211,7 @@ function paintKillRow(row, btn, processName, state) {
       tr(
         "preflightResults.killAdminHint",
         `${display} needs administrator rights to close. Close it yourself from its own window, then click Rescan.`,
-        { name: display }
+        { name: display, rescan: rescanLabel() }
       ),
       "blocked"
     );
@@ -1228,7 +1246,7 @@ function paintKillRow(row, btn, processName, state) {
       tr(
         "preflightResults.killGenericHint",
         `${display} could not be closed automatically. Close it yourself, then click Rescan.`,
-        { name: display }
+        { name: display, rescan: rescanLabel() }
       ),
       "blocked"
     );
@@ -1584,7 +1602,7 @@ function showScanError(btnRescan, message) {
     setStatus(
       "preflightResults.diagnosticsFailedRetry",
       `Diagnostics failed: ${message}. Please click Rescan to try again.`,
-      { message },
+      { message, rescan: rescanLabel() },
       "sc-status sc-status--fail"
     );
     // The candidate is now genuinely stuck. Give them something to send support

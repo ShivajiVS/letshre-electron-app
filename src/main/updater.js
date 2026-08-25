@@ -13,13 +13,20 @@ const logger = require("./logger");
 const appState = require("./appState");
 const { killAgent } = require("./agentManager");
 const { getWindow, getIsInterviewActive } = require("./windowManager");
-const { IPC, UPDATE_CHECK_INTERVAL_MS } = require("../shared/constants");
+const {
+  IPC,
+  UPDATE_CHECK_INTERVAL_MS,
+  UPDATE_RETRY_MS,
+  UPDATE_MAX_RETRIES,
+} = require("../shared/constants");
 
 /** @type {"idle"|"checking"|"available"|"downloading"|"downloaded"|"error"} */
 let state = "idle";
 let latestInfo = null;
 let lastError = null;
 let periodicTimer = null;
+let retryTimer = null;
+let retryCount = 0; // consecutive short-retry attempts since the last success
 let lastPercent = 0; // most recent download-progress %, for getState() recovery
 // Sticky flag: an update has finished downloading and is staged on disk. Unlike
 // `state` (which a later re-check can flip to "checking"/"idle"), this stays true
@@ -83,6 +90,7 @@ function init() {
 
   autoUpdater.on("update-not-available", () => {
     logger.info("[updater] no update available");
+    retryCount = 0;
     setState("idle");
   });
 
@@ -101,6 +109,7 @@ function init() {
   autoUpdater.on("update-downloaded", (info) => {
     latestInfo = info;
     downloaded = true;
+    retryCount = 0;
     logger.info("[updater] update downloaded, ready to install:", info.version);
     setState("downloaded");
     send(IPC.PUSH_UPDATE_DOWNLOADED, {
@@ -114,6 +123,7 @@ function init() {
     logger.warn("[updater] error:", lastError);
     setState("error", { error: lastError });
     send(IPC.PUSH_UPDATE_ERROR, { error: lastError });
+    _scheduleRetry();
   });
 
   // Initial check (safe — we're in preflight), then a gated periodic re-check.
@@ -123,6 +133,29 @@ function init() {
       checkForUpdates();
     }
   }, UPDATE_CHECK_INTERVAL_MS);
+}
+
+/**
+ * A failed check/download (network blip, flaky GitHub asset fetch) would
+ * otherwise leave a candidate stranded until the next UPDATE_CHECK_INTERVAL_MS
+ * (6h). Retry sooner, capped, so isolated failures self-heal without ever
+ * retrying so aggressively that a genuinely broken release loops forever.
+ */
+function _scheduleRetry() {
+  if (retryTimer || retryCount >= UPDATE_MAX_RETRIES) {
+    return;
+  }
+  retryCount += 1;
+  const attempt = retryCount;
+  logger.info(
+    `[updater] scheduling retry ${attempt}/${UPDATE_MAX_RETRIES} in ${UPDATE_RETRY_MS}ms`
+  );
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    if (!getIsInterviewActive()) {
+      checkForUpdates();
+    }
+  }, UPDATE_RETRY_MS);
 }
 
 /** Triggers a check unless an interview is active. */
@@ -233,6 +266,10 @@ function dispose() {
   if (periodicTimer) {
     clearInterval(periodicTimer);
     periodicTimer = null;
+  }
+  if (retryTimer) {
+    clearTimeout(retryTimer);
+    retryTimer = null;
   }
 }
 

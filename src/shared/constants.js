@@ -81,6 +81,13 @@ const HEARTBEAT_INTERVAL_MS = 30000;
  */
 const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
+/** How long (ms) to wait before retrying a failed check/download, so a transient
+ *  network blip doesn't strand a candidate until the next UPDATE_CHECK_INTERVAL_MS. */
+const UPDATE_RETRY_MS = 5 * 60 * 1000; // 5 minutes
+
+/** Max consecutive short retries before falling back to the normal periodic interval. */
+const UPDATE_MAX_RETRIES = 3;
+
 /**
  * Fail-closed: consecutive "indeterminate" checks (errored/timed out) tolerated
  * during an active interview before escalating to a violation. At
@@ -359,6 +366,8 @@ module.exports = {
   DETECTION_INTERVAL_MS,
   HEARTBEAT_INTERVAL_MS,
   UPDATE_CHECK_INTERVAL_MS,
+  UPDATE_RETRY_MS,
+  UPDATE_MAX_RETRIES,
   INDETERMINATE_ESCALATION_THRESHOLD,
   HARD_BLOCK_GRACE_MS,
   PREFLIGHT_HDMI_DEADLINE_MS,

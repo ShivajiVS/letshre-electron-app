@@ -68,19 +68,19 @@ A Windows/macOS **Electron desktop client** that proctors online interviews. It 
 Two cooperating detection tiers:
 
 - **Node tier** (main process) — displays and running processes, using native OS APIs.
-- **Python agent** (`agent.py`, shipped as `agent.exe`) — *behavioural* deep checks that Node cannot do cheaply: network fingerprinting, loaded‑DLL signatures, window titles/classes, transparent overlays, virtual audio devices, browser‑automation drivers, and a physical‑monitor count.
+- **Python agent** (`agent.py`, shipped as `agent.exe`) — _behavioural_ deep checks that Node cannot do cheaply: network fingerprinting, loaded‑DLL signatures, window titles/classes, transparent overlays, virtual audio devices, browser‑automation drivers, and a physical‑monitor count.
 
 ## Tech stack
 
-| Area | Choice |
-|------|--------|
-| Desktop shell | **Electron 43** (`contextIsolation`, `sandbox`, no `nodeIntegration`) |
-| Main/renderer language | Node.js **20+** (CommonJS) |
-| Deep‑scan agent | **Python 3.12** + `psutil`, bundled to a single binary with **PyInstaller** |
-| UI | Static HTML + hand‑authored CSS |
-| Packaging | **electron-builder 24** (NSIS installer on Windows, DMG on macOS) |
-| Auto‑update | `electron-updater` (GitHub releases) |
-| Lint/format | ESLint 8 + Prettier 3 |
+| Area                   | Choice                                                                      |
+| ---------------------- | --------------------------------------------------------------------------- |
+| Desktop shell          | **Electron 43** (`contextIsolation`, `sandbox`, no `nodeIntegration`)       |
+| Main/renderer language | Node.js **20+** (CommonJS)                                                  |
+| Deep‑scan agent        | **Python 3.12** + `psutil`, bundled to a single binary with **PyInstaller** |
+| UI                     | Static HTML + hand‑authored CSS                                             |
+| Packaging              | **electron-builder 26** (NSIS installer on Windows, DMG on macOS)           |
+| Auto‑update            | `electron-updater` (GitHub releases)                                        |
+| Lint/format            | ESLint 8 + Prettier 3                                                       |
 
 ## Repository layout
 
@@ -181,10 +181,10 @@ launch (deep link) ─▶ onReady (src/main/app.js)
 
 **Node tier**
 
-| Check | How | File |
-|-------|-----|------|
-| External / extended displays | `screen.getAllDisplays()` (native, instant) | `src/detector/hdmiDetector.js` |
-| Blocked apps running | `tasklist /FO CSV` (Win) / `ps` (mac), exact image-name match | `src/detector/mirrorDetector.js` |
+| Check                        | How                                                           | File                             |
+| ---------------------------- | ------------------------------------------------------------- | -------------------------------- |
+| External / extended displays | `screen.getAllDisplays()` (native, instant)                   | `src/detector/hdmiDetector.js`   |
+| Blocked apps running         | `tasklist /FO CSV` (Win) / `ps` (mac), exact image-name match | `src/detector/mirrorDetector.js` |
 
 **Python agent (`agent.py`)** — eight behavioural checks plus a physical‑monitor count:
 
@@ -196,7 +196,7 @@ launch (deep link) ─▶ onReady (src/main/app.js)
 6. AI interview‑copilot tools (process name / install path / stealth cmdline flags)
 7. Transparent click‑through overlays (`WS_EX_LAYERED|TRANSPARENT|TOPMOST`)
 8. Virtual audio devices (VB‑Cable, Voicemeeter, …)
-9. **Physical monitor count** (`EnumDisplayDevices`) — catches Windows *“Duplicate”* mode, which the logical‑display API reports as a single screen.
+9. **Physical monitor count** (`EnumDisplayDevices`) — catches Windows _“Duplicate”_ mode, which the logical‑display API reports as a single screen.
 
 The blocked‑app lists (meeting, screen‑share, casting, browsers, AI tools) and their friendly names live in one place: `src/shared/appList.js`.
 
@@ -215,11 +215,11 @@ Payload delivered to the renderer / backend:
 ```jsonc
 {
   "event": "Blocked application running during interview: Google Chrome",
-  "severity": "high",          // "high" | "medium"
-  "count": 1,                  // times this event has fired this session
-  "isHardBlock": true,         // high severity, or count >= 2
+  "severity": "high", // "high" | "medium"
+  "count": 1, // times this event has fired this session
+  "isHardBlock": true, // high severity, or count >= 2
   "source": "electron",
-  "timestamp": "2026-06-19T13:44:04.849Z"
+  "timestamp": "2026-06-19T13:44:04.849Z",
 }
 ```
 
@@ -248,7 +248,7 @@ import { useEffect } from "react";
 export function useElectronViolation({ onHardBlock, onSoftBlock }) {
   useEffect(() => {
     const api = window.electronAPI;
-    if (!api?.onViolation) return;            // running in a plain browser
+    if (!api?.onViolation) return; // running in a plain browser
 
     api.onViolation((payload) => {
       // 1) Always ack FIRST (before any modal guard) so liveness is signalled
@@ -274,23 +274,35 @@ window.electronAPI.interviewComplete("terminated"); // "completed" | "auto-submi
 
 > ⚠️ If the deployed web app does **not** call `acknowledgeViolation()`, no acks arrive and every hard block will self‑enforce after the 8s grace. Ship the ack alongside this client.
 
+**Recording failures.** Screen/mic recording runs independently of the violation pipeline above — it can fail (no screen source, blocked getUserMedia, upload session never established) without the interview itself being blocked. Electron does not stop the session on a recording failure; it is a policy decision left to the web app, which is why listening for it is required, not optional:
+
+```js
+window.electronAPI.onProctoringError?.(({ error }) => {
+  // Recording is not being captured. Decide what this means for the session —
+  // e.g. flag it for manual review, warn the candidate, or show the error.
+});
+```
+
+If the web app never registers this listener, a candidate can complete an entire interview with zero recorded footage and no one — candidate, interviewer, or backend — is told.
+
 ## Renderer API (`window.electronAPI`)
 
 Exposed by `preload.js` via `contextBridge` (only whitelisted channels). Safe to call in a plain browser — methods no‑op if `electronAPI` is absent.
 
-| Method | Purpose |
-|--------|---------|
-| `runPreflight()` | Run all preflight scans; resolves with `{ hdmi, mirror, agent }` |
-| `onPreflightProgress(cb)` / `removePreflightProgressListener()` | Per‑step streaming progress |
-| `onPreProceedStatus(cb)` / `removePreProceedStatusListener()` | Live blocked‑app status on the success screen |
-| `proceedToInterview()` | Enter lockdown and load the interview |
-| `killProcess(name)` / `killAllProcesses(names)` | Force‑close a blocked app (whitelisted) |
-| `onViolation(cb)` / `removeViolationListener()` | Receive violations during the interview |
-| `acknowledgeViolation()` | Confirm receipt (suppresses self‑enforcement) |
-| `interviewComplete(reason)` | End the session; lifts lockdown |
-| `recheckSystem()` / `minimizeWindow()` / `quitApp()` | Preflight UX controls |
-| `getAppList()` / `getAuditLog()` | Blocked‑app lists; in‑memory audit log |
-| `onUpdateAvailable(cb)` / `onUpdateDownloaded(cb)` / `installUpdate()` | Auto‑updater UX |
+| Method                                                                 | Purpose                                                                                                                      |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `runPreflight()`                                                       | Run all preflight scans; resolves with `{ hdmi, mirror, agent }`                                                             |
+| `onPreflightProgress(cb)` / `removePreflightProgressListener()`        | Per‑step streaming progress                                                                                                  |
+| `onPreProceedStatus(cb)` / `removePreProceedStatusListener()`          | Live blocked‑app status on the success screen                                                                                |
+| `proceedToInterview()`                                                 | Enter lockdown and load the interview                                                                                        |
+| `killProcess(name)` / `killAllProcesses(names)`                        | Force‑close a blocked app (whitelisted)                                                                                      |
+| `onViolation(cb)` / `removeViolationListener()`                        | Receive violations during the interview                                                                                      |
+| `onProctoringError(cb)`                                                | Recording failed (no screen source, upload session lost, etc.) — see [Recording failures](#web-app-integration-the-contract) |
+| `acknowledgeViolation()`                                               | Confirm receipt (suppresses self‑enforcement)                                                                                |
+| `interviewComplete(reason)`                                            | End the session; lifts lockdown                                                                                              |
+| `recheckSystem()` / `minimizeWindow()` / `quitApp()`                   | Preflight UX controls                                                                                                        |
+| `getAppList()` / `getAuditLog()`                                       | Blocked‑app lists; in‑memory audit log                                                                                       |
+| `onUpdateAvailable(cb)` / `onUpdateDownloaded(cb)` / `installUpdate()` | Auto‑updater UX                                                                                                              |
 
 ## Deep link protocol
 
@@ -306,10 +318,10 @@ letshyre://start?ac=<accessToken>&rc=<refreshToken>
 
 The client calls these on `API_BASE_URL` (default `https://api.letshyre.com`) with `Authorization: Bearer <accessToken>`:
 
-| Endpoint | When | Body |
-|----------|------|------|
-| `POST /interview/heartbeat` | Every 30s during the interview | `{ timestamp }` |
-| `POST /interview/violation` | On every violation (retried) | `{ event, severity, count, isHardBlock, source, timestamp }` |
+| Endpoint                    | When                           | Body                                                         |
+| --------------------------- | ------------------------------ | ------------------------------------------------------------ |
+| `POST /interview/heartbeat` | Every 30s during the interview | `{ timestamp }`                                              |
+| `POST /interview/violation` | On every violation (retried)   | `{ event, severity, count, isHardBlock, source, timestamp }` |
 
 > **Required for enforcement:** `POST /interview/violation` must be implemented server‑side to record/flag/terminate sessions. Until it exists, violation reports are queued and retried client‑side.
 
@@ -366,16 +378,16 @@ Output goes to `release/` (NSIS installer on Windows, DMG on macOS).
 
 Most knobs live in `src/shared/constants.js`:
 
-| Constant | Default | Meaning |
-|----------|---------|---------|
-| `INTERVIEW_BASE_URL` | `https://interview.letshyre.com` | Web app loaded during the interview |
-| `API_BASE_URL` | `https://api.letshyre.com` | Backend; **overridable via `API_BASE_URL` env** |
-| `DETECTION_INTERVAL_MS` | `5000` | Live detection tick cadence |
-| `VIOLATION_COOLDOWN_MS` | `15000` | Min gap between repeats of the same violation |
-| `HEARTBEAT_INTERVAL_MS` | `30000` | Backend heartbeat cadence |
-| `INDETERMINATE_ESCALATION_THRESHOLD` | `3` | Consecutive unverifiable scans before escalating |
-| `HARD_BLOCK_GRACE_MS` | `8000` | Grace before Electron self‑enforces a hard block |
-| `AGENT_PORT` | `9999` | Agent HTTP fallback port |
+| Constant                             | Default                          | Meaning                                          |
+| ------------------------------------ | -------------------------------- | ------------------------------------------------ |
+| `INTERVIEW_BASE_URL`                 | `https://interview.letshyre.com` | Web app loaded during the interview              |
+| `API_BASE_URL`                       | `https://api.letshyre.com`       | Backend; **overridable via `API_BASE_URL` env**  |
+| `DETECTION_INTERVAL_MS`              | `5000`                           | Live detection tick cadence                      |
+| `VIOLATION_COOLDOWN_MS`              | `15000`                          | Min gap between repeats of the same violation    |
+| `HEARTBEAT_INTERVAL_MS`              | `30000`                          | Backend heartbeat cadence                        |
+| `INDETERMINATE_ESCALATION_THRESHOLD` | `3`                              | Consecutive unverifiable scans before escalating |
+| `HARD_BLOCK_GRACE_MS`                | `8000`                           | Grace before Electron self‑enforces a hard block |
+| `AGENT_PORT`                         | `9999`                           | Agent HTTP fallback port                         |
 
 Environment variables: `API_BASE_URL` (staging/test backend), `AGENT_PY` / `AGENT_PY_BIN` (dev agent), `AGENT_LOG_DIR` / `APP_VERSION` / `AGENT_SECRET` (set automatically for the spawned agent), `LOG_LEVEL` (main-process log verbosity, default `info`; see `src/main/logger.js`).
 
@@ -390,25 +402,25 @@ Environment variables: `API_BASE_URL` (staging/test backend), `AGENT_PY` / `AGEN
 
 ## Troubleshooting
 
-| Symptom | Likely cause / fix |
-|---------|--------------------|
+| Symptom                                          | Likely cause / fix                                                                                                                                           |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Preflight blocks on “Deep Scan Agent — Required” | `agent.exe` didn’t start (AV quarantine, missing binary). Click **Re‑scan** (auto‑respawns). For dev, build it: `pnpm run build:agent`, or run `AGENT_PY=1`. |
-| Agent changes have no effect | Dev/prod run `resources/agent.exe`. Rebuild with `pnpm run build:agent`, or use `AGENT_PY=1`. |
-| Single external display never passes | Any second display is a violation by design. Use a single screen. |
-| Violations don’t reach the web app | Ensure the page registers `onViolation` and runs inside this client (not a normal browser). |
-| Hard block force‑navigates mid‑interview | The web app isn’t calling `acknowledgeViolation()`. Add it to your violation handler. |
-| Auto‑update “Cannot parse releases feed” | No published GitHub release for the configured repo; harmless in dev. |
+| Agent changes have no effect                     | Dev/prod run `resources/agent.exe`. Rebuild with `pnpm run build:agent`, or use `AGENT_PY=1`.                                                                |
+| Single external display never passes             | Any second display is a violation by design. Use a single screen.                                                                                            |
+| Violations don’t reach the web app               | Ensure the page registers `onViolation` and runs inside this client (not a normal browser).                                                                  |
+| Hard block force‑navigates mid‑interview         | The web app isn’t calling `acknowledgeViolation()`. Add it to your violation handler.                                                                        |
+| Auto‑update “Cannot parse releases feed”         | No published GitHub release for the configured repo; harmless in dev.                                                                                        |
 
 ## npm scripts reference
 
-| Script | Description |
-|--------|-------------|
-| `start` | Launch Electron |
-| `dev` | Launch with file watching |
-| `build:agent` | PyInstaller build of the Python agent |
-| `build:full` / `dist` | Package the app (see [Building](#building--packaging)) |
-| `lint` / `lint:fix` | ESLint |
-| `format` / `format:check` | Prettier |
+| Script                    | Description                                            |
+| ------------------------- | ------------------------------------------------------ |
+| `start`                   | Launch Electron                                        |
+| `dev`                     | Launch with file watching                              |
+| `build:agent`             | PyInstaller build of the Python agent                  |
+| `build:full` / `dist`     | Package the app (see [Building](#building--packaging)) |
+| `lint` / `lint:fix`       | ESLint                                                 |
+| `format` / `format:check` | Prettier                                               |
 
 ---
 

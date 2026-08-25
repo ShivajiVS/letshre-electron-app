@@ -305,6 +305,7 @@
                     <img
                       id="ref-photo"
                       alt="Profile reference"
+                      data-i18n-attr="alt:identity.altProfileReference"
                       class="iv-photo-frame__img"
                       style="display: none"
                     />
@@ -351,7 +352,13 @@
                       muted
                       class="iv-photo-frame__video"
                     ></video>
-                    <img id="iv-captured" class="iv-photo-frame__img" alt="Captured" hidden />
+                    <img
+                      id="iv-captured"
+                      class="iv-photo-frame__img"
+                      alt="Captured"
+                      data-i18n-attr="alt:identity.altCaptured"
+                      hidden
+                    />
                     <canvas id="iv-canvas" hidden></canvas>
                     <div class="iv-photo-frame__badge iv-photo-frame__badge--live" id="live-badge">
                       POSITION YOUR FACE
@@ -442,6 +449,7 @@
                     id="result-ref"
                     src=""
                     alt="Registered"
+                    data-i18n-attr="alt:identity.altRegistered"
                     class="iv-result-photo__img iv-result-photo__img--ref"
                   />
                   <span class="iv-result-photo__tag" data-i18n="identity.registered"
@@ -458,6 +466,7 @@
                     id="result-captured"
                     src=""
                     alt="Live capture"
+                    data-i18n-attr="alt:identity.altLiveCapture"
                     class="iv-result-photo__img"
                   />
                   <span class="iv-result-photo__tag" data-i18n="identity.liveCapture"
@@ -505,9 +514,8 @@
                   <span data-i18n="identity.tryAgain">Try Again</span>
                 </button>
                 <p class="iv-result-tip" id="result-tip" hidden>
-                  <span data-i18n="identity.professionalTip">Professional tip:</span>
-                  <span data-i18n="identity.tipRemoveGlasses"
-                    >Remove glasses or masks for better accuracy.</span
+                  <span data-i18n="identity.proTip"
+                    >Professional tip: Remove glasses or masks for better accuracy.</span
                   >
                 </p>
               </div>

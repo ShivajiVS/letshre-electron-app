@@ -1,10 +1,12 @@
 "use strict";
 
 /**
- * Flags locale values that are byte-identical to the English source. Most
+ * Flags locale values that match the English source once case, hyphens, and
+ * whitespace are normalized away — catching both byte-identical leaks and
+ * near-miss leaks like "Deep-Scan-Agent" vs "Deep Scan Agent". Most matches
  * are genuine cognates/borrowed words; a few are untranslated leaks. Every
- * identical value must either fall under the noise filter below or be in
- * the per-locale cognate allowlist.
+ * match must either fall under the noise filter below or be in the
+ * per-locale cognate allowlist.
  */
 
 const test = require("node:test");
@@ -59,6 +61,23 @@ function hasTranslatableContent(value) {
 }
 
 /**
+ * Byte-exact comparison misses partial English leakage that survives a
+ * cosmetic transform of the source string — e.g. de "Deep-Scan-Agent" vs en
+ * "Deep Scan Agent" (hyphenated instead of spaced), or nl "Livecamera" vs en
+ * "Live Camera" (compounded instead of spaced). Case, hyphens, and
+ * whitespace are exactly the transforms a translator (or a careless
+ * find/replace) would apply without actually translating anything, so
+ * normalizing them out before comparing catches those without the fuzzy
+ * false-positive risk of a general similarity match.
+ */
+function normalizeForLeakCheck(value) {
+  return String(value)
+    .replace(/\{\w+\}/g, "")
+    .toLowerCase()
+    .replace(/[\s-]+/g, "");
+}
+
+/**
  * Per-locale keys verified as genuine cognates/borrowed words identical in
  * both English and the target language — not missed translations.
  */
@@ -67,25 +86,46 @@ function hasTranslatableContent(value) {
 // get an English placeholder rather than a real translation, since these 18
 // bundles are all pre-certification anyway (_meta._reviewedBy is null) and
 // will get a real pass from a certified translator together.
-const NEW_KEY_PLACEHOLDER_ALLOWLIST = ["hiw.pageTitle"];
+const NEW_KEY_PLACEHOLDER_ALLOWLIST = [
+  "hiw.pageTitle",
+  // C1 fragmentation fixes (role-selection.html / identity-verification.html):
+  // prefix/suffix spans merged into single {token} keys. Same placeholder
+  // convention as hiw.pageTitle above — real translation lands with the
+  // certified-translator pass over all 18 bundles.
+  "role.confirmQuestion",
+  "role.clarifyTitle",
+  "role.skillsTitle",
+  "identity.proTip",
+  "identity.altProfileReference",
+  "identity.altCaptured",
+  "identity.altRegistered",
+  "identity.altLiveCapture",
+];
 
 const COGNATE_ALLOWLIST = {
   de: [
     "identity.pause", // German word for pause/break is spelled identically: "Pause"
+    "login.emailLabel", // Correct native German spelling is hyphenated "E-Mail"; only matches en "Email" once hyphens are normalized away
   ],
   fr: [
     "perm.micName", // French word for microphone is spelled identically: "microphone"
     "identity.stepPhoto", // French word for photo is spelled identically: "photo"
     "identity.pause", // French word for pause is spelled identically: "pause"
+    "login.emailLabel", // Correct native French spelling is hyphenated "E-mail"; only matches en "Email" once hyphens are normalized away
   ],
   id: [
     "login.emailLabel", // Indonesian UI conventionally borrows "Email" unchanged, no native equivalent in common use
   ],
   it: [
     "login.passwordLabel", // Italian UI conventionally borrows "Password" unchanged, no native equivalent in common use
+    "login.emailLabel", // Correct native Italian spelling is hyphenated "E-mail"; only matches en "Email" once hyphens are normalized away
   ],
   nl: [
     "perm.cameraName", // Dutch word for camera is spelled identically: "camera"
+    "login.emailLabel", // Correct native Dutch spelling is hyphenated "E-mail"; only matches en "Email" once hyphens are normalized away
+  ],
+  pt: [
+    "login.emailLabel", // Correct native Portuguese spelling is hyphenated "E-mail"; only matches en "Email" once hyphens are normalized away
   ],
 };
 
@@ -99,7 +139,9 @@ for (const code of localeFiles()) {
     for (const [key, enValue] of Object.entries(sourceFlat)) {
       if (typeof enValue !== "string") {continue;}
       if (!hasTranslatableContent(enValue)) {continue;}
-      if (flat[key] !== enValue) {continue;}
+      const localizedValue = flat[key];
+      if (typeof localizedValue !== "string") {continue;}
+      if (normalizeForLeakCheck(localizedValue) !== normalizeForLeakCheck(enValue)) {continue;}
       if (allowlist.includes(key)) {continue;}
       offenders.push(key);
     }

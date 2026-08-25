@@ -10,7 +10,15 @@
 
 /** Translate with an English fallback for the non-Electron preview (window.t absent). */
 function tr(key, fallback, params) {
-  return window.t ? window.t(key, params) : fallback;
+  if (window.t) {
+    return window.t(key, params);
+  }
+  if (!params) {
+    return fallback;
+  }
+  return fallback.replace(/\{(\w+)\}/g, (match, token) =>
+    Object.prototype.hasOwnProperty.call(params, token) ? String(params[token]) : match
+  );
 }
 
 // Maps authManager's AUTH_ERROR codes (see src/main/authManager.js) to i18n

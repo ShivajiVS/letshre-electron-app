@@ -285,6 +285,15 @@ window.electronAPI.onProctoringError?.(({ error }) => {
 
 If the web app never registers this listener, a candidate can complete an entire interview with zero recorded footage and no one — candidate, interviewer, or backend — is told.
 
+**sessionStorage handoff.** Before the interview SPA's first render, Electron injects the following keys into its `sessionStorage` (see `windowManager.js#lockdownForInterview`):
+
+| Key               | Meaning                                                                                                                                                                                        |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ac` / `rc`       | Access / refresh token, when a session is available                                                                                                                                            |
+| `candidate_photo` | Base64 data URL of the live photo captured during identity verification                                                                                                                        |
+| `role_selection`  | JSON-encoded `{ is_custom_role, selected_role?, manual_skills? }`                                                                                                                              |
+| `locale`          | The candidate's chosen UI language (locale code, e.g. `"hi"`) from the desktop shell's language switcher — read this to render the SPA itself in the same language instead of assuming English |
+
 ## Renderer API (`window.electronAPI`)
 
 Exposed by `preload.js` via `contextBridge` (only whitelisted channels). Safe to call in a plain browser — methods no‑op if `electronAPI` is absent.

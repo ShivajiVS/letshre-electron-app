@@ -89,6 +89,42 @@ function _classifyLoginError(err) {
   return { code: AUTH_ERROR.INVALID_CREDENTIALS };
 }
 
+/**
+ * Stable failure codes for the post-login API calls below (voice/photo/role
+ * submission) — same rationale as AUTH_ERROR/_classifyLoginError: never hand
+ * the renderer a raw backend `message` or axios error string, so UI copy
+ * stays locale-consistent regardless of server wording.
+ */
+const API_ERROR = {
+  SESSION_EXPIRED: "session_expired",
+  NETWORK_ERROR: "network_error",
+  TIMEOUT: "timeout",
+  SERVER_ERROR: "server_error",
+  REQUEST_FAILED: "request_failed",
+  UNKNOWN: "unknown",
+};
+
+/**
+ * Classifies a failed axios call (outside the login flow) into a stable
+ * API_ERROR code, for logging the real message here and returning only the
+ * code to the renderer.
+ * @param {import("axios").AxiosError} err
+ * @returns {string}
+ */
+function _classifyApiError(err) {
+  if (err.code === "ECONNABORTED") {
+    return API_ERROR.TIMEOUT;
+  }
+  const status = err.response?.status;
+  if (!status) {
+    return API_ERROR.NETWORK_ERROR;
+  }
+  if (status >= 500) {
+    return API_ERROR.SERVER_ERROR;
+  }
+  return API_ERROR.REQUEST_FAILED;
+}
+
 function _sessionFilePath() {
   return path.join(app.getPath("userData"), "session.enc");
 }
@@ -369,7 +405,7 @@ async function fetchProfileImage(url) {
  */
 async function submitVoiceSample(uint8Array, mimeType, meta = {}) {
   if (!session?.accessToken) {
-    return { ok: false, error: "Not authenticated." };
+    return { ok: false, code: API_ERROR.SESSION_EXPIRED };
   }
 
   const safeLocale = typeof meta?.locale === "string" ? meta.locale.slice(0, 20) : undefined;
@@ -416,15 +452,17 @@ async function submitVoiceSample(uint8Array, mimeType, meta = {}) {
           await doRequest();
           return { ok: true };
         } catch (e2) {
-          return { ok: false, error: e2.response?.data?.message || e2.message };
+          logger.warn(
+            "[auth] submitVoiceSample retry failed:",
+            e2.response?.data?.message || e2.message
+          );
+          return { ok: false, code: _classifyApiError(e2) };
         }
       }
-      return { ok: false, error: "Session expired." };
+      return { ok: false, code: API_ERROR.SESSION_EXPIRED };
     }
-    return {
-      ok: false,
-      error: err.response?.data?.message || err.message || "Voice submission failed.",
-    };
+    logger.warn("[auth] submitVoiceSample failed:", err.response?.data?.message || err.message);
+    return { ok: false, code: _classifyApiError(err) };
   }
 }
 
@@ -435,7 +473,7 @@ async function submitVoiceSample(uint8Array, mimeType, meta = {}) {
  */
 async function submitFaceVerification(dataUrl) {
   if (!session?.accessToken) {
-    return { ok: false, error: "Not authenticated." };
+    return { ok: false, code: API_ERROR.SESSION_EXPIRED };
   }
 
   const doRequest = () => {
@@ -462,15 +500,20 @@ async function submitFaceVerification(dataUrl) {
           const res2 = await doRequest();
           return { ok: true, data: res2.data?.data || res2.data };
         } catch (e2) {
-          return { ok: false, error: e2.response?.data?.message || e2.message };
+          logger.warn(
+            "[auth] submitFaceVerification retry failed:",
+            e2.response?.data?.message || e2.message
+          );
+          return { ok: false, code: _classifyApiError(e2) };
         }
       }
-      return { ok: false, error: "Session expired." };
+      return { ok: false, code: API_ERROR.SESSION_EXPIRED };
     }
-    return {
-      ok: false,
-      error: err.response?.data?.message || err.message || "Face verification failed.",
-    };
+    logger.warn(
+      "[auth] submitFaceVerification failed:",
+      err.response?.data?.message || err.message
+    );
+    return { ok: false, code: _classifyApiError(err) };
   }
 }
 
@@ -481,7 +524,7 @@ async function submitFaceVerification(dataUrl) {
  */
 async function submitRole(role) {
   if (!session?.accessToken) {
-    return { ok: false, error: "Not authenticated." };
+    return { ok: false, code: API_ERROR.SESSION_EXPIRED };
   }
 
   const doRequest = () =>
@@ -508,15 +551,14 @@ async function submitRole(role) {
           const res2 = await doRequest();
           return { ok: true, data: res2.data?.data || res2.data };
         } catch (e2) {
-          return { ok: false, error: e2.response?.data?.message || e2.message };
+          logger.warn("[auth] submitRole retry failed:", e2.response?.data?.message || e2.message);
+          return { ok: false, code: _classifyApiError(e2) };
         }
       }
-      return { ok: false, error: "Session expired." };
+      return { ok: false, code: API_ERROR.SESSION_EXPIRED };
     }
-    return {
-      ok: false,
-      error: err.response?.data?.message || err.message || "Role submission failed.",
-    };
+    logger.warn("[auth] submitRole failed:", err.response?.data?.message || err.message);
+    return { ok: false, code: _classifyApiError(err) };
   }
 }
 
@@ -775,6 +817,7 @@ function getTokens() {
 
 module.exports = {
   AUTH_ERROR,
+  API_ERROR,
   init,
   verifySession,
   login,

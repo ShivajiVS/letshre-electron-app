@@ -12,7 +12,173 @@ const path = require("path");
 const { app, BrowserWindow, session, dialog, nativeImage } = require("electron");
 const logger = require("./logger");
 const appState = require("./appState");
+const localeManager = require("./localeManager");
 const { INTERVIEW_BASE_URL, IPC } = require("../shared/constants");
+
+/**
+ * Text for the native "Exit Interview?" close-confirmation dialog, keyed by
+ * locale code. This dialog is drawn by dialog.showMessageBoxSync() before any
+ * renderer or i18n bundle is involved, so it can't consume assets/locales/*.json
+ * the way page controllers do — it needs its own small, self-contained map.
+ * Machine-translated, not yet reviewed by a native speaker (unlike
+ * assets/locales/en.json's `attestation` key, which is certified) — flag for
+ * human review before any of these locales ship to production.
+ */
+const EXIT_MODAL_STRINGS = {
+  en: {
+    title: "Exit Interview?",
+    message: "Are you sure you want to exit?",
+    detail:
+      "Closing the app during an active interview session will be recorded and may be flagged to the interviewer.",
+    exit: "Exit Interview",
+    cancel: "Cancel",
+  },
+  ar: {
+    title: "إنهاء المقابلة؟",
+    message: "هل أنت متأكد أنك تريد الخروج؟",
+    detail: "سيتم تسجيل إغلاق التطبيق أثناء جلسة مقابلة نشطة وقد يتم إبلاغ المحاور بذلك.",
+    exit: "إنهاء المقابلة",
+    cancel: "إلغاء",
+  },
+  bn: {
+    title: "সাক্ষাৎকার থেকে বের হবেন?",
+    message: "আপনি কি নিশ্চিত যে আপনি বের হতে চান?",
+    detail:
+      "সক্রিয় সাক্ষাৎকার চলাকালীন অ্যাপ বন্ধ করা রেকর্ড করা হবে এবং সাক্ষাৎকারগ্রহীতাকে জানানো হতে পারে।",
+    exit: "সাক্ষাৎকার থেকে বের হন",
+    cancel: "বাতিল",
+  },
+  de: {
+    title: "Interview verlassen?",
+    message: "Möchten Sie das Interview wirklich verlassen?",
+    detail:
+      "Das Schließen der App während einer aktiven Interviewsitzung wird aufgezeichnet und dem Interviewer möglicherweise gemeldet.",
+    exit: "Interview verlassen",
+    cancel: "Abbrechen",
+  },
+  es: {
+    title: "¿Salir de la entrevista?",
+    message: "¿Estás seguro de que deseas salir?",
+    detail:
+      "Cerrar la aplicación durante una sesión de entrevista activa quedará registrado y podría notificarse al entrevistador.",
+    exit: "Salir de la entrevista",
+    cancel: "Cancelar",
+  },
+  fr: {
+    title: "Quitter l’entretien ?",
+    message: "Êtes-vous sûr de vouloir quitter ?",
+    detail:
+      "La fermeture de l’application pendant un entretien actif sera enregistrée et pourra être signalée à l’intervieweur.",
+    exit: "Quitter l’entretien",
+    cancel: "Annuler",
+  },
+  hi: {
+    title: "साक्षात्कार से बाहर निकलें?",
+    message: "क्या आप वाकई बाहर निकलना चाहते हैं?",
+    detail:
+      "सक्रिय साक्षात्कार सत्र के दौरान ऐप बंद करना रिकॉर्ड किया जाएगा और साक्षात्कारकर्ता को सूचित किया जा सकता है।",
+    exit: "साक्षात्कार से बाहर निकलें",
+    cancel: "रद्द करें",
+  },
+  id: {
+    title: "Keluar dari Wawancara?",
+    message: "Apakah Anda yakin ingin keluar?",
+    detail:
+      "Menutup aplikasi selama sesi wawancara aktif akan dicatat dan dapat dilaporkan kepada pewawancara.",
+    exit: "Keluar dari Wawancara",
+    cancel: "Batal",
+  },
+  it: {
+    title: "Uscire dal colloquio?",
+    message: "Sei sicuro di voler uscire?",
+    detail:
+      "La chiusura dell’app durante un colloquio attivo verrà registrata e potrebbe essere segnalata all’intervistatore.",
+    exit: "Esci dal colloquio",
+    cancel: "Annulla",
+  },
+  ja: {
+    title: "面接を終了しますか？",
+    message: "本当に終了してもよろしいですか？",
+    detail: "面接セッション中にアプリを閉じると記録され、面接担当者に通知される場合があります。",
+    exit: "面接を終了",
+    cancel: "キャンセル",
+  },
+  kn: {
+    title: "ಸಂದರ್ಶನದಿಂದ ನಿರ್ಗಮಿಸುವುದೇ?",
+    message: "ನೀವು ಖಚಿತವಾಗಿ ನಿರ್ಗಮಿಸಲು ಬಯಸುವಿರಾ?",
+    detail:
+      "ಸಕ್ರಿಯ ಸಂದರ್ಶನ ಅವಧಿಯಲ್ಲಿ ಅಪ್ಲಿಕೇಶನ್ ಅನ್ನು ಮುಚ್ಚುವುದನ್ನು ದಾಖಲಿಸಲಾಗುತ್ತದೆ ಮತ್ತು ಸಂದರ್ಶಕರಿಗೆ ವರದಿ ಮಾಡಬಹುದು.",
+    exit: "ಸಂದರ್ಶನದಿಂದ ನಿರ್ಗಮಿಸಿ",
+    cancel: "ರದ್ದುಮಾಡಿ",
+  },
+  ko: {
+    title: "면접을 종료하시겠습니까?",
+    message: "정말로 종료하시겠습니까?",
+    detail: "활성 면접 세션 중 앱을 닫으면 기록되며 면접관에게 보고될 수 있습니다.",
+    exit: "면접 종료",
+    cancel: "취소",
+  },
+  ml: {
+    title: "അഭിമുഖത്തിൽ നിന്ന് പുറത്തുകടക്കണോ?",
+    message: "നിങ്ങൾക്ക് ഉറപ്പാണോ പുറത്തുകടക്കണമെന്ന്?",
+    detail:
+      "സജീവമായ അഭിമുഖ സെഷനിൽ ആപ്പ് അടയ്ക്കുന്നത് രേഖപ്പെടുത്തുകയും അഭിമുഖം നടത്തുന്നയാളെ അറിയിക്കുകയും ചെയ്തേക്കാം.",
+    exit: "അഭിമുഖത്തിൽ നിന്ന് പുറത്തുകടക്കുക",
+    cancel: "റദ്ദാക്കുക",
+  },
+  nl: {
+    title: "Interview verlaten?",
+    message: "Weet u zeker dat u wilt afsluiten?",
+    detail:
+      "Het sluiten van de app tijdens een actieve interviewsessie wordt geregistreerd en kan aan de interviewer worden gemeld.",
+    exit: "Interview verlaten",
+    cancel: "Annuleren",
+  },
+  pt: {
+    title: "Sair da entrevista?",
+    message: "Tem certeza de que deseja sair?",
+    detail:
+      "Fechar o aplicativo durante uma sessão de entrevista ativa será registrado e pode ser sinalizado ao entrevistador.",
+    exit: "Sair da entrevista",
+    cancel: "Cancelar",
+  },
+  ru: {
+    title: "Выйти из интервью?",
+    message: "Вы уверены, что хотите выйти?",
+    detail:
+      "Закрытие приложения во время активной сессии интервью будет зафиксировано и может быть сообщено интервьюеру.",
+    exit: "Выйти из интервью",
+    cancel: "Отмена",
+  },
+  ta: {
+    title: "நேர்காணலிலிருந்து வெளியேறவா?",
+    message: "நீங்கள் நிச்சயமாக வெளியேற விரும்புகிறீர்களா?",
+    detail:
+      "செயலில் உள்ள நேர்காணல் அமர்வின் போது பயன்பாட்டை மூடுவது பதிவு செய்யப்பட்டு நேர்காணல் செய்பவருக்குத் தெரிவிக்கப்படலாம்.",
+    exit: "நேர்காணலிலிருந்து வெளியேறு",
+    cancel: "ரத்துசெய்",
+  },
+  te: {
+    title: "ఇంటర్వ్యూ నుండి నిష్క్రమించాలా?",
+    message: "మీరు ఖచ్చితంగా నిష్క్రమించాలనుకుంటున్నారా?",
+    detail:
+      "యాక్టివ్ ఇంటర్వ్యూ సెషన్ సమయంలో యాప్‌ను మూసివేయడం రికార్డ్ చేయబడుతుంది మరియు ఇంటర్వ్యూయర్‌కు ఫ్లాగ్ చేయబడవచ్చు.",
+    exit: "ఇంటర్వ్యూ నుండి నిష్క్రమించండి",
+    cancel: "రద్దు చేయండి",
+  },
+  ur: {
+    title: "انٹرویو سے باہر نکلیں؟",
+    message: "کیا آپ واقعی باہر نکلنا چاہتے ہیں؟",
+    detail:
+      "فعال انٹرویو سیشن کے دوران ایپ بند کرنا ریکارڈ کیا جائے گا اور انٹرویو لینے والے کو رپورٹ کیا جا سکتا ہے۔",
+    exit: "انٹرویو سے باہر نکلیں",
+    cancel: "منسوخ کریں",
+  },
+};
+
+function _exitModalStrings() {
+  return EXIT_MODAL_STRINGS[localeManager.getPreferred()] || EXIT_MODAL_STRINGS.en;
+}
 
 /** @type {BrowserWindow | null} */
 let win = null;
@@ -180,6 +346,12 @@ function lockdownForInterview(interviewUrl, tokens = null, roleSelection = null)
     // trip and get restored as a stale scorecard. Runs before the SPA's first
     // render, same as the candidate_photo injection below.
     const statements = ["sessionStorage.removeItem('interview_session');"];
+    // Candidate's chosen UI language, so the interview SPA can render in it too
+    // — previously only sent separately to authManager for STT model selection,
+    // never to the web app itself (see README "Web app integration").
+    statements.push(
+      `sessionStorage.setItem('locale', ${JSON.stringify(localeManager.getPreferred())});`
+    );
     if (tokens?.accessToken) {
       statements.push(`sessionStorage.setItem('ac', ${JSON.stringify(tokens.accessToken)});`);
     }
@@ -307,15 +479,15 @@ function _applyWindowProtections(onViolation) {
     // while still logging a violation if they cancel.
     e.preventDefault();
 
+    const modalStrings = _exitModalStrings();
     const choice = dialog.showMessageBoxSync(win, {
       type: "warning",
-      buttons: ["Exit Interview", "Cancel"],
+      buttons: [modalStrings.exit, modalStrings.cancel],
       defaultId: 1, // default highlight: Cancel (safer)
       cancelId: 1,
-      title: "Exit Interview?",
-      message: "Are you sure you want to exit?",
-      detail:
-        "Closing the app during an active interview session will be recorded and may be flagged to the interviewer.",
+      title: modalStrings.title,
+      message: modalStrings.message,
+      detail: modalStrings.detail,
       noLink: true,
     });
 

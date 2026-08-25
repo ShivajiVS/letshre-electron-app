@@ -2,8 +2,46 @@
 
 /** Translate with an English fallback for the non-Electron preview (window.t absent). */
 function tr(key, fallback, params) {
-  return window.t ? window.t(key, params) : fallback;
+  if (window.t) {
+    return window.t(key, params);
+  }
+  if (!params) {
+    return fallback;
+  }
+  return fallback.replace(/\{(\w+)\}/g, (match, token) =>
+    Object.prototype.hasOwnProperty.call(params, token) ? String(params[token]) : match
+  );
 }
+
+// Maps authManager's API_ERROR codes (see src/main/authManager.js) to i18n
+// keys for the voice-submission and face-verification flows. Same pattern as
+// login.js's AUTH_ERROR_KEYS — the backend/axios message is never shown here,
+// only logged in main.
+const VOICE_ERROR_KEYS = {
+  network_error: ["identity.networkError", "Network error. Please try again."],
+  timeout: ["identity.networkError", "Network error. Please try again."],
+  session_expired: [
+    "identity.sessionExpired",
+    "Your session has expired. Please restart the app and sign in again.",
+  ],
+  server_error: ["identity.voiceSubmitFailed", "Voice submission failed. Please try again."],
+  request_failed: ["identity.voiceSubmitFailed", "Voice submission failed. Please try again."],
+  unknown: ["identity.voiceSubmitFailed", "Voice submission failed. Please try again."],
+};
+const PHOTO_ERROR_KEYS = {
+  network_error: ["identity.networkError", "Network error. Please try again."],
+  timeout: ["identity.networkError", "Network error. Please try again."],
+  session_expired: [
+    "identity.sessionExpired",
+    "Your session has expired. Please restart the app and sign in again.",
+  ],
+  server_error: ["identity.faceVerificationFailed", "Face verification failed. Please try again."],
+  request_failed: [
+    "identity.faceVerificationFailed",
+    "Face verification failed. Please try again.",
+  ],
+  unknown: ["identity.faceVerificationFailed", "Face verification failed. Please try again."],
+};
 
 document.addEventListener("DOMContentLoaded", async () => {
   let audioBlob = null;
@@ -217,12 +255,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!lastError) {
       return;
     }
-    // Backend-supplied text has no translation key — re-render it verbatim
-    // rather than dropping the banner on a locale change.
-    errorText.textContent =
-      lastError.raw !== undefined
-        ? lastError.raw
-        : tr(lastError.key, lastError.fallback, lastError.params);
+    errorText.textContent = tr(lastError.key, lastError.fallback, lastError.params);
     errorBanner.hidden = false;
   }
 
@@ -231,9 +264,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     renderError();
   }
 
-  function showRawError(text) {
-    lastError = { raw: text };
-    renderError();
+  function showVoiceErrorForCode(code) {
+    const [key, fallback] = VOICE_ERROR_KEYS[code] || VOICE_ERROR_KEYS.unknown;
+    showError(key, fallback);
+  }
+
+  function showPhotoErrorForCode(code) {
+    const [key, fallback] = PHOTO_ERROR_KEYS[code] || PHOTO_ERROR_KEYS.unknown;
+    showError(key, fallback);
   }
 
   function hideError() {
@@ -277,7 +315,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (step < n) {
         dot.innerHTML = checkSVG().replace('width="20" height="20"', 'width="13" height="13"');
       } else {
-        dot.textContent = step;
+        dot.textContent = new Intl.NumberFormat(window.i18n?.getLocale?.() || "en").format(step);
       }
     });
 
@@ -423,7 +461,9 @@ document.addEventListener("DOMContentLoaded", async () => {
           "identity.recordingInterrupted",
           "Recording was interrupted: {error}. Please try again.",
           {
-            error: e.error?.message || "microphone error",
+            error:
+              e.error?.message ||
+              tr("identity.micAccessDenied", "Microphone access denied or hardware error."),
           }
         );
       };
@@ -516,11 +556,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (result?.ok) {
         goToStep(2);
       } else {
-        if (result?.error) {
-          showRawError(result.error);
-        } else {
-          showError("identity.voiceSubmitFailed", "Voice submission failed. Please try again.");
-        }
+        showVoiceErrorForCode(result?.code);
         voiceSubmitting = false;
         renderContinueVoiceButton();
       }
@@ -597,14 +633,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (result?.ok) {
         await showResult(result.data);
       } else {
-        if (result?.error) {
-          showRawError(result.error);
-        } else {
-          showError(
-            "identity.faceVerificationFailed",
-            "Face verification failed. Please try again."
-          );
-        }
+        showPhotoErrorForCode(result?.code);
         photoVerifying = false;
         renderSubmitPhotoButton();
         btnRetakePhoto.disabled = false;

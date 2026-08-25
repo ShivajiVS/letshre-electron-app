@@ -24,7 +24,9 @@
     const parts = key.split(".");
     let node = _bundle;
     for (const part of parts) {
-      if (node === null || node === undefined || typeof node !== "object") {return undefined;}
+      if (node === null || node === undefined || typeof node !== "object") {
+        return undefined;
+      }
       node = node[part];
     }
     return typeof node === "string" ? node : undefined;
@@ -39,7 +41,9 @@
    * nested {tokens} — every current use case only needs that.
    */
   function _pluralize(str, params, locale) {
-    if (!params) {return str;}
+    if (!params) {
+      return str;
+    }
     let out = "";
     let cursor = 0;
     const OPEN = /\{(\w+),\s*plural,\s*/g;
@@ -49,11 +53,16 @@
       let depth = 1;
       let i = OPEN.lastIndex;
       while (i < str.length && depth > 0) {
-        if (str[i] === "{") {depth++;}
-        else if (str[i] === "}") {depth--;}
+        if (str[i] === "{") {
+          depth++;
+        } else if (str[i] === "}") {
+          depth--;
+        }
         i++;
       }
-      if (depth !== 0) {break;} // unbalanced braces — leave the rest untouched
+      if (depth !== 0) {
+        break;
+      } // unbalanced braces — leave the rest untouched
 
       out += str.slice(cursor, match.index);
       const branches = str.slice(OPEN.lastIndex, i - 1);
@@ -69,8 +78,12 @@
       const BRANCH = /(\w+)\s*\{([^{}]*)\}/g;
       let branchMatch;
       while ((branchMatch = BRANCH.exec(branches))) {
-        if (branchMatch[1] === category) {chosen = branchMatch[2];}
-        if (branchMatch[1] === "other") {fallback = branchMatch[2];}
+        if (branchMatch[1] === category) {
+          chosen = branchMatch[2];
+        }
+        if (branchMatch[1] === "other") {
+          fallback = branchMatch[2];
+        }
       }
       out += (chosen ?? fallback ?? "").replace(/#/g, String(value));
 
@@ -80,12 +93,28 @@
     return out + str.slice(cursor);
   }
 
+  /** Locale-formats a numeric param (correct digit shaping for ar/hi/bn/ur etc.); anything else is stringified as-is. */
+  function _formatParam(value, locale) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      try {
+        return new Intl.NumberFormat(locale).format(value);
+      } catch {
+        return String(value);
+      }
+    }
+    return String(value);
+  }
+
   /** Interpolates {token} placeholders (and {key, plural, ...} blocks) with values from params. */
   function _interpolate(str, params, locale) {
-    if (!params) {return str;}
+    if (!params) {
+      return str;
+    }
     const withPlurals = _pluralize(str, params, locale);
     return withPlurals.replace(/\{(\w+)\}/g, (match, token) =>
-      Object.prototype.hasOwnProperty.call(params, token) ? String(params[token]) : match
+      Object.prototype.hasOwnProperty.call(params, token)
+        ? _formatParam(params[token], locale)
+        : match
     );
   }
 
@@ -116,7 +145,9 @@
 
     document.querySelectorAll("[data-i18n]").forEach((el) => {
       const key = el.getAttribute("data-i18n");
-      if (key) {el.textContent = t(key);}
+      if (key) {
+        el.textContent = t(key);
+      }
     });
 
     // Opt-in variant for the rare string that legitimately needs inline markup
@@ -126,7 +157,19 @@
     // keep using textContent everywhere else.
     document.querySelectorAll("[data-i18n-html]").forEach((el) => {
       const key = el.getAttribute("data-i18n-html");
-      if (key) {el.innerHTML = t(key);}
+      if (key) {
+        el.innerHTML = t(key);
+      }
+    });
+
+    // Static digit badges (e.g. how-it-works.html's step numbers) that have no
+    // page controller of their own to route through window.t() — the literal
+    // digit lives in the attribute, textContent is just the en fallback.
+    document.querySelectorAll("[data-i18n-number]").forEach((el) => {
+      const n = Number(el.getAttribute("data-i18n-number"));
+      if (Number.isFinite(n)) {
+        el.textContent = new Intl.NumberFormat(_locale).format(n);
+      }
     });
 
     document.querySelectorAll("[data-i18n-attr]").forEach((el) => {
@@ -134,7 +177,9 @@
       const spec = el.getAttribute("data-i18n-attr");
       spec.split("|").forEach((pair) => {
         const [attr, key] = pair.split(":").map((s) => s.trim());
-        if (attr && key) {el.setAttribute(attr, t(key));}
+        if (attr && key) {
+          el.setAttribute(attr, t(key));
+        }
       });
     });
   }
@@ -153,11 +198,15 @@
    *   page from current state. Must be idempotent — it is called repeatedly.
    */
   function registerRenderer(fn) {
-    if (typeof fn !== "function") {return;}
+    if (typeof fn !== "function") {
+      return;
+    }
     _renderers.add(fn);
     // Registered after the bundle landed (late script, or a page that awaited
     // i18n.ready first) — run it now so it never misses the initial pass.
-    if (_bundleLoaded) {_safeRender(fn);}
+    if (_bundleLoaded) {
+      _safeRender(fn);
+    }
   }
 
   function _safeRender(fn) {
@@ -185,7 +234,9 @@
   // on load) must await this before rendering — otherwise it reads against
   // the empty default bundle and logs spurious "missing key" warnings.
   let _resolveReady;
-  const readyPromise = new Promise((resolve) => { _resolveReady = resolve; });
+  const readyPromise = new Promise((resolve) => {
+    _resolveReady = resolve;
+  });
 
   async function initI18n() {
     if (!window.electronAPI?.getI18nBootstrap) {

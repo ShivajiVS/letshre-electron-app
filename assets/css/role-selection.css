@@ -160,8 +160,9 @@
 }
 
 .rs-sidebar {
-  padding: 40px 24px 40px 40px;
-  border-right: 1px solid var(--border);
+  padding-block: 40px;
+  padding-inline: 40px 24px;
+  border-inline-end: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -605,4 +606,12 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Arabic/Urdu cursive joining breaks under letter-spacing; uppercase is a no-op on non-Latin scripts */
+html[dir="rtl"] .rs-card__title,
+html[dir="rtl"] .rs-confirm__badge-label,
+html[dir="rtl"] .rs-panel__eyebrow {
+  letter-spacing: normal;
+  text-transform: none;
 }

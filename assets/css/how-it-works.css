@@ -50,6 +50,13 @@ body {
   height: clamp(24px, 2vw, 36px);
 }
 
+.hiw-topbar__actions {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .hiw-back {
   display: flex;
   align-items: center;
@@ -95,9 +102,12 @@ body {
   color: var(--blue);
   font-size: 0.72rem;
   font-weight: 600;
+  margin-bottom: 1.25em;
+}
+
+html:not([dir="rtl"]) .hiw-hero__eyebrow {
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  margin-bottom: 1.25em;
 }
 
 .hiw-hero__title {
@@ -128,7 +138,7 @@ body {
 .hiw-timeline::before {
   content: "";
   position: absolute;
-  left: clamp(21px, 1.7vw, 31px);
+  inset-inline-start: clamp(21px, 1.7vw, 31px);
   top: clamp(44px, 3.5vw, 60px);
   bottom: clamp(44px, 3.5vw, 60px);
   width: 2px;
@@ -306,4 +316,8 @@ body {
 }
 .hiw-cta__btn:active {
   transform: translateY(0);
+}
+
+[dir="rtl"] .hiw-cta__btn svg {
+  transform: scaleX(-1);
 }

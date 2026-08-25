@@ -381,3 +381,7 @@
   stroke-dashoffset: 28;
   animation: drawCheck 0.4s 0.08s ease forwards;
 }
+
+[dir="rtl"] #btn-start-icon {
+  transform: scaleX(-1);
+}

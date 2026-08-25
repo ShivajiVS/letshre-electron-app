@@ -193,8 +193,9 @@
 /* ── Sidebar ─────────────────────────────────────────────────────────────── */
 
 .iv-sidebar {
-  padding: 40px 24px 40px 40px;
-  border-right: 1px solid var(--border);
+  padding-block: 40px;
+  padding-inline: 40px 24px;
+  border-inline-end: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -342,12 +343,16 @@
   content: "\201C";
   position: absolute;
   top: 8px;
-  left: 20px;
+  inset-inline-start: 20px;
   font-size: 64px;
   font-family: Georgia, serif;
   color: var(--border);
   line-height: 1;
   pointer-events: none;
+}
+
+html[dir="rtl"] .iv-statement::before {
+  content: "\201D";
 }
 
 .iv-statement--recording {
@@ -795,4 +800,16 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Arabic/Urdu cursive joining breaks under letter-spacing; uppercase is a no-op on non-Latin scripts */
+html[dir="rtl"] .iv-card__title,
+html[dir="rtl"] .iv-photo-label,
+html[dir="rtl"] .iv-photo-frame__badge,
+html[dir="rtl"] .iv-back-btn,
+html[dir="rtl"] .iv-result-photo__tag,
+html[dir="rtl"] .iv-result-match__pill,
+html[dir="rtl"] .iv-result-tip {
+  letter-spacing: normal;
+  text-transform: none;
 }

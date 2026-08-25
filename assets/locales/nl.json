@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "62b6a5be3c4e3ba6"
+    "_sourceHash": "d9329e6db3e554d0"
   },
   "common": {
     "back": "Terug",
@@ -169,7 +169,9 @@
     "roleProcessFailed": "Die functie kon niet worden verwerkt. Probeer het opnieuw.",
     "networkError": "Netwerkfout. Controleer je verbinding en probeer het opnieuw.",
     "startTimedOut": "Dit duurde te lang. Probeer het opnieuw.",
-    "noSkillsListed": "Geen specifieke vaardigheden vermeld — het interview past zich in realtime aan."
+    "noSkillsListed": "Geen specifieke vaardigheden vermeld — het interview past zich in realtime aan.",
+    "roleRequired": "Voer een functie in.",
+    "sessionExpired": "Je sessie is verlopen. Start de app opnieuw en log opnieuw in."
   },
   "identity": {
     "titleMain": "Identiteits-",
@@ -227,7 +229,8 @@
     "realignFace": "Probeer je gezicht opnieuw uit te lijnen",
     "noMatchMessage": "We konden je live foto niet matchen met onze gegevens. Zorg dat je in een goed verlichte ruimte bent en recht in de camera kijkt.",
     "startUnavailable": "Kan niet doorgaan. Start de app opnieuw.",
-    "startTimedOut": "Dit duurde te lang. Probeer het opnieuw."
+    "startTimedOut": "Dit duurde te lang. Probeer het opnieuw.",
+    "sessionExpired": "Je sessie is verlopen. Start de app opnieuw en log opnieuw in."
   },
   "preflightResults": {
     "scanning": "Scannen",
@@ -293,7 +296,12 @@
     "diagnosticsCopyFailed": "Automatisch kopiëren is mislukt. Selecteer de tekst hieronder en kopieer deze.",
     "killElevateBtn": "Sluiten met beheerdersrechten",
     "killElevateHint": "{name} heeft beheerdersrechten nodig. Uw systeem vraagt om bevestiging voordat het wordt gesloten.",
-    "killElevateWaiting": "Wachten op toestemming..."
+    "killElevateWaiting": "Wachten op toestemming...",
+    "unknownError": "Er is iets misgegaan.",
+    "severityCritical": "Kritiek",
+    "severityHigh": "Hoog",
+    "severityMedium": "Gemiddeld",
+    "severityLow": "Laag"
   },
   "updater": {
     "available": "Update beschikbaar",

@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "62b6a5be3c4e3ba6"
+    "_sourceHash": "d9329e6db3e554d0"
   },
   "common": {
     "back": "Kembali",
@@ -169,7 +169,9 @@
     "roleProcessFailed": "Tidak dapat memproses peran tersebut. Silakan coba lagi.",
     "networkError": "Kesalahan jaringan. Periksa koneksi Anda dan coba lagi.",
     "startTimedOut": "Prosesnya terlalu lama. Silakan coba lagi.",
-    "noSkillsListed": "Tidak ada keahlian khusus yang tercantum — wawancara akan menyesuaikan secara real-time."
+    "noSkillsListed": "Tidak ada keahlian khusus yang tercantum — wawancara akan menyesuaikan secara real-time.",
+    "roleRequired": "Silakan masukkan peran.",
+    "sessionExpired": "Sesi Anda telah berakhir. Silakan mulai ulang aplikasi dan masuk kembali."
   },
   "identity": {
     "titleMain": "Verifikasi",
@@ -227,7 +229,8 @@
     "realignFace": "Silakan coba posisikan ulang wajah Anda",
     "noMatchMessage": "Kami tidak dapat mencocokkan foto langsung Anda dengan catatan kami. Pastikan Anda berada di area dengan pencahayaan baik dan menghadap langsung ke kamera.",
     "startUnavailable": "Tidak dapat melanjutkan. Silakan mulai ulang aplikasi.",
-    "startTimedOut": "Prosesnya terlalu lama. Silakan coba lagi."
+    "startTimedOut": "Prosesnya terlalu lama. Silakan coba lagi.",
+    "sessionExpired": "Sesi Anda telah berakhir. Silakan mulai ulang aplikasi dan masuk kembali."
   },
   "preflightResults": {
     "scanning": "Memindai",
@@ -293,7 +296,12 @@
     "diagnosticsCopyFailed": "Tidak dapat menyalin otomatis. Pilih teks di bawah ini lalu salin.",
     "killElevateBtn": "Tutup dengan hak administrator",
     "killElevateHint": "{name} memerlukan hak administrator. Sistem Anda akan meminta konfirmasi sebelum menutupnya.",
-    "killElevateWaiting": "Menunggu izin..."
+    "killElevateWaiting": "Menunggu izin...",
+    "unknownError": "Terjadi kesalahan.",
+    "severityCritical": "Kritis",
+    "severityHigh": "Tinggi",
+    "severityMedium": "Sedang",
+    "severityLow": "Rendah"
   },
   "updater": {
     "available": "Pembaruan tersedia",

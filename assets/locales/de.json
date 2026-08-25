@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "62b6a5be3c4e3ba6"
+    "_sourceHash": "d9329e6db3e554d0"
   },
   "common": {
     "back": "Zurück",
@@ -169,7 +169,9 @@
     "roleProcessFailed": "Diese Rolle konnte nicht verarbeitet werden. Bitte versuchen Sie es erneut.",
     "networkError": "Netzwerkfehler. Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
     "startTimedOut": "Das hat zu lange gedauert. Bitte versuchen Sie es erneut.",
-    "noSkillsListed": "Keine spezifischen Fähigkeiten aufgeführt — das Interview passt sich in Echtzeit an."
+    "noSkillsListed": "Keine spezifischen Fähigkeiten aufgeführt — das Interview passt sich in Echtzeit an.",
+    "roleRequired": "Bitte geben Sie eine Rolle ein.",
+    "sessionExpired": "Ihre Sitzung ist abgelaufen. Bitte starten Sie die App neu und melden Sie sich erneut an."
   },
   "identity": {
     "titleMain": "Identitäts-",
@@ -227,7 +229,8 @@
     "realignFace": "Bitte richten Sie Ihr Gesicht neu aus",
     "noMatchMessage": "Ihr Live-Foto konnte nicht mit unseren Unterlagen abgeglichen werden. Achten Sie auf gute Beleuchtung und schauen Sie direkt in die Kamera.",
     "startUnavailable": "Fortfahren nicht möglich. Bitte starten Sie die App neu.",
-    "startTimedOut": "Das hat zu lange gedauert. Bitte versuchen Sie es erneut."
+    "startTimedOut": "Das hat zu lange gedauert. Bitte versuchen Sie es erneut.",
+    "sessionExpired": "Ihre Sitzung ist abgelaufen. Bitte starten Sie die App neu und melden Sie sich erneut an."
   },
   "preflightResults": {
     "scanning": "Wird gescannt",
@@ -293,7 +296,12 @@
     "diagnosticsCopyFailed": "Automatisches Kopieren nicht möglich. Markieren Sie den Text unten und kopieren Sie ihn.",
     "killElevateBtn": "Mit Administratorrechten schließen",
     "killElevateHint": "{name} benötigt Administratorrechte. Ihr System fragt vor dem Schließen nach einer Bestätigung.",
-    "killElevateWaiting": "Warten auf Berechtigung..."
+    "killElevateWaiting": "Warten auf Berechtigung...",
+    "unknownError": "Etwas ist schiefgelaufen.",
+    "severityCritical": "Kritisch",
+    "severityHigh": "Hoch",
+    "severityMedium": "Mittel",
+    "severityLow": "Niedrig"
   },
   "updater": {
     "available": "Update verfügbar",

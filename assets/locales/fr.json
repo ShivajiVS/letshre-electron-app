@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "62b6a5be3c4e3ba6"
+    "_sourceHash": "d9329e6db3e554d0"
   },
   "common": {
     "back": "Retour",
@@ -169,7 +169,9 @@
     "roleProcessFailed": "Impossible de traiter ce poste. Veuillez réessayer.",
     "networkError": "Erreur réseau. Vérifiez votre connexion et réessayez.",
     "startTimedOut": "Cela a pris trop de temps. Veuillez réessayer.",
-    "noSkillsListed": "Aucune compétence spécifique répertoriée — l'entretien s'adaptera en temps réel."
+    "noSkillsListed": "Aucune compétence spécifique répertoriée — l'entretien s'adaptera en temps réel.",
+    "roleRequired": "Veuillez saisir un poste.",
+    "sessionExpired": "Votre session a expiré. Veuillez redémarrer l'application et vous reconnecter."
   },
   "identity": {
     "titleMain": "Vérification",
@@ -227,7 +229,8 @@
     "realignFace": "Veuillez réaligner votre visage",
     "noMatchMessage": "Nous n'avons pas pu faire correspondre votre photo en direct avec nos enregistrements. Assurez-vous d'être dans un endroit bien éclairé et de regarder directement la caméra.",
     "startUnavailable": "Impossible de continuer. Veuillez redémarrer l'application.",
-    "startTimedOut": "Cela a pris trop de temps. Veuillez réessayer."
+    "startTimedOut": "Cela a pris trop de temps. Veuillez réessayer.",
+    "sessionExpired": "Votre session a expiré. Veuillez redémarrer l'application et vous reconnecter."
   },
   "preflightResults": {
     "scanning": "Analyse en cours",
@@ -293,7 +296,12 @@
     "diagnosticsCopyFailed": "Copie automatique impossible. Sélectionnez le texte ci-dessous et copiez-le.",
     "killElevateBtn": "Fermer avec les droits administrateur",
     "killElevateHint": "{name} nécessite des droits administrateur. Votre système vous demandera de confirmer avant la fermeture.",
-    "killElevateWaiting": "En attente d'autorisation..."
+    "killElevateWaiting": "En attente d'autorisation...",
+    "unknownError": "Une erreur s'est produite.",
+    "severityCritical": "Critique",
+    "severityHigh": "Élevé",
+    "severityMedium": "Moyen",
+    "severityLow": "Faible"
   },
   "updater": {
     "available": "Mise à jour disponible",

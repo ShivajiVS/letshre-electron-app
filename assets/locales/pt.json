@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "62b6a5be3c4e3ba6"
+    "_sourceHash": "d9329e6db3e554d0"
   },
   "common": {
     "back": "Voltar",
@@ -169,7 +169,9 @@
     "roleProcessFailed": "Não foi possível processar essa função. Tente novamente.",
     "networkError": "Erro de rede. Verifique sua conexão e tente novamente.",
     "startTimedOut": "Isso demorou demais. Tente novamente.",
-    "noSkillsListed": "Nenhuma habilidade específica listada — a entrevista se adaptará em tempo real."
+    "noSkillsListed": "Nenhuma habilidade específica listada — a entrevista se adaptará em tempo real.",
+    "roleRequired": "Por favor, insira uma função.",
+    "sessionExpired": "Sua sessão expirou. Reinicie o aplicativo e faça login novamente."
   },
   "identity": {
     "titleMain": "Verificação",
@@ -227,7 +229,8 @@
     "realignFace": "Tente realinhar seu rosto",
     "noMatchMessage": "Não conseguimos corresponder sua foto ao vivo com nossos registros. Certifique-se de estar em um ambiente bem iluminado e olhando diretamente para a câmera.",
     "startUnavailable": "Não é possível continuar. Reinicie o aplicativo.",
-    "startTimedOut": "Isso demorou demais. Tente novamente."
+    "startTimedOut": "Isso demorou demais. Tente novamente.",
+    "sessionExpired": "Sua sessão expirou. Reinicie o aplicativo e faça login novamente."
   },
   "preflightResults": {
     "scanning": "Verificando",
@@ -293,7 +296,12 @@
     "diagnosticsCopyFailed": "Não foi possível copiar automaticamente. Selecione o texto abaixo e copie-o.",
     "killElevateBtn": "Fechar com permissões de administrador",
     "killElevateHint": "{name} precisa de permissões de administrador. O seu sistema pedirá confirmação antes de fechar.",
-    "killElevateWaiting": "A aguardar permissão..."
+    "killElevateWaiting": "A aguardar permissão...",
+    "unknownError": "Algo deu errado.",
+    "severityCritical": "Crítico",
+    "severityHigh": "Alto",
+    "severityMedium": "Médio",
+    "severityLow": "Baixo"
   },
   "updater": {
     "available": "Atualização disponível",

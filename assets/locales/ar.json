@@ -5,7 +5,7 @@
     "dir": "rtl",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "62b6a5be3c4e3ba6"
+    "_sourceHash": "d9329e6db3e554d0"
   },
   "common": {
     "back": "رجوع",
@@ -169,7 +169,9 @@
     "roleProcessFailed": "تعذرت معالجة هذا الدور. يرجى المحاولة مرة أخرى.",
     "networkError": "خطأ في الشبكة. تحقق من اتصالك وحاول مرة أخرى.",
     "startTimedOut": "استغرق ذلك وقتًا طويلاً. يرجى المحاولة مرة أخرى.",
-    "noSkillsListed": "لم يتم إدراج مهارات محددة — سيتكيف المقابلة في الوقت الفعلي."
+    "noSkillsListed": "لم يتم إدراج مهارات محددة — سيتكيف المقابلة في الوقت الفعلي.",
+    "roleRequired": "الرجاء إدخال دور.",
+    "sessionExpired": "انتهت صلاحية جلستك. يرجى إعادة تشغيل التطبيق وتسجيل الدخول مرة أخرى."
   },
   "identity": {
     "titleMain": "التحقق من",
@@ -227,7 +229,8 @@
     "realignFace": "يرجى محاولة إعادة محاذاة وجهك",
     "noMatchMessage": "تعذرت مطابقة صورتك المباشرة مع سجلاتنا. تأكد من أنك في مكان جيد الإضاءة وتنظر مباشرة إلى الكاميرا.",
     "startUnavailable": "تعذرت المتابعة. يرجى إعادة تشغيل التطبيق.",
-    "startTimedOut": "استغرق ذلك وقتًا طويلاً. يرجى المحاولة مرة أخرى."
+    "startTimedOut": "استغرق ذلك وقتًا طويلاً. يرجى المحاولة مرة أخرى.",
+    "sessionExpired": "انتهت صلاحية جلستك. يرجى إعادة تشغيل التطبيق وتسجيل الدخول مرة أخرى."
   },
   "preflightResults": {
     "scanning": "جارٍ الفحص",
@@ -293,7 +296,12 @@
     "diagnosticsCopyFailed": "تعذّر النسخ تلقائيًا. حدّد النص أدناه وانسخه.",
     "killElevateBtn": "الإغلاق بصلاحيات المسؤول",
     "killElevateHint": "يحتاج {name} إلى صلاحيات المسؤول. سيطلب منك النظام التأكيد قبل الإغلاق.",
-    "killElevateWaiting": "في انتظار الإذن..."
+    "killElevateWaiting": "في انتظار الإذن...",
+    "unknownError": "حدث خطأ ما.",
+    "severityCritical": "حرجة",
+    "severityHigh": "مرتفعة",
+    "severityMedium": "متوسطة",
+    "severityLow": "منخفضة"
   },
   "updater": {
     "available": "التحديث متوفر",

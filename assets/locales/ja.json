@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "62b6a5be3c4e3ba6"
+    "_sourceHash": "d9329e6db3e554d0"
   },
   "common": {
     "back": "戻る",
@@ -169,7 +169,9 @@
     "roleProcessFailed": "その職種を処理できませんでした。もう一度お試しください。",
     "networkError": "ネットワークエラーです。接続を確認してもう一度お試しください。",
     "startTimedOut": "時間がかかりすぎました。もう一度お試しください。",
-    "noSkillsListed": "特定のスキルは記載されていません — 面接はリアルタイムで調整されます。"
+    "noSkillsListed": "特定のスキルは記載されていません — 面接はリアルタイムで調整されます。",
+    "roleRequired": "役職を入力してください。",
+    "sessionExpired": "セッションの有効期限が切れました。アプリを再起動して再度サインインしてください。"
   },
   "identity": {
     "titleMain": "本人",
@@ -227,7 +229,8 @@
     "realignFace": "顔の位置を合わせ直してください",
     "noMatchMessage": "ライブ写真を記録と照合できませんでした。明るい場所でカメラを直接見ていることを確認してください。",
     "startUnavailable": "続行できません。アプリを再起動してください。",
-    "startTimedOut": "時間がかかりすぎました。もう一度お試しください。"
+    "startTimedOut": "時間がかかりすぎました。もう一度お試しください。",
+    "sessionExpired": "セッションの有効期限が切れました。アプリを再起動して再度サインインしてください。"
   },
   "preflightResults": {
     "scanning": "スキャン中",
@@ -293,7 +296,12 @@
     "diagnosticsCopyFailed": "自動でコピーできませんでした。下のテキストを選択してコピーしてください。",
     "killElevateBtn": "管理者権限で終了",
     "killElevateHint": "{name} には管理者権限が必要です。終了する前にシステムが確認を求めます。",
-    "killElevateWaiting": "許可を待っています..."
+    "killElevateWaiting": "許可を待っています...",
+    "unknownError": "問題が発生しました。",
+    "severityCritical": "重大",
+    "severityHigh": "高",
+    "severityMedium": "中",
+    "severityLow": "低"
   },
   "updater": {
     "available": "アップデートが利用可能です",

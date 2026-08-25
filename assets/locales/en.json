@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Source-of-truth bundle. Every other locale file must have exactly the same keys (see test/locales.test.js).",
     "_reviewedBy": null,
-    "_sourceHash": "62b6a5be3c4e3ba6"
+    "_sourceHash": "d9329e6db3e554d0"
   },
   "common": {
     "back": "Back",
@@ -169,7 +169,9 @@
     "roleProcessFailed": "Couldn't process that role. Please try again.",
     "networkError": "Network error. Check your connection and try again.",
     "startTimedOut": "That took too long. Please try again.",
-    "noSkillsListed": "No specific skills listed — the interview will adapt in real-time."
+    "noSkillsListed": "No specific skills listed — the interview will adapt in real-time.",
+    "roleRequired": "Please enter a role.",
+    "sessionExpired": "Your session has expired. Please restart the app and sign in again."
   },
   "identity": {
     "titleMain": "Identity",
@@ -227,7 +229,8 @@
     "realignFace": "Please try re-aligning your face",
     "noMatchMessage": "We couldn't match your live photo with our records. Ensure you are in a well-lit area and looking directly at the camera.",
     "startUnavailable": "Unable to continue. Please restart the app.",
-    "startTimedOut": "That took too long. Please try again."
+    "startTimedOut": "That took too long. Please try again.",
+    "sessionExpired": "Your session has expired. Please restart the app and sign in again."
   },
   "preflightResults": {
     "scanning": "Scanning",
@@ -293,7 +296,12 @@
     "diagnosticsCopyFailed": "Could not copy automatically. Select the text below and copy it.",
     "killElevateBtn": "Close with admin rights",
     "killElevateHint": "{name} needs administrator rights. Your system will ask you to confirm before it closes.",
-    "killElevateWaiting": "Waiting for permission..."
+    "killElevateWaiting": "Waiting for permission...",
+    "unknownError": "Something went wrong.",
+    "severityCritical": "Critical",
+    "severityHigh": "High",
+    "severityMedium": "Medium",
+    "severityLow": "Low"
   },
   "updater": {
     "available": "Update available",

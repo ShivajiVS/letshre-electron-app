@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "62b6a5be3c4e3ba6"
+    "_sourceHash": "d9329e6db3e554d0"
   },
   "common": {
     "back": "Indietro",
@@ -169,7 +169,9 @@
     "roleProcessFailed": "Impossibile elaborare quel ruolo. Riprova.",
     "networkError": "Errore di rete. Controlla la connessione e riprova.",
     "startTimedOut": "L'operazione ha impiegato troppo tempo. Riprova.",
-    "noSkillsListed": "Nessuna competenza specifica elencata — il colloquio si adatterà in tempo reale."
+    "noSkillsListed": "Nessuna competenza specifica elencata — il colloquio si adatterà in tempo reale.",
+    "roleRequired": "Inserisci un ruolo.",
+    "sessionExpired": "La sessione è scaduta. Riavvia l'app ed effettua di nuovo l'accesso."
   },
   "identity": {
     "titleMain": "Verifica",
@@ -227,7 +229,8 @@
     "realignFace": "Prova a riallineare il tuo viso",
     "noMatchMessage": "Non siamo riusciti a far corrispondere la tua foto dal vivo con i nostri archivi. Assicurati di trovarti in un'area ben illuminata e di guardare direttamente la fotocamera.",
     "startUnavailable": "Impossibile continuare. Riavvia l'app.",
-    "startTimedOut": "L'operazione ha impiegato troppo tempo. Riprova."
+    "startTimedOut": "L'operazione ha impiegato troppo tempo. Riprova.",
+    "sessionExpired": "La sessione è scaduta. Riavvia l'app ed effettua di nuovo l'accesso."
   },
   "preflightResults": {
     "scanning": "Scansione in corso",
@@ -293,7 +296,12 @@
     "diagnosticsCopyFailed": "Copia automatica non riuscita. Seleziona il testo qui sotto e copialo.",
     "killElevateBtn": "Chiudi con diritti di amministratore",
     "killElevateHint": "{name} richiede i diritti di amministratore. Il sistema chiederà conferma prima di chiuderlo.",
-    "killElevateWaiting": "In attesa dell'autorizzazione..."
+    "killElevateWaiting": "In attesa dell'autorizzazione...",
+    "unknownError": "Qualcosa è andato storto.",
+    "severityCritical": "Critico",
+    "severityHigh": "Alto",
+    "severityMedium": "Medio",
+    "severityLow": "Basso"
   },
   "updater": {
     "available": "Aggiornamento disponibile",

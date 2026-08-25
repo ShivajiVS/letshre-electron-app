@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "62b6a5be3c4e3ba6"
+    "_sourceHash": "d9329e6db3e554d0"
   },
   "common": {
     "back": "Atrás",
@@ -169,7 +169,9 @@
     "roleProcessFailed": "No se pudo procesar ese puesto. Inténtalo de nuevo.",
     "networkError": "Error de red. Comprueba tu conexión e inténtalo de nuevo.",
     "startTimedOut": "Esto tardó demasiado. Inténtalo de nuevo.",
-    "noSkillsListed": "No se enumeran habilidades específicas — la entrevista se adaptará en tiempo real."
+    "noSkillsListed": "No se enumeran habilidades específicas — la entrevista se adaptará en tiempo real.",
+    "roleRequired": "Por favor, introduce un puesto.",
+    "sessionExpired": "Tu sesión ha caducado. Reinicia la aplicación e inicia sesión de nuevo."
   },
   "identity": {
     "titleMain": "Verificación",
@@ -227,7 +229,8 @@
     "realignFace": "Intenta realinear tu rostro",
     "noMatchMessage": "No pudimos hacer coincidir tu foto en vivo con nuestros registros. Asegúrate de estar en un lugar bien iluminado y mirar directamente a la cámara.",
     "startUnavailable": "No se puede continuar. Reinicia la aplicación.",
-    "startTimedOut": "Esto tardó demasiado. Inténtalo de nuevo."
+    "startTimedOut": "Esto tardó demasiado. Inténtalo de nuevo.",
+    "sessionExpired": "Tu sesión ha caducado. Reinicia la aplicación e inicia sesión de nuevo."
   },
   "preflightResults": {
     "scanning": "Escaneando",
@@ -293,7 +296,12 @@
     "diagnosticsCopyFailed": "No se pudo copiar automáticamente. Selecciona el texto de abajo y cópialo.",
     "killElevateBtn": "Cerrar con permisos de administrador",
     "killElevateHint": "{name} necesita permisos de administrador. Tu sistema te pedirá confirmación antes de cerrarlo.",
-    "killElevateWaiting": "Esperando permiso..."
+    "killElevateWaiting": "Esperando permiso...",
+    "unknownError": "Algo salió mal.",
+    "severityCritical": "Crítico",
+    "severityHigh": "Alto",
+    "severityMedium": "Medio",
+    "severityLow": "Bajo"
   },
   "updater": {
     "available": "Actualización disponible",

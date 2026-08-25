@@ -11,6 +11,7 @@
 "use strict";
 
 const logger = require("./logger");
+const localeManager = require("./localeManager");
 const { INTERVIEW_BASE_URL } = require("../shared/constants");
 
 let currentInterviewUrl = INTERVIEW_BASE_URL;
@@ -76,15 +77,30 @@ function handleIncomingProtocol(url, win, isInterviewActive, onViolation) {
   if (isInterviewActive) {
     // Security: mid-interview protocol swap could be an exploit — treat as violation.
     onViolation("Attempted protocol swap during active interview", "high");
-    win.loadURL(currentInterviewUrl);
+    win.loadURL(getCurrentInterviewUrl());
   } else {
     // Still in preflight — silently update the target URL.
     logger.info("[protocol] updated target interview URL:", currentInterviewUrl);
   }
 }
 
+/**
+ * Returns the interview URL with the candidate's current locale attached as
+ * `lang`. Resolved lazily on every call — rather than baked in when the URL
+ * is built — because the language-selection page is shown *after*
+ * setInterviewSession() runs, so the locale the candidate ends up choosing
+ * doesn't exist yet at build time.
+ * @returns {string}
+ */
 function getCurrentInterviewUrl() {
-  return currentInterviewUrl;
+  try {
+    const url = new URL(currentInterviewUrl);
+    url.searchParams.set("lang", localeManager.getPreferred());
+    return url.toString();
+  } catch (err) {
+    logger.warn("[protocol] could not attach lang to interview URL:", err.message);
+    return currentInterviewUrl; // fail open — never block the interview over a query param
+  }
 }
 
 function getCurrentAccessToken() {

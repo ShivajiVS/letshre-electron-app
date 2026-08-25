@@ -292,7 +292,9 @@ If the web app never registers this listener, a candidate can complete an entire
 | `ac` / `rc`       | Access / refresh token, when a session is available                                                                                                                                            |
 | `candidate_photo` | Base64 data URL of the live photo captured during identity verification                                                                                                                        |
 | `role_selection`  | JSON-encoded `{ is_custom_role, selected_role?, manual_skills? }`                                                                                                                              |
-| `locale`          | The candidate's chosen UI language (locale code, e.g. `"hi"`) from the desktop shell's language switcher — read this to render the SPA itself in the same language instead of assuming English |
+| `locale`          | The candidate's chosen UI language (locale code, e.g. `"hi"`) from the desktop shell's language switcher — secondary channel, see the `lang` query param below, which is race-free and should be preferred |
+
+The `lang` query param on the interview URL (see [Deep link protocol](#deep-link-protocol)) carries the same value and is available before the SPA's first script runs, so prefer reading it over `sessionStorage.locale` at boot — `sessionStorage` is written on Electron's `dom-ready`, which can fire after a module-script SPA has already started.
 
 ## Renderer API (`window.electronAPI`)
 
@@ -321,7 +323,15 @@ Registered scheme: **`letshyre://`**
 letshyre://start?ac=<accessToken>&rc=<refreshToken>
 ```
 
-`ac` (access) and `rc` (refresh) are parsed in `src/main/protocolHandler.js`, used to build the interview URL (`https://interview.letshyre.com?ac=…&rc=…`) and to authenticate backend calls. A protocol activation **during** an active interview is treated as a high‑severity violation (possible session swap).
+`ac` (access) and `rc` (refresh) are parsed in `src/main/protocolHandler.js`, used to build the interview URL and to authenticate backend calls. A protocol activation **during** an active interview is treated as a high‑severity violation (possible session swap).
+
+The interview URL also carries the candidate's chosen language as `lang` (locale code, e.g. `te`), attached on every read rather than baked in at build time — the language-selection page runs after the URL is first assembled, so the final choice isn't known yet at that point:
+
+```
+https://interview.letshyre.com/?ac=<accessToken>&rc=<refreshToken>&lang=<localeCode>
+```
+
+`lang` is gated the same way the rest of the app's locale surface is: packaged builds only ever emit a certified (`reviewed: true`) locale, so it stays `en` there until a translation is certified — all 19 codes appear in dev/QA builds.
 
 ## Backend endpoints expected
 

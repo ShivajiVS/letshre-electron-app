@@ -23,6 +23,10 @@ resources/agent
 # Agent runtime log
 agent_log.json
 
+# Dev-only pseudo-localization output (regenerate via
+# scripts/generate-pseudo-locale.js — see its header for the manual QA workflow)
+assets/locales-dev/
+
 *.local
 .env
 .env.uat

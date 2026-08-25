@@ -214,6 +214,7 @@ const IPC = {
   // Back navigation
   LOAD_DASHBOARD: "load-dashboard",
   LOAD_SECURITY_CHECK: "load-security-check",
+  LOAD_LANGUAGE_SELECTION: "load-language-selection",
 
   // Preflight
   RUN_PREFLIGHT: "run-preflight-scans",

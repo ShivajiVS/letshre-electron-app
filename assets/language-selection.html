@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en" class="i18n-pending">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="./css/fonts.css" />
+    <link rel="stylesheet" href="./css/base.css" />
+    <link rel="stylesheet" href="./css/components.css" />
+    <link rel="stylesheet" href="./css/language-selection.css" />
+    <link rel="stylesheet" href="./css/i18n.css" />
+  </head>
+  <body class="ls-body">
+    <header class="ls-topbar">
+      <button
+        class="btn-back-nav"
+        id="btn-back"
+        type="button"
+        onclick="window.electronAPI?.loadDashboard?.()"
+      >
+        <svg
+          class="back-icon"
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M19 12H5" />
+          <path d="M12 19l-7-7 7-7" />
+        </svg>
+        <span data-i18n="common.back">Back</span>
+      </button>
+      <div id="lang-switcher"></div>
+    </header>
+
+    <main class="ls-main">
+      <div class="ls-card">
+        <div class="ls-card__header">
+          <h1 class="ls-card__title">
+            <span data-i18n="languageSelection.titleMain">Language</span>
+            <span class="ls-card__title-accent" data-i18n="languageSelection.titleAccent"
+              >Selection</span
+            >
+          </h1>
+          <div class="ls-card__title-bar"></div>
+          <p class="ls-card__sub" data-i18n="languageSelection.sub">
+            Choose the language you'd like to use for your interview.
+          </p>
+        </div>
+
+        <div class="ls-options" id="ls-options" role="radiogroup"></div>
+
+        <div class="ls-actions">
+          <button
+            class="ls-btn ls-btn--primary ls-btn--full ls-btn--lg"
+            id="btn-continue"
+            type="button"
+          >
+            <span data-i18n="languageSelection.continue">Continue</span>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M5 12h14" />
+              <path d="M12 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <script src="./js/i18n.js"></script>
+    <script src="../src/renderer/languageSwitcher.js"></script>
+    <script src="../src/renderer/rendererUtils.js"></script>
+    <script src="../src/renderer/language-selection.js"></script>
+  </body>
+</html>

@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "d9329e6db3e554d0"
+    "_sourceHash": "b27c5e82b7127a27"
   },
   "common": {
     "back": "பின்னால்",
@@ -322,5 +322,11 @@
   },
   "langSwitcher": {
     "label": "மொழி"
+  },
+  "languageSelection": {
+    "titleMain": "மொழி",
+    "titleAccent": "தேர்வு",
+    "sub": "உங்கள் நேர்காணலுக்குப் பயன்படுத்த விரும்பும் மொழியைத் தேர்ந்தெடுக்கவும்.",
+    "continue": "தொடரவும்"
   }
 }

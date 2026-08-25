@@ -567,6 +567,17 @@ function loadSecurityCheck() {
 }
 
 /**
+ * Navigates to the language-selection screen that sits between the dashboard
+ * and the preflight scan. Callers are responsible for skipping this page when
+ * only one locale is selectable — see ipcHandlers.js.
+ */
+function loadLanguageSelectionPage() {
+  if (win && !win.isDestroyed()) {
+    win.loadFile(path.join(__dirname, "../../assets/language-selection.html"));
+  }
+}
+
+/**
  * Navigates to the permissions page. Called when the user clicks Proceed on
  * the preflight screen — all security checks have passed but the window is
  * NOT yet in kiosk/lockdown mode (the OS needs to show native permission
@@ -628,6 +639,7 @@ module.exports = {
   enforceViolation,
   loadDashboard,
   loadSecurityCheck,
+  loadLanguageSelectionPage,
   loadPermissionsPage,
   loadIdentityVerificationPage,
   loadRoleSelectionPage,

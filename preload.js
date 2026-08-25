@@ -137,6 +137,7 @@ const ALLOWED_SEND_CHANNELS = [
   IPC.LOAD_ROLE_SELECTION,
   IPC.LOAD_DASHBOARD,
   IPC.LOAD_SECURITY_CHECK,
+  IPC.LOAD_LANGUAGE_SELECTION,
   IPC.LOAD_HOW_IT_WORKS,
   IPC.PROCTORING_STOP,
 ];
@@ -261,6 +262,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   /** Back: navigate to security check (from permissions page). */
   loadSecurityCheck: () => safeSend(IPC.LOAD_SECURITY_CHECK),
+
+  /**
+   * Back: navigate to language selection (from security check). Main routes
+   * this straight to the dashboard when only one locale is available, so the
+   * skipped page is never shown as a dead end.
+   */
+  loadLanguageSelection: () => safeSend(IPC.LOAD_LANGUAGE_SELECTION),
 
   /**
    * Submit a role string; main POSTs to skills_for_role API with Bearer token.

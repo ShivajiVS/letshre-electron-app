@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "d9329e6db3e554d0"
+    "_sourceHash": "b27c5e82b7127a27"
   },
   "common": {
     "back": "Retour",
@@ -322,5 +322,11 @@
   },
   "langSwitcher": {
     "label": "Langue"
+  },
+  "languageSelection": {
+    "titleMain": "Langue",
+    "titleAccent": "Sélection",
+    "sub": "Choisissez la langue que vous souhaitez utiliser pour votre entretien.",
+    "continue": "Continuer"
   }
 }

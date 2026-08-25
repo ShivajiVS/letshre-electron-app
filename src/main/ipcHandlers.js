@@ -33,6 +33,7 @@ const {
   minimizeWindow,
   loadDashboard,
   loadSecurityCheck,
+  loadLanguageSelectionPage,
   loadPermissionsPage,
   loadIdentityVerificationPage,
   loadRoleSelectionPage,
@@ -85,6 +86,32 @@ function validateProcessName(value) {
  */
 function prewarmAgent() {
   whenAgentReady().catch((err) => logger.warn("[ipc] agent pre-warm failed:", err.message));
+}
+
+/**
+ * Whether the language-selection page has anything to offer. Unreviewed locales
+ * are gated out of packaged builds (localeManager's `_localeAllowed`), so a
+ * production build resolves to English alone — showing a one-option page there
+ * would be a dead end. This flips to true on its own once a second locale is
+ * certified; nothing else needs changing.
+ */
+function _languageSelectionIsMeaningful() {
+  return localeManager.getSupportedLocales().length > 1;
+}
+
+/**
+ * Leaves the security-check → interview flow for the dashboard, stopping the
+ * agent (only needed on preflight and during the interview; no-op if already
+ * stopped). Shared by the back button and by the single-locale fall-through, so
+ * the two teardowns can't drift apart.
+ */
+function _leaveInterviewFlowToDashboard({ alreadyTornDown = false } = {}) {
+  if (!alreadyTornDown) {
+    stopPreProceedMonitor();
+    _pageGeneration++; // leaving the page — any scan still running is orphaned
+  }
+  killAgent();
+  loadDashboard();
 }
 
 // Security-check page generation. Bumped whenever that page's lifecycle
@@ -184,7 +211,7 @@ function registerIpcHandlers() {
   });
 
   // Dashboard "Take Interview": set the interview session from the logged-in
-  // tokens, then hand off to the EXISTING security-check screen.
+  // tokens, then hand off to the language step (or straight past it).
   registerSend(IPC.START_INTERVIEW, SCOPE.LOCAL, () => {
     const tokens = authManager.getTokens();
     if (!tokens) {
@@ -194,8 +221,15 @@ function registerIpcHandlers() {
     logger.info("[ipc] start-interview — entering security check");
     setInterviewSession(tokens.accessToken, tokens.refreshToken);
     _pageGeneration++;
+    // Prewarm now rather than on the preflight page itself: the candidate
+    // spends a few seconds choosing a language, which the agent gets to use
+    // for booting before preflight actually needs it.
     prewarmAgent();
-    loadSecurityCheck();
+    if (_languageSelectionIsMeaningful()) {
+      loadLanguageSelectionPage();
+    } else {
+      loadSecurityCheck();
+    }
   });
 
   // Preflight "Proceed" → load the permissions page (NOT locked down yet;
@@ -241,13 +275,7 @@ function registerIpcHandlers() {
 
   registerSend(IPC.LOAD_DASHBOARD, SCOPE.LOCAL, () => {
     logger.info("[ipc] load-dashboard (back nav)");
-    stopPreProceedMonitor();
-    _pageGeneration++; // leaving the page — any scan still running is orphaned
-    // Leaving the security-check → interview flow: stop the agent (it is only
-    // needed on the preflight page and during the interview). No-op if already
-    // stopped (e.g. after interview completion).
-    killAgent();
-    loadDashboard();
+    _leaveInterviewFlowToDashboard();
   });
 
   registerSend(IPC.LOAD_SECURITY_CHECK, SCOPE.LOCAL, () => {
@@ -256,6 +284,23 @@ function registerIpcHandlers() {
     _pageGeneration++;
     prewarmAgent();
     loadSecurityCheck();
+  });
+
+  // Back from preflight. The renderer always asks for the language page; when
+  // there is nothing to choose it was never shown on the way in either, so
+  // falling through to the dashboard is what "back" actually means there.
+  registerSend(IPC.LOAD_LANGUAGE_SELECTION, SCOPE.LOCAL, () => {
+    stopPreProceedMonitor();
+    _pageGeneration++;
+    if (!_languageSelectionIsMeaningful()) {
+      logger.info("[ipc] load-language-selection — single locale, going to dashboard");
+      _leaveInterviewFlowToDashboard({ alreadyTornDown: true });
+      return;
+    }
+    logger.info("[ipc] load-language-selection (back nav)");
+    // The agent stays warm deliberately: the candidate is one click from
+    // returning to preflight. Going on to the dashboard from here kills it.
+    loadLanguageSelectionPage();
   });
 
   registerSend(IPC.LOAD_ROLE_SELECTION, SCOPE.LOCAL, () => {

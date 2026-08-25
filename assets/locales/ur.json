@@ -5,7 +5,7 @@
     "dir": "rtl",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "d9329e6db3e554d0"
+    "_sourceHash": "b27c5e82b7127a27"
   },
   "common": {
     "back": "پیچھے",
@@ -322,5 +322,11 @@
   },
   "langSwitcher": {
     "label": "زبان"
+  },
+  "languageSelection": {
+    "titleMain": "زبان",
+    "titleAccent": "انتخاب",
+    "sub": "وہ زبان منتخب کریں جو آپ اپنے انٹرویو کے لیے استعمال کرنا چاہتے ہیں۔",
+    "continue": "جاری رکھیں"
   }
 }

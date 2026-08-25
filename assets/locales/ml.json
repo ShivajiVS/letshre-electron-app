@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "d9329e6db3e554d0"
+    "_sourceHash": "b27c5e82b7127a27"
   },
   "common": {
     "back": "തിരികെ",
@@ -322,5 +322,11 @@
   },
   "langSwitcher": {
     "label": "ഭാഷ"
+  },
+  "languageSelection": {
+    "titleMain": "ഭാഷ",
+    "titleAccent": "തിരഞ്ഞെടുക്കൽ",
+    "sub": "നിങ്ങളുടെ അഭിമുഖത്തിനായി ഉപയോഗിക്കാൻ ആഗ്രഹിക്കുന്ന ഭാഷ തിരഞ്ഞെടുക്കുക.",
+    "continue": "തുടരുക"
   }
 }

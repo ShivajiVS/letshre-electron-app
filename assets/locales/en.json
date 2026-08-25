@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Source-of-truth bundle. Every other locale file must have exactly the same keys (see test/locales.test.js).",
     "_reviewedBy": null,
-    "_sourceHash": "d9329e6db3e554d0"
+    "_sourceHash": "b27c5e82b7127a27"
   },
   "common": {
     "back": "Back",
@@ -322,5 +322,11 @@
   },
   "langSwitcher": {
     "label": "Language"
+  },
+  "languageSelection": {
+    "titleMain": "Language",
+    "titleAccent": "Selection",
+    "sub": "Choose the language you'd like to use for your interview.",
+    "continue": "Continue"
   }
 }

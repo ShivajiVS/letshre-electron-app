@@ -1,0 +1,276 @@
+.ls-body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -8%, rgba(0, 85, 255, 0.07) 0%, transparent 65%),
+    var(--bg);
+}
+
+.ls-topbar {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  padding: 0 36px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.ls-main {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 36px 24px 56px;
+}
+
+.ls-card {
+  width: 100%;
+  max-width: 600px;
+  background: #fff;
+  border: 1.5px solid var(--border);
+  border-radius: 22px;
+  box-shadow:
+    0 1px 2px rgba(26, 26, 25, 0.04),
+    0 24px 64px -12px rgba(26, 26, 25, 0.12);
+  overflow: hidden;
+  animation: lsCardIn 0.4s ease both;
+}
+
+@keyframes lsCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ls-card__header {
+  padding: 28px 36px 24px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, #fdfcf9 0%, #fff 100%);
+}
+
+.ls-card__title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+  font-style: italic;
+  color: var(--ink);
+}
+
+.ls-card__title-accent {
+  color: var(--accent);
+}
+
+.ls-card__title-bar {
+  width: 56px;
+  height: 3px;
+  margin-top: 10px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--ink) 0%, var(--accent) 100%);
+}
+
+.ls-card__sub {
+  margin: 14px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.ls-options {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  padding: 24px 36px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.ls-option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  cursor: pointer;
+  background: #fff;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s,
+    background 0.2s;
+  animation: lsFadeUp 0.3s ease both;
+}
+
+@keyframes lsFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ls-option:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.ls-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.ls-option--selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.ls-option__radio {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
+}
+
+.ls-option--selected .ls-option__radio {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.ls-option--selected .ls-option__radio::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.ls-option__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* Every endonym renders at once here, so this can't inherit the single-script
+   stack html[lang] picks for the rest of the app — Urdu in particular falls
+   back to a non-Nastaliq face without the explicit list. */
+.ls-option__label {
+  font-family: Inter, "Noto Sans", "Noto Nastaliq Urdu", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ls-option__code {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.ls-option--selected .ls-option__code {
+  color: var(--accent);
+}
+
+.ls-actions {
+  padding: 22px 36px 28px;
+  border-top: 1px solid var(--border);
+}
+
+.ls-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 24px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    transform 0.1s,
+    box-shadow 0.15s,
+    opacity 0.15s;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.ls-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.ls-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ls-btn--full {
+  width: 100%;
+}
+
+.ls-btn--lg {
+  height: 52px;
+  font-size: 15px;
+}
+
+.ls-btn--primary {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(0, 85, 255, 0.25);
+}
+
+.ls-btn--primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0, 68, 204, 0.35);
+}
+
+@media (max-width: 520px) {
+  .ls-options {
+    grid-template-columns: 1fr;
+  }
+
+  .ls-topbar {
+    padding: 0 20px;
+  }
+
+  .ls-card__header,
+  .ls-options,
+  .ls-actions {
+    padding-inline: 22px;
+  }
+}
+
+html[dir="rtl"] .ls-card__title,
+html[dir="rtl"] .ls-option__code {
+  letter-spacing: normal;
+  text-transform: none;
+}

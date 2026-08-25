@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "d9329e6db3e554d0"
+    "_sourceHash": "b27c5e82b7127a27"
   },
   "common": {
     "back": "ಹಿಂದೆ",
@@ -322,5 +322,11 @@
   },
   "langSwitcher": {
     "label": "ಭಾಷೆ"
+  },
+  "languageSelection": {
+    "titleMain": "ಭಾಷೆ",
+    "titleAccent": "ಆಯ್ಕೆ",
+    "sub": "ನಿಮ್ಮ ಸಂದರ್ಶನಕ್ಕಾಗಿ ನೀವು ಬಳಸಲು ಬಯಸುವ ಭಾಷೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ.",
+    "continue": "ಮುಂದುವರಿಸಿ"
   }
 }

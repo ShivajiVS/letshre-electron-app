@@ -43,6 +43,7 @@ const IPC = {
   // Back navigation
   LOAD_DASHBOARD: "load-dashboard",
   LOAD_SECURITY_CHECK: "load-security-check",
+  LOAD_LANGUAGE_SELECTION: "load-language-selection",
   LOAD_HOW_IT_WORKS: "load-how-it-works",
 
   // Image proxy: main fetches CDN image → base64 data URL (bypasses renderer CSP)

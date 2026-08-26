@@ -84,7 +84,7 @@ body {
 .hiw-page {
   max-width: clamp(660px, 58vw, 1000px);
   margin: 0 auto;
-  padding: clamp(40px, 4vw, 72px) clamp(16px, 2vw, 32px) clamp(60px, 6vw, 100px);
+  padding: clamp(14px, 2vw, 28px) clamp(16px, 2vw, 32px) clamp(60px, 6vw, 100px);
 }
 
 .hiw-hero {

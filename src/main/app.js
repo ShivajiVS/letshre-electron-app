@@ -22,6 +22,8 @@ const { applyArgvDeepLink } = require("./protocolHandler");
 const updater = require("./updater");
 const startDetection = require("../detector/systemChecks");
 const authManager = require("./authManager");
+const pendingUploads = require("./pendingUploads");
+const screenRecorder = require("./screenRecorder");
 const { SCOPE, isFrameAllowed, isUrlOriginAllowed } = require("./ipcScope");
 
 // Screen share and getUserMedia are legitimately requested from two places:
@@ -61,6 +63,16 @@ async function onReady() {
 
   // 0b. Restore persisted auth session (safeStorage is ready after app.whenReady)
   authManager.init();
+
+  // 0c. Open the recording spill store before anything can record into it.
+  try {
+    const purged = pendingUploads.init(app.getPath("userData"));
+    if (purged.length) {
+      logger.info(`[app] purged ${purged.length} expired pending upload(s)`);
+    }
+  } catch (err) {
+    logger.error("[app] pending-upload store unavailable:", err.message);
+  }
 
   // 1. Verify the restored session. The security agent is intentionally NOT
   //    spawned here — it is scoped to the security-check → interview window.
@@ -146,6 +158,17 @@ async function onReady() {
   // 7. Auto-updater — initialised LAST so the window exists for early events.
   //    Interview-safe: checks/installs are gated on interview state internally.
   updater.init();
+
+  // 8. Finish any recording upload interrupted by a previous quit/crash.
+  //    Deliberately not awaited: draining a backlog can take minutes and must
+  //    not hold up the window. Requires a valid session — the chunk/complete
+  //    calls are all authenticated, so an expired login defers this to the
+  //    next launch rather than burning the retries now.
+  if (sessionResult.valid) {
+    screenRecorder
+      .resumePendingUploads()
+      .catch((err) => logger.error("[app] pending upload resume failed:", err.message));
+  }
 }
 
 /**
@@ -221,11 +244,61 @@ function registerAppEvents() {
     );
   });
 
+  // Quitting between the last confirmed chunk and /complete used to abandon the
+  // recording with no warning. Chunks now survive on disk either way, so this
+  // guard is about finishing promptly rather than preventing loss — hence the
+  // bounded wait and the always-available escape.
+  app.on("before-quit", (event) => {
+    if (quitGuardResolved || !screenRecorder.hasPendingUpload()) {
+      return;
+    }
+    event.preventDefault();
+    _confirmQuitDuringUpload();
+  });
+
   app.on("will-quit", () => {
     globalShortcut.unregisterAll();
     updater.dispose();
     killAgent();
   });
+}
+
+// Latches once the user has answered, so the re-issued app.quit() below isn't
+// intercepted again by the same handler.
+let quitGuardResolved = false;
+
+const DRAIN_WAIT_MS = 5 * 60 * 1000;
+
+async function _confirmQuitDuringUpload() {
+  const remaining = screenRecorder.getPendingChunkCount();
+  const { response } = await dialog.showMessageBox({
+    type: "warning",
+    buttons: ["Finish upload", "Quit anyway"],
+    defaultId: 0,
+    cancelId: 0,
+    title: "Recording still uploading",
+    message: "Your interview recording is still uploading.",
+    detail: remaining
+      ? `${remaining} part(s) left to upload. Quitting now will finish the upload the next time you open the app.`
+      : "Finalising the recording. Quitting now will finish it the next time you open the app.",
+  });
+
+  if (response === 1) {
+    logger.warn("[app] quit during upload — remaining chunks deferred to next launch");
+    quitGuardResolved = true;
+    app.quit();
+    return;
+  }
+
+  logger.info("[app] waiting for recording upload to drain before quitting");
+  const drained = await screenRecorder.whenDrained(DRAIN_WAIT_MS);
+  logger.info(
+    drained
+      ? "[app] upload drained — quitting"
+      : "[app] upload still pending after wait — quitting, will resume next launch"
+  );
+  quitGuardResolved = true;
+  app.quit();
 }
 
 module.exports = { registerAppEvents, safeViolation };

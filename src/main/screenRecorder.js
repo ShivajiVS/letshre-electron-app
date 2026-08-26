@@ -10,20 +10,33 @@
  *   /start fails → buffer chunks in memory; retry /start on recorder:stopped,
  *                  then drain the buffer before /complete.
  *   /chunk fails → exponential-backoff retry (4 attempts); sustained failure
- *                  (offline) keeps chunk queued and retries on "online".
+ *                  pauses the pump and re-arms it on a timer, so a temporary
+ *                  outage resumes on its own.
+ *
+ * Every chunk is mirrored to disk via pendingUploads before it is queued, and
+ * /complete is sent ONLY once the queue is empty — a partial drain must never
+ * be reported to the backend as a finished recording, or it merges a truncated
+ * video and reports success. Anything left undrained is resumed on next launch.
  */
 
 "use strict";
 
 const path = require("path");
-const { BrowserWindow, desktopCapturer, ipcMain } = require("electron");
+const { BrowserWindow, desktopCapturer, dialog, ipcMain } = require("electron");
 const logger = require("./logger");
 const authManager = require("./authManager");
-const { IPC } = require("../shared/constants");
+const pendingUploads = require("./pendingUploads");
+const { IPC, INTERVIEW_BASE_URL } = require("../shared/constants");
 
 const MAX_CHUNK_RETRIES = 4;
+const MAX_COMPLETE_RETRIES = 4;
 const POLL_INTERVAL_MS = 3000;
 const MAX_POLL_MS = 5 * 60 * 1000; // 5 min
+
+// How long to wait before re-arming a pump that gave up after exhausting its
+// per-chunk retries. Long enough not to hammer a down backend, short enough
+// that a brief outage still drains within the same session.
+const RESUME_RETRY_MS = 30000;
 
 // Max ms to wait for the hidden recorder window to report RECORDER_READY after
 // creation. If it never does (preload missing, getUserMedia blocked, renderer
@@ -43,16 +56,27 @@ let pumpPromise = Promise.resolve(); // tracked so _finalize() can await a runni
 let chunkQueue = []; // { index, uint8Array }[]
 let pollTimer = null;
 let readyTimer = null; // watchdog: fires if RECORDER_READY never arrives
+let resumeTimer = null; // re-arms a pump that exhausted its retries
+
+// Identifies this recording's spill directory. Independent of uploadId, which
+// may not exist yet when the first chunks land.
+let sessionKey = null;
+
+// Set once the recorder has been told to stop: a pump that drains *after* that
+// point is responsible for sending /complete, since _finalize() has already
+// come and gone.
+let stopRequested = false;
+let completeSent = false;
 
 // Job meta
 let jobMeta = null; // { interviewId, fileName }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function _uploadWithRetry(uint8Array, index) {
+async function _uploadWithRetry(uint8Array, index, targetUploadId = null) {
   for (let attempt = 1; attempt <= MAX_CHUNK_RETRIES; attempt++) {
     const res = await authManager.uploadVideoChunk({
-      uploadId,
+      uploadId: targetUploadId || uploadId,
       chunkIndex: index,
       chunk: uint8Array,
     });
@@ -85,9 +109,14 @@ function _pump() {
         try {
           await _uploadWithRetry(item.uint8Array, item.index);
           chunkQueue.shift();
+          // Confirmed by the backend — the spill copy is no longer needed.
+          if (sessionKey) {
+            pendingUploads.removeChunk(sessionKey, item.index);
+          }
           logger.info(`[recorder] chunk ${item.index} uploaded (${item.uint8Array.byteLength} B)`);
         } catch (err) {
-          // Sustained failure (likely offline) — stop pumping; resume on "online" event.
+          // Sustained failure (likely offline). The chunk stays queued and on
+          // disk; _scheduleResume() re-arms rather than dropping it.
           logger.warn("[recorder] chunk pump paused:", err.message);
           break;
         }
@@ -98,6 +127,34 @@ function _pump() {
   })();
 
   return pumpPromise;
+}
+
+function _clearResumeTimer() {
+  if (resumeTimer) {
+    clearTimeout(resumeTimer);
+    resumeTimer = null;
+  }
+}
+
+/**
+ * Re-arms a paused pump. If the recorder has already stopped, a drain that
+ * finally succeeds also has to send /complete — _finalize() ran while chunks
+ * were still queued and deliberately declined to send it then.
+ */
+function _scheduleResume() {
+  if (resumeTimer || !uploadId || chunkQueue.length === 0) {
+    return;
+  }
+  resumeTimer = setTimeout(async () => {
+    resumeTimer = null;
+    logger.info(`[recorder] retrying upload — ${chunkQueue.length} chunk(s) still queued`);
+    await _pump();
+    if (chunkQueue.length > 0) {
+      _scheduleResume();
+    } else if (stopRequested) {
+      await _completeIfDrained();
+    }
+  }, RESUME_RETRY_MS);
 }
 
 function _clearPoll() {
@@ -122,7 +179,7 @@ function _pollStatus() {
     pollTimer = null;
     if (Date.now() - startedAt > MAX_POLL_MS) {
       logger.warn("[recorder] status poll timed out after 5 min");
-      _pushToInterviewPage(IPC.PUSH_PROCTORING_ERROR, { error: "Recording merge timed out" });
+      _notifyProctoringError("Recording merge timed out");
       return;
     }
     const res = await authManager.getVideoUploadStatus(uploadId);
@@ -139,9 +196,7 @@ function _pollStatus() {
     }
     if (st === "failed") {
       logger.error("[recorder] backend merge failed");
-      _pushToInterviewPage(IPC.PUSH_PROCTORING_ERROR, {
-        error: "Recording merge failed on server",
-      });
+      _notifyProctoringError("Recording merge failed on server");
       return;
     }
     // uploading | queued | processing → keep polling
@@ -166,9 +221,7 @@ async function _finalize() {
       await _pump();
     } else {
       logger.error("[recorder] fallback /start also failed — recording lost:", res.error);
-      _pushToInterviewPage(IPC.PUSH_PROCTORING_ERROR, {
-        error: "Could not register upload session.",
-      });
+      _notifyProctoringError("Could not register upload session.");
       return;
     }
   }
@@ -179,15 +232,68 @@ async function _finalize() {
 
   // Drain any remaining queued chunks before completing.
   await _pump();
+  await _completeIfDrained();
+}
 
-  const res = await authManager.completeVideoUpload(uploadId);
+/**
+ * Sends /complete, but only when every chunk is confirmed uploaded.
+ *
+ * _pump() gives up after a chunk exhausts its retries, so reaching this point
+ * does NOT imply the queue is empty. Completing anyway tells the backend to
+ * merge whatever it has: it produces a truncated video AND reports
+ * "completed", so the loss is invisible to the candidate, the interviewer and
+ * these logs alike. Leaving the session on disk instead means the next launch
+ * finishes the job.
+ */
+async function _completeIfDrained() {
+  if (!uploadId) {
+    return;
+  }
+
+  if (chunkQueue.length > 0) {
+    logger.error(
+      `[recorder] ${chunkQueue.length} chunk(s) still queued — withholding /complete to avoid a truncated merge; will resume`
+    );
+    _notifyProctoringError("Recording upload is incomplete — it will finish automatically.");
+    _scheduleResume();
+    return;
+  }
+
+  const res = await _completeWithRetry();
   if (res.ok) {
+    completeSent = true;
     logger.info("[recorder] /complete sent — polling merge status");
+    if (sessionKey) {
+      pendingUploads.destroySession(sessionKey);
+      sessionKey = null;
+    }
     _pollStatus();
   } else {
-    logger.error("[recorder] /complete failed:", res.error);
-    _pushToInterviewPage(IPC.PUSH_PROCTORING_ERROR, { error: "Failed to finalise recording." });
+    // Chunks are all uploaded but unmerged — the session stays on disk so the
+    // next launch can retry /complete alone.
+    logger.error("[recorder] /complete failed after retries:", res.error);
+    _notifyProctoringError("Failed to finalise recording.");
   }
+}
+
+/**
+ * Chunks already get four attempts each; /complete had none, so a single
+ * transient failure stranded a fully-uploaded recording unmerged.
+ */
+async function _completeWithRetry(targetUploadId = null) {
+  let last = { ok: false, error: "not attempted" };
+  for (let attempt = 1; attempt <= MAX_COMPLETE_RETRIES; attempt++) {
+    last = await authManager.completeVideoUpload(targetUploadId || uploadId);
+    if (last.ok) {
+      return last;
+    }
+    if (attempt < MAX_COMPLETE_RETRIES) {
+      const backoff = Math.min(1000 * 2 ** attempt, 8000);
+      logger.warn(`[recorder] /complete retry ${attempt} in ${backoff}ms — ${last.error}`);
+      await sleep(backoff);
+    }
+  }
+  return last;
 }
 
 function _pushToInterviewPage(channel, payload) {
@@ -202,6 +308,40 @@ function _pushToInterviewPage(channel, payload) {
   }
 }
 
+/**
+ * The interview SPA owns the proctoring-error UX, but uploads outlive it: the
+ * scorecard's "View Dashboard" navigates away while chunks are still draining,
+ * and from then on PUSH_PROCTORING_ERROR reaches a page with no listener. Fall
+ * back to a native dialog once the window has left the interview origin, so a
+ * failed recording is never announced only to a page that stopped listening.
+ */
+function _notifyProctoringError(message) {
+  let onInterviewPage = false;
+  try {
+    const { getWindow } = require("./windowManager");
+    const win = getWindow();
+    if (win && !win.isDestroyed()) {
+      onInterviewPage = win.webContents.getURL().startsWith(INTERVIEW_BASE_URL);
+    }
+  } catch (err) {
+    logger.warn("[recorder] could not resolve current page:", err.message);
+  }
+
+  if (onInterviewPage) {
+    _pushToInterviewPage(IPC.PUSH_PROCTORING_ERROR, { error: message });
+    return;
+  }
+
+  dialog
+    .showMessageBox({
+      type: "warning",
+      buttons: ["OK"],
+      title: "Interview recording",
+      message,
+    })
+    .catch((err) => logger.warn("[recorder] error dialog failed:", err.message));
+}
+
 function _resetState() {
   uploadId = null;
   chunkIndex = 0;
@@ -210,8 +350,12 @@ function _resetState() {
   pumpRunning = false;
   pumpPromise = Promise.resolve();
   jobMeta = null;
+  sessionKey = null;
+  stopRequested = false;
+  completeSent = false;
   _clearPoll();
   _clearReadyWatchdog();
+  _clearResumeTimer();
 }
 
 /**
@@ -243,11 +387,26 @@ async function start(meta = {}) {
     isRecording = true;
     jobMeta = { interviewId, fileName };
 
+    // Opened before /start so the spill directory exists for chunks that
+    // arrive while /start is still in flight.
+    sessionKey = `${interviewId || "unknown"}_${Date.now()}`;
+    try {
+      pendingUploads.createSession({ sessionKey, interviewId, fileName });
+    } catch (err) {
+      // Recording is still worth attempting without the safety net — losing
+      // crash-recovery is much better than refusing to record at all.
+      logger.error("[recorder] could not open spill directory:", err.message);
+      sessionKey = null;
+    }
+
     // Register the upload session up-front so chunks stream during the interview.
     // If this fails we buffer chunks and retry at the end (/complete path).
     const startRes = await authManager.startVideoUpload({ interviewId, fileName });
     if (startRes.ok) {
       uploadId = startRes.uploadId;
+      if (sessionKey) {
+        pendingUploads.setUploadId(sessionKey, uploadId);
+      }
       logger.info(`[recorder] upload session started — uploadId: ${uploadId}`);
     } else {
       logger.warn("[recorder] /start failed — buffering chunks:", startRes.error);
@@ -289,9 +448,7 @@ async function start(meta = {}) {
         return;
       } // already stopped/cleaned up
       logger.error("[recorder] recorder never became ready — recording will not be captured");
-      _pushToInterviewPage(IPC.PUSH_PROCTORING_ERROR, {
-        error: "Screen recording could not start on this device.",
-      });
+      _notifyProctoringError("Screen recording could not start on this device.");
     }, READY_TIMEOUT_MS);
 
     logger.info(`[recorder] hidden window created — sourceId: ${sourceId}`);
@@ -313,6 +470,7 @@ function stop() {
     return;
   }
   isRecording = false;
+  stopRequested = true;
 
   if (recorderWin && !recorderWin.isDestroyed()) {
     recorderWin.webContents.send(IPC.RECORDER_STOP);
@@ -340,8 +498,21 @@ function registerRecorderIpc() {
     _pushToInterviewPage(IPC.PUSH_PROCTORING_STARTED, {});
   });
 
-  // Independently-decodable WebM chunk received — queue and pump.
+  // Independently-decodable WebM chunk received — spill to disk, queue, pump.
   ipcMain.on(IPC.RECORDER_CHUNK, (_event, uint8Array) => {
+    // Both branches below assign the same index the chunk will carry when
+    // uploaded, so the spill copy is addressable either way: chunkIndex only
+    // advances once uploadId exists, and chunkBuffer is only used before it
+    // does, so the two counters can never disagree.
+    const index = uploadId ? chunkIndex : chunkBuffer.length;
+    if (sessionKey) {
+      try {
+        pendingUploads.saveChunk(sessionKey, index, uint8Array);
+      } catch (err) {
+        logger.error(`[recorder] could not spill chunk ${index} to disk:`, err.message);
+      }
+    }
+
     if (uploadId) {
       chunkQueue.push({ index: chunkIndex++, uint8Array });
       _pump();
@@ -366,8 +537,154 @@ function registerRecorderIpc() {
     _clearReadyWatchdog();
     logger.error("[recorder] renderer error:", msg);
     isRecording = false;
-    _pushToInterviewPage(IPC.PUSH_PROCTORING_ERROR, { error: msg });
+    _notifyProctoringError(msg);
   });
 }
 
-module.exports = { start, stop, registerRecorderIpc };
+/**
+ * Whether quitting right now would leave the recording unfinished. Scoped to
+ * the post-stop drain window: during a live interview the recording is still
+ * being produced, and blocking quit there would trap the candidate.
+ */
+function hasPendingUpload() {
+  if (!stopRequested || completeSent) {
+    return false;
+  }
+  return chunkQueue.length > 0 || chunkBuffer.length > 0 || Boolean(uploadId);
+}
+
+function getPendingChunkCount() {
+  return chunkQueue.length + chunkBuffer.length;
+}
+
+/**
+ * Resolves once the drain finishes, or false if it is still going after
+ * `timeoutMs` — the caller decides what to do rather than blocking quit
+ * indefinitely on a backend that may never answer.
+ */
+function whenDrained(timeoutMs) {
+  const startedAt = Date.now();
+  return new Promise((resolve) => {
+    const check = () => {
+      if (!hasPendingUpload()) {
+        resolve(true);
+        return;
+      }
+      if (Date.now() - startedAt > timeoutMs) {
+        resolve(false);
+        return;
+      }
+      setTimeout(check, 500);
+    };
+    check();
+  });
+}
+
+/**
+ * Finishes uploads left behind by a previous run — the app quitting, crashing
+ * or losing power between the last confirmed chunk and /complete used to lose
+ * the recording outright. Call once at startup, after auth is restored (every
+ * request here needs a valid token).
+ *
+ * Best-effort by design: a session that still cannot be drained is left on
+ * disk for the launch after this one, until it ages out of pendingUploads.
+ */
+async function resumePendingUploads() {
+  if (isRecording) {
+    logger.warn("[recorder] resume skipped — a recording is active");
+    return { resumed: 0, failed: 0 };
+  }
+
+  let sessions;
+  try {
+    sessions = pendingUploads.listPending();
+  } catch (err) {
+    logger.error("[recorder] could not scan pending uploads:", err.message);
+    return { resumed: 0, failed: 0 };
+  }
+
+  if (sessions.length === 0) {
+    return { resumed: 0, failed: 0 };
+  }
+
+  logger.info(`[recorder] ${sessions.length} interrupted upload(s) found — resuming`);
+
+  let resumed = 0;
+  let failed = 0;
+  for (const session of sessions) {
+    if (await _resumeSession(session)) {
+      resumed++;
+    } else {
+      failed++;
+    }
+  }
+
+  logger.info(`[recorder] resume finished — ${resumed} completed, ${failed} still pending`);
+  return { resumed, failed };
+}
+
+/**
+ * @returns {Promise<boolean>} true when the session reached /complete and its
+ * spill directory was removed.
+ */
+async function _resumeSession(session) {
+  const { sessionKey: key, interviewId, fileName, chunkIndices } = session;
+  let targetUploadId = session.uploadId;
+
+  // /start never succeeded last run, so the backend has no session to attach
+  // these chunks to — register one now. Without an interviewId there is
+  // nothing to attach them to at all and they can only be discarded.
+  if (!targetUploadId) {
+    if (!interviewId) {
+      logger.warn(`[recorder] resume: session ${key} has no uploadId or interviewId — discarding`);
+      pendingUploads.destroySession(key);
+      return false;
+    }
+    const res = await authManager.startVideoUpload({ interviewId, fileName });
+    if (!res.ok) {
+      logger.warn(`[recorder] resume: /start failed for ${key} — ${res.error}`);
+      return false;
+    }
+    targetUploadId = res.uploadId;
+    pendingUploads.setUploadId(key, targetUploadId);
+  }
+
+  for (const index of chunkIndices) {
+    let bytes;
+    try {
+      bytes = pendingUploads.readChunk(key, index);
+    } catch (err) {
+      logger.error(`[recorder] resume: chunk ${index} of ${key} unreadable — ${err.message}`);
+      return false;
+    }
+    try {
+      await _uploadWithRetry(bytes, index, targetUploadId);
+      pendingUploads.removeChunk(key, index);
+      logger.info(`[recorder] resume: chunk ${index} uploaded (${bytes.byteLength} B)`);
+    } catch (err) {
+      // Same rule as the live path: a partial drain must not be completed.
+      logger.warn(`[recorder] resume: chunk ${index} of ${key} failed — ${err.message}`);
+      return false;
+    }
+  }
+
+  const res = await _completeWithRetry(targetUploadId);
+  if (!res.ok) {
+    logger.error(`[recorder] resume: /complete failed for ${key} — ${res.error}`);
+    return false;
+  }
+
+  logger.info(`[recorder] resume: ${key} completed`);
+  pendingUploads.destroySession(key);
+  return true;
+}
+
+module.exports = {
+  start,
+  stop,
+  registerRecorderIpc,
+  resumePendingUploads,
+  hasPendingUpload,
+  getPendingChunkCount,
+  whenDrained,
+};

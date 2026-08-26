@@ -54,6 +54,13 @@ const AUTH_ERROR = {
 /** This app is candidate-only; any other role must be blocked, not silently let in. */
 const EXPECTED_ROLE = "Candidate";
 
+// Env-overridable so the value can be tuned against real timings without a
+// rebuild. Left at 60s deliberately: chunk uploads have been observed burning
+// the whole budget and then succeeding on retry, and lowering the ceiling
+// before that stall is understood would convert slow-but-working uploads into
+// failing ones.
+const CHUNK_UPLOAD_TIMEOUT_MS = Number(process.env.CHUNK_UPLOAD_TIMEOUT_MS) || 60000;
+
 /**
  * Classifies a failed axios call against the login endpoint into a stable
  * AUTH_ERROR code. Never returns the server's raw message text — only a code
@@ -681,10 +688,28 @@ async function uploadVideoChunk({ uploadId, chunkIndex, chunk }) {
       new Blob([Buffer.from(chunk)], { type: "video/webm" }),
       `chunk_${chunkIndex}.webm`
     );
-    return axios.post(`${API_BASE_URL}${VIDEO_UPLOAD_CHUNK_PATH}`, form, {
-      timeout: 60000,
-      headers: { Authorization: `Bearer ${session.accessToken}` },
-    });
+    // Timings are logged per attempt because chunk uploads stall in a way that
+    // is invisible from the outcome alone — a chunk that eventually succeeds
+    // after burning the full timeout looks identical in the logs to a fast one.
+    // sentAt vs settled tells connect-and-send apart from waiting on a reply.
+    const sentAt = Date.now();
+    return axios
+      .post(`${API_BASE_URL}${VIDEO_UPLOAD_CHUNK_PATH}`, form, {
+        timeout: CHUNK_UPLOAD_TIMEOUT_MS,
+        headers: { Authorization: `Bearer ${session.accessToken}` },
+      })
+      .then((res) => {
+        logger.info(
+          `[upload] chunk ${chunkIndex} ok in ${Date.now() - sentAt}ms (${chunk.byteLength} B)`
+        );
+        return res;
+      })
+      .catch((err) => {
+        logger.warn(
+          `[upload] chunk ${chunkIndex} failed after ${Date.now() - sentAt}ms (${chunk.byteLength} B) — ${err.code || err.message}`
+        );
+        throw err;
+      });
   };
 
   try {

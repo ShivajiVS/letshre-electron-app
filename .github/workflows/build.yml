@@ -156,6 +156,22 @@ jobs:
           name: agent-windows
           path: resources/
 
+      # electron-builder names artifacts and writes latest.yml from
+      # package.json, not from the tag. v1.2.2 was tagged on a commit still
+      # declaring 1.2.1, so it published a manifest advertising 1.2.1 and no
+      # client ever saw an update.
+      - name: Verify tag matches package.json version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          Write-Host "tag=$tag package.json=$version"
+          if ($tag -ne "v$version") {
+            Write-Host "::error::Tag $tag does not match package.json version $version. Bump the version and re-tag that commit."
+            exit 1
+          }
+
       - name: Package (Windows)
         shell: pwsh
         env:
@@ -177,7 +193,32 @@ jobs:
           } else {
             Write-Host "No signing certificate — building UNSIGNED."
           }
-          npx electron-builder --win --publish always
+          # The installer is >100MB and a stranded upload is what left v1.2.3
+          # holding only a .exe.blockmap. Re-running is safe: electron-builder
+          # reuses the draft and re-uploads what is missing.
+          $ok = $false
+          foreach ($attempt in 1..3) {
+            Write-Host "electron-builder publish attempt $attempt of 3"
+            npx electron-builder --win --publish always
+            if ($LASTEXITCODE -eq 0) { $ok = $true; break }
+            Write-Host "::warning::publish attempt $attempt failed (exit $LASTEXITCODE)"
+            Start-Sleep -Seconds 15
+          }
+          if (-not $ok) {
+            Write-Host "::error::electron-builder failed to publish after 3 attempts"
+            exit 1
+          }
+
+      # electron-builder publishes as a draft; this is the only thing that makes
+      # it public, and only after the assets check out. A green build previously
+      # said nothing about whether the release was usable — v1.2.3 reported
+      # success while shipping no latest.yml and no installer.
+      - name: Verify release and publish
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/verifyRelease.js ${{ github.ref_name }} --publish
 
   # ──────────────────────────────────────────────────────────────
   # 4. Package Electron app for macOS (needs agent binary)

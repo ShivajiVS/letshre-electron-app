@@ -41,7 +41,8 @@
       {
         "provider": "github",
         "owner": "ShivajiVS",
-        "repo": "letshre-electron-app"
+        "repo": "letshre-electron-app",
+        "releaseType": "draft"
       }
     ],
     "compression": "maximum",

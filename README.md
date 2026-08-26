@@ -274,6 +274,12 @@ window.electronAPI.interviewComplete("terminated"); // "completed" | "auto-submi
 
 > ⚠️ If the deployed web app does **not** call `acknowledgeViolation()`, no acks arrive and every hard block will self‑enforce after the 8s grace. Ship the ack alongside this client.
 
+When the scorecard's "View Dashboard" button is pressed (still on the interview origin — `interviewComplete` lifted lockdown but did not navigate away):
+
+```js
+window.electronAPI.viewDashboard?.();
+```
+
 **Recording failures.** Screen/mic recording runs independently of the violation pipeline above — it can fail (no screen source, blocked getUserMedia, upload session never established) without the interview itself being blocked. Electron does not stop the session on a recording failure; it is a policy decision left to the web app, which is why listening for it is required, not optional:
 
 ```js
@@ -311,6 +317,7 @@ Exposed by `preload.js` via `contextBridge` (only whitelisted channels). Safe to
 | `onProctoringError(cb)`                                                | Recording failed (no screen source, upload session lost, etc.) — see [Recording failures](#web-app-integration-the-contract) |
 | `acknowledgeViolation()`                                               | Confirm receipt (suppresses self‑enforcement)                                                                                |
 | `interviewComplete(reason)`                                            | End the session; lifts lockdown                                                                                              |
+| `viewDashboard()`                                                      | Scorecard "View Dashboard" button; leaves the interview flow for the dashboard                                               |
 | `recheckSystem()` / `minimizeWindow()` / `quitApp()`                   | Preflight UX controls                                                                                                        |
 | `getAppList()` / `getAuditLog()`                                       | Blocked‑app lists; in‑memory audit log                                                                                       |
 | `onUpdateAvailable(cb)` / `onUpdateDownloaded(cb)` / `installUpdate()` | Auto‑updater UX                                                                                                              |

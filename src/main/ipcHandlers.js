@@ -278,6 +278,11 @@ function registerIpcHandlers() {
     _leaveInterviewFlowToDashboard();
   });
 
+  registerSend(IPC.VIEW_DASHBOARD, SCOPE.INTERVIEW, () => {
+    logger.info("[ipc] view-dashboard (from scorecard)");
+    _leaveInterviewFlowToDashboard({ alreadyTornDown: true });
+  });
+
   registerSend(IPC.LOAD_SECURITY_CHECK, SCOPE.LOCAL, () => {
     logger.info("[ipc] load-security-check (back nav)");
     stopPreProceedMonitor();

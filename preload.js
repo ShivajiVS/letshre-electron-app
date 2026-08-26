@@ -96,6 +96,9 @@ const IPC = {
   // Interview session end: website → main
   INTERVIEW_COMPLETE: "interview-complete",
 
+  // Scorecard "View Dashboard" button: website → main
+  VIEW_DASHBOARD: "view-dashboard",
+
   // Violation acknowledgement: website → main
   ACK_VIOLATION: "ack-violation",
 
@@ -137,6 +140,7 @@ const ALLOWED_SEND_CHANNELS = [
   IPC.LOAD_IDENTITY_VERIFICATION,
   IPC.LOAD_ROLE_SELECTION,
   IPC.LOAD_DASHBOARD,
+  IPC.VIEW_DASHBOARD,
   IPC.LOAD_SECURITY_CHECK,
   IPC.LOAD_LANGUAGE_SELECTION,
   IPC.LOAD_HOW_IT_WORKS,
@@ -260,6 +264,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   /** Back: navigate to dashboard (from security check). */
   loadDashboard: () => safeSend(IPC.LOAD_DASHBOARD),
+
+  viewDashboard: () => safeSend(IPC.VIEW_DASHBOARD),
 
   /** Back: navigate to security check (from permissions page). */
   loadSecurityCheck: () => safeSend(IPC.LOAD_SECURITY_CHECK),

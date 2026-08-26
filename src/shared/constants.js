@@ -267,6 +267,10 @@ const IPC = {
   // Interview session end: website → main (lifts window lockdown)
   INTERVIEW_COMPLETE: "interview-complete",
 
+  // Scorecard "View Dashboard" button: website → main (leaves the interview
+  // flow after interview-complete already lifted lockdown)
+  VIEW_DASHBOARD: "view-dashboard",
+
   // Violation ack: website → main via renderer's onViolation handler. While
   // acks keep arriving, Electron's self-enforcement failsafe stays suppressed;
   // if they stop (renderer crashed/listener dropped), the failsafe kicks in.

@@ -205,6 +205,7 @@ const EXPECTED_INTERVIEW_SCOPE_CHANNELS = [
   "INTERVIEW_COMPLETE", // interviewComplete(reason) — contract step 3
   "PROCTORING_START", // interview.letshyre.com → start recording
   "PROCTORING_STOP", // interview.letshyre.com → stop recording
+  "VIEW_DASHBOARD", // viewDashboard() — scorecard "View Dashboard" button
 ];
 
 test("exactly the documented contract channels are scoped \"interview\" — everything else is local", () => {
@@ -242,5 +243,31 @@ test("every channel actually exposed to the renderer via preload.js's ALLOWED_* 
     missing,
     [],
     `channels exposed via preload.js but never registered with a scope: ${missing.join(", ")}`
+  );
+});
+
+test("every IPC.* referenced in preload.js is defined in its own inlined IPC object", () => {
+  // sandbox:true blocks require() there, so preload.js hand-mirrors the IPC
+  // names instead of importing constants.js. A reference to a key that was
+  // added to constants.js but not to the mirror resolves to `undefined`, and
+  // `ALLOWED_SEND_CHANNELS.includes(undefined)` is then *true* — so the send
+  // clears the whitelist and dies at ipcRenderer.send(undefined) with nothing
+  // logged main-side. Fails silently in exactly the place it looks correct.
+  const PRELOAD_PATH = path.join(__dirname, "..", "preload.js");
+  const preloadText = fs.readFileSync(PRELOAD_PATH, "utf8");
+
+  const objectLiteral = preloadText.match(/const IPC = \{([\s\S]*?)\n\};/);
+  assert.ok(objectLiteral, "could not locate preload.js's inlined IPC object literal");
+
+  const definedKeys = new Set(
+    [...objectLiteral[1].matchAll(/^\s*([A-Z0-9_]+):/gm)].map((m) => m[1])
+  );
+  const referencedKeys = [...preloadText.matchAll(/\bIPC\.([A-Z0-9_]+)\b/g)].map((m) => m[1]);
+
+  const dangling = [...new Set(referencedKeys.filter((key) => !definedKeys.has(key)))].sort();
+  assert.deepStrictEqual(
+    dangling,
+    [],
+    `preload.js references IPC keys it never defines (they resolve to undefined): ${dangling.join(", ")}`
   );
 });

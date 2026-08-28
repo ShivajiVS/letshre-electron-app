@@ -1,10 +1,4 @@
-/**
- * Single source of truth for magic values used across the app.
- * Import from here — never hard-code ports, URLs, or IPC channel strings.
- */
-
 "use strict";
-
 // ─── Backend / Agent
 
 /** Port the Python security agent listens on. */
@@ -78,7 +72,8 @@ const HEARTBEAT_INTERVAL_MS = 30000;
  * How often (ms) to re-check GitHub for app updates. Suppressed during an
  * active interview — a proctor client must never restart mid-session.
  */
-const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+// const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 /** How long (ms) to wait before retrying a failed check/download, so a transient
  *  network blip doesn't strand a candidate until the next UPDATE_CHECK_INTERVAL_MS. */

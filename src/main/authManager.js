@@ -26,6 +26,7 @@ const {
   VIDEO_UPLOAD_CHUNK_PATH,
   VIDEO_UPLOAD_COMPLETE_PATH,
   VIDEO_UPLOAD_STATUS_PATH,
+  IS_DEV,
 } = require("../shared/constants");
 
 /** @type {{ accessToken: string, refreshToken: string, user: object } | null} */
@@ -55,11 +56,16 @@ const AUTH_ERROR = {
 const EXPECTED_ROLE = "Candidate";
 
 // Env-overridable so the value can be tuned against real timings without a
-// rebuild. Left at 60s deliberately: chunk uploads have been observed burning
-// the whole budget and then succeeding on retry, and lowering the ceiling
-// before that stall is understood would convert slow-but-working uploads into
-// failing ones.
-const CHUNK_UPLOAD_TIMEOUT_MS = Number(process.env.CHUNK_UPLOAD_TIMEOUT_MS) || 60000;
+// A wall-clock timeout aborts an upload that is still moving bytes, and the
+// retry then re-sends everything already transferred — on a slow uplink that
+// never converges. These bound idle time instead: the request is killed only
+// when nothing has moved for CHUNK_UPLOAD_IDLE_MS, with a hard ceiling so a
+// genuinely wedged socket cannot hold a chunk forever.
+// Dev-only overrides. A packaged client must not let a candidate set these —
+// an idle budget of 1 ms fails every upload and loses the recording.
+const CHUNK_UPLOAD_IDLE_MS = (IS_DEV && Number(process.env.CHUNK_UPLOAD_IDLE_MS)) || 30000;
+const CHUNK_UPLOAD_CEILING_MS =
+  (IS_DEV && Number(process.env.CHUNK_UPLOAD_CEILING_MS)) || 5 * 60 * 1000;
 
 /**
  * Classifies a failed axios call against the login endpoint into a stable
@@ -693,20 +699,42 @@ async function uploadVideoChunk({ uploadId, chunkIndex, chunk }) {
     // after burning the full timeout looks identical in the logs to a fast one.
     // sentAt vs settled tells connect-and-send apart from waiting on a reply.
     const sentAt = Date.now();
+    const controller = new AbortController();
+    let stalled = false;
+    let idleTimer = null;
+
+    const armIdle = () => {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        stalled = true;
+        controller.abort();
+      }, CHUNK_UPLOAD_IDLE_MS);
+    };
+    armIdle();
+    const ceiling = setTimeout(() => controller.abort(), CHUNK_UPLOAD_CEILING_MS);
+    const disarm = () => {
+      clearTimeout(idleTimer);
+      clearTimeout(ceiling);
+    };
+
     return axios
       .post(`${API_BASE_URL}${VIDEO_UPLOAD_CHUNK_PATH}`, form, {
-        timeout: CHUNK_UPLOAD_TIMEOUT_MS,
+        signal: controller.signal,
+        onUploadProgress: armIdle,
         headers: { Authorization: `Bearer ${session.accessToken}` },
       })
       .then((res) => {
+        disarm();
         logger.info(
           `[upload] chunk ${chunkIndex} ok in ${Date.now() - sentAt}ms (${chunk.byteLength} B)`
         );
         return res;
       })
       .catch((err) => {
+        disarm();
+        const why = stalled ? `no progress for ${CHUNK_UPLOAD_IDLE_MS}ms` : err.code || err.message;
         logger.warn(
-          `[upload] chunk ${chunkIndex} failed after ${Date.now() - sentAt}ms (${chunk.byteLength} B) — ${err.code || err.message}`
+          `[upload] chunk ${chunkIndex} failed after ${Date.now() - sentAt}ms (${chunk.byteLength} B) — ${why}`
         );
         throw err;
       });

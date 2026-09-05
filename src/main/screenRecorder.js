@@ -29,6 +29,11 @@ const pendingUploads = require("./pendingUploads");
 const { IPC, INTERVIEW_BASE_URL } = require("../shared/constants");
 
 const MAX_CHUNK_RETRIES = 4;
+
+// Retry cadence. Mutable only through the test seam at the bottom — an env knob
+// here would let a candidate stretch it until uploads never finish.
+let retryBaseMs = 1000;
+let retryCapMs = 8000;
 const MAX_COMPLETE_RETRIES = 4;
 const POLL_INTERVAL_MS = 3000;
 const MAX_POLL_MS = 5 * 60 * 1000; // 5 min
@@ -37,6 +42,17 @@ const MAX_POLL_MS = 5 * 60 * 1000; // 5 min
 // per-chunk retries. Long enough not to hammer a down backend, short enough
 // that a brief outage still drains within the same session.
 const RESUME_RETRY_MS = 30000;
+
+// Queued chunks kept in memory. Each is ~2 MB, and the queue only grows when
+// uploads fall behind production — an interview on a slow uplink would hold the
+// whole recording in the main process. Past this the payload is dropped and
+// re-read from its spill copy at upload time.
+const MAX_IN_MEMORY_CHUNKS = 4;
+
+// Backlog that means the uplink is not keeping up rather than briefly dipping.
+// At ~15 s per chunk this is several minutes behind, which is a proctoring
+// failure the candidate and the backend both need to know about.
+const BACKLOG_ALERT_CHUNKS = 20;
 
 // Max ms to wait for the hidden recorder window to report RECORDER_READY after
 // creation. If it never does (preload missing, getUserMedia blocked, renderer
@@ -57,6 +73,7 @@ let chunkQueue = []; // { index, uint8Array }[]
 let pollTimer = null;
 let readyTimer = null; // watchdog: fires if RECORDER_READY never arrives
 let resumeTimer = null; // re-arms a pump that exhausted its retries
+let backlogReported = false; // one alert per session, not one per chunk
 
 // Identifies this recording's spill directory. Independent of uploadId, which
 // may not exist yet when the first chunks land.
@@ -84,7 +101,7 @@ async function _uploadWithRetry(uint8Array, index, targetUploadId = null) {
       return;
     }
     if (attempt < MAX_CHUNK_RETRIES) {
-      const backoff = Math.min(1000 * 2 ** attempt, 8000);
+      const backoff = Math.min(retryBaseMs * 2 ** attempt, retryCapMs);
       logger.warn(`[recorder] chunk ${index} retry ${attempt} in ${backoff}ms — ${res.error}`);
       await sleep(backoff);
     } else {
@@ -107,7 +124,8 @@ function _pump() {
       while (chunkQueue.length > 0) {
         const item = chunkQueue[0];
         try {
-          await _uploadWithRetry(item.uint8Array, item.index);
+          const payload = item.uint8Array || pendingUploads.readChunk(sessionKey, item.index);
+          await _uploadWithRetry(payload, item.index);
           chunkQueue.shift();
           // Confirmed by the backend — the spill copy is no longer needed.
           if (sessionKey) {
@@ -127,6 +145,19 @@ function _pump() {
   })();
 
   return pumpPromise;
+}
+
+/**
+ * Warns once when the upload queue falls far enough behind that it is not going
+ * to catch up on its own. Silence here is what let a session end with minutes of
+ * video still unsent.
+ */
+function _reportBacklog() {
+  if (backlogReported || chunkQueue.length < BACKLOG_ALERT_CHUNKS) {
+    return;
+  }
+  backlogReported = true;
+  _notifyProctoringError(`Recording upload is ${chunkQueue.length} chunks behind`);
 }
 
 function _clearResumeTimer() {
@@ -288,7 +319,7 @@ async function _completeWithRetry(targetUploadId = null) {
       return last;
     }
     if (attempt < MAX_COMPLETE_RETRIES) {
-      const backoff = Math.min(1000 * 2 ** attempt, 8000);
+      const backoff = Math.min(retryBaseMs * 2 ** attempt, retryCapMs);
       logger.warn(`[recorder] /complete retry ${attempt} in ${backoff}ms — ${last.error}`);
       await sleep(backoff);
     }
@@ -347,6 +378,7 @@ function _resetState() {
   chunkIndex = 0;
   chunkBuffer = [];
   chunkQueue = [];
+  backlogReported = false;
   pumpRunning = false;
   pumpPromise = Promise.resolve();
   jobMeta = null;
@@ -514,7 +546,11 @@ function registerRecorderIpc() {
     }
 
     if (uploadId) {
-      chunkQueue.push({ index: chunkIndex++, uint8Array });
+      // Only safe to drop the payload when the spill copy is the thing that
+      // will be re-read; without a session key there is nothing to read back.
+      const spilled = Boolean(sessionKey) && chunkQueue.length >= MAX_IN_MEMORY_CHUNKS;
+      chunkQueue.push({ index: chunkIndex++, uint8Array: spilled ? null : uint8Array });
+      _reportBacklog();
       _pump();
     } else {
       // /start hasn't resolved yet — buffer; chunkIndex stays 0 so indices are
@@ -680,6 +716,12 @@ async function _resumeSession(session) {
 }
 
 module.exports = {
+  // Test seam: the resume tests drive the real retry loop and would otherwise
+  // sit through minutes of real backoff.
+  _setRetryDelays: (base, cap) => {
+    retryBaseMs = base;
+    retryCapMs = cap;
+  },
   start,
   stop,
   registerRecorderIpc,

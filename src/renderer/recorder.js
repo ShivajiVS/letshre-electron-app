@@ -21,6 +21,13 @@ const CLUSTER_ID = [0x1f, 0x43, 0xb6, 0x75];
 const CHUNK_TARGET_MS = 15000; // ~15 s per upload chunk (matches RECORDING_SEGMENT_MS)
 const TIMESLICE_MS = 1000; // MediaRecorder fires ondataavailable every 1s
 
+// Left to MediaRecorder's default this landed around 1.3 Mbps, which put a 15 s
+// chunk at ~2.4 MB and upload times at 14-15 s against a 15 s production rate —
+// no margin, and the queue grew whenever the uplink dipped. Pinned so chunk size
+// is predictable rather than whatever the encoder picks for the content.
+const VIDEO_BITS_PER_SECOND = 1_000_000;
+const AUDIO_BITS_PER_SECOND = 64_000;
+
 function _concat(a, b) {
   const out = new Uint8Array(a.length + b.length);
   out.set(a, 0);
@@ -162,7 +169,11 @@ window.recorderBridge?.onInit(async ({ sourceId }) => {
       },
     });
 
-    mediaRecorder = new MediaRecorder(merged, mime ? { mimeType: mime } : {});
+    mediaRecorder = new MediaRecorder(merged, {
+      ...(mime ? { mimeType: mime } : {}),
+      videoBitsPerSecond: VIDEO_BITS_PER_SECOND,
+      audioBitsPerSecond: AUDIO_BITS_PER_SECOND,
+    });
 
     // Serialise byte pushes so the chunker always receives bytes in order.
     mediaRecorder.ondataavailable = (e) => {

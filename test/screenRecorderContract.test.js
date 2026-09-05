@@ -106,3 +106,23 @@ test("resume never completes a session it could not fully drain", () => {
     "a failed chunk must abort the resume before /complete, leaving the session on disk"
   );
 });
+
+test("a dropped chunk payload is re-read from its spill copy", () => {
+  // The queue drops payloads past a cap so a slow uplink cannot hold a whole
+  // recording in memory. That is only safe if the pump reads them back.
+  assert.match(
+    SOURCE,
+    /item\.uint8Array \|\| pendingUploads\.readChunk\(sessionKey, item\.index\)/
+  );
+});
+
+test("a payload is only dropped when there is a spill copy to drop it for", () => {
+  // Without a session key nothing was written to disk, so the bytes in memory
+  // are the only copy and must be kept whatever the queue depth.
+  assert.match(SOURCE, /Boolean\(sessionKey\) && chunkQueue\.length >= MAX_IN_MEMORY_CHUNKS/);
+});
+
+test("a sustained upload backlog is reported, once", () => {
+  assert.match(SOURCE, /backlogReported \|\| chunkQueue\.length < BACKLOG_ALERT_CHUNKS/);
+  assert.match(SOURCE, /backlogReported = true;\s*\n\s*_notifyProctoringError/);
+});

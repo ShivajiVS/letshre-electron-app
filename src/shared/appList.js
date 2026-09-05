@@ -318,6 +318,9 @@ function requiresPathScope(companionName) {
  */
 const APP_SERVICES = {
   "anydesk.exe": ["AnyDesk"],
+  // teamviewer_service.exe is also a companion, but killing a service's process
+  // only makes the SCM restart it — same shape as the others here.
+  "teamviewer.exe": ["TeamViewer"],
   "parsec.exe": ["Parsec"],
   "parsecd.exe": ["Parsec"],
   "remoting_host.exe": ["chromoting"],

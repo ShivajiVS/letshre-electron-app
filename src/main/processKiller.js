@@ -918,6 +918,10 @@ async function killSingleProcess(processName, overrides) {
       const r = await deps.stopService(service);
       if (r.status === "stopped") {
         servicesStopped.push(service);
+      } else if (r.status === "absent") {
+        // The app is running but the service we registered for it is not
+        // installed — usually means the name in APP_SERVICES is wrong.
+        logger.warn(`[processKiller] ${name}: registered service ${service} is not installed`);
       } else if (r.status === "denied") {
         lastError = "stopping the background service needs administrator rights";
       }

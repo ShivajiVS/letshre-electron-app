@@ -300,7 +300,13 @@ test("isKnownService accepts only registered names", () => {
 test("apps whose service shares the app image name are registered", () => {
   // The case companions cannot cover: killing the process hits the service, and
   // the SCM restarts it.
-  for (const app of ["anydesk.exe", "parsecd.exe", "remoting_host.exe", "srserver.exe"]) {
+  for (const app of [
+    "anydesk.exe",
+    "parsecd.exe",
+    "remoting_host.exe",
+    "srserver.exe",
+    "teamviewer.exe",
+  ]) {
     assert.ok(getServices(app).length > 0, `${app} should declare its service`);
   }
 });

@@ -93,36 +93,42 @@ jobs:
   # ──────────────────────────────────────────────────────────────
   # 2. Build agent (Unix binary) on macOS
   # ──────────────────────────────────────────────────────────────
-  # build-agent-macos:
-    # name: Build agent (macOS)
-    # runs-on: macos-latest
-    # needs: lint
-    # steps:
-    #   - uses: actions/checkout@v4
+  build-agent-macos:
+    name: Build agent (macOS)
+    runs-on: macos-latest
+    needs: lint
+    # Manual runs only until a dmg has been built and installed once. To make
+    # macOS part of every release, add the tag condition here and on
+    # build-electron-macos, and give the publish step both platforms to wait on.
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
 
-    #   - name: Set up Python
-    #     uses: actions/setup-python@v5
-    #     with:
-    #       python-version: "3.12"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
-    #   - name: Cache pip packages
-    #     uses: actions/cache@v4
-    #     with:
-    #       path: ~/Library/Caches/pip
-    #       key: ${{ runner.os }}-pip-pyinstaller-psutil
-    #       restore-keys: ${{ runner.os }}-pip-
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/pip
+          key: ${{ runner.os }}-pip-pyinstaller-psutil
+          restore-keys: ${{ runner.os }}-pip-
 
-    #   - name: Install dependencies
-    #     run: pip install pyinstaller psutil
+      - name: Install dependencies
+        run: pip install pyinstaller psutil
 
-    #   - name: Build agent binary
-    #     run: python scripts/build_agent.py
+      - name: Build agent binary
+        run: python scripts/build_agent.py
 
-    #   - name: Upload agent as artifact
-    #     uses: actions/upload-artifact@v4
-    #     with:
-    #       name: agent-macos
-    #       path: resources/agent
+      - name: Upload agent build as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-macos
+          path: |
+            resources/agent
+            src/shared/agentBuild.json
 
   # ──────────────────────────────────────────────────────────────
   # 3. Package Electron app for Windows (needs agent.exe)
@@ -232,43 +238,62 @@ jobs:
   # 4. Package Electron app for macOS (needs agent binary)
   # ──────────────────────────────────────────────────────────────
   
-  # build-electron-macos:
-  #   name: Package Electron (macOS)
-  #   runs-on: macos-latest
-  #   needs: build-agent-macos
-  #   steps:
-  #     - uses: actions/checkout@v4
+  build-electron-macos:
+    name: Package Electron (macOS)
+    runs-on: macos-latest
+    needs: build-agent-macos
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
 
-  #     - name: Set up Node.js
-  #       uses: actions/setup-node@v4
-  #       with:
-  #         node-version: "22"
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
 
-  #     - name: Cache node_modules
-  #       uses: actions/cache@v4
-  #       with:
-  #         path: node_modules
-  #         key: ${{ runner.os }}-node-${{ hashFiles('pnpm-lock.yaml') }}
-  #         restore-keys: ${{ runner.os }}-node-
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: 'pnpm'
 
-  #     - name: Install Node dependencies
-  #       run: pnpm install --frozen-lockfile
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-node-
 
-  #     - name: Download agent binary
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: agent-macos
-  #         path: resources/
+      - name: Install Node dependencies
+        run: pnpm install --frozen-lockfile
 
-  #     - name: Make agent executable
-  #       run: chmod +x resources/agent
+      - name: Download agent build
+        uses: actions/download-artifact@v4
+        with:
+          name: agent-macos
+          path: .
 
-  #     - name: Package (macOS)
-  #       env:
-  #         GH_TOKEN: ${{ secrets.GH_TOKEN }}
-  #         # Uncomment and add secrets for Apple signing:
-  #         # CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
-  #         # CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
-  #         # APPLE_ID: ${{ secrets.APPLE_ID }}
-  #         # APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-  #       run: npx electron-builder --mac --publish always
+      - name: Make agent executable
+        run: chmod +x resources/agent
+
+      - name: Package (macOS)
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          # Neutral names for the same reason as the Windows job: an absent
+          # secret arrives as an empty string, and electron-builder reads an
+          # empty CSC_LINK as "sign with a certificate that isn't there".
+          SIGN_P12: ${{ secrets.MAC_CERT_P12 }}
+          SIGN_P12_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -n "$SIGN_P12" ]; then
+            export CSC_LINK="$SIGN_P12"
+            export CSC_KEY_PASSWORD="$SIGN_P12_PASSWORD"
+            echo "Code signing ENABLED."
+          else
+            # Without this electron-builder hunts the keychain for an identity
+            # and fails; unsigned is the honest outcome with no certificate.
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            echo "::warning::No signing certificate — building UNSIGNED. Gatekeeper will refuse this build on a candidate's Mac."
+          fi
+          npx electron-builder --mac --publish always

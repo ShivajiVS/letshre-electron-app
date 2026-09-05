@@ -147,32 +147,35 @@ function verifyVersionOrder(tag, publishedTags) {
 }
 
 /**
+ * Checks one update manifest against the assets actually uploaded.
  * @param {string} tag
- * @param {string|null} manifestText latest.yml contents, or null if absent.
- * @param {{name: string, size: number}[]} assets
- * @returns {{ ok: boolean, problems: string[] }}
+ * @param {string} manifestName "latest.yml" (Windows) or "latest-mac.yml"
+ * @param {string|null} manifestText
+ * @param {Map<string, {name: string, size: number}>} byName
+ * @returns {string[]} problems, empty when the manifest is usable
  */
-function verifyRelease(tag, manifestText, assets) {
+function checkManifest(tag, manifestName, manifestText, byName) {
   const problems = [];
-  const byName = new Map((assets || []).map((a) => [a.name, a]));
 
-  if (!byName.has("latest.yml")) {
-    problems.push("latest.yml is missing — electron-updater cannot detect this release at all");
+  if (!byName.has(manifestName)) {
+    problems.push(
+      `${manifestName} is missing — electron-updater cannot detect this release at all`
+    );
   }
 
   if (!manifestText) {
-    problems.push("latest.yml could not be read");
-    return { ok: false, problems };
+    problems.push(`${manifestName} could not be read`);
+    return problems;
   }
 
   const manifest = parseLatestYml(manifestText);
   const expected = versionFromTag(tag);
 
   if (!manifest.version) {
-    problems.push("latest.yml has no version field");
+    problems.push(`${manifestName} has no version field`);
   } else if (manifest.version !== expected) {
     problems.push(
-      `latest.yml declares version ${manifest.version} but the tag is ${tag} (expected ${expected}) — clients would be offered the wrong build`
+      `${manifestName} declares version ${manifest.version} but the tag is ${tag} (expected ${expected}) — clients would be offered the wrong build`
     );
   }
 
@@ -185,21 +188,41 @@ function verifyRelease(tag, manifestText, assets) {
   }
 
   if (referenced.size === 0) {
-    problems.push("latest.yml references no installer");
+    problems.push(`${manifestName} references no installer`);
   }
 
   for (const name of referenced) {
     const asset = byName.get(name);
     if (!asset) {
-      problems.push(`latest.yml references ${name} but it was not uploaded`);
+      problems.push(`${manifestName} references ${name} but it was not uploaded`);
       continue;
     }
     const declared = manifest.files.find((f) => f.url === name);
     if (declared && declared.size !== null && declared.size !== asset.size) {
       problems.push(
-        `${name} is ${asset.size} B but latest.yml declares ${declared.size} B — the upload is truncated`
+        `${name} is ${asset.size} B but ${manifestName} declares ${declared.size} B — the upload is truncated`
       );
     }
+  }
+
+  return problems;
+}
+
+/**
+ * @param {string} tag
+ * @param {string|null} manifestText latest.yml contents, or null if absent.
+ * @param {{name: string, size: number}[]} assets
+ * @param {string|null} [macManifestText] latest-mac.yml, checked only when a dmg shipped
+ * @returns {{ ok: boolean, problems: string[] }}
+ */
+function verifyRelease(tag, manifestText, assets, macManifestText = null) {
+  const byName = new Map((assets || []).map((a) => [a.name, a]));
+  const problems = checkManifest(tag, "latest.yml", manifestText, byName);
+
+  // Only demand the macOS manifest once a dmg is actually being published —
+  // otherwise every Windows-only release fails on a platform it never built.
+  if ([...byName.keys()].some((name) => name.endsWith(".dmg"))) {
+    problems.push(...checkManifest(tag, "latest-mac.yml", macManifestText, byName));
   }
 
   return { ok: problems.length === 0, problems };

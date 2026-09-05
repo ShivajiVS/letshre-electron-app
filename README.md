@@ -404,6 +404,8 @@ Output goes to `release/` (NSIS installer on Windows, DMG on macOS). The agent b
 
 ### Releasing
 
+macOS builds run on manual workflow dispatch only. The jobs are wired up, but no dmg has been produced or installed yet, and without an Apple Developer ID certificate the build is unsigned and Gatekeeper will refuse it. Add `MAC_CERT_P12`, `MAC_CERT_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID` as repository secrets, dispatch the workflow, install the dmg once, then add the tag condition to both macOS jobs to make macOS part of every release.
+
 Releases are cut by CI only. Never run `electron-builder --publish` locally — that is how tag `1.2.5` ended up on GitHub holding nothing but another version's blockmap.
 
 1. Bump `version` in `package.json` in its own commit, and say what is shipping in the message — not "bump version". Two production defaults reached users inside commits messaged that way.

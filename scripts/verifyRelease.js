@@ -109,10 +109,14 @@ async function main() {
     console.log(`  ${asset.name} — ${asset.size} B`);
   }
 
-  const manifestAsset = assets.find((a) => a.name === "latest.yml");
-  const manifestText = manifestAsset ? await fetchAssetText(repo, manifestAsset.id) : null;
+  const readManifest = async (name) => {
+    const asset = assets.find((a) => a.name === name);
+    return asset ? await fetchAssetText(repo, asset.id) : null;
+  };
+  const manifestText = await readManifest("latest.yml");
+  const macManifestText = await readManifest("latest-mac.yml");
 
-  const { ok, problems } = verifyRelease(tag, manifestText, assets);
+  const { ok, problems } = verifyRelease(tag, manifestText, assets, macManifestText);
   if (!ok) {
     console.error("\nRelease verification FAILED:");
     for (const problem of problems) {

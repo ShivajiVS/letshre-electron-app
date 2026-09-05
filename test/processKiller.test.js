@@ -900,3 +900,176 @@ test("getCompanionScopeSafe is target-specific", () => {
   assert.strictEqual(_t5.getCompanionScopeSafe("discord.exe", "update.exe"), "\\discord\\");
   assert.strictEqual(_t5.getCompanionScopeSafe("zoom.exe", "update.exe"), null);
 });
+
+// ─── Service-backed apps ─────────────────────────────────────────────────────
+// Parsec, AnyDesk and the Chrome Remote Desktop host run their service under the
+// app's own image name, so killing processes never reaches it and the app came
+// back every time. These cover the stop path and the guard around it.
+
+test("stopService: refuses a name that is not registered for a blocked app", async () => {
+  // The guard sits next to the command, so a caller cannot talk it into
+  // stopping a Windows platform service.
+  for (const name of ["wuauserv", "Parsec; shutdown", "Parsec & del", "", null]) {
+    const r = await _t5.stopServiceReal(name, "win32", 50);
+    assert.strictEqual(r.status, "refused", `${String(name)} should be refused`);
+  }
+});
+
+test("stopService: does nothing off Windows", async () => {
+  const r = await _t5.stopServiceReal("Parsec", "darwin", 50);
+  assert.strictEqual(r.status, "unsupported");
+});
+
+test("elevated kill: refuses an unregistered service rather than dropping it", async () => {
+  const r = await _t5.killPidsElevatedReal([11], elevateDeps(), ["wuauserv"]);
+  assert.strictEqual(r.status, "error");
+  assert.match(r.detail, /unregistered service/);
+});
+
+test("elevated kill: services and PIDs go up under one prompt", async () => {
+  // Two prompts would let the service restart the app between them, and a
+  // candidate faced with a second UAC dialog tends to cancel.
+  const commands = [];
+  const deps = elevateDeps({
+    runProbe: async (_cmd, args) => {
+      commands.push(args[args.length - 1]);
+      return { code: 0, stdout: "", stderr: "" };
+    },
+  });
+
+  const r = await _t5.killPidsElevatedReal([11, 22], deps, ["Parsec"]);
+
+  assert.strictEqual(r.status, "killed");
+  assert.strictEqual(commands.length, 1);
+  assert.match(commands[0], /sc stop Parsec/);
+  assert.match(commands[0], /taskkill \/F \/PID 11 \/PID 22/);
+  assert.match(commands[0], /-Verb RunAs/);
+});
+
+test("elevated kill: the no-service path is unchanged", async () => {
+  const commands = [];
+  const deps = elevateDeps({
+    runProbe: async (_cmd, args) => {
+      commands.push(args[args.length - 1]);
+      return { code: 0, stdout: "", stderr: "" };
+    },
+  });
+
+  await _t5.killPidsElevatedReal([11], deps, []);
+
+  assert.match(commands[0], /Start-Process -FilePath taskkill\.exe/);
+  assert.doesNotMatch(commands[0], /cmd\.exe/);
+});
+
+test("a respawn names the service the candidate has to stop", () => {
+  const withService = _t5.describeFailure("respawned", "", 0, ["SplashtopRemoteService"]);
+  assert.match(withService, /SplashtopRemoteService/);
+  assert.match(withService, /administrator/);
+
+  // Apps with no known service keep the original wording.
+  assert.match(_t5.describeFailure("respawned", "", 0, []), /background service/);
+});
+
+test("kill: stops the vendor service before killing, and reports which", async () => {
+  // Order is the point. Stopping after the kill lets the service restart the
+  // app inside the verification window.
+  const calls = [];
+  const r = await killSingleProcess(
+    "anydesk.exe",
+    fakeDeps({
+      isBlocked: () => true,
+      listProcessTable: async () => ({ ok: true, procs: [proc(2000, 900, "anydesk.exe")] }),
+      stopService: async (name) => {
+        calls.push(`stop:${name}`);
+        return { status: "stopped" };
+      },
+      killPid: async (pid) => {
+        calls.push(`kill:${pid}`);
+        return { status: "killed" };
+      },
+      findPidsByName: scriptedPresence([false]),
+    })
+  );
+
+  assert.strictEqual(r.outcome, "closed");
+  assert.deepStrictEqual(r.servicesStopped, ["AnyDesk"]);
+  assert.deepStrictEqual(calls, ["stop:AnyDesk", "kill:2000"]);
+});
+
+test("kill: an app with no known service never reaches the service path", async () => {
+  let called = false;
+  const r = await killSingleProcess(
+    "chrome.exe",
+    fakeDeps({
+      listProcessTable: async () => ({ ok: true, procs: [proc(2000, 900, "chrome.exe")] }),
+      stopService: async () => {
+        called = true;
+        return { status: "stopped" };
+      },
+      findPidsByName: scriptedPresence([false]),
+    })
+  );
+
+  assert.strictEqual(called, false);
+  assert.strictEqual(r.servicesStopped, undefined);
+  assert.strictEqual(r.serviceBacked, undefined);
+  assert.strictEqual(r.outcome, "closed");
+});
+
+test("kill: services are not consulted off Windows", async () => {
+  let called = false;
+  await killSingleProcess(
+    "anydesk.exe",
+    fakeDeps({
+      platform: "darwin",
+      isBlocked: () => true,
+      listProcessTable: async () => ({ ok: true, procs: [proc(2000, 900, "anydesk.exe")] }),
+      stopService: async () => {
+        called = true;
+        return { status: "stopped" };
+      },
+      findPidsByName: scriptedPresence([false]),
+    })
+  );
+
+  assert.strictEqual(called, false);
+});
+
+test("kill: a service stop the user cannot authorise is reported as such", async () => {
+  const r = await killSingleProcess(
+    "anydesk.exe",
+    fakeDeps({
+      isBlocked: () => true,
+      listProcessTable: async () => ({ ok: true, procs: [proc(2000, 900, "anydesk.exe")] }),
+      stopService: async () => ({ status: "denied", detail: "access denied" }),
+      findPidsByName: scriptedPresence([false, true]),
+    })
+  );
+
+  assert.strictEqual(r.outcome, "respawned");
+  assert.strictEqual(r.servicesStopped, undefined);
+  // The UI offers the elevated retry off this flag; without it the candidate is
+  // told to change an auto-start setting that never brought the app back.
+  assert.strictEqual(r.serviceBacked, true);
+  assert.match(r.error, /AnyDesk/);
+  assert.match(r.error, /administrator/);
+});
+
+test("elevated kill: the service list travels with the PIDs", async () => {
+  let received = null;
+  const r = await killSingleProcessElevated(
+    "anydesk.exe",
+    fakeDeps({
+      isBlocked: () => true,
+      listProcessTable: async () => ({ ok: true, procs: [proc(2000, 900, "anydesk.exe")] }),
+      killPidsElevated: async (_pids, _deps, services) => {
+        received = services;
+        return { status: "killed" };
+      },
+      findPidsByName: scriptedPresence([false]),
+    })
+  );
+
+  assert.deepStrictEqual(received, ["AnyDesk"]);
+  assert.deepStrictEqual(r.servicesStopped, ["AnyDesk"]);
+});

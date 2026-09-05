@@ -86,6 +86,67 @@ function versionFromTag(tag) {
 }
 
 /**
+ * Tags must be `vX.Y.Z`. The workflow only triggers on `v*`, so a tag like
+ * `1.2.5` silently skips CI — that is how a release went out holding nothing
+ * but another version's blockmap.
+ *
+ * @param {string} tag
+ * @returns {{ ok: boolean, problems: string[] }}
+ */
+function verifyTagFormat(tag) {
+  const problems = [];
+  if (!/^v\d+\.\d+\.\d+$/.test(String(tag || ""))) {
+    problems.push(`tag ${tag} is not vX.Y.Z — the release workflow only triggers on v* tags`);
+  }
+  return { ok: problems.length === 0, problems };
+}
+
+/** `1.2.10` → [1, 2, 10], or null if it isn't three numbers. */
+function parseVersion(version) {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(version || ""));
+  return match ? match.slice(1, 4).map(Number) : null;
+}
+
+/** Standard semver ordering over the numeric triple. */
+function compareVersions(a, b) {
+  const left = parseVersion(a);
+  const right = parseVersion(b);
+  if (!left || !right) {
+    return 0;
+  }
+  for (let i = 0; i < 3; i += 1) {
+    if (left[i] !== right[i]) {
+      return left[i] < right[i] ? -1 : 1;
+    }
+  }
+  return 0;
+}
+
+/**
+ * A tag must be newer than everything already published. GitHub moves its
+ * "latest" pointer to the most recent release, so publishing an older version
+ * afterwards offers existing clients a downgrade.
+ *
+ * @param {string} tag
+ * @param {string[]} publishedTags tags of existing non-draft releases
+ * @returns {{ ok: boolean, problems: string[] }}
+ */
+function verifyVersionOrder(tag, publishedTags) {
+  const problems = [];
+  const version = versionFromTag(tag);
+
+  for (const other of publishedTags || []) {
+    if (other === tag) {
+      continue;
+    }
+    if (compareVersions(versionFromTag(other), version) >= 0) {
+      problems.push(`${other} is already published and is not older than ${tag}`);
+    }
+  }
+  return { ok: problems.length === 0, problems };
+}
+
+/**
  * @param {string} tag
  * @param {string|null} manifestText latest.yml contents, or null if absent.
  * @param {{name: string, size: number}[]} assets
@@ -144,4 +205,12 @@ function verifyRelease(tag, manifestText, assets) {
   return { ok: problems.length === 0, problems };
 }
 
-module.exports = { parseLatestYml, versionFromTag, verifyRelease };
+module.exports = {
+  parseLatestYml,
+  versionFromTag,
+  verifyRelease,
+  verifyTagFormat,
+  parseVersion,
+  compareVersions,
+  verifyVersionOrder,
+};

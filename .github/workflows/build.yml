@@ -80,11 +80,15 @@ jobs:
       - name: Build agent.exe
         run: python scripts/build_agent.py
 
-      - name: Upload agent.exe as artifact
+      # agentBuild.json travels with the binary: it records the agent.py hash the
+      # app checks a running agent against, and is packaged from src/.
+      - name: Upload agent build as artifact
         uses: actions/upload-artifact@v4
         with:
           name: agent-windows
-          path: resources/agent.exe
+          path: |
+            resources/agent.exe
+            src/shared/agentBuild.json
 
   # ──────────────────────────────────────────────────────────────
   # 2. Build agent (Unix binary) on macOS
@@ -150,11 +154,11 @@ jobs:
       - name: Install Node dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Download agent.exe
+      - name: Download agent build
         uses: actions/download-artifact@v4
         with:
           name: agent-windows
-          path: resources/
+          path: .
 
       # electron-builder names artifacts and writes latest.yml from
       # package.json, not from the tag. v1.2.2 was tagged on a commit still
@@ -167,6 +171,10 @@ jobs:
           $tag = "${{ github.ref_name }}"
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
           Write-Host "tag=$tag package.json=$version"
+          if ($tag -notmatch '^v\d+\.\d+\.\d+$') {
+            Write-Host "::error::Tag $tag is not vX.Y.Z. Release 1.2.5 was tagged without the v prefix, never triggered this workflow, and shipped unusable."
+            exit 1
+          }
           if ($tag -ne "v$version") {
             Write-Host "::error::Tag $tag does not match package.json version $version. Bump the version and re-tag that commit."
             exit 1

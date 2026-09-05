@@ -87,6 +87,14 @@ test("getCompanions returns a copy — callers cannot mutate the map", () => {
   assert.ok(!getCompanions("zoom.exe").includes("bogus.exe"), "map should be unaffected");
 });
 
+test("remote-access apps with a separate relauncher list it as a companion", () => {
+  // Without these the kill outcome is "respawned" and the candidate is asked to
+  // close an app the service keeps restarting.
+  assert.ok(getCompanions("teamviewer.exe").includes("teamviewer_service.exe"));
+  assert.ok(getCompanions("srserver.exe").includes("srservice.exe"));
+  assert.ok(getCompanions("remoting_host.exe").includes("remoting_desktop.exe"));
+});
+
 test("every APP_COMPANIONS key is a real blocked app (no orphan keys)", () => {
   for (const key of Object.keys(APP_COMPANIONS)) {
     assert.ok(ALL_BLOCKED_APPS.includes(key), `${key} should be in ALL_BLOCKED_APPS`);
@@ -214,5 +222,85 @@ test("companion lists contain no duplicates, within or across apps", () => {
       `${key} has duplicate companions`
     );
     assert.ok(!companions.includes(key), `${key} should not list itself as a companion`);
+  }
+});
+
+// ─── Service-backed apps ─────────────────────────────────────────────────────
+
+const { APP_SERVICES, getServices, isKnownService } = require("../src/shared/appList");
+
+// These names are interpolated into an elevated command line, so the map itself
+// is the thing that has to be safe.
+const SERVICE_NAME_PATTERN = /^[A-Za-z0-9_.-]+$/;
+
+// Stopping one of these would break the candidate's machine, not just an app.
+const FORBIDDEN_SERVICES = [
+  "wuauserv",
+  "winmgmt",
+  "RpcSs",
+  "Dhcp",
+  "Dnscache",
+  "EventLog",
+  "LanmanServer",
+  "LanmanWorkstation",
+  "W32Time",
+  "BITS",
+  "Schedule",
+  "TermService",
+  "WinDefend",
+  "MpsSvc",
+  "CryptSvc",
+  "PlugPlay",
+  "Power",
+  "Themes",
+  "AudioSrv",
+];
+
+test("every APP_SERVICES key is a real blocked app", () => {
+  for (const key of Object.keys(APP_SERVICES)) {
+    assert.ok(ALL_BLOCKED_APPS.includes(key), `${key} should be in ALL_BLOCKED_APPS`);
+    assert.strictEqual(key, key.toLowerCase(), `${key} should be lowercase`);
+  }
+});
+
+test("service names are shell-safe and never a Windows platform service", () => {
+  for (const [app, names] of Object.entries(APP_SERVICES)) {
+    assert.ok(Array.isArray(names) && names.length > 0, `${app} should list a service`);
+    for (const name of names) {
+      assert.match(name, SERVICE_NAME_PATTERN, `${name} is not a safe service name`);
+      assert.ok(
+        !FORBIDDEN_SERVICES.some((f) => f.toLowerCase() === name.toLowerCase()),
+        `${name} is a Windows platform service and must never be stopped`
+      );
+    }
+  }
+});
+
+test("getServices is case-insensitive, copies, and stays empty for unknowns", () => {
+  assert.deepStrictEqual(getServices("PARSECD.EXE"), getServices("parsecd.exe"));
+
+  const first = getServices("parsecd.exe");
+  first.push("bogus");
+  assert.ok(!getServices("parsecd.exe").includes("bogus"), "map should be unaffected");
+
+  for (const input of ["zoom.exe", "", "constructor", null, undefined, 42]) {
+    assert.deepStrictEqual(getServices(input), [], `getServices(${String(input)})`);
+  }
+});
+
+test("isKnownService accepts only registered names", () => {
+  assert.ok(isKnownService("chromoting"));
+  assert.ok(isKnownService("SplashtopRemoteService"));
+
+  for (const bad of ["wuauserv", "Parsec; shutdown -s", "Parsec & del", "chromoting ", "", null]) {
+    assert.strictEqual(isKnownService(bad), false, `${String(bad)} should be rejected`);
+  }
+});
+
+test("apps whose service shares the app image name are registered", () => {
+  // The case companions cannot cover: killing the process hits the service, and
+  // the SCM restarts it.
+  for (const app of ["anydesk.exe", "parsecd.exe", "remoting_host.exe", "srserver.exe"]) {
+    assert.ok(getServices(app).length > 0, `${app} should declare its service`);
   }
 });

@@ -59,7 +59,10 @@ test("a chunk's spill copy is only removed after the upload is confirmed", () =>
 
   assert.notStrictEqual(uploadIndex, -1, "_pump must upload via _uploadWithRetry");
   assert.notStrictEqual(removeIndex, -1, "_pump must drop the spill copy once uploaded");
-  assert.ok(removeIndex > uploadIndex, "removeChunk must follow a confirmed upload, not precede it");
+  assert.ok(
+    removeIndex > uploadIndex,
+    "removeChunk must follow a confirmed upload, not precede it"
+  );
 });
 
 test("_notifyProctoringError delegates to the push helper rather than itself", () => {
@@ -79,7 +82,8 @@ test("_notifyProctoringError delegates to the push helper rather than itself", (
 });
 
 test("every proctoring error goes through the notifier, not a raw push", () => {
-  const rawPushes = [...SOURCE.matchAll(/_pushToInterviewPage\(IPC\.PUSH_PROCTORING_ERROR/g)].length;
+  const rawPushes = [...SOURCE.matchAll(/_pushToInterviewPage\(IPC\.PUSH_PROCTORING_ERROR/g)]
+    .length;
   assert.strictEqual(
     rawPushes,
     1,

@@ -72,10 +72,7 @@ test("login: success returns display-safe user, no tokens, no message", async (t
 });
 
 test("login: success:false body (200) classifies as invalid_credentials, never forwards server message", async (t) => {
-  const result = await freshLogin(
-    t,
-    resolved({ success: false, message: "Invalid credentials." })
-  );
+  const result = await freshLogin(t, resolved({ success: false, message: "Invalid credentials." }));
   assert.strictEqual(result.success, false);
   assert.strictEqual(result.code, AUTH_ERROR.INVALID_CREDENTIALS);
   assert.strictEqual(result.message, undefined);
@@ -115,10 +112,7 @@ test("login: HTTP 5xx classifies as server_error", async (t) => {
 });
 
 test("login: no response (DNS/offline) classifies as network_error, never leaks err.message", async (t) => {
-  const result = await freshLogin(
-    t,
-    rejected(new Error("getaddrinfo ENOTFOUND api.letshyre.com"))
-  );
+  const result = await freshLogin(t, rejected(new Error("getaddrinfo ENOTFOUND api.letshyre.com")));
   assert.strictEqual(result.code, AUTH_ERROR.NETWORK_ERROR);
   assert.strictEqual(JSON.stringify(result).includes("ENOTFOUND"), false);
 });

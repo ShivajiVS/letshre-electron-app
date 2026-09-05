@@ -21,6 +21,7 @@ const {
   AGENT_READY_TIMEOUT_MS,
   AGENT_REQUEST_TIMEOUT_MS,
 } = require("../shared/constants");
+const { agentSourceMatches, expectedAgentSource } = require("../shared/agentBuild");
 
 const crypto = require("crypto");
 const AGENT_SECRET = crypto.randomBytes(16).toString("hex");
@@ -139,7 +140,17 @@ function _consumeStdout(chunk) {
     // Unsolicited startup event: {"event":"ready", ...} carries no `id`, so it
     // has to be handled before the response-matching lookup below.
     if (msg.event === "ready") {
-      _markReady(`event agent_version=${msg.agent_version} pid=${msg.pid}`);
+      const sha = String(msg.source_sha || "unknown");
+      if (!agentSourceMatches(msg.source_sha)) {
+        logger.error(
+          `[agent] source_sha ${sha.slice(0, 12)} does not match the ${String(
+            expectedAgentSource()
+          ).slice(0, 12)} this build shipped with — preflight will not pass`
+        );
+      }
+      _markReady(
+        `event agent_version=${msg.agent_version} source_sha=${sha.slice(0, 12)} pid=${msg.pid}`
+      );
       continue;
     }
     const entry = _pending.get(msg.id);

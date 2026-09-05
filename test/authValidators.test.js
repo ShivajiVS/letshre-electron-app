@@ -40,11 +40,7 @@ test("validateEmail: malformed shapes are invalid", () => {
 });
 
 test("validateEmail: well-formed addresses are valid", () => {
-  for (const good of [
-    "a@b.co",
-    "shivajikv55@gmail.com",
-    "first.last+tag@sub.example.co.uk",
-  ]) {
+  for (const good of ["a@b.co", "shivajikv55@gmail.com", "first.last+tag@sub.example.co.uk"]) {
     const r = validateEmail(good);
     assert.strictEqual(r.valid, true, `expected "${good}" to be valid`);
     assert.strictEqual(r.code, null);

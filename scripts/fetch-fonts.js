@@ -54,13 +54,17 @@ const KEEP_OWN_FAMILY_NAME = new Set(["inter", "noto-nastaliq-urdu"]);
 
 async function fetchText(url, extraHeaders) {
   const res = await fetch(url, { headers: { "User-Agent": UA, ...extraHeaders } });
-  if (!res.ok) throw new Error(`${res.status} ${url}`);
+  if (!res.ok) {
+    throw new Error(`${res.status} ${url}`);
+  }
   return res.text();
 }
 
 async function fetchBuffer(url) {
   const res = await fetch(url, { headers: { "User-Agent": UA } });
-  if (!res.ok) throw new Error(`${res.status} ${url}`);
+  if (!res.ok) {
+    throw new Error(`${res.status} ${url}`);
+  }
   return Buffer.from(await res.arrayBuffer());
 }
 
@@ -88,7 +92,9 @@ async function main() {
     let subsetIndex = 0;
     for (const block of blocks) {
       const urlMatch = block.match(/url\((https:\/\/fonts\.gstatic\.com\/[^)]+)\)/);
-      if (!urlMatch) continue;
+      if (!urlMatch) {
+        continue;
+      }
       const url = urlMatch[1];
 
       let fname = urlToFname.get(url);
@@ -106,7 +112,7 @@ async function main() {
       if (!KEEP_OWN_FAMILY_NAME.has(slug)) {
         localBlock = localBlock.replace(/font-family: '[^']*';/, "font-family: 'Noto Sans';");
       }
-      familyCss += localBlock + "\n";
+      familyCss += `${localBlock}\n`;
     }
     combined += familyCss;
     console.log(`${slug}: ${blocks.length} blocks, ${urlToFname.size} unique files fetched`);

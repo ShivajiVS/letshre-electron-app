@@ -14,7 +14,7 @@
 
 "use strict";
 
-const { verifyRelease } = require("./releaseManifest");
+const { verifyRelease, verifyTagFormat, verifyVersionOrder } = require("./releaseManifest");
 
 const API = "https://api.github.com";
 
@@ -44,9 +44,8 @@ async function gh(path, options = {}) {
  * Drafts are not addressable by tag, so the list has to be scanned. Only the
  * first page is fetched: the release being verified was created moments ago.
  */
-async function findRelease(repo, tag) {
-  const releases = await gh(`/repos/${repo}/releases?per_page=100`);
-  return releases.find((r) => r.tag_name === tag) || null;
+async function listReleases(repo) {
+  return gh(`/repos/${repo}/releases?per_page=100`);
 }
 
 /**
@@ -81,9 +80,27 @@ async function main() {
     fail("GITHUB_REPOSITORY is not set");
   }
 
-  const release = await findRelease(repo, tag);
+  const tagCheck = verifyTagFormat(tag);
+  if (!tagCheck.ok) {
+    fail(tagCheck.problems.join("; "));
+  }
+
+  const releases = await listReleases(repo);
+  const release = releases.find((r) => r.tag_name === tag) || null;
   if (!release) {
     fail(`no release found for tag ${tag} — did electron-builder publish?`);
+  }
+
+  const orderCheck = verifyVersionOrder(
+    tag,
+    releases.filter((r) => !r.draft).map((r) => r.tag_name)
+  );
+  if (!orderCheck.ok) {
+    console.error("\nVersion ordering FAILED:");
+    for (const problem of orderCheck.problems) {
+      console.error(`  ✖ ${problem}`);
+    }
+    fail("publishing this would offer existing clients a downgrade");
   }
 
   const assets = release.assets.map((a) => ({ name: a.name, size: a.size, id: a.id }));

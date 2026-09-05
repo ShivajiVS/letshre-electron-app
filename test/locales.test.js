@@ -64,8 +64,11 @@ function extractTokens(str) {
     let depth = 1;
     let i = OPEN.lastIndex;
     while (i < s.length && depth > 0) {
-      if (s[i] === "{") {depth++;}
-      else if (s[i] === "}") {depth--;}
+      if (s[i] === "{") {
+        depth++;
+      } else if (s[i] === "}") {
+        depth--;
+      }
       i++;
     }
     lastEnd = i;
@@ -118,7 +121,9 @@ test("every locale (including en) has provenance metadata: _reviewedBy and _sour
 });
 
 for (const code of localeFiles()) {
-  if (code === SOURCE_LOCALE) {continue;}
+  if (code === SOURCE_LOCALE) {
+    continue;
+  }
 
   test(`${code}.json has exactly the same keys as en.json`, () => {
     const flat = flatten(loadBundle(code));
@@ -147,7 +152,9 @@ for (const code of localeFiles()) {
     const flat = flatten(loadBundle(code));
     for (const [key, enValue] of Object.entries(sourceFlat)) {
       const enTokens = extractTokens(enValue);
-      if (enTokens.length === 0) {continue;}
+      if (enTokens.length === 0) {
+        continue;
+      }
       const localizedValue = flat[key];
       const localizedTokens = extractTokens(localizedValue);
       assert.deepStrictEqual(

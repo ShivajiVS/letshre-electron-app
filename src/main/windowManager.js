@@ -13,7 +13,7 @@ const { app, BrowserWindow, session, dialog, nativeImage } = require("electron")
 const logger = require("./logger");
 const appState = require("./appState");
 const localeManager = require("./localeManager");
-const { INTERVIEW_BASE_URL, IPC } = require("../shared/constants");
+const { INTERVIEW_BASE_URL, IPC, DEVTOOLS_ENABLED } = require("../shared/constants");
 
 /**
  * Text for the native "Exit Interview?" close-confirmation dialog, keyed by
@@ -435,7 +435,7 @@ function _applyInputLockdown() {
     // app temporarily to manually close other windows before rescanning.
     const isAltF4 = input.alt && input.key === "F4" && isInterviewActive;
 
-    if (isDevTools || isAltF4) {
+    if ((isDevTools && !DEVTOOLS_ENABLED) || isAltF4) {
       event.preventDefault();
     }
   });

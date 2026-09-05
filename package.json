@@ -13,14 +13,17 @@
   "scripts": {
     "start": "electron .",
     "dev": "nodemon --watch src --watch assets --watch preload.js --ext js,html,css --exec \"electron .\"",
+    "clean": "node scripts/clean.js",
     "build:agent": "python scripts/build_agent.py",
     "build:full": "pnpm run build:agent && electron-builder",
-    "dist": "node scripts/check-agent-freshness.js && electron-builder --win --mac",
+    "dist": "node scripts/check-agent-freshness.js && electron-builder",
+    "dist:win": "node scripts/check-agent-freshness.js --target=win && electron-builder --win",
+    "dist:mac": "node scripts/check-agent-freshness.js --target=mac && electron-builder --mac",
     "test": "node --test test/*.test.js",
-    "lint": "eslint src preload.js main.js --ext .js",
-    "lint:fix": "eslint src preload.js main.js --ext .js --fix",
-    "format": "prettier --write \"src/**/*.js\" \"assets/**/*.{html,css}\" \"preload.js\" \"main.js\"",
-    "format:check": "prettier --check \"src/**/*.js\" \"assets/**/*.{html,css}\" \"preload.js\" \"main.js\""
+    "lint": "eslint src scripts test assets/js preload.js preload-recorder.js main.js --ext .js",
+    "lint:fix": "eslint src scripts test assets/js preload.js preload-recorder.js main.js --ext .js --fix",
+    "format": "prettier --write \"{src,scripts,test}/**/*.js\" \"assets/**/*.{html,css,js}\" \"preload.js\" \"preload-recorder.js\" \"main.js\"",
+    "format:check": "prettier --check \"{src,scripts,test}/**/*.js\" \"assets/**/*.{html,css,js}\" \"preload.js\" \"preload-recorder.js\" \"main.js\""
   },
   "devDependencies": {
     "electron": "^43.0.0",

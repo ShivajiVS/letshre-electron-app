@@ -119,10 +119,7 @@ test("isFrameAllowed: a missing frame (no senderFrame) is refused, never allowed
 
 test("isUrlOriginAllowed: matches isOriginAllowed via URL parsing, including file://", () => {
   assert.strictEqual(isUrlOriginAllowed(SCOPE.LOCAL, "file:///C:/app/permissions.html"), true);
-  assert.strictEqual(
-    isUrlOriginAllowed(SCOPE.INTERVIEW, `${INTERVIEW_ORIGIN}/session?ac=1`),
-    true
-  );
+  assert.strictEqual(isUrlOriginAllowed(SCOPE.INTERVIEW, `${INTERVIEW_ORIGIN}/session?ac=1`), true);
   assert.strictEqual(isUrlOriginAllowed(SCOPE.INTERVIEW, "file:///C:/app/permissions.html"), false);
   assert.strictEqual(isUrlOriginAllowed(SCOPE.LOCAL, "not a url"), false);
 });
@@ -152,7 +149,11 @@ test("ipcHandlers.js never calls ipcMain.handle()/ipcMain.on() directly", () => 
   // registerSend() so scope can't be skipped. A raw call here is exactly the
   // bypass this whole mechanism exists to prevent.
   const rawCalls = ipcHandlersText.match(/\bipcMain\.(handle|on)\(/g) || [];
-  assert.deepStrictEqual(rawCalls, [], "found raw ipcMain.handle()/ipcMain.on() call(s) in ipcHandlers.js");
+  assert.deepStrictEqual(
+    rawCalls,
+    [],
+    "found raw ipcMain.handle()/ipcMain.on() call(s) in ipcHandlers.js"
+  );
 });
 
 /**
@@ -208,7 +209,7 @@ const EXPECTED_INTERVIEW_SCOPE_CHANNELS = [
   "VIEW_DASHBOARD", // viewDashboard() — scorecard "View Dashboard" button
 ];
 
-test("exactly the documented contract channels are scoped \"interview\" — everything else is local", () => {
+test('exactly the documented contract channels are scoped "interview" — everything else is local', () => {
   const interviewScoped = registrations
     .filter((r) => r.scope === "INTERVIEW")
     .map((r) => r.channelKey)

@@ -1065,6 +1065,7 @@ function normalizeKillResult(raw, processName) {
     processName: typeof raw?.processName === "string" ? raw.processName : processName,
     success: outcome ? SUCCESS_KILL_OUTCOMES.has(outcome) : raw?.success === true,
     outcome,
+    serviceBacked: raw?.serviceBacked === true,
   };
 }
 
@@ -1165,6 +1166,27 @@ function paintKillRow(row, btn, processName, state) {
   // button stops offering it and the hint points at the actual fix.
   if (norm.outcome === "respawned") {
     row.classList.add("sc-kill-row--respawned");
+
+    // A background service put it back, and only an elevated retry can stop
+    // that. Without this the candidate is told to disable an auto-start setting
+    // that isn't what brought the app back.
+    if (norm.serviceBacked && _canElevate && !_elevationTried.has(processName)) {
+      btn.disabled = false;
+      btn.dataset.mode = "elevate";
+      btn.className = "sc-kill-btn sc-kill-btn--elevate";
+      btn.innerHTML = `${KILL_ICON.lock} ${tr("preflightResults.killElevateBtn", "Close with admin rights")}`;
+      setKillHint(
+        row,
+        tr(
+          "preflightResults.killElevateHint",
+          `${display} needs administrator rights. Your system will ask you to confirm before it closes.`,
+          { name: display }
+        ),
+        "blocked"
+      );
+      return "respawned";
+    }
+
     btn.disabled = true;
     btn.className = "sc-kill-btn sc-kill-btn--respawned";
     btn.innerHTML = `${KILL_ICON.reopen} ${tr("preflightResults.killRespawnedBtn", "Reopened itself")}`;
@@ -1722,10 +1744,10 @@ function projectAuditEntry(entry) {
   return null;
 }
 
-/** Newest preflight audit entry, used to recover the agent version. */
-function findAgentVersion(auditEntries) {
+/** Most recent value of an audit field, newest entry first. */
+function findAuditField(auditEntries, field) {
   for (let i = auditEntries.length - 1; i >= 0; i -= 1) {
-    const v = auditEntries[i]?.data?.agentVersion;
+    const v = auditEntries[i]?.data?.[field];
     if (v) {
       return v;
     }
@@ -1759,7 +1781,9 @@ async function buildDiagnosticsText() {
     "LetsHyre preflight diagnostics",
     `generated:     ${new Date().toISOString()}`,
     `appVersion:    ${_appVersion || "unknown"}`,
-    `agentVersion:  ${findAgentVersion(audit) || "unknown"}`,
+    `agentVersion:  ${findAuditField(audit, "agentVersion") || "unknown"}`,
+    `agentSource:   ${String(findAuditField(audit, "agentSourceSha") || "unknown").slice(0, 12)}`,
+    `agentExpected: ${String(findAuditField(audit, "agentSourceExpected") || "none").slice(0, 12)}`,
     `platform:      ${navigator.platform || "unknown"}`,
     `locale:        ${window.i18n?.getLocale?.() || document.documentElement.lang || "unknown"}`,
     `scanId:        ${_lastScanId || "none"}`,

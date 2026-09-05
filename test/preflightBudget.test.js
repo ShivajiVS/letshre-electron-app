@@ -108,10 +108,7 @@ test("agentClient's request timeouts come from the shared constants", () => {
 });
 
 test("preflight.js SCAN_TIMEOUT_MS still mirrors PREFLIGHT_RENDERER_TIMEOUT_MS", () => {
-  const src = fs.readFileSync(
-    path.join(__dirname, "../src/renderer/preflight.js"),
-    "utf8"
-  );
+  const src = fs.readFileSync(path.join(__dirname, "../src/renderer/preflight.js"), "utf8");
   const match = src.match(/const SCAN_TIMEOUT_MS\s*=\s*(\d+)\s*;/);
   assert.ok(match, "could not find SCAN_TIMEOUT_MS in src/renderer/preflight.js");
   assert.strictEqual(

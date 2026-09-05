@@ -20,6 +20,12 @@ const {
   canProceed,
 } = require("../src/detector/preflightVerdict");
 
+// scripts/build_agent.py generates the hash the app expects, so whether it
+// exists depends on the machine. Stamping it keeps these fixtures "a healthy
+// agent" either way — the drift check itself is covered in agentBuild.test.js.
+const { expectedAgentSource } = require("../src/shared/agentBuild");
+const SOURCE_SHA = expectedAgentSource() ?? undefined;
+
 test("mapHdmi: a clear probe passes", () => {
   assert.strictEqual(mapHdmi({ detected: false, status: "clear" }).status, PASS);
 });
@@ -88,7 +94,7 @@ test("mapProcesses: an unrecognised blocked app lands on the wireless card", () 
 test("mapAgent: a clean scan passes", () => {
   const v = mapAgent({
     alive: true,
-    status: { threats: [], safe_to_proceed: true, contract_version: 2 },
+    status: { threats: [], safe_to_proceed: true, contract_version: 2, source_sha: SOURCE_SHA },
   });
   assert.strictEqual(v.status, PASS);
 });
@@ -150,6 +156,7 @@ const AGENT_V2_CLEAN = {
   agent_version: "1.0.0",
   physical_monitors: 1,
   contract_version: 2,
+  source_sha: SOURCE_SHA,
   checks: {
     window_titles: "ok",
     network: "ok",
@@ -227,7 +234,7 @@ const cleanRaw = {
   mirror: { detected: false, status: "clear", details: { processes: [] } },
   agent: {
     alive: true,
-    status: { threats: [], safe_to_proceed: true, contract_version: 2 },
+    status: { threats: [], safe_to_proceed: true, contract_version: 2, source_sha: SOURCE_SHA },
   },
 };
 

@@ -204,6 +204,19 @@ const APP_COMPANIONS = {
     "teamviewer_desktop.exe",
   ],
 
+  // ── Splashtop ──
+  // srservice is the Splashtop Remote Service; it respawns srserver.exe the way
+  // teamviewer_service respawns TeamViewer.
+  "srserver.exe": ["srservice.exe"],
+  "srfeature.exe": ["srservice.exe"],
+  "stserver.exe": ["srservice.exe"],
+
+  // ── Chrome Remote Desktop ──
+  // remoting_desktop hosts the active session and keeps the connection up after
+  // remoting_host dies. remoting_host itself runs as the `chromoting` service,
+  // so killing it yields "respawned" until the service is stopped.
+  "remoting_host.exe": ["remoting_desktop.exe"],
+
   // ── Snagit (TechSmith) ──
   // Editor + privileged helper keep capture alive after the tray app exits.
   "snagit.exe": ["snagiteditor.exe", "snagpriv.exe"],
@@ -286,6 +299,58 @@ function getCompanionScope(processName, companionName) {
  */
 function requiresPathScope(companionName) {
   return SCOPED_COMPANION_NAMES.has(String(companionName || "").toLowerCase());
+}
+
+// ─── Service-backed apps ─────────────────────────────────────────────────────
+
+/**
+ * Windows services that restart a blocked app after it is killed. Unlike a
+ * companion, these share the app's own image name (Parsec, AnyDesk and the
+ * Chrome Remote Desktop host all run their service as the same exe), so no
+ * amount of process killing reaches them — the service has to be stopped.
+ *
+ * Values are SCM service names as `sc stop` takes them, not display names.
+ *
+ * Rule for extending this map: the service must belong to one vendor's remote
+ * access product and exist only to keep it running. Never add a Windows
+ * platform service — stopping one damages the candidate's machine, and the
+ * caller validates every name against this map before it reaches a command.
+ */
+const APP_SERVICES = {
+  "anydesk.exe": ["AnyDesk"],
+  "parsec.exe": ["Parsec"],
+  "parsecd.exe": ["Parsec"],
+  "remoting_host.exe": ["chromoting"],
+  "srserver.exe": ["SplashtopRemoteService"],
+  "srfeature.exe": ["SplashtopRemoteService"],
+  "stserver.exe": ["SplashtopRemoteService"],
+};
+
+/**
+ * Returns the services known to restart a blocked app.
+ * @param {string} processName
+ * @returns {string[]} [] when none are known
+ */
+function getServices(processName) {
+  if (typeof processName !== "string") {
+    return [];
+  }
+  const key = processName.toLowerCase();
+  if (!Object.prototype.hasOwnProperty.call(APP_SERVICES, key)) {
+    return [];
+  }
+  return [...APP_SERVICES[key]];
+}
+
+/**
+ * True if this is exactly a service name registered above. Exact membership is
+ * the whole boundary — the command builder calls this rather than trusting its
+ * caller, so nothing outside this map can reach a command line.
+ * @param {string} serviceName
+ * @returns {boolean}
+ */
+function isKnownService(serviceName) {
+  return Object.values(APP_SERVICES).some((list) => list.includes(serviceName));
 }
 
 /** Maps process executable names to human-friendly display names. */
@@ -415,4 +480,7 @@ module.exports = {
   APP_COMPANION_SCOPES,
   getCompanionScope,
   requiresPathScope,
+  APP_SERVICES,
+  getServices,
+  isKnownService,
 };

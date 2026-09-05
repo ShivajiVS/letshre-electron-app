@@ -92,7 +92,9 @@ function localeFiles() {
 function flatten(obj, prefix = "") {
   const out = {};
   for (const [key, value] of Object.entries(obj)) {
-    if (key.startsWith("_")) {continue;}
+    if (key.startsWith("_")) {
+      continue;
+    }
     const path_ = prefix ? `${prefix}.${key}` : key;
     if (value && typeof value === "object" && !Array.isArray(value)) {
       Object.assign(out, flatten(value, path_));
@@ -117,8 +119,11 @@ function extractPluralBlocks(str) {
     let depth = 1;
     let i = OPEN.lastIndex;
     while (i < s.length && depth > 0) {
-      if (s[i] === "{") {depth++;}
-      else if (s[i] === "}") {depth--;}
+      if (s[i] === "{") {
+        depth++;
+      } else if (s[i] === "}") {
+        depth--;
+      }
       i++;
     }
     const body = s.slice(OPEN.lastIndex, i - 1);
@@ -141,7 +146,9 @@ for (const code of localeFiles()) {
     const flat = flatten(JSON.parse(raw));
     const problems = [];
     for (const [key, value] of Object.entries(flat)) {
-      if (typeof value !== "string") {continue;}
+      if (typeof value !== "string") {
+        continue;
+      }
       for (const block of extractPluralBlocks(value)) {
         const missing = required.filter((c) => !block.categories.includes(c));
         if (missing.length > 0) {

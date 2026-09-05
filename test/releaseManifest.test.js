@@ -8,7 +8,14 @@
 const test = require("node:test");
 const assert = require("node:assert");
 
-const { parseLatestYml, versionFromTag, verifyRelease } = require("../scripts/releaseManifest");
+const {
+  parseLatestYml,
+  versionFromTag,
+  verifyRelease,
+  verifyTagFormat,
+  compareVersions,
+  verifyVersionOrder,
+} = require("../scripts/releaseManifest");
 
 // Verbatim from the published v1.1.2 release — the last one that worked.
 const GOOD_MANIFEST = `version: 1.1.2
@@ -108,4 +115,51 @@ test("a blockmap alongside a complete manifest is not required to be referenced"
   const withoutBlockmap = GOOD_ASSETS.filter((a) => !a.name.endsWith(".blockmap"));
 
   assert.strictEqual(verifyRelease("v1.1.2", GOOD_MANIFEST, withoutBlockmap).ok, true);
+});
+
+test("accepts a well-formed tag", () => {
+  assert.strictEqual(verifyTagFormat("v1.2.10").ok, true);
+});
+
+test("rejects the 1.2.5 shape — no v prefix, so the workflow never ran", () => {
+  // That release ended up holding only v1.2.6's blockmap.
+  const result = verifyTagFormat("1.2.5");
+
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.problems.some((p) => p.includes("not vX.Y.Z")));
+});
+
+test("rejects tags that aren't three numbers", () => {
+  for (const tag of ["v1.2", "v1.2.3-beta", "latest", ""]) {
+    assert.strictEqual(verifyTagFormat(tag).ok, false, tag);
+  }
+});
+
+test("orders versions numerically, not as strings", () => {
+  // 1.2.10 sorts before 1.2.9 lexically — the trap in a hand-rolled comparison.
+  assert.strictEqual(compareVersions("1.2.10", "1.2.9"), 1);
+  assert.strictEqual(compareVersions("1.2.9", "1.2.10"), -1);
+  assert.strictEqual(compareVersions("1.2.4", "1.2.4"), 0);
+  assert.strictEqual(compareVersions("2.0.0", "1.9.9"), 1);
+});
+
+test("a newer tag than everything published passes", () => {
+  const result = verifyVersionOrder("v1.2.10", ["v1.2.7", "v1.2.6", "v1.2.4"]);
+
+  assert.deepStrictEqual(result.problems, []);
+  assert.strictEqual(result.ok, true);
+});
+
+test("rejects a tag older than the latest published — clients would be downgraded", () => {
+  const result = verifyVersionOrder("v1.2.5", ["v1.2.7", "v1.2.6"]);
+
+  assert.strictEqual(result.ok, false);
+  assert.ok(result.problems.some((p) => p.includes("v1.2.7")));
+});
+
+test("the release being re-verified does not count against itself", () => {
+  // A re-run of the same workflow must stay idempotent.
+  const result = verifyVersionOrder("v1.2.10", ["v1.2.10", "v1.2.7"]);
+
+  assert.strictEqual(result.ok, true);
 });

@@ -392,13 +392,25 @@ pnpm start        # plain electron .
 
 ```bash
 pnpm run build:agent    # PyInstaller → resources/agent.exe   (run when agent.py changes)
-pnpm run build:full     # build:agent + electron-builder
-pnpm run dist           # cross-target (win + mac)
+pnpm run build:full     # build:agent + electron-builder, for this machine
+pnpm run dist           # package for this machine
+pnpm run dist:win       # package for Windows
+pnpm run dist:mac       # package for macOS
 ```
 
-Output goes to `release/` (NSIS installer on Windows, DMG on macOS).
+Output goes to `release/` (NSIS installer on Windows, DMG on macOS). The agent binary is per-platform and PyInstaller cannot cross-compile, so `dist:mac` needs a Mac to have produced `resources/agent`.
 
-> **`resources/agent.exe` is gitignored** — it is a build artifact rebuilt from `agent.py`. Always run `build:agent` (or `build:full`) before packaging so the bundled binary matches the current `agent.py`.
+> **`resources/agent.exe` is gitignored** — it is a build artifact rebuilt from `agent.py`. Always run `build:agent` (or `build:full`) before packaging so the bundled binary matches the current `agent.py`. The `dist` scripts refuse to package when it does not, comparing the source hash recorded in `resources/agent.build.json`.
+
+### Releasing
+
+Releases are cut by CI only. Never run `electron-builder --publish` locally — that is how tag `1.2.5` ended up on GitHub holding nothing but another version's blockmap.
+
+1. Bump `version` in `package.json` in its own commit, and say what is shipping in the message — not "bump version". Two production defaults reached users inside commits messaged that way.
+2. Tag that exact commit `vX.Y.Z`, matching the new version.
+3. Push the branch, then the tag. The tag push is what builds and publishes.
+
+CI refuses the release if the tag is not `vX.Y.Z`, disagrees with `package.json`, is not newer than every published release, or produces a `latest.yml` whose installers did not upload. It publishes the draft only once all of those pass.
 
 ## Configuration
 
@@ -445,6 +457,7 @@ Environment variables: `API_BASE_URL` (staging/test backend), `AGENT_PY` / `AGEN
 | `dev`                     | Launch with file watching                              |
 | `build:agent`             | PyInstaller build of the Python agent                  |
 | `build:full` / `dist`     | Package the app (see [Building](#building--packaging)) |
+| `dist:win` / `dist:mac`   | Package for a specific platform                        |
 | `lint` / `lint:fix`       | ESLint                                                 |
 | `format` / `format:check` | Prettier                                               |
 

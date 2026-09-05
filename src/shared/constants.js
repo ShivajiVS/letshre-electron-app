@@ -1,5 +1,29 @@
 "use strict";
-// ─── Backend / Agent
+
+// Env overrides are dev-only — a packaged client must never let a candidate
+// repoint the interview or API host. process.defaultApp is true only under
+// `electron .`, and undefined both in packaged builds and under plain node.
+const IS_DEV = process.defaultApp === true;
+
+/** Loads .env into process.env, letting real environment values win. */
+function _loadDotEnv() {
+  let text;
+  try {
+    text = require("fs").readFileSync(require("path").join(__dirname, "../../.env"), "utf8");
+  } catch {
+    return;
+  }
+  for (const line of text.split(/\r?\n/)) {
+    const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
+    if (match && !process.env[match[1]]) {
+      process.env[match[1]] = match[2].trim().replace(/^["']|["']$/g, "");
+    }
+  }
+}
+
+if (IS_DEV) {
+  _loadDotEnv();
+}
 
 /** Port the Python security agent listens on. */
 const AGENT_PORT = 9999;
@@ -38,13 +62,16 @@ const AGENT_SCAN_TIMEOUT_MS = 12000;
  */
 const MINIMUM_SUPPORTED_CONTRACT_VERSION = 2;
 
-// ─── URLs
-
 // Base URL of the interview web app.
-const INTERVIEW_BASE_URL = process.env.INTERVIEW_FRONTEND_BASE_URL || "http://localhost:5173";
+const INTERVIEW_BASE_URL =
+  (IS_DEV && process.env.INTERVIEW_FRONTEND_BASE_URL) || "https://interview.letshyre.com";
 
-// Base URL of the LetsHyre REST API. Overridable via env for staging / tests.
-const API_BASE_URL = process.env.API_BASE_URL || "https://api.letshyre.com";
+// Base URL of the LetsHyre REST API.
+const API_BASE_URL = (IS_DEV && process.env.API_BASE_URL) || "https://api.letshyre.com";
+
+// Lets F12 and Ctrl+Shift+I through in dev. Nothing auto-opens DevTools — this
+// only stops the input lockdown from swallowing the keystroke.
+const DEVTOOLS_ENABLED = IS_DEV && process.env.DEVTOOLS === "1";
 
 /** Auth API paths (relative to API_BASE_URL). */
 const AUTH_LOGIN_PATH = "/user/v1/login/";
@@ -72,8 +99,7 @@ const HEARTBEAT_INTERVAL_MS = 30000;
  * How often (ms) to re-check GitHub for app updates. Suppressed during an
  * active interview — a proctor client must never restart mid-session.
  */
-// const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
-const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 /** How long (ms) to wait before retrying a failed check/download, so a transient
  *  network blip doesn't strand a candidate until the next UPDATE_CHECK_INTERVAL_MS. */
@@ -344,6 +370,7 @@ const SUPPORTED_LOCALES = [
 const PROTOCOL_SCHEME = "letshyre";
 
 module.exports = {
+  IS_DEV,
   AGENT_PORT,
   AGENT_HOST,
   AGENT_POLL_INTERVAL_MS,
@@ -353,6 +380,7 @@ module.exports = {
   MINIMUM_SUPPORTED_CONTRACT_VERSION,
   INTERVIEW_BASE_URL,
   API_BASE_URL,
+  DEVTOOLS_ENABLED,
   AUTH_LOGIN_PATH,
   AUTH_LOGOUT_PATH,
   CANDIDATE_PROFILE_PATH,

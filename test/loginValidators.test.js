@@ -16,10 +16,7 @@ const path = require("node:path");
 
 const shared = require("../src/shared/authValidators");
 
-const loginSrc = fs.readFileSync(
-  path.join(__dirname, "../src/renderer/login.js"),
-  "utf8"
-);
+const loginSrc = fs.readFileSync(path.join(__dirname, "../src/renderer/login.js"), "utf8");
 
 function extractConst(name) {
   const match = loginSrc.match(new RegExp(`const ${name}\\s*=\\s*(\\d+);`));

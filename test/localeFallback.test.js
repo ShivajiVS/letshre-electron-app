@@ -45,7 +45,7 @@ const DE_PARTIAL_FIXTURE = {
 
 /** Mocks fs.readFileSync to serve fixture JSON per locale code, from `bundles`. */
 function mockReadFileSync(t, bundles, { onCall } = {}) {
-  return t.mock.method(fs, "readFileSync", (fp, ...rest) => {
+  return t.mock.method(fs, "readFileSync", (fp, ..._rest) => {
     const code = path.basename(String(fp), ".json");
     if (onCall) {
       onCall(code);

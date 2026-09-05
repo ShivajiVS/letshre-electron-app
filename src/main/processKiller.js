@@ -3,7 +3,9 @@
  * ALL_BLOCKED_APPS (src/shared/appList.js) may be killed — this whitelist is
  * what stops the IPC handler from being abused to kill arbitrary OS processes.
  *
- * Flow: companions (launchers/updaters that would relaunch the main exe) are
+ * Flow: a vendor service that would restart the app is stopped first (see
+ * APP_SERVICES — this needs elevation, so it usually takes the elevated retry),
+ * then companions (launchers/updaters that would relaunch the main exe) are
  * killed before the main exe itself; we then verify by re-scanning PIDs and
  * watch briefly for a relaunch, so the result outcome ("closed", "respawned",
  * etc, see KillResult) reflects what actually happened, not a guess. Killing
@@ -22,7 +24,15 @@
 
 const { spawn } = require("child_process");
 const logger = require("./logger");
-const { ALL_BLOCKED_APPS } = require("../shared/appList");
+const { ALL_BLOCKED_APPS, getServices, isKnownService } = require("../shared/appList");
+const {
+  baseName,
+  parseCsvLine,
+  parseCreated,
+  parseWindowsProcessCsv,
+  parseUnixProcessTable,
+  matchesImageName,
+} = require("./processTable");
 const {
   KILL_ENUM_TIMEOUT_MS,
   KILL_VERIFY_TIMEOUT_MS,
@@ -40,6 +50,8 @@ const {
  *           |"not-blocked"|"own-process"|"spawn-error"|"unsupported"} outcome
  * @property {string} [error]              - technical detail for diagnostics, not UI
  * @property {string[]} [companionsKilled] - companion image names actually terminated
+ * @property {string[]} [servicesStopped]  - vendor services stopped to stop a relaunch
+ * @property {boolean} [serviceBacked]     - a service can restart this app; elevation may help
  * @property {number} [pidsKilled]
  */
 
@@ -93,12 +105,6 @@ function isOwnProcess(processName) {
     return true;
   }
   return OWN_PREFIXES.some((prefix) => name.startsWith(prefix));
-}
-
-/** Basename that understands both `/` and `\` regardless of host platform. */
-function baseName(p) {
-  const parts = String(p || "").split(/[\\/]/);
-  return parts[parts.length - 1] || "";
 }
 
 /** Case-insensitive de-duplication that keeps first-seen order. */
@@ -170,188 +176,6 @@ function runCommand(command, args, timeoutMs) {
     child.on("error", (err) => finish({ code: null, stdout, stderr, error: err.message }));
     child.on("close", (code) => finish({ code, stdout, stderr }));
   });
-}
-
-/**
- * Splits one CSV line, honouring double quotes and "" escapes.
- * @param {string} line
- * @returns {string[]}
- */
-function parseCsvLine(line) {
-  const fields = [];
-  let current = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (inQuotes) {
-      if (ch === '"') {
-        if (line[i + 1] === '"') {
-          current += '"';
-          i++;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        current += ch;
-      }
-    } else if (ch === '"') {
-      inQuotes = true;
-    } else if (ch === ",") {
-      fields.push(current);
-      current = "";
-    } else {
-      current += ch;
-    }
-  }
-  fields.push(current);
-  return fields.map((f) => f.trim());
-}
-
-/**
- * Parses a WMI creation timestamp into a comparable number.
- * Accepts PowerShell `.Ticks` (all digits) and the WMI datetime string
- * ("20260815181828.123456+330" → 20260815181828). Returns NaN when unknown.
- * @param {string} value
- * @returns {number}
- */
-function parseCreated(value) {
-  const raw = String(value || "").trim();
-  if (!raw) {
-    return NaN;
-  }
-  if (/^\d+$/.test(raw)) {
-    return Number(raw);
-  }
-  const m = raw.match(/^(\d{14})/);
-  return m ? Number(m[1]) : NaN;
-}
-
-/**
- * Parses headered CSV process output (PowerShell Get-CimInstance or wmic) —
- * both emit a ProcessId/ParentProcessId/Name header row, so one parser
- * covers both. Rows without a usable PID are dropped.
- * @param {string} text
- * @returns {ProcEntry[]}
- */
-function parseWindowsProcessCsv(text) {
-  const lines = String(text || "")
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0 && !l.startsWith("#TYPE"));
-
-  let cols = null;
-  const procs = [];
-
-  for (const line of lines) {
-    const fields = parseCsvLine(line);
-
-    if (!cols) {
-      const lower = fields.map((f) => f.replace(/^"|"$/g, "").toLowerCase());
-      const pidIdx = lower.indexOf("processid");
-      if (pidIdx === -1) {
-        continue;
-      } // still looking for the header row
-      cols = {
-        pid: pidIdx,
-        ppid: lower.indexOf("parentprocessid"),
-        name: lower.indexOf("name"),
-        path: lower.indexOf("executablepath"),
-        created: lower.findIndex((c) => c === "created" || c === "creationdate"),
-      };
-      continue;
-    }
-
-    const pid = Number(fields[cols.pid]);
-    if (!Number.isInteger(pid) || pid < 0) {
-      continue;
-    }
-
-    const ppidRaw = cols.ppid >= 0 ? Number(fields[cols.ppid]) : NaN;
-    const created = cols.created >= 0 ? parseCreated(fields[cols.created]) : NaN;
-    // Left "" rather than guessed when absent — a path-scoped companion must
-    // fail to match on an unknown path, never fall back to name-only.
-    const path = cols.path >= 0 ? String(fields[cols.path] || "").replace(/^"|"$/g, "") : "";
-
-    procs.push({
-      pid,
-      ppid: Number.isInteger(ppidRaw) ? ppidRaw : null,
-      name: baseName(fields[cols.name] || ""),
-      path,
-      created,
-    });
-  }
-
-  return procs;
-}
-
-/**
- * Parses `ps -Ao pid=,ppid=,comm=` output. `comm` on macOS is the full
- * executable path and may contain spaces, so everything after the second
- * numeric column is the command.
- * @param {string} text
- * @returns {ProcEntry[]}
- */
-function parseUnixProcessTable(text) {
-  const procs = [];
-  for (const line of String(text || "").split(/\r?\n/)) {
-    const m = line.match(/^\s*(\d+)\s+(\d+)\s+(.+?)\s*$/);
-    if (!m) {
-      continue;
-    } // blank lines, headers, malformed rows
-    const pid = Number(m[1]);
-    const ppid = Number(m[2]);
-    if (!Number.isInteger(pid)) {
-      continue;
-    }
-    procs.push({
-      pid,
-      ppid: Number.isInteger(ppid) ? ppid : null,
-      name: baseName(m[3]),
-      command: m[3],
-      created: NaN,
-    });
-  }
-  return procs;
-}
-
-/**
- * True when a process-table entry belongs to the given blocked-app image name.
- * Windows image names are exact ("chrome.exe"). macOS blocklist uses bundle
- * names ("google chrome.app") but `comm` is a full path, so we match either
- * the executable basename or the `.app` bundle component.
- * @param {ProcEntry} proc
- * @param {string} targetName
- * @param {NodeJS.Platform|string} platform
- * @returns {boolean}
- */
-function matchesImageName(proc, targetName, platform, scope = null) {
-  const target = String(targetName || "").toLowerCase();
-  if (!target || !proc) {
-    return false;
-  }
-  const name = String(proc.name || "").toLowerCase();
-
-  // Path scope for companions with a shared image name across vendors (e.g.
-  // Squirrel's update.exe). Fail-closed: no path means no match — killing
-  // every update.exe on the machine would take down unrelated software.
-  if (scope) {
-    const fullPath = String(proc.path || proc.command || "").toLowerCase();
-    if (!fullPath || !fullPath.includes(String(scope).toLowerCase())) {
-      return false;
-    }
-  }
-
-  if (platform !== "darwin") {
-    return name === target;
-  }
-
-  const bare = target.endsWith(".app") ? target.slice(0, -4) : target;
-  if (name === bare || name === target) {
-    return true;
-  }
-  const command = String(proc.command || "").toLowerCase();
-  return command.includes(`/${bare}.app/`);
 }
 
 // ─── Exclusion set (the safety invariant) ────────────────────────────────────
@@ -803,6 +627,40 @@ async function killPidReal(pid, platform, timeoutMs) {
   return classifyPidKill(r);
 }
 
+/**
+ * Stops a vendor service that would otherwise restart a blocked app.
+ * Refuses anything not registered in APP_SERVICES — the guard lives here, next
+ * to the command, rather than in the caller.
+ *
+ * @param {string} serviceName
+ * @param {NodeJS.Platform|string} platform
+ * @param {number} timeoutMs
+ * @returns {Promise<{status: "stopped"|"absent"|"denied"|"refused"|"unsupported"|"error", detail?: string}>}
+ */
+async function stopServiceReal(serviceName, platform, timeoutMs) {
+  if (platform !== "win32") {
+    return { status: "unsupported" };
+  }
+  if (!isKnownService(serviceName)) {
+    logger.warn("[processKiller] refusing to stop unregistered service:", serviceName);
+    return { status: "refused", detail: "service not in APP_SERVICES" };
+  }
+
+  const r = await runCommand("sc.exe", ["stop", serviceName], timeoutMs);
+  const text = `${r.stdout || ""} ${r.stderr || ""}`.toLowerCase();
+
+  if (r.code === 0) {
+    return { status: "stopped" };
+  }
+  if (/does not exist|not installed|has not been started/.test(text)) {
+    return { status: "absent" };
+  }
+  if (/access is denied/.test(text)) {
+    return { status: "denied", detail: "access denied" };
+  }
+  return { status: "error", detail: (r.stderr || "").trim() || `exit ${r.code}` };
+}
+
 // ─── Phase 5: elevation ──────────────────────────────────────────────────────
 
 /**
@@ -852,7 +710,7 @@ async function canElevate(deps = null) {
  * @param {object} deps
  * @returns {Promise<{status: string, detail?: string}>}
  */
-async function killPidsElevatedReal(pids, deps) {
+async function killPidsElevatedReal(pids, deps, services = []) {
   // Injection guard: these reach a shell-interpreted command string, so accept
   // nothing but positive integers. They come from our own enumeration, but the
   // validation is what makes that guarantee local and auditable.
@@ -864,17 +722,32 @@ async function killPidsElevatedReal(pids, deps) {
     return { status: "error", detail: "refusing to elevate with a malformed PID list" };
   }
 
+  // Same rule for services: only names registered in APP_SERVICES reach a
+  // command line, and one bad name voids the whole batch rather than being
+  // quietly dropped.
+  const safeServices = (services || []).filter((name) => isKnownService(name));
+  if (safeServices.length !== (services || []).length) {
+    return { status: "error", detail: "refusing to elevate with an unregistered service" };
+  }
+
   if (deps.platform === "win32") {
-    const argList = ["'/F'", ...safe.flatMap((p) => ["'/PID'", `'${p}'`])].join(",");
+    // With services in play the elevated child has to run more than one command,
+    // so it becomes a cmd.exe chain. Still ONE prompt — the reason the whole
+    // batch goes up together in the first place.
+    const command =
+      safeServices.length > 0
+        ? `Start-Process -FilePath cmd.exe -ArgumentList '/c','${[
+            ...safeServices.map((name) => `sc stop ${name}`),
+            `taskkill /F ${safe.map((p) => `/PID ${p}`).join(" ")}`,
+          ].join(" & ")}' -Verb RunAs -Wait -WindowStyle Hidden`
+        : `Start-Process -FilePath taskkill.exe -ArgumentList ${[
+            "'/F'",
+            ...safe.flatMap((p) => ["'/PID'", `'${p}'`]),
+          ].join(",")} -Verb RunAs -Wait -WindowStyle Hidden`;
+
     const r = await deps.runProbe(
       "powershell.exe",
-      [
-        "-NoProfile",
-        "-NonInteractive",
-        "-Command",
-        `Start-Process -FilePath taskkill.exe -ArgumentList ${argList} ` +
-          "-Verb RunAs -Wait -WindowStyle Hidden",
-      ],
+      ["-NoProfile", "-NonInteractive", "-Command", command],
       deps.timing.elevateTimeoutMs
     );
     const text = `${r.stdout || ""} ${r.stderr || ""}`;
@@ -924,7 +797,9 @@ function createDefaultDeps() {
     killPid: (pid) => killPidReal(pid, platform, timing.enumTimeoutMs),
     sleep: sleepReal,
     runProbe: runCommand,
-    killPidsElevated: (pids, deps) => killPidsElevatedReal(pids, deps),
+    killPidsElevated: (pids, deps, services) => killPidsElevatedReal(pids, deps, services),
+    getServices,
+    stopService: (name) => stopServiceReal(name, platform, timing.elevateTimeoutMs),
   };
 }
 
@@ -1034,14 +909,30 @@ async function killSingleProcess(processName, overrides) {
   let lastError = "";
   const companionsKilled = [];
 
+  // Services first: a running service restarts the app between the kill and the
+  // verification poll, which is the whole reason these apps read as "respawned".
+  const services = deps.platform === "win32" ? deps.getServices(name) : [];
+  const servicesStopped = [];
+  if (!deps.elevated) {
+    for (const service of services) {
+      const r = await deps.stopService(service);
+      if (r.status === "stopped") {
+        servicesStopped.push(service);
+      } else if (r.status === "denied") {
+        lastError = "stopping the background service needs administrator rights";
+      }
+    }
+  }
+
   if (deps.elevated) {
     // ONE elevation prompt for every PID across every group — per-PID/per-group
     // prompting would make a candidate accept a dozen UAC dialogs and give the
     // relauncher a window to win between them. taskkill gets the whole set at once.
     const allPids = groups.flatMap((g) => planKillLevels(g.procs, byPid).flat());
-    const r = await deps.killPidsElevated(allPids, { ...deps, timing });
+    const r = await deps.killPidsElevated(allPids, { ...deps, timing }, services);
     if (r.status === "killed") {
       killed = allPids.length;
+      servicesStopped.push(...services);
       for (const g of groups) {
         if (g.procs.length && g.name !== name) {
           companionsKilled.push(g.name);
@@ -1139,9 +1030,13 @@ async function killSingleProcess(processName, overrides) {
     outcome,
     pidsKilled: killed,
     companionsKilled,
+    ...(servicesStopped.length > 0 ? { servicesStopped } : {}),
+    // Tells the UI an elevated retry is worth offering on a respawn — for
+    // everything else the relauncher is user-level and elevation changes nothing.
+    ...(services.length > 0 ? { serviceBacked: true } : {}),
     ...(outcome === "closed" || outcome === "already-gone"
       ? {}
-      : { error: describeFailure(outcome, lastError, protectedMatches) }),
+      : { error: describeFailure(outcome, lastError, protectedMatches, services) }),
   });
 
   logger[result.success ? "info" : "warn"](
@@ -1154,10 +1049,13 @@ async function killSingleProcess(processName, overrides) {
  * Technical diagnostic string for a failed kill. NOT user-facing copy — the
  * renderer keys its message off `outcome`.
  */
-function describeFailure(outcome, lastError, protectedMatches) {
+function describeFailure(outcome, lastError, protectedMatches, services = []) {
   switch (outcome) {
     case "respawned":
-      return "Process reappeared after termination (relaunched by a background service)";
+      return services.length > 0
+        ? `Process reappeared after termination — the ${services.join(", ")} service ` +
+            "restarts it, and stopping that needs administrator rights"
+        : "Process reappeared after termination (relaunched by a background service)";
     case "access-denied":
       return lastError || "Access denied — process is elevated or protected";
     case "spawn-error":
@@ -1222,6 +1120,7 @@ module.exports = {
     getCompanionScopeSafe,
     requiresPathScopeSafe,
     killPidsElevatedReal,
+    stopServiceReal,
     classifyPidKill,
     classifyKillOutcome,
     describeFailure,

@@ -26,6 +26,7 @@ const {
   canProceed,
 } = require("./preflightVerdict");
 const { getDisplayName } = require("../shared/appList");
+const { expectedAgentSource } = require("../shared/agentBuild");
 const { fetchAgentStatus, triggerAgentScan } = require("./agentClient");
 const { whenAgentReady, isAgentReady } = require("../main/agentManager");
 const logger = require("../main/logger");
@@ -696,6 +697,8 @@ async function _runChecksOnceInner(onProgress, scanId, startedAt, timings) {
     verdicts: verdicts.map((v) => ({ id: v.id, status: v.status, reason: v.reasonKey })),
     physicalMonitors: agent?.status?.physical_monitors ?? null,
     agentVersion: agent?.status?.agent_version ?? null,
+    agentSourceSha: agent?.status?.source_sha ?? null,
+    agentSourceExpected: expectedAgentSource(),
   });
   logger.info(
     `[preflight] scan ${scanId} finished in ${capturedAt - startedAt}ms — ` +

@@ -130,19 +130,31 @@ const COGNATE_ALLOWLIST = {
 };
 
 for (const code of localeFiles()) {
-  if (code === SOURCE_LOCALE) {continue;}
+  if (code === SOURCE_LOCALE) {
+    continue;
+  }
 
   test(`${code}.json has no untranslated (English-identical) values outside the cognate allowlist`, () => {
     const flat = flatten(loadBundle(code));
     const allowlist = [...(COGNATE_ALLOWLIST[code] || []), ...NEW_KEY_PLACEHOLDER_ALLOWLIST];
     const offenders = [];
     for (const [key, enValue] of Object.entries(sourceFlat)) {
-      if (typeof enValue !== "string") {continue;}
-      if (!hasTranslatableContent(enValue)) {continue;}
+      if (typeof enValue !== "string") {
+        continue;
+      }
+      if (!hasTranslatableContent(enValue)) {
+        continue;
+      }
       const localizedValue = flat[key];
-      if (typeof localizedValue !== "string") {continue;}
-      if (normalizeForLeakCheck(localizedValue) !== normalizeForLeakCheck(enValue)) {continue;}
-      if (allowlist.includes(key)) {continue;}
+      if (typeof localizedValue !== "string") {
+        continue;
+      }
+      if (normalizeForLeakCheck(localizedValue) !== normalizeForLeakCheck(enValue)) {
+        continue;
+      }
+      if (allowlist.includes(key)) {
+        continue;
+      }
       offenders.push(key);
     }
     assert.deepStrictEqual(

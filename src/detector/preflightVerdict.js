@@ -15,6 +15,7 @@
 
 const { MEETING_APPS, SCREEN_SHARING_APPS, AI_CHEATING_APPS } = require("../shared/appList");
 const { MINIMUM_SUPPORTED_CONTRACT_VERSION } = require("../shared/constants");
+const { agentSourceMatches } = require("../shared/agentBuild");
 
 /** Verdict states. `unverified` is fail-closed — it blocks Proceed. */
 const PASS = "pass";
@@ -138,6 +139,12 @@ function mapAgent(agent) {
   // "not degraded" / "no verdict to override", i.e. a silent pass; that's the
   // exact stale-binary bug this check exists to close.
   if (!(status.contract_version >= MINIMUM_SUPPORTED_CONTRACT_VERSION)) {
+    return verdict("agent", UNVERIFIED, "preflightResults.agentUnverified");
+  }
+
+  // Binary doesn't match the agent.py this app shipped with — swapped, or left
+  // behind by an older install. Its "no threats" is not evidence of anything.
+  if (!agentSourceMatches(status.source_sha)) {
     return verdict("agent", UNVERIFIED, "preflightResults.agentUnverified");
   }
 

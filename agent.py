@@ -64,6 +64,13 @@ AGENT_VERSION = os.environ.get("APP_VERSION", "1.0.0")
 #       requires that no check errored (fail-CLOSED on unrunnable checks)
 CONTRACT_VERSION = 2
 
+# SHA-256 of the agent.py that produced this binary, written by
+# scripts/build_agent.py at package time. "dev" when running from source.
+try:
+    from _build_stamp import SOURCE_SHA
+except ImportError:
+    SOURCE_SHA = "dev"
+
 # IMP-08: Write logs to AGENT_LOG_DIR env var (set to userData by Electron).
 # Falls back to the OS temp directory so packaged builds never hit a read-only CWD.
 LOG_FILE = os.path.join(
@@ -219,6 +226,7 @@ scan_results = {
     "scan_count": 0,
     "agent_version": AGENT_VERSION,  # IMP-12: uses single constant
     "contract_version": CONTRACT_VERSION,
+    "source_sha": SOURCE_SHA,
     # Before the first scan completes nothing has been verified — say so, so a
     # "status" query that races the first scan cannot read as clean.
     "checks": {},
@@ -1046,6 +1054,7 @@ def _execute_full_scan():
         "physical_monitors": monitors,
         # ── contract v2 additions ────────────────────────────
         "contract_version": CONTRACT_VERSION,
+        "source_sha": SOURCE_SHA,
         "checks": checks,
         "degraded": degraded,
     }
@@ -1157,6 +1166,7 @@ class AgentHandler(BaseHTTPRequestHandler):
                 "agent": f"Interview Security Agent v{AGENT_VERSION}",  # IMP-12
                 "version": AGENT_VERSION,
                 "contract_version": CONTRACT_VERSION,
+                "source_sha": SOURCE_SHA,
                 "os": OS_NAME,
                 "port": PORT
             }).encode())
@@ -1216,6 +1226,7 @@ def _handle_command(cmd):
             "alive": True,
             "agent_version": AGENT_VERSION,
             "contract_version": CONTRACT_VERSION,
+            "source_sha": SOURCE_SHA,
             "os": OS_NAME,
             "port": PORT,
         }
@@ -1271,6 +1282,7 @@ def stdio_protocol_loop():
         "event": "ready",
         "agent_version": AGENT_VERSION,
         "contract_version": CONTRACT_VERSION,
+        "source_sha": SOURCE_SHA,
         "pid": os.getpid(),
     })
     for line in sys.stdin:

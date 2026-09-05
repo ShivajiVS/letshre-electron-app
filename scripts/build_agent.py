@@ -16,12 +16,22 @@ import subprocess
 import sys
 import shutil
 import os
+import hashlib
+import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT      = Path(__file__).parent.parent          # repo root
 AGENT_SRC = ROOT / "agent.py"
 OUT_DIR   = ROOT / "resources"                    # electron-builder picks up from here
 DIST_DIR  = ROOT / "dist"                         # PyInstaller default output
+STAMP_SRC = ROOT / "_build_stamp.py"              # generated, imported by agent.py
+STAMP_OUT = OUT_DIR / "agent.build.json"          # read by check-agent-freshness.js
+EXPECT_OUT = ROOT / "src" / "shared" / "agentBuild.json"  # packaged; runtime drift check
+
+
+def source_sha():
+    return hashlib.sha256(AGENT_SRC.read_bytes()).hexdigest()
 
 def check_pyinstaller():
     try:
@@ -35,7 +45,11 @@ def build():
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Determine output binary name per platform
+    # Stamps the source hash into the binary so an installed agent can say which
+    # agent.py produced it. Written before the build, removed after.
+    sha = source_sha()
+    STAMP_SRC.write_text(f'SOURCE_SHA = "{sha}"\n', encoding="utf8")
+
     is_win   = sys.platform == "win32"
     bin_name = "agent.exe" if is_win else "agent"
 
@@ -51,10 +65,14 @@ def build():
         "--specpath", str(ROOT / "build_tmp"),
         "--name", "agent",
         "--hidden-import", "psutil",
+        "--hidden-import", "_build_stamp",
         str(AGENT_SRC),
     ]
 
-    result = subprocess.run(cmd, cwd=str(ROOT))
+    try:
+        result = subprocess.run(cmd, cwd=str(ROOT))
+    finally:
+        STAMP_SRC.unlink(missing_ok=True)
     if result.returncode != 0:
         print("[build_agent] ❌ PyInstaller build failed.")
         sys.exit(result.returncode)
@@ -68,7 +86,27 @@ def build():
     if not is_win:
         os.chmod(dst_bin, 0o755)   # make executable on Unix
 
+    STAMP_OUT.write_text(
+        json.dumps(
+            {
+                "source_sha": sha,
+                "binary": bin_name,
+                "built_at": datetime.now(timezone.utc).isoformat(),
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf8",
+    )
+
+    # The app compares this against the source_sha a running agent reports, so a
+    # swapped or stale binary can't pass preflight.
+    EXPECT_OUT.write_text(
+        json.dumps({"source_sha": sha}, indent=2) + "\n", encoding="utf8"
+    )
+
     print(f"[build_agent] OK Built -> {dst_bin}  ({dst_bin.stat().st_size // 1024} KB)")
+    print(f"[build_agent] source_sha {sha[:12]}")
 
 if __name__ == "__main__":
     build()

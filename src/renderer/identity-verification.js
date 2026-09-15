@@ -570,7 +570,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   async function startCamera() {
     try {
       videoStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 640 } },
+        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 1280 } },
       });
       ivVideo.srcObject = videoStream;
       ivVideo.hidden = false;
@@ -591,8 +591,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function capturePhoto() {
-    ivCanvas.width = ivVideo.videoWidth || 640;
-    ivCanvas.height = ivVideo.videoHeight || 640;
+    ivCanvas.width = ivVideo.videoWidth || 1280;
+    ivCanvas.height = ivVideo.videoHeight || 1280;
     const ctx = ivCanvas.getContext("2d");
     // Mirror horizontally to match the mirrored video display
     ctx.save();

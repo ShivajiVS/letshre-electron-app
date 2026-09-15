@@ -10,7 +10,6 @@
     <link rel="stylesheet" href="./css/i18n.css" />
   </head>
   <body class="iv-body">
-    <!-- Header -->
     <header class="iv-topbar">
       <button
         class="btn-back-nav"
@@ -37,7 +36,6 @@
       <div id="lang-switcher"></div>
     </header>
 
-    <!-- Main -->
     <main class="iv-main">
       <div class="iv-card">
         <!-- Card header -->
@@ -100,8 +98,8 @@
               >
                 <!-- Person silhouette -->
                 <circle cx="100" cy="72" r="38" fill="#e8e3d9" />
-                <circle cx="100" cy="72" r="28" fill="#d97757" opacity=".18" />
-                <circle cx="100" cy="72" r="18" fill="#d97757" opacity=".35" />
+                <circle cx="100" cy="72" r="28" fill="var(--accent)" opacity=".18" />
+                <circle cx="100" cy="72" r="18" fill="var(--accent)" opacity=".35" />
                 <!-- ID card shape -->
                 <rect
                   x="30"
@@ -300,8 +298,7 @@
                   <span class="iv-photo-label" data-i18n="identity.registeredImage"
                     >Registered Image</span
                   >
-                  <div class="iv-photo-frame iv-photo-frame--ref" style="background: #f0ede6">
-                    <!-- img hidden until JS sets a valid src -->
+                  <div class="iv-photo-frame iv-photo-frame--ref">
                     <img
                       id="ref-photo"
                       alt="Profile reference"
@@ -309,20 +306,8 @@
                       class="iv-photo-frame__img"
                       style="display: none"
                     />
-                    <!-- placeholder shown until photo loads -->
-                    <div
-                      id="ref-photo-placeholder"
-                      style="
-                        position: absolute;
-                        inset: 0;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                      "
-                    >
+                    <div id="ref-photo-placeholder" class="iv-photo-placeholder">
                       <svg
-                        width="64"
-                        height="64"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="#c5bfb0"

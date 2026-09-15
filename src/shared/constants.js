@@ -1,15 +1,26 @@
 "use strict";
 
-// Env overrides are dev-only — a packaged client must never let a candidate
-// repoint the interview or API host. process.defaultApp is true only under
-// `electron .`, and undefined both in packaged builds and under plain node.
+// process.defaultApp is true only under `electron .`, and undefined both in
+// packaged builds and under plain node.
 const IS_DEV = process.defaultApp === true;
+
+/**
+ * .env location: repo root in dev, next to the installed executable in a
+ * packaged build (the app dir is inside a read-only asar, so an editable file
+ * has to live beside process.execPath).
+ */
+function _dotEnvPath() {
+  const path = require("path");
+  return IS_DEV
+    ? path.join(__dirname, "../../.env")
+    : path.join(path.dirname(process.execPath), ".env");
+}
 
 /** Loads .env into process.env, letting real environment values win. */
 function _loadDotEnv() {
   let text;
   try {
-    text = require("fs").readFileSync(require("path").join(__dirname, "../../.env"), "utf8");
+    text = require("fs").readFileSync(_dotEnvPath(), "utf8");
   } catch {
     return;
   }
@@ -21,9 +32,7 @@ function _loadDotEnv() {
   }
 }
 
-if (IS_DEV) {
-  _loadDotEnv();
-}
+_loadDotEnv();
 
 /** Port the Python security agent listens on. */
 const AGENT_PORT = 9999;
@@ -63,15 +72,14 @@ const AGENT_SCAN_TIMEOUT_MS = 12000;
 const MINIMUM_SUPPORTED_CONTRACT_VERSION = 2;
 
 // Base URL of the interview web app.
-const INTERVIEW_BASE_URL =
-  (IS_DEV && process.env.INTERVIEW_FRONTEND_BASE_URL) || "https://interview.letshyre.com";
+const INTERVIEW_BASE_URL = process.env.INTERVIEW_FRONTEND_BASE_URL || "https://interview.letshyre.com";
 
 // Base URL of the LetsHyre REST API.
-const API_BASE_URL = (IS_DEV && process.env.API_BASE_URL) || "https://api.letshyre.com";
+const API_BASE_URL = process.env.API_BASE_URL || "https://api.letshyre.com";
 
-// Lets F12 and Ctrl+Shift+I through in dev. Nothing auto-opens DevTools — this
-// only stops the input lockdown from swallowing the keystroke.
-const DEVTOOLS_ENABLED = IS_DEV && process.env.DEVTOOLS === "1";
+// DEVTOOLS=true (or 1) docks DevTools on the right at launch and lets
+// F12 / Ctrl+Shift+I through the input lockdown.
+const DEVTOOLS_ENABLED = /^(1|true)$/i.test(process.env.DEVTOOLS);
 
 /** Auth API paths (relative to API_BASE_URL). */
 const AUTH_LOGIN_PATH = "/user/v1/login/";

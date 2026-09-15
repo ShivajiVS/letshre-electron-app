@@ -1,6 +1,6 @@
 {
   "name": "letshyre-secure-interview",
-  "version": "1.2.8",
+  "version": "1.3.1",
   "description": "LetsHyre Secure Interview Application",
   "main": "main.js",
   "author": "LetsHyre",
@@ -19,7 +19,7 @@
     "dist": "node scripts/check-agent-freshness.js && electron-builder",
     "dist:win": "node scripts/check-agent-freshness.js --target=win && electron-builder --win",
     "dist:mac": "node scripts/check-agent-freshness.js --target=mac && electron-builder --mac",
-    "test": "node --test test/*.test.js",
+    "test": "node --test --require ./test/_setup.js test/*.test.js",
     "lint": "eslint src scripts test assets/js preload.js preload-recorder.js main.js --ext .js",
     "lint:fix": "eslint src scripts test assets/js preload.js preload-recorder.js main.js --ext .js --fix",
     "format": "prettier --write \"{src,scripts,test}/**/*.js\" \"assets/**/*.{html,css,js}\" \"preload.js\" \"preload-recorder.js\" \"main.js\"",

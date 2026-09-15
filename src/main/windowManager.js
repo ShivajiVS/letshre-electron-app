@@ -239,6 +239,8 @@ function createWindow(onViolation, startPage = "login") {
       win.webContents.closeDevTools();
       logger.warn("[window] DevTools open attempt blocked (packaged build)");
     });
+  } else if (DEVTOOLS_ENABLED) {
+    win.webContents.openDevTools({ mode: "right" });
   }
 
   _applyInputLockdown();

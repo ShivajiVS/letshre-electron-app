@@ -186,6 +186,25 @@ jobs:
             exit 1
           }
 
+      # electron-builder publishes as a draft and refuses to upload into an
+      # already-published release: it skips every artifact and still exits 0, so
+      # nothing downstream notices. That is how v1.3.5 ended up holding a lone
+      # blockmap. A draft is fine — it uploads into that.
+      - name: Fail if the tag already has a published release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          $headers = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = "application/vnd.github+json" }
+          $url = "https://api.github.com/repos/${{ github.repository }}/releases?per_page=100"
+          $published = Invoke-RestMethod -Uri $url -Headers $headers |
+            Where-Object { $_.tag_name -eq "${{ github.ref_name }}" -and -not $_.draft }
+          if ($published) {
+            Write-Host "::error::${{ github.ref_name }} already has a published release. electron-builder would skip every upload and still exit 0 — delete that release, then re-run."
+            exit 1
+          }
+
       # The hosts have no built-in fallback, so the app reads them from a .env
       # shipped beside the executable. Without this the installer would launch
       # pointing at nothing.

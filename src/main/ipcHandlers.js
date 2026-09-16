@@ -250,6 +250,19 @@ function registerIpcHandlers() {
     loadPermissionsPage();
   });
 
+  // Back from identity verification. Skips Proceed's freshness window: the scan
+  // already passed this session and Start Interview re-gates on that same basis,
+  // so time spent on the voice step must not bounce the candidate to preflight.
+  registerSend(IPC.BACK_TO_PERMISSIONS, SCOPE.LOCAL, () => {
+    const gate = startDetection.verifyProceedAllowed({ requireFresh: false });
+    if (!gate.ok) {
+      logger.warn(`[ipc] back-to-permissions REFUSED — ${gate.reason}`);
+      loadSecurityCheck();
+      return;
+    }
+    loadPermissionsPage();
+  });
+
   registerSend(IPC.LOAD_IDENTITY_VERIFICATION, SCOPE.LOCAL, () => {
     logger.info("[ipc] load-identity-verification");
     loadIdentityVerificationPage();

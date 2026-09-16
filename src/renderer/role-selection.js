@@ -36,8 +36,6 @@ const ROLE_SUBMIT_ERROR_KEYS = {
   unknown: ["role.roleProcessFailed", "Couldn't process that role. Please try again."],
 };
 
-const ARROW_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>`;
-const START_ICON = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>`;
 const SPINNER = `<span class="rs-spinner"></span>`;
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -55,12 +53,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const sidebarTitle = document.getElementById("sidebar-title");
   const sidebarDesc = document.getElementById("sidebar-desc");
-  const sidebarDots = [
-    document.getElementById("dot-1"),
-    document.getElementById("dot-2"),
-    document.getElementById("dot-3"),
-    document.getElementById("dot-4"),
-  ];
 
   const panels = [
     document.getElementById("panel-confirm"),
@@ -87,7 +79,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   const skillsGrid = document.getElementById("skills-grid");
   const btnStartInterview = document.getElementById("btn-start-interview");
 
-  // Error banner (inline display:none/flex — see role-selection.html note)
   const rsError = document.getElementById("rs-error");
   const rsErrorText = document.getElementById("rs-error-text");
 
@@ -136,8 +127,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function confirmClarifyLabel(role) {
     return role
-      ? `${tr("role.confirmWithRole", "Confirm — {role}", { role: window.escHtml(role) })} ${ARROW_ICON}`
-      : `${tr("role.confirmSelection", "Confirm selection")} ${ARROW_ICON}`;
+      ? tr("role.confirmWithRole", "Confirm — {role}", { role: window.escHtml(role) })
+      : tr("role.confirmSelection", "Confirm selection");
   }
 
   // The dynamic role name sits mid-sentence for these three, so each renders
@@ -155,13 +146,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function renderClarifyTitle() {
     clarifyTitle.innerHTML = tr("role.clarifyTitle", "Which type of {role} are you?", {
-      role: `<span class="rs-panel__title-accent">${window.escHtml(pendingRole)}</span>`,
+      role: window.escHtml(pendingRole),
     });
   }
 
   function renderSkillsTitle() {
     skillsTitle.innerHTML = tr("role.skillsTitle", "Skills for {role}", {
-      role: `<span class="rs-panel__title-accent">${window.escHtml(finalRole)}</span>`,
+      role: window.escHtml(finalRole),
     });
   }
 
@@ -177,14 +168,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       btnSubmitRole.innerHTML = `${SPINNER} ${tr("role.checkingRole", "Checking role…")}`;
       btnConfirmClarify.innerHTML = `${SPINNER} ${tr("role.confirming", "Confirming…")}`;
     } else {
-      btnYes.innerHTML = `${tr("role.yes", "Yes, continue")} ${ARROW_ICON}`;
-      btnSubmitRole.innerHTML = `${tr("role.continueToInterview", "Continue to Interview")} ${ARROW_ICON}`;
+      btnYes.innerHTML = tr("role.yes", "Yes, continue");
+      btnSubmitRole.innerHTML = tr("role.continueToInterview", "Continue to Interview");
       btnConfirmClarify.innerHTML = confirmClarifyLabel(selectedClarifyRole);
     }
 
     btnStartInterview.innerHTML = isStartingInterview
       ? `${SPINNER} ${tr("role.starting", "Starting…")}`
-      : `${tr("role.startInterview", "Start Interview")} ${START_ICON}`;
+      : tr("role.startInterview", "Start Interview");
 
     if (skillsEmpty) {
       skillsGrid.innerHTML = `<p class="rs-skills-empty">${tr("role.noSkillsListed", "No specific skills listed — the interview will adapt in real-time.")}</p>`;
@@ -203,11 +194,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function showError(msg) {
     rsErrorText.textContent = msg;
-    rsError.style.display = "flex";
+    rsError.hidden = false;
   }
   function hideError() {
     errorState = null;
-    rsError.style.display = "none";
+    rsError.hidden = true;
   }
   function showTranslatedError(key, fallback) {
     errorState = { key, fallback };
@@ -240,10 +231,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     stepLines.forEach((el, i) => {
       el.classList.toggle("rs-step__line--done", i < idx);
-    });
-
-    sidebarDots.forEach((el, i) => {
-      el.classList.toggle("rs-sidebar__dot--active", i === idx);
     });
 
     panels.forEach((p, i) => {
@@ -401,18 +388,22 @@ document.addEventListener("DOMContentLoaded", async () => {
     renderClarifyTitle();
     roleCardsEl.innerHTML = "";
 
-    suggestions.forEach((role, i) => {
-      const card = document.createElement("div");
+    suggestions.forEach((role) => {
+      const card = document.createElement("button");
+      card.type = "button";
       card.className = "rs-role-card";
-      card.style.animationDelay = `${i * 60}ms`;
+      card.setAttribute("role", "radio");
+      card.setAttribute("aria-checked", "false");
       card.innerHTML = `
-        <div class="rs-role-card__radio"></div>
+        <span class="rs-role-card__radio"></span>
         <span class="rs-role-card__label">${window.escHtml(role)}</span>`;
       card.addEventListener("click", () => {
-        roleCardsEl
-          .querySelectorAll(".rs-role-card")
-          .forEach((c) => c.classList.remove("rs-role-card--selected"));
+        roleCardsEl.querySelectorAll(".rs-role-card").forEach((c) => {
+          c.classList.remove("rs-role-card--selected");
+          c.setAttribute("aria-checked", "false");
+        });
         card.classList.add("rs-role-card--selected");
+        card.setAttribute("aria-checked", "true");
         selectedClarifyRole = role;
         btnConfirmClarify.disabled = false;
         btnConfirmClarify.innerHTML = confirmClarifyLabel(role);
@@ -433,15 +424,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
 
-    skills.forEach((skill, i) => {
-      const chip = document.createElement("div");
+    skills.forEach((skill) => {
+      const chip = document.createElement("span");
       chip.className = "rs-skill-chip";
-      chip.style.animationDelay = `${i * 55}ms`;
-      chip.innerHTML = `
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="20 6 9 17 4 12"/>
-        </svg>
-        <span>${window.escHtml(skill)}</span>`;
+      chip.textContent = skill;
       skillsGrid.appendChild(chip);
     });
   }

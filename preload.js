@@ -30,6 +30,7 @@ const IPC = {
 
   // Permissions page: preflight Proceed → main loads permissions.html
   LOAD_PERMISSIONS_PAGE: "load-permissions-page",
+  BACK_TO_PERMISSIONS: "back-to-permissions",
 
   // Identity verification page
   LOAD_IDENTITY_VERIFICATION: "load-identity-verification",
@@ -137,6 +138,7 @@ const ALLOWED_SEND_CHANNELS = [
   IPC.INTERVIEW_COMPLETE,
   IPC.ACK_VIOLATION,
   IPC.LOAD_PERMISSIONS_PAGE,
+  IPC.BACK_TO_PERMISSIONS,
   IPC.LOAD_IDENTITY_VERIFICATION,
   IPC.LOAD_ROLE_SELECTION,
   IPC.LOAD_DASHBOARD,
@@ -252,6 +254,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
    * permission dialogs. Lockdown happens when the user clicks Start Interview.
    */
   loadPermissionsPage: () => safeSend(IPC.LOAD_PERMISSIONS_PAGE),
+  backToPermissions: () => safeSend(IPC.BACK_TO_PERMISSIONS),
 
   /** Permissions "Start interview": navigate to identity verification. */
   loadIdentityVerification: () => safeSend(IPC.LOAD_IDENTITY_VERIFICATION),

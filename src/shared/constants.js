@@ -72,11 +72,10 @@ const AGENT_SCAN_TIMEOUT_MS = 12000;
 const MINIMUM_SUPPORTED_CONTRACT_VERSION = 2;
 
 // Base URL of the interview web app.
-const INTERVIEW_BASE_URL =
-  process.env.INTERVIEW_FRONTEND_BASE_URL || "https://interview.letshyre.com";
+const INTERVIEW_BASE_URL = process.env.INTERVIEW_FRONTEND_BASE_URL;
 
 // Base URL of the LetsHyre REST API.
-const API_BASE_URL = process.env.API_BASE_URL || "https://api.letshyre.com";
+const API_BASE_URL = process.env.API_BASE_URL;
 
 // DEVTOOLS=true (or 1) docks DevTools on the right at launch and lets
 // F12 / Ctrl+Shift+I through the input lockdown.

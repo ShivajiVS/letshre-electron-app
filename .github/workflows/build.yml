@@ -186,6 +186,24 @@ jobs:
             exit 1
           }
 
+      # The hosts have no built-in fallback, so the app reads them from a .env
+      # shipped beside the executable. Without this the installer would launch
+      # pointing at nothing.
+      - name: Write .env for packaging
+        shell: pwsh
+        env:
+          INTERVIEW_FRONTEND_BASE_URL: ${{ vars.INTERVIEW_FRONTEND_BASE_URL }}
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: |
+          if (-not $env:INTERVIEW_FRONTEND_BASE_URL -or -not $env:API_BASE_URL) {
+            Write-Host "::error::Repository variables INTERVIEW_FRONTEND_BASE_URL and API_BASE_URL must both be set — the packaged app has no host fallback."
+            exit 1
+          }
+          Set-Content -Path .env -Encoding utf8NoBOM -Value @(
+            "INTERVIEW_FRONTEND_BASE_URL=$env:INTERVIEW_FRONTEND_BASE_URL"
+            "API_BASE_URL=$env:API_BASE_URL"
+          )
+
       - name: Package (Windows)
         shell: pwsh
         env:
@@ -273,6 +291,18 @@ jobs:
 
       - name: Make agent executable
         run: chmod +x resources/agent
+
+      - name: Write .env for packaging
+        env:
+          INTERVIEW_FRONTEND_BASE_URL: ${{ vars.INTERVIEW_FRONTEND_BASE_URL }}
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: |
+          if [ -z "$INTERVIEW_FRONTEND_BASE_URL" ] || [ -z "$API_BASE_URL" ]; then
+            echo "::error::Repository variables INTERVIEW_FRONTEND_BASE_URL and API_BASE_URL must both be set — the packaged app has no host fallback."
+            exit 1
+          fi
+          printf 'INTERVIEW_FRONTEND_BASE_URL=%s\nAPI_BASE_URL=%s\n' \
+            "$INTERVIEW_FRONTEND_BASE_URL" "$API_BASE_URL" > .env
 
       - name: Package (macOS)
         env:

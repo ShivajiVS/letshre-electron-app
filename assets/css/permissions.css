@@ -82,8 +82,8 @@
   box-shadow: 0 0 0 0.25rem var(--accent-soft);
 }
 .perm-card--granted {
-  border-color: var(--success-border);
-  box-shadow: 0 0 0 0.25rem var(--success-soft);
+  border-color: var(--ok-border);
+  box-shadow: 0 0 0 0.25rem var(--ok-soft);
 }
 .perm-card--denied {
   border-color: var(--danger-border);
@@ -116,7 +116,7 @@
 }
 
 .perm-card--granted .perm-card__icon-wrap {
-  background: var(--success);
+  background: var(--ok);
   border-color: transparent;
   color: var(--surface);
   animation: pop-in var(--dur-base) var(--ease-spring) both;
@@ -187,7 +187,7 @@
   transition: color var(--dur-base) var(--ease);
 }
 .perm-cta__note.all-granted {
-  color: var(--success);
+  color: var(--ok);
   font-weight: 500;
 }
 

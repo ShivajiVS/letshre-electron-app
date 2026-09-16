@@ -115,18 +115,20 @@
   0%,
   100% {
     box-shadow:
-      0 0 0 0 rgba(180, 69, 44, 0),
+      0 0 0 0 rgba(217, 45, 32, 0),
       var(--shadow-sm);
   }
   50% {
     box-shadow:
-      0 0 0.75rem 0.125rem rgba(180, 69, 44, 0.1),
+      0 0 0.75rem 0.125rem rgba(217, 45, 32, 0.12),
       var(--shadow-sm);
   }
 }
 
+/* An unverified check is not a violation — the scan just did not complete and
+   Rescan is the only remedy. Red here drowned out the cards that need action. */
 .sc-card--unverified {
-  border-color: var(--warn-border);
+  border-color: var(--pending-border);
 }
 
 .sc-card__row {
@@ -158,9 +160,9 @@
     border-color var(--dur-base) var(--ease);
 }
 .sc-card__icon--pass {
-  background: var(--success-soft);
-  color: var(--success);
-  border-color: var(--success-border);
+  background: var(--ok-soft);
+  color: var(--ok);
+  border-color: var(--ok-border);
 }
 .sc-card__icon--fail {
   background: var(--danger-soft);
@@ -168,9 +170,9 @@
   border-color: var(--danger-border);
 }
 .sc-card__icon--unverified {
-  background: var(--warn-soft);
-  color: var(--warn);
-  border-color: var(--warn-border);
+  background: var(--pending-soft);
+  color: var(--pending);
+  border-color: var(--pending-border);
 }
 
 .sc-card__body {
@@ -196,7 +198,7 @@
   font-weight: 600;
 }
 .sc-card__desc--unverified {
-  color: var(--warn);
+  color: var(--pending);
   font-weight: 600;
 }
 
@@ -223,9 +225,9 @@
   border: 1px solid var(--border);
 }
 .sc-badge--pass {
-  background: var(--success-soft);
-  color: var(--success);
-  border: 1px solid var(--success-border);
+  background: var(--ok-soft);
+  color: var(--ok);
+  border: 1px solid var(--ok-border);
 }
 .sc-badge--fail {
   background: var(--danger-soft);
@@ -234,26 +236,26 @@
   animation: pulseSoft 2.2s infinite ease-in-out;
 }
 .sc-badge--unverified {
-  background: var(--warn-soft);
-  color: var(--warn);
-  border: 1px solid var(--warn-border);
+  background: var(--pending-soft);
+  color: var(--pending);
+  border: 1px solid var(--pending-border);
 }
 
 .sc-kill-btn--elevate {
-  background: var(--warn-soft);
-  color: var(--warn);
-  border: 1px solid var(--warn-border);
+  background: var(--danger-soft);
+  color: var(--danger);
+  border: 1px solid var(--danger-border);
   cursor: pointer;
 }
 .sc-kill-btn--elevate:hover {
-  background: var(--warn-border);
+  background: var(--danger-border);
 }
 
 .sc-kill-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: rgba(250, 249, 245, 0.6);
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 0.625rem var(--space-4);
@@ -344,15 +346,15 @@
   transform: scale(0.95);
 }
 .sc-kill-btn--killing {
-  background: var(--warn-soft);
-  color: var(--warn);
-  border-color: var(--warn-border);
+  background: var(--pending-soft);
+  color: var(--pending);
+  border-color: var(--pending-border);
   cursor: wait;
 }
 .sc-kill-btn--killed {
-  background: var(--success-soft);
-  color: var(--success);
-  border-color: var(--success-border);
+  background: var(--ok-soft);
+  color: var(--ok);
+  border-color: var(--ok-border);
 }
 .sc-kill-btn--failed {
   background: var(--danger-soft);
@@ -360,24 +362,24 @@
   border-color: var(--danger-border);
 }
 .sc-kill-btn--respawned {
-  background: var(--warn-soft);
-  color: var(--warn);
-  border-color: var(--warn-border);
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: var(--danger-border);
   cursor: not-allowed;
 }
 .sc-kill-btn--blocked {
-  background: rgba(26, 26, 25, 0.05);
+  background: rgba(17, 17, 17, 0.05);
   color: var(--faint);
   border-color: var(--border);
   cursor: not-allowed;
 }
 .sc-kill-btn--retry {
-  background: var(--warn-soft);
-  color: var(--warn);
-  border-color: var(--warn-border);
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: var(--danger-border);
 }
 .sc-kill-btn--retry:hover:not(:disabled) {
-  background: var(--warn-border);
+  background: var(--danger-border);
 }
 
 .sc-kill-all-btn {
@@ -407,26 +409,26 @@
   transform: scale(0.98);
 }
 .sc-kill-all-btn--killing {
-  background: var(--warn);
+  background: var(--pending);
   cursor: wait;
 }
 .sc-kill-all-btn--success {
-  background: var(--success);
+  background: var(--ok);
 }
 .sc-kill-all-btn--failed {
   background: var(--danger);
 }
 .sc-kill-all-btn--partial {
-  background: var(--warn);
+  background: var(--danger);
 }
 
 .sc-kill-row--respawned {
-  border-color: var(--warn-border);
-  background: var(--warn-soft);
+  border-color: var(--danger-border);
+  background: var(--danger-soft);
 }
 .sc-kill-row--blocked {
   border-color: var(--border);
-  background: rgba(26, 26, 25, 0.04);
+  background: rgba(17, 17, 17, 0.04);
 }
 
 .sc-kill-hint {
@@ -439,7 +441,7 @@
 }
 .sc-kill-hint--respawned,
 .sc-kill-hint--pending {
-  color: var(--warn);
+  color: var(--danger);
 }
 .sc-kill-hint--blocked {
   color: var(--danger);
@@ -456,7 +458,7 @@
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
-  background: rgba(250, 249, 245, 0.6);
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 0.625rem var(--space-4);
@@ -492,9 +494,9 @@
   border: 1px solid var(--danger-border);
 }
 .sc-threat-badge--medium {
-  background: var(--warn-soft);
-  color: var(--warn);
-  border: 1px solid var(--warn-border);
+  background: var(--danger-soft);
+  color: var(--danger);
+  border: 1px solid var(--danger-border);
 }
 
 .sc-footer {
@@ -515,7 +517,7 @@
   text-align: center;
 }
 .sc-status--pass {
-  color: var(--success);
+  color: var(--ok);
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -526,7 +528,7 @@
   font-weight: 600;
 }
 .sc-status--warn {
-  color: var(--warn);
+  color: var(--danger);
   font-weight: 600;
 }
 
@@ -773,8 +775,8 @@
   height: 1.125rem;
 }
 .update-card__icon--ok {
-  background: var(--success-soft);
-  color: var(--success);
+  background: var(--ok-soft);
+  color: var(--ok);
 }
 .update-card__title {
   font-size: var(--text-base);

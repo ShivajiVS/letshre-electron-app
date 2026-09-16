@@ -5,10 +5,13 @@
  *
  * Every page once carried its own palette — how-it-works shipped a slate/blue
  * set that shared no value with the rest of the app, permissions hardcoded its
- * own greens and reds beside the --success/--danger tokens, and five pages sized
- * in px so they never scaled past a laptop. These assert the token layer is the
- * only source: colour comes from base.css, type sizes are rem so the fluid root
+ * own greens and reds beside the semantic tokens, and five pages sized in px so
+ * they never scaled past a laptop. These assert the token layer is the only
+ * source: colour comes from base.css, type sizes are rem so the fluid root
  * drives them, and no page redefines a token it does not own.
+ *
+ * The app is deliberately blue, black, red and white. Any other hue is a
+ * regression, so the palette itself is asserted here too.
  */
 
 const { test } = require("node:test");
@@ -105,5 +108,72 @@ test("every page opts into the fluid root so the whole flow scales together", ()
       /class="[^"]*\bfluid-scale\b/,
       `${file} is missing the fluid-scale class — it stays laptop-sized on a 4K panel`
     );
+  }
+});
+
+/** Hue in degrees, plus saturation, for a #rgb or #rrggbb colour. */
+function hueOf(hex) {
+  const full =
+    hex.length === 4
+      ? hex
+          .slice(1)
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : hex.slice(1, 7);
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16) / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const delta = max - min;
+  if (delta === 0) {
+    return { hue: 0, sat: 0 };
+  }
+  let hue;
+  if (max === r) {
+    hue = ((g - b) / delta) % 6;
+  } else if (max === g) {
+    hue = (b - r) / delta + 2;
+  } else {
+    hue = (r - g) / delta + 4;
+  }
+  return { hue: (hue * 60 + 360) % 360, sat: delta / max };
+}
+
+/** Amber sits at 32°, so the floor has to be below 40 to catch it. Red lands at 4°. */
+const BANNED_HUE = { from: 25, to: 170 };
+
+function bannedHue(hex) {
+  const { hue, sat } = hueOf(hex);
+  // Near-greys carry no hue worth judging.
+  return sat >= 0.12 && hue >= BANNED_HUE.from && hue <= BANNED_HUE.to;
+}
+
+test("the palette is blue, black, red and white — no green or yellow", () => {
+  const base = fs.readFileSync(path.join(CSS_DIR, "base.css"), "utf8");
+  const offenders = [];
+
+  for (const m of stripComments(base).matchAll(/(--[\w-]+):\s*(#[0-9a-fA-F]{3,6})\b/g)) {
+    const [, token, hex] = m;
+    if (bannedHue(hex)) {
+      offenders.push(`${token}: ${hex} (hue ${Math.round(hueOf(hex).hue)}°)`);
+    }
+  }
+
+  assert.deepStrictEqual(
+    offenders,
+    [],
+    `green/yellow is not in the palette — ${offenders.join(", ")}`
+  );
+});
+
+test("the hue guard still rejects the palette this app moved away from", () => {
+  for (const green of ["#16a34a", "#bbf7d0", "#4ade80"]) {
+    assert.ok(bannedHue(green), `${green} is green and should be rejected`);
+  }
+  for (const amber of ["#d97706", "#fde68a", "#96681f"]) {
+    assert.ok(bannedHue(amber), `${amber} is amber and should be rejected`);
+  }
+  for (const keep of ["#0055ff", "#b8d0ff", "#d92d20", "#fecdca", "#111111", "#ffffff"]) {
+    assert.ok(!bannedHue(keep), `${keep} is in the palette and must pass`);
   }
 });

@@ -57,7 +57,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           cls: "badge perm-badge--pending",
         };
       case "granted":
-        return { text: tr("perm.allowed", "✓ Allowed"), cls: "badge badge--success" };
+        return { text: tr("perm.allowed", "✓ Allowed"), cls: "badge badge--ok" };
       case "denied":
         return { text: tr("perm.denied", "✗ Denied"), cls: "badge badge--danger" };
       default:

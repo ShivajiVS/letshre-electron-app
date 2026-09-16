@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="i18n-pending">
+<html lang="en" class="i18n-pending fluid-scale">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -73,8 +73,10 @@
             </p>
           </div>
           <div class="perm-card__foot">
-            <span class="perm-badge" id="badge-camera">Required</span>
-            <button class="perm-btn" id="btn-camera" type="button">Allow camera</button>
+            <span class="badge" id="badge-camera">Required</span>
+            <button class="btn btn--secondary perm-btn" id="btn-camera" type="button">
+              Allow camera
+            </button>
           </div>
         </div>
 
@@ -104,8 +106,10 @@
             </p>
           </div>
           <div class="perm-card__foot">
-            <span class="perm-badge" id="badge-mic">Required</span>
-            <button class="perm-btn" id="btn-mic" type="button">Allow microphone</button>
+            <span class="badge" id="badge-mic">Required</span>
+            <button class="btn btn--secondary perm-btn" id="btn-mic" type="button">
+              Allow microphone
+            </button>
           </div>
         </div>
 
@@ -134,15 +138,22 @@
             </p>
           </div>
           <div class="perm-card__foot">
-            <span class="perm-badge" id="badge-screen">Required</span>
-            <button class="perm-btn" id="btn-screen" type="button">Allow screen</button>
+            <span class="badge" id="badge-screen">Required</span>
+            <button class="btn btn--secondary perm-btn" id="btn-screen" type="button">
+              Allow screen
+            </button>
           </div>
         </div>
       </div>
 
       <!-- CTA -->
       <div class="perm-cta">
-        <button class="perm-start-btn" id="btn-start" type="button" disabled>
+        <button
+          class="btn btn--primary btn--lg perm-start-btn"
+          id="btn-start"
+          type="button"
+          disabled
+        >
           <span id="btn-start-label">Continue</span>
           <svg
             id="btn-start-icon"

@@ -1,3 +1,6 @@
+/* Sized in rem off the fluid root (html.fluid-scale in base.css) so the page
+   scales as one unit. Hairline borders stay in px. */
+
 .ls-body {
   min-height: 100vh;
   display: flex;
@@ -8,10 +11,10 @@
 }
 
 .ls-topbar {
-  height: 64px;
+  height: 4rem;
   display: flex;
   align-items: center;
-  padding: 0 36px;
+  padding: 0 2.25rem;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -22,47 +25,26 @@
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 36px 24px 56px;
+  padding: var(--space-6) var(--space-5) var(--space-8);
 }
 
 .ls-card {
   width: 100%;
-  max-width: 600px;
-  background: #fff;
-  border: 1.5px solid var(--border);
-  border-radius: 22px;
-  box-shadow:
-    0 1px 2px rgba(26, 26, 25, 0.04),
-    0 24px 64px -12px rgba(26, 26, 25, 0.12);
+  max-width: 37.5rem;
   overflow: hidden;
-  animation: lsCardIn 0.4s ease both;
-}
-
-@keyframes lsCardIn {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  animation: fade-up var(--dur-slow) var(--ease) both;
 }
 
 .ls-card__header {
-  padding: 28px 36px 24px;
+  padding: var(--space-6) var(--space-6) var(--space-5);
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, #fdfcf9 0%, #fff 100%);
 }
 
 .ls-card__title {
   margin: 0;
-  font-family: var(--font-serif);
-  font-size: 26px;
+  font-size: var(--text-2xl);
   font-weight: 700;
   letter-spacing: -0.03em;
-  text-transform: uppercase;
-  font-style: italic;
   color: var(--ink);
 }
 
@@ -71,16 +53,16 @@
 }
 
 .ls-card__title-bar {
-  width: 56px;
+  width: 3.5rem;
   height: 3px;
-  margin-top: 10px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, var(--ink) 0%, var(--accent) 100%);
+  margin-top: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--accent);
 }
 
 .ls-card__sub {
-  margin: 14px 0 0;
-  font-size: 14px;
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-base);
   line-height: 1.55;
   color: var(--muted);
 }
@@ -88,37 +70,25 @@
 .ls-options {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-  padding: 24px 36px;
-  max-height: 340px;
+  gap: var(--space-2);
+  padding: var(--space-5) var(--space-6);
+  max-height: 21rem;
   overflow-y: auto;
 }
 
 .ls-option {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 14px 18px;
-  border: 1.5px solid var(--border);
-  border-radius: 14px;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  background: #fff;
+  background: var(--surface);
   transition:
-    border-color 0.2s,
-    box-shadow 0.2s,
-    background 0.2s;
-  animation: lsFadeUp 0.3s ease both;
-}
-
-@keyframes lsFadeUp {
-  from {
-    opacity: 0;
-    transform: translateY(16px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+    border-color var(--dur-base) var(--ease),
+    background var(--dur-base) var(--ease);
+  animation: fade-up var(--dur-base) var(--ease) both;
 }
 
 .ls-option:hover {
@@ -127,8 +97,8 @@
 }
 
 .ls-option:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: var(--focus-width) solid var(--accent);
+  outline-offset: var(--focus-offset);
 }
 
 .ls-option--selected {
@@ -138,8 +108,8 @@
 }
 
 .ls-option__radio {
-  width: 18px;
-  height: 18px;
+  width: 1.125rem;
+  height: 1.125rem;
   border-radius: 50%;
   border: 2px solid var(--border);
   flex-shrink: 0;
@@ -147,8 +117,8 @@
   align-items: center;
   justify-content: center;
   transition:
-    border-color 0.2s,
-    background 0.2s;
+    border-color var(--dur-base) var(--ease),
+    background var(--dur-base) var(--ease);
 }
 
 .ls-option--selected .ls-option__radio {
@@ -158,16 +128,16 @@
 
 .ls-option--selected .ls-option__radio::after {
   content: "";
-  width: 6px;
-  height: 6px;
+  width: 0.375rem;
+  height: 0.375rem;
   border-radius: 50%;
-  background: #fff;
+  background: var(--surface);
 }
 
 .ls-option__text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0.125rem;
   min-width: 0;
 }
 
@@ -176,7 +146,7 @@
    back to a non-Nastaliq face without the explicit list. */
 .ls-option__label {
   font-family: Inter, "Noto Sans", "Noto Nastaliq Urdu", "Segoe UI", system-ui, sans-serif;
-  font-size: 14px;
+  font-size: var(--text-base);
   font-weight: 600;
   color: var(--ink);
   overflow: hidden;
@@ -185,7 +155,7 @@
 }
 
 .ls-option__code {
-  font-size: 10px;
+  font-size: var(--text-xs);
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -197,60 +167,8 @@
 }
 
 .ls-actions {
-  padding: 22px 36px 28px;
+  padding: var(--space-5) var(--space-6) var(--space-6);
   border-top: 1px solid var(--border);
-}
-
-.ls-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  height: 46px;
-  padding: 0 24px;
-  font-size: 14px;
-  font-weight: 700;
-  font-family: inherit;
-  border-radius: 12px;
-  border: none;
-  cursor: pointer;
-  transition:
-    background 0.15s,
-    transform 0.1s,
-    box-shadow 0.15s,
-    opacity 0.15s;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-}
-
-.ls-btn:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
-.ls-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.ls-btn--full {
-  width: 100%;
-}
-
-.ls-btn--lg {
-  height: 52px;
-  font-size: 15px;
-}
-
-.ls-btn--primary {
-  background: var(--accent);
-  color: #fff;
-  box-shadow: 0 4px 14px rgba(0, 85, 255, 0.25);
-}
-
-.ls-btn--primary:hover:not(:disabled) {
-  background: var(--accent-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(0, 68, 204, 0.35);
 }
 
 @media (max-width: 520px) {
@@ -259,13 +177,13 @@
   }
 
   .ls-topbar {
-    padding: 0 20px;
+    padding: 0 var(--space-4);
   }
 
   .ls-card__header,
   .ls-options,
   .ls-actions {
-    padding-inline: 22px;
+    padding-inline: var(--space-5);
   }
 }
 

@@ -1,16 +1,18 @@
+/* Sized in rem off the fluid root (html.fluid-scale in base.css) so the page
+   scales as one unit. Hairline borders stay in px. */
+
 .topbar {
-  height: 64px;
+  height: 4rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 32px;
+  padding: 0 var(--space-6);
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  box-shadow: 0 1px 4px rgba(26, 26, 25, 0.05);
 }
 
 .topbar__brand img {
-  height: 30px;
+  height: 1.875rem;
   width: auto;
   display: block;
   object-fit: contain;
@@ -19,40 +21,35 @@
 .topbar__right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .dash-main {
-  max-width: 600px;
-  margin: 48px auto;
-  padding: 0 24px;
+  max-width: 37.5rem;
+  margin: var(--space-8) auto;
+  padding: 0 var(--space-5);
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--space-4);
 }
 
-/* Profile card */
 .profile-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 24px 28px;
+  padding: var(--space-5) var(--space-6);
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: var(--space-4);
 }
 
 .profile-card__avatar {
-  width: 64px;
-  height: 64px;
+  width: 4rem;
+  height: 4rem;
   border-radius: 50%;
   background: var(--accent-soft);
   color: var(--accent-hover);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
+  font-size: var(--text-xl);
   font-weight: 700;
   flex-shrink: 0;
   overflow: hidden;
@@ -70,95 +67,88 @@
   min-width: 0;
 }
 .profile-card__name {
-  font-size: 17px;
+  font-size: var(--text-lg);
   font-weight: 700;
   color: var(--ink);
-  margin: 0 0 3px;
+  margin: 0 0 0.1875rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .profile-card__role {
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--accent);
   font-weight: 500;
-  margin: 0 0 10px;
+  margin: 0 0 var(--space-2);
 }
 .profile-card__meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 14px;
+  gap: var(--space-3);
 }
 .profile-card__meta-item {
-  font-size: 12.5px;
+  font-size: var(--text-xs);
   color: var(--muted);
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-1);
 }
 .profile-card__meta-item svg {
   flex-shrink: 0;
   opacity: 0.65;
 }
 
-/* Interview card */
 .dash-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 36px 32px;
+  padding: var(--space-7) var(--space-6);
   text-align: center;
 }
 .dash-card__title {
-  font-family: var(--font-serif);
-  font-size: 24px;
+  font-size: var(--text-2xl);
   font-weight: 600;
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-2);
 }
 .dash-card__text {
-  font-size: 14px;
+  font-size: var(--text-base);
   color: var(--muted);
   line-height: 1.6;
-  margin: 0 auto 24px;
-  max-width: 400px;
+  margin: 0 auto var(--space-5);
+  max-width: 25rem;
 }
 
-/* Attempt tracker */
 .attempt-tracker {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 16px;
-  margin: 0 auto 28px;
-  padding: 12px 20px;
+  gap: var(--space-4);
+  margin: 0 auto var(--space-6);
+  padding: var(--space-3) var(--space-4);
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  max-width: 340px;
+  border-radius: var(--radius-md);
+  max-width: 21rem;
 }
 .attempt-tracker__label {
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--muted);
   white-space: nowrap;
 }
 .attempt-tracker__dots {
   display: flex;
-  gap: 6px;
+  gap: var(--space-1);
 }
 .attempt-dot {
-  width: 10px;
-  height: 10px;
+  width: 0.625rem;
+  height: 0.625rem;
   border-radius: 50%;
   background: var(--accent-soft);
-  border: 1.5px solid var(--accent);
+  border: 1px solid var(--accent);
 }
 .attempt-dot.used {
   background: var(--accent);
   border-color: var(--accent-hover);
 }
 .attempt-tracker__count {
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--ink);
   white-space: nowrap;
@@ -167,41 +157,9 @@
   color: var(--danger);
 }
 
-/* CTA button */
-.btn-cta {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  height: 50px;
-  padding: 0 32px;
-  font-size: 15px;
-  font-weight: 600;
-  font-family: inherit;
-  color: #fff;
-  background: var(--accent);
-  border: none;
-  border-radius: 11px;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    transform 0.05s ease;
-}
-.btn-cta:hover {
-  background: var(--accent-hover);
-}
-.btn-cta:active {
-  transform: translateY(0.5px);
-}
-.btn-cta:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  transform: none;
-}
-
 .dash-note {
-  margin-top: 14px;
-  font-size: 12.5px;
+  margin-top: var(--space-3);
+  font-size: var(--text-xs);
   color: var(--faint);
   line-height: 1.5;
 }

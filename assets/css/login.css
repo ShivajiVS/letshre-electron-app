@@ -1,7 +1,10 @@
+/* Sized in rem off the fluid root (html.fluid-scale in base.css) so the page
+   scales as one unit. Hairline borders stay in px. */
+
 .lang-switcher--corner {
   position: absolute;
-  top: 16px;
-  inset-inline-end: 16px;
+  top: var(--space-4);
+  inset-inline-end: var(--space-4);
 }
 
 .auth-center {
@@ -9,88 +12,64 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 32px 24px;
+  padding: var(--space-6) var(--space-5);
 }
 
 .auth-card {
   width: 100%;
-  max-width: 460px;
+  max-width: 28.75rem;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 44px 40px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-7) var(--space-6);
 }
 
 .brand {
-  margin-bottom: 32px;
+  margin-bottom: var(--space-6);
 }
 .brand__logo {
-  height: 34px;
+  height: 2.125rem;
   width: auto;
   display: block;
   object-fit: contain;
 }
 
 .auth-title {
-  font-family: var(--font-serif);
-  font-size: 27px;
+  font-size: var(--text-2xl);
   font-weight: 600;
   letter-spacing: -0.01em;
-  margin: 0 0 6px;
+  margin: 0 0 var(--space-1);
 }
 .auth-subtitle {
-  font-size: 14px;
+  font-size: var(--text-base);
   color: var(--muted);
-  margin: 0 0 28px;
+  margin: 0 0 var(--space-6);
   line-height: 1.5;
 }
 
-/* Fields */
 .field {
-  margin-bottom: 20px;
+  margin-bottom: var(--space-4);
 }
 .field__label {
   display: block;
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--ink);
-  margin-bottom: 7px;
+  margin-bottom: var(--space-1);
 }
 .field__input {
-  width: 100%;
-  height: 46px;
-  padding: 0 14px;
-  font-size: 14.5px;
-  font-family: inherit;
-  color: var(--ink);
-  background: var(--surface);
-  border: 1px solid var(--input-border);
-  border-radius: 10px;
-  transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease;
+  height: 2.875rem;
 }
-.field__input::placeholder {
-  color: var(--faint);
-}
-.field__input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-.field__input.field__input--invalid {
-  border-color: var(--danger);
-}
-.field__input.field__input--invalid:focus {
+.input--invalid:focus {
   box-shadow: 0 0 0 3px var(--danger-soft);
 }
 
-/* Per-field inline error, empty/hidden until JS populates it */
+/* Empty until JS populates it. */
 .field__error {
   display: none;
-  margin: 6px 0 0;
-  font-size: 12.5px;
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
   line-height: 1.4;
   color: var(--danger);
 }
@@ -98,75 +77,41 @@
   display: block;
 }
 
-/* Show password checkbox */
 .field__show-password {
   display: flex;
   align-items: center;
-  gap: 7px;
-  margin-top: 10px;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 .field__show-password input[type="checkbox"] {
-  width: 15px;
-  height: 15px;
+  width: 0.9375rem;
+  height: 0.9375rem;
   accent-color: var(--accent);
   cursor: pointer;
   flex-shrink: 0;
 }
 .field__show-password label {
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--muted);
   cursor: pointer;
   user-select: none;
 }
 
-/* Error banner */
 .auth-error {
   display: none;
-  margin: 0 0 20px;
-  padding: 11px 14px;
-  font-size: 13.5px;
-  color: var(--danger);
-  background: var(--danger-soft);
-  border: 1px solid #ecd5cc;
-  border-radius: 10px;
-  line-height: 1.4;
+  margin: 0 0 var(--space-4);
 }
 .auth-error.show {
-  display: block;
+  display: flex;
 }
 
-/* Submit button */
-.btn {
-  width: 100%;
-  height: 48px;
-  margin-top: 10px;
-  font-size: 15px;
-  font-weight: 600;
-  font-family: inherit;
-  color: #fff;
-  background: var(--accent);
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    transform 0.05s ease;
-}
-.btn:hover {
-  background: var(--accent-hover);
-}
-.btn:active {
-  transform: translateY(0.5px);
-}
-.btn:disabled {
-  opacity: 0.65;
-  cursor: default;
-  transform: none;
+.auth-submit {
+  margin-top: var(--space-2);
 }
 
 .auth-foot {
-  margin-top: 24px;
-  font-size: 12.5px;
+  margin-top: var(--space-5);
+  font-size: var(--text-xs);
   color: var(--faint);
   text-align: center;
 }

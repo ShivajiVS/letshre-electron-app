@@ -45,7 +45,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const CROSS_SVG = `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
     <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
 
-  const SPIN_SVG = `<svg class="perm-spin" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+  const SPIN_SVG = `<svg class="spin" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
     <path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>`;
 
   // ── Badge config
@@ -54,14 +54,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       case "requesting":
         return {
           text: tr("perm.requesting", "Requesting…"),
-          cls: "perm-badge perm-badge--pending",
+          cls: "badge perm-badge--pending",
         };
       case "granted":
-        return { text: tr("perm.allowed", "✓ Allowed"), cls: "perm-badge perm-badge--granted" };
+        return { text: tr("perm.allowed", "✓ Allowed"), cls: "badge badge--success" };
       case "denied":
-        return { text: tr("perm.denied", "✗ Denied"), cls: "perm-badge perm-badge--denied" };
+        return { text: tr("perm.denied", "✗ Denied"), cls: "badge badge--danger" };
       default:
-        return { text: tr("common.required", "Required"), cls: "perm-badge" };
+        return { text: tr("common.required", "Required"), cls: "badge" };
     }
   }
 
@@ -299,7 +299,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Query fresh nodes (restore below replaces these by innerHTML).
     renderStartButtonLabel();
     document.getElementById("btn-start-icon").outerHTML =
-      `<svg class="perm-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>`;
+      `<svg class="spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>`;
     window.electronAPI.loadIdentityVerification();
     // Watchdog: successful navigation tears down this page. If this fires,
     // navigation never happened — restore the button so the user can retry.

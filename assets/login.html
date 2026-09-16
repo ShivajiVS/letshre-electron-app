@@ -1,10 +1,11 @@
 <!doctype html>
-<html lang="en" class="i18n-pending">
+<html lang="en" class="i18n-pending fluid-scale">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="./css/fonts.css" />
     <link rel="stylesheet" href="./css/base.css" />
+    <link rel="stylesheet" href="./css/components.css" />
     <link rel="stylesheet" href="./css/login.css" />
     <link rel="stylesheet" href="./css/i18n.css" />
   </head>
@@ -21,13 +22,13 @@
           Log in to access your dashboard and start your interview.
         </p>
 
-        <div id="auth-error" class="auth-error" role="alert"></div>
+        <div id="auth-error" class="banner banner--danger auth-error" role="alert"></div>
 
         <form id="login-form" novalidate>
           <div class="field">
             <label class="field__label" for="email" data-i18n="login.emailLabel">Email</label>
             <input
-              class="field__input"
+              class="input field__input"
               id="email"
               name="email"
               type="email"
@@ -44,7 +45,7 @@
               >Password</label
             >
             <input
-              class="field__input"
+              class="input field__input"
               id="password"
               name="password"
               type="password"
@@ -60,7 +61,13 @@
             </div>
           </div>
 
-          <button class="btn" id="submit-btn" type="submit">Sign in</button>
+          <button
+            class="btn btn--primary btn--lg btn--full auth-submit"
+            id="submit-btn"
+            type="submit"
+          >
+            Sign in
+          </button>
         </form>
 
         <p class="auth-foot" data-i18n="login.footSecured">

@@ -15,19 +15,19 @@ html.i18n-pending body {
 
 .lang-switcher__select {
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 500;
-  color: #3a3a38;
-  background: #fff;
-  border: 1px solid #e8e3d9;
-  border-radius: 8px;
-  padding: 6px 10px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-2);
   cursor: pointer;
 }
 
 .lang-switcher__select:focus-visible {
-  outline: 2px solid #2563eb;
-  outline-offset: 2px;
+  outline: var(--focus-width) solid var(--accent);
+  outline-offset: var(--focus-offset);
 }
 
 /* ─── RTL ─────────────────────────────────────────────────────────────── */

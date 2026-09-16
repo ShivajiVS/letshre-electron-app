@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="i18n-pending">
+<html lang="en" class="i18n-pending fluid-scale">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -40,7 +40,7 @@
 
     <main class="dash-main">
       <!-- Profile card -->
-      <div class="profile-card" id="profile-card">
+      <div class="card profile-card" id="profile-card">
         <div class="profile-card__avatar" id="profile-avatar">
           <span id="profile-initials">–</span>
         </div>
@@ -64,7 +64,7 @@
       </div>
 
       <!-- Interview card -->
-      <div class="dash-card">
+      <div class="card dash-card">
         <!-- #welcome and #dash-note are rendered by dashboard.js (personalised
              greeting / note state); no data-i18n, or the sweep would revert them. -->
         <h1 class="dash-card__title" id="welcome">Welcome</h1>
@@ -84,7 +84,7 @@
 
         <!-- Label owned by dashboard.js: it rebuilds the whole button body for
              the "Starting…" state, which would strip a data-i18n span. -->
-        <button class="btn-cta" id="take-interview-btn" type="button">
+        <button class="btn btn--primary btn--lg" id="take-interview-btn" type="button">
           <span>Take interview</span>
           <svg
             width="18"

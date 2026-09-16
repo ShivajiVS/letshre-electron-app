@@ -151,12 +151,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (message) {
       errorEl_.textContent = message;
       errorEl_.classList.add("show");
-      inputEl.classList.add("field__input--invalid");
+      inputEl.classList.add("input--invalid");
       inputEl.setAttribute("aria-invalid", "true");
     } else {
       errorEl_.textContent = "";
       errorEl_.classList.remove("show");
-      inputEl.classList.remove("field__input--invalid");
+      inputEl.classList.remove("input--invalid");
       inputEl.removeAttribute("aria-invalid");
     }
   }

@@ -1,13 +1,7 @@
 /**
- * End-to-end cover for crash recovery: real spill files on disk, the real
- * resume path, a stubbed backend.
- *
- * Until now this half was only checked by reading screenRecorder's source. The
- * durability work it covers had never actually been executed — an interrupted
- * upload either recovers or a candidate's recording is lost, and nothing proved
- * which. screenRecorder requires electron, but outside Electron that resolves
- * to a path string, so the upload pipeline loads fine as long as no window code
- * is called. resumePendingUploads() touches none.
+ * Crash recovery end to end: real spill files, the real resume path, a stubbed
+ * backend. Outside Electron `require("electron")` is a path string, which is
+ * fine as long as no window code runs.
  */
 
 "use strict";
@@ -22,7 +16,7 @@ const pendingUploads = require("../src/main/pendingUploads");
 const authManager = require("../src/main/authManager");
 const recorder = require("../src/main/screenRecorder");
 
-recorder._setRetryDelays(1, 1);
+recorder._testSeam.configure({ retryBaseMs: 1, retryCapMs: 1 });
 
 /** Replaces the backend calls the resume path makes, recording what it did. */
 function stubBackend({ startOk = true, chunkFails = new Set(), completeOk = true } = {}) {

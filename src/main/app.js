@@ -23,6 +23,7 @@ const updater = require("./updater");
 const startDetection = require("../detector/systemChecks");
 const authManager = require("./authManager");
 const pendingUploads = require("./pendingUploads");
+const { loadSpillKey } = require("./spillKey");
 const screenRecorder = require("./screenRecorder");
 const { SCOPE, isFrameAllowed, isUrlOriginAllowed } = require("./ipcScope");
 
@@ -66,7 +67,8 @@ async function onReady() {
 
   // 0c. Open the recording spill store before anything can record into it.
   try {
-    const purged = pendingUploads.init(app.getPath("userData"));
+    const userData = app.getPath("userData");
+    const purged = pendingUploads.init(userData, loadSpillKey(userData));
     if (purged.length) {
       logger.info(`[app] purged ${purged.length} expired pending upload(s)`);
     }

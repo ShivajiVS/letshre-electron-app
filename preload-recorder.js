@@ -1,7 +1,5 @@
 /**
- * Minimal context bridge for the hidden recorder BrowserWindow.
- * Exposes only the IPC channels the recorder renderer needs —
- * no auth, no app control, nothing else.
+ * Bridge for the hidden recorder window. Recorder channels only — no auth, no app control.
  */
 
 "use strict";
@@ -12,6 +10,7 @@ const { IPC } = require("./src/shared/constants");
 contextBridge.exposeInMainWorld("recorderBridge", {
   onInit: (cb) => ipcRenderer.on(IPC.RECORDER_INIT, (_, data) => cb(data)),
   onStop: (cb) => ipcRenderer.on(IPC.RECORDER_STOP, () => cb()),
+  onSetBitrate: (cb) => ipcRenderer.on(IPC.RECORDER_SET_BITRATE, (_, bps) => cb(bps)),
   sendReady: () => ipcRenderer.send(IPC.RECORDER_READY),
   sendChunk: (uint8Array) => ipcRenderer.send(IPC.RECORDER_CHUNK, uint8Array),
   sendStopped: () => ipcRenderer.send(IPC.RECORDER_STOPPED),

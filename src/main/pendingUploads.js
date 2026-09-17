@@ -1,23 +1,19 @@
 /**
- * Crash-durable spill store for recording chunks.
+ * Crash-durable spill store for recording chunks. A chunk is written here the
+ * moment it arrives and only removed once the backend confirms it, so an
+ * interrupted upload can be resumed on the next launch.
  *
- * screenRecorder.js held the whole upload backlog in two in-process arrays, so
- * a quit/crash/power-loss between the last successful chunk and /complete lost
- * the recording with nothing left to recover from. Chunks are now written here
- * the moment they arrive and only unlinked once the backend has confirmed
- * them, so an interrupted upload can be resumed on the next launch.
- *
- * Layout:
  *   <userData>/pending-uploads/<sessionKey>/manifest.json
  *   <userData>/pending-uploads/<sessionKey>/chunk_<index>.webm
  *
- * A session directory outliving the process IS the recovery record — it is
- * removed only after /complete succeeds. No Electron imports: this runs under
- * plain `node --test`.
+ * Chunks are sealed with AES-256-GCM: the recording is unreadable at rest, and
+ * a chunk that was altered or moved to another index fails to open instead of
+ * being uploaded. No Electron imports, so this runs under plain `node --test`.
  */
 
 "use strict";
 
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
@@ -25,12 +21,16 @@ const MANIFEST_NAME = "manifest.json";
 const CHUNK_PREFIX = "chunk_";
 const CHUNK_SUFFIX = ".webm";
 
-// Sessions older than this are abandoned — the backend's own upload session
-// will have expired long before, so retrying them only wastes bandwidth and
-// disk. Purged on init().
+const SEALED_MAGIC = Buffer.from("LHE1");
+const IV_BYTES = 12;
+const TAG_BYTES = 16;
+const HEADER_BYTES = SEALED_MAGIC.length + IV_BYTES + TAG_BYTES;
+
+// The backend's upload session has long expired by then.
 const MAX_SESSION_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 let rootDir = null;
+let key = null;
 
 function _assertInitialised() {
   if (!rootDir) {
@@ -51,16 +51,40 @@ function _chunkPath(sessionKey, index) {
   return path.join(_sessionDir(sessionKey), `${CHUNK_PREFIX}${index}${CHUNK_SUFFIX}`);
 }
 
-/**
- * Manifest writes go through a temp file + rename so a crash mid-write can
- * never leave a half-written JSON that makes the whole session unreadable —
- * rename is atomic within a directory on both NTFS and POSIX.
- */
-function _writeManifest(sessionKey, manifest) {
-  const target = _manifestPath(sessionKey);
+/** Temp file + rename, so a crash mid-write never leaves a half-written file behind. */
+function _writeAtomic(target, data) {
   const tmp = `${target}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(manifest, null, 2), "utf8");
+  fs.writeFileSync(tmp, data);
   fs.renameSync(tmp, target);
+}
+
+function _chunkLabel(sessionKey, index) {
+  return Buffer.from(`${sessionKey}:${index}`);
+}
+
+function _seal(sessionKey, index, bytes) {
+  const iv = crypto.randomBytes(IV_BYTES);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  cipher.setAAD(_chunkLabel(sessionKey, index));
+  const body = Buffer.concat([cipher.update(bytes), cipher.final()]);
+  return Buffer.concat([SEALED_MAGIC, iv, cipher.getAuthTag(), body]);
+}
+
+function _open(sessionKey, index, file) {
+  // Chunks spilled by a build that predates encryption.
+  if (!file.subarray(0, SEALED_MAGIC.length).equals(SEALED_MAGIC)) {
+    return file;
+  }
+  const iv = file.subarray(SEALED_MAGIC.length, SEALED_MAGIC.length + IV_BYTES);
+  const tag = file.subarray(SEALED_MAGIC.length + IV_BYTES, HEADER_BYTES);
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAAD(_chunkLabel(sessionKey, index));
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(file.subarray(HEADER_BYTES)), decipher.final()]);
+}
+
+function _writeManifest(sessionKey, manifest) {
+  _writeAtomic(_manifestPath(sessionKey), JSON.stringify(manifest, null, 2));
 }
 
 function readManifest(sessionKey) {
@@ -73,9 +97,12 @@ function readManifest(sessionKey) {
 
 /**
  * @param {string} baseDir Typically app.getPath("userData").
+ * @param {Buffer} [spillKey] 32-byte key. Without a persisted one, chunks from
+ *   this run cannot be read back after a restart.
  */
-function init(baseDir) {
+function init(baseDir, spillKey = crypto.randomBytes(32)) {
   rootDir = path.join(baseDir, "pending-uploads");
+  key = spillKey;
   fs.mkdirSync(rootDir, { recursive: true });
   return _purgeExpired();
 }
@@ -105,12 +132,7 @@ function _listSessionKeys() {
   }
 }
 
-/**
- * Opens a session directory. Called as recording starts — before /start has
- * necessarily resolved, so uploadId is filled in later via setUploadId().
- * interviewId/fileName are recorded now because a resume after restart needs
- * them to re-register the upload session from scratch.
- */
+/** uploadId is filled in later via setUploadId(), once /start resolves. */
 function createSession({ sessionKey, interviewId, fileName }) {
   fs.mkdirSync(_sessionDir(sessionKey), { recursive: true });
   _writeManifest(sessionKey, {
@@ -133,17 +155,16 @@ function setUploadId(sessionKey, uploadId) {
 }
 
 /**
- * Written synchronously: the chunk must be durable before it is queued for
- * upload, otherwise the crash window this module exists to close is still
- * open. ~2.5MB roughly once a minute, so the main-thread cost is negligible.
+ * Synchronous on purpose: the chunk must be durable before it is queued.
  * @param {Uint8Array|Buffer} bytes
  */
 function saveChunk(sessionKey, index, bytes) {
-  fs.writeFileSync(_chunkPath(sessionKey, index), Buffer.from(bytes));
+  _writeAtomic(_chunkPath(sessionKey, index), _seal(sessionKey, index, Buffer.from(bytes)));
 }
 
+/** Throws if the chunk is missing, tampered with, or sealed under another key. */
 function readChunk(sessionKey, index) {
-  return fs.readFileSync(_chunkPath(sessionKey, index));
+  return _open(sessionKey, index, fs.readFileSync(_chunkPath(sessionKey, index)));
 }
 
 function removeChunk(sessionKey, index) {
@@ -179,9 +200,8 @@ function destroySession(sessionKey) {
 }
 
 /**
- * Sessions left behind by a previous run, oldest first. A directory with no
- * readable manifest is unrecoverable (we would not know which interview it
- * belongs to), so it is dropped rather than reported.
+ * Sessions left behind by a previous run, oldest first. Without a manifest we
+ * cannot tell which interview the chunks belong to, so those are dropped.
  */
 function listPending() {
   const sessions = [];

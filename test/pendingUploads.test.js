@@ -174,6 +174,94 @@ test("sessions past the max age are purged on init", () => {
   }
 });
 
+test("a spilled chunk is not readable as plain video on disk", () => {
+  const root = freshRoot();
+  try {
+    pendingUploads.createSession({ sessionKey: "s1", interviewId: "i1", fileName: "a.webm" });
+    const bytes = Buffer.from("webm-bytes-of-a-candidate-screen");
+    pendingUploads.saveChunk("s1", 0, bytes);
+
+    const onDisk = fs.readFileSync(path.join(root, "pending-uploads", "s1", "chunk_0.webm"));
+    assert.strictEqual(onDisk.includes(bytes), false);
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("a chunk altered on disk is refused rather than uploaded", () => {
+  const root = freshRoot();
+  try {
+    pendingUploads.createSession({ sessionKey: "s1", interviewId: "i1", fileName: "a.webm" });
+    pendingUploads.saveChunk("s1", 0, Buffer.from("original"));
+
+    const file = path.join(root, "pending-uploads", "s1", "chunk_0.webm");
+    const onDisk = fs.readFileSync(file);
+    onDisk[onDisk.length - 1] ^= 0xff;
+    fs.writeFileSync(file, onDisk);
+
+    assert.throws(() => pendingUploads.readChunk("s1", 0));
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("a chunk moved to another index is refused", () => {
+  const root = freshRoot();
+  try {
+    pendingUploads.createSession({ sessionKey: "s1", interviewId: "i1", fileName: "a.webm" });
+    pendingUploads.saveChunk("s1", 0, Buffer.from("first"));
+    const dir = path.join(root, "pending-uploads", "s1");
+    fs.renameSync(path.join(dir, "chunk_0.webm"), path.join(dir, "chunk_5.webm"));
+
+    assert.throws(() => pendingUploads.readChunk("s1", 5));
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("chunks sealed under one key cannot be read with another", () => {
+  const root = freshRoot();
+  try {
+    pendingUploads.createSession({ sessionKey: "s1", interviewId: "i1", fileName: "a.webm" });
+    pendingUploads.saveChunk("s1", 0, Buffer.from("secret"));
+
+    pendingUploads.init(root);
+
+    assert.throws(() => pendingUploads.readChunk("s1", 0));
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("the same key reads chunks back after a restart", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "pending-uploads-test-"));
+  const key = Buffer.alloc(32, 7);
+  try {
+    pendingUploads.init(root, key);
+    pendingUploads.createSession({ sessionKey: "s1", interviewId: "i1", fileName: "a.webm" });
+    pendingUploads.saveChunk("s1", 0, Buffer.from("survives"));
+
+    pendingUploads.init(root, Buffer.from(key));
+
+    assert.strictEqual(pendingUploads.readChunk("s1", 0).toString(), "survives");
+  } finally {
+    cleanup(root);
+  }
+});
+
+test("a plaintext chunk left by an older build still reads back", () => {
+  const root = freshRoot();
+  try {
+    pendingUploads.createSession({ sessionKey: "s1", interviewId: "i1", fileName: "a.webm" });
+    const legacy = Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x01]);
+    fs.writeFileSync(path.join(root, "pending-uploads", "s1", "chunk_0.webm"), legacy);
+
+    assert.deepStrictEqual(pendingUploads.readChunk("s1", 0), legacy);
+  } finally {
+    cleanup(root);
+  }
+});
+
 test("a fresh session is not purged on init", () => {
   const root = freshRoot();
   try {

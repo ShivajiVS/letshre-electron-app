@@ -328,6 +328,7 @@ const IPC = {
   RECORDER_CHUNK: "recorder:chunk",
   RECORDER_ERROR: "recorder:error",
   RECORDER_STOPPED: "recorder:stopped", // renderer → main after final chunk flush
+  RECORDER_SET_BITRATE: "recorder:set-bitrate",
 
   // How-it-works page navigation
   LOAD_HOW_IT_WORKS: "load-how-it-works",

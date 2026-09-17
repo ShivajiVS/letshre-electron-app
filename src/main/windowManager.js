@@ -13,6 +13,7 @@ const { app, BrowserWindow, session, dialog, nativeImage } = require("electron")
 const logger = require("./logger");
 const appState = require("./appState");
 const localeManager = require("./localeManager");
+const { createLockdownGuard, releaseLock } = require("./lockdownGuard");
 const { INTERVIEW_BASE_URL, IPC, DEVTOOLS_ENABLED } = require("../shared/constants");
 
 /**
@@ -186,6 +187,12 @@ let win = null;
 /** @type {boolean} */
 let isInterviewActive = false;
 
+/** @type {ReturnType<typeof createLockdownGuard> | null} */
+let lockdownGuard = null;
+
+/** @type {(event: string, severity: string) => void} */
+let reportViolation = () => {};
+
 /** @type {string | null} — base64 JPEG captured during identity verification, injected into the interview SPA sessionStorage on dom-ready */
 let _candidatePhotoBase64 = null;
 
@@ -229,7 +236,11 @@ function createWindow(onViolation, startPage = "login") {
 
   win.setMenuBarVisibility(false);
 
+  reportViolation = onViolation;
+
   win.on("closed", () => {
+    lockdownGuard?.stop();
+    lockdownGuard = null;
     win = null;
   });
 
@@ -251,12 +262,15 @@ function createWindow(onViolation, startPage = "login") {
   return win;
 }
 
-// ─── Interview End
+function _releaseLockdown() {
+  isInterviewActive = false;
+  lockdownGuard?.stop();
+  lockdownGuard = null;
+  releaseLock(win);
+}
+
 /**
- * Called when the interview session ends (signal received from interview.letshyre.com).
- * Clears the lockdown flag and restores normal window behaviour so the candidate
- * can close or minimise the app once the interview is fully complete.
- *
+ * Lifts the lockdown once the interview site reports the session is over.
  * @param {string} reason - e.g. "completed", "auto-submitted", "terminated", "expired"
  */
 function endInterview(reason) {
@@ -268,24 +282,13 @@ function endInterview(reason) {
     return;
   }
 
-  isInterviewActive = false;
-
-  win.setAlwaysOnTop(false);
-  win.setKiosk(false);
-  win.setFullScreen(false);
-  win.setMinimizable(true);
-
+  _releaseLockdown();
   logger.info(`[window] interview ended (reason: ${reason}) — window restrictions lifted`);
 }
 
-// ─── Self-Enforced Violation
-
 /**
- * Failsafe: fires when a hard-block violation was pushed to the website but
- * the session is still active after the grace window (renderer dropped the
- * event or failed to terminate). Lifts lockdown so the candidate can read
- * the screen and retries the violation push via IPC, guaranteeing a
- * hard-block has a consequence even if the website never handles it.
+ * Failsafe for a hard-block the website never acted on: lifts the lockdown so
+ * the candidate can read the screen, and pushes the violation again.
  * @param {string} reason
  */
 function enforceViolation(reason) {
@@ -293,14 +296,8 @@ function enforceViolation(reason) {
     return;
   }
 
-  isInterviewActive = false;
-  win.setAlwaysOnTop(false);
-  win.setKiosk(false);
-  win.setFullScreen(false);
-  win.setMinimizable(true);
+  _releaseLockdown();
 
-  // Retry pushing the violation via IPC — by T+8s the session will have loaded
-  // and the interview page's buffered-violation flush will show the modal.
   try {
     win.webContents.send(IPC.PUSH_VIOLATION, {
       event: String(reason).slice(0, 200),
@@ -336,10 +333,9 @@ function lockdownForInterview(interviewUrl, tokens = null, roleSelection = null)
   }
   isInterviewActive = true;
 
-  win.setAlwaysOnTop(true, "screen-saver");
-  win.setKiosk(true);
-  win.setFullScreen(true);
-  win.setMinimizable(false);
+  lockdownGuard?.stop();
+  lockdownGuard = createLockdownGuard(win, { onViolation: reportViolation, log: logger });
+  lockdownGuard.start();
 
   win.webContents.once("dom-ready", () => {
     // A new interview is starting — wipe any finished session sessionStorage
@@ -424,7 +420,7 @@ function clearInterviewSessionData() {
 
 // ─── Internal Hardening
 
-/** Blocks DevTools, Ctrl+Shift+I, Meta+Alt+I, and Alt+F4 key combos. */
+/** Blocks DevTools shortcuts, and Alt+F4 / F11 while an interview is live. */
 function _applyInputLockdown() {
   win.webContents.on("before-input-event", (event, input) => {
     const isDevTools =
@@ -432,12 +428,11 @@ function _applyInputLockdown() {
       (input.control && input.shift && input.key === "I") ||
       (input.meta && input.alt && input.key === "I");
 
-    // Alt+F4 is only blocked during an active interview session.
-    // During requirements/preflight the user may need to Alt+F4 out of this
-    // app temporarily to manually close other windows before rescanning.
+    // Before the interview the candidate may need to leave the app to close other windows.
     const isAltF4 = input.alt && input.key === "F4" && isInterviewActive;
+    const isFullscreenToggle = input.key === "F11" && isInterviewActive;
 
-    if ((isDevTools && !DEVTOOLS_ENABLED) || isAltF4) {
+    if ((isDevTools && !DEVTOOLS_ENABLED) || isAltF4 || isFullscreenToggle) {
       event.preventDefault();
     }
   });
@@ -458,27 +453,14 @@ function _applyNavigationGuardrails() {
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
 }
 
-/** Prevents minimize and close during an active interview session. */
+/** Confirms before closing during an interview. Minimize is held by lockdownGuard. */
 function _applyWindowProtections(onViolation) {
-  win.on("minimize", (e) => {
-    if (!isInterviewActive) {
-      return;
-    }
-    e.preventDefault();
-    win.restore();
-    win.focus();
-    onViolation("Window minimize attempt", "high");
-  });
-
   win.on("close", (e) => {
     if (!isInterviewActive) {
       appState.setQuitting();
       return;
-    } // preflight — allow close freely
+    }
 
-    // Interview is active: show a native confirmation dialog instead of hard-blocking.
-    // This allows the user to close the app if they genuinely need to,
-    // while still logging a violation if they cancel.
     e.preventDefault();
 
     const modalStrings = _exitModalStrings();
@@ -495,7 +477,8 @@ function _applyWindowProtections(onViolation) {
 
     if (choice === 0) {
       logger.warn("[window] user confirmed interview exit via close dialog");
-      isInterviewActive = false;
+      // Released first so a quit-time prompt is not hidden behind the locked window.
+      _releaseLockdown();
       app.quit();
     } else {
       logger.warn("[window] user dismissed close dialog during interview");
@@ -545,11 +528,7 @@ function getIsInterviewActive() {
   return isInterviewActive;
 }
 
-/**
- * Minimizes the window — safe to call during requirements/preflight phase.
- * During active interview the window lock prevents minimize via the close handler,
- * so this function is effectively a no-op if somehow invoked then.
- */
+/** Lets the candidate minimize before the interview to close other apps. No-op once it starts. */
 function minimizeWindow() {
   if (win && !isInterviewActive) {
     win.minimize();

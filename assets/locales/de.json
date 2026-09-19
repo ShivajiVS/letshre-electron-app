@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "b27c5e82b7127a27"
+    "_sourceHash": "b64c176d36baf549"
   },
   "common": {
     "back": "Zurück",
@@ -314,6 +314,11 @@
     "readyHint": "„Jetzt aktualisieren“ schließt die App und installiert das Update — öffnen Sie sie über Ihren Interview-Link erneut.",
     "whatsNew": "Neuigkeiten",
     "hideNotes": "Ausblenden"
+  },
+  "interviewUnavailable": {
+    "title": "Ihr Interview ist nicht erreichbar",
+    "body": "Prüfen Sie Ihre Internetverbindung. Wir versuchen automatisch weiter, die Verbindung wiederherzustellen.",
+    "retry": "Erneut versuchen"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

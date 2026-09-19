@@ -1,10 +1,4 @@
-/**
- * Owns the full BrowserWindow lifecycle:
- *   - Window creation and configuration
- *   - Security hardening (input lockdown, navigation guardrails, CSP)
- *   - Interview lockdown mode (kiosk, always-on-top)
- *   - Window event protections (minimize, close)
- */
+/** The main window: creation, hardening, interview lockdown and page navigation. */
 
 "use strict";
 
@@ -14,16 +8,12 @@ const logger = require("./logger");
 const appState = require("./appState");
 const localeManager = require("./localeManager");
 const { createLockdownGuard, releaseLock } = require("./lockdownGuard");
-const { INTERVIEW_BASE_URL, IPC, DEVTOOLS_ENABLED } = require("../shared/constants");
+const { INTERVIEW_BASE_URL, DEVTOOLS_ENABLED } = require("../shared/constants");
 
 /**
- * Text for the native "Exit Interview?" close-confirmation dialog, keyed by
- * locale code. This dialog is drawn by dialog.showMessageBoxSync() before any
- * renderer or i18n bundle is involved, so it can't consume assets/locales/*.json
- * the way page controllers do — it needs its own small, self-contained map.
- * Machine-translated, not yet reviewed by a native speaker (unlike
- * assets/locales/en.json's `attestation` key, which is certified) — flag for
- * human review before any of these locales ship to production.
+ * Text for the native "Exit Interview?" dialog. It is drawn by the main process,
+ * so it can't use the locale bundles. Machine-translated: needs a native review
+ * before these locales ship.
  */
 const EXIT_MODAL_STRINGS = {
   en: {
@@ -193,8 +183,15 @@ let lockdownGuard = null;
 /** @type {(event: string, severity: string) => void} */
 let reportViolation = () => {};
 
-/** @type {string | null} — base64 JPEG captured during identity verification, injected into the interview SPA sessionStorage on dom-ready */
+/** @type {string | null} base64 photo from identity verification */
 let _candidatePhotoBase64 = null;
+
+const LOAD_RETRY_DELAYS_MS = [3000, 5000, 10000, 20000, 30000];
+
+let interviewUrl = null;
+let pendingInjection = null;
+let loadRetryTimer = null;
+let loadRetryAttempt = 0;
 
 /**
  * Creates and configures the main application window.
@@ -219,7 +216,6 @@ function createWindow(onViolation, startPage = "login") {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
-      // Explicit Electron security checklist hardening
       webSecurity: true,
       allowRunningInsecureContent: false,
       experimentalFeatures: false,
@@ -244,7 +240,6 @@ function createWindow(onViolation, startPage = "login") {
     win = null;
   });
 
-  //  Block DevTools in production builds
   if (app.isPackaged) {
     win.webContents.on("devtools-opened", () => {
       win.webContents.closeDevTools();
@@ -257,6 +252,7 @@ function createWindow(onViolation, startPage = "login") {
   _applyInputLockdown();
   _applyNavigationGuardrails();
   _applyWindowProtections(onViolation);
+  _applyInterviewLoadHandling();
   _applyCSPHeaders();
 
   return win;
@@ -266,6 +262,10 @@ function _releaseLockdown() {
   isInterviewActive = false;
   lockdownGuard?.stop();
   lockdownGuard = null;
+  clearTimeout(loadRetryTimer);
+  loadRetryTimer = null;
+  interviewUrl = null;
+  pendingInjection = null;
   releaseLock(win);
 }
 
@@ -287,47 +287,14 @@ function endInterview(reason) {
 }
 
 /**
- * Failsafe for a hard-block the website never acted on: lifts the lockdown so
- * the candidate can read the screen, and pushes the violation again.
- * @param {string} reason
- */
-function enforceViolation(reason) {
-  if (!win || win.isDestroyed()) {
-    return;
-  }
-
-  _releaseLockdown();
-
-  try {
-    win.webContents.send(IPC.PUSH_VIOLATION, {
-      event: String(reason).slice(0, 200),
-      severity: "high",
-      count: 1,
-      isHardBlock: true,
-      source: "electron",
-      timestamp: new Date().toISOString(),
-    });
-  } catch (err) {
-    logger.warn("[window] violation IPC retry failed:", err.message);
-  }
-
-  logger.warn(`[window] self-enforced violation — IPC retry sent: ${reason}`);
-}
-
-// ─── Interview Lockdown
-
-/**
- * Activates full interview lockdown mode and injects auth tokens + candidate
- * photo into the SPA's sessionStorage before React boots.
+ * Locks the window and loads the interview. Tokens, photo, role and locale are
+ * injected into the site's sessionStorage on dom-ready, before its scripts run.
  *
- * Injection uses webContents.executeJavaScript() on the dom-ready event, which
- * fires after the HTML is parsed but before module scripts execute — no race.
- *
- * @param {string} interviewUrl
+ * @param {string} url
  * @param {{ accessToken: string|null, refreshToken: string|null } | null} tokens
  * @param {{ is_custom_role: boolean, selected_role?: string[], manual_skills?: string[] } | null} roleSelection
  */
-function lockdownForInterview(interviewUrl, tokens = null, roleSelection = null) {
+function lockdownForInterview(url, tokens = null, roleSelection = null) {
   if (!win) {
     return;
   }
@@ -337,52 +304,114 @@ function lockdownForInterview(interviewUrl, tokens = null, roleSelection = null)
   lockdownGuard = createLockdownGuard(win, { onViolation: reportViolation, log: logger });
   lockdownGuard.start();
 
-  win.webContents.once("dom-ready", () => {
-    // A new interview is starting — wipe any finished session sessionStorage
-    // still holds. Electron reuses one long-lived tab, so a prior completed
-    // session would otherwise survive the scorecard → dashboard → new-interview
-    // trip and get restored as a stale scorecard. Runs before the SPA's first
-    // render, same as the candidate_photo injection below.
-    const statements = ["sessionStorage.removeItem('interview_session');"];
-    // Candidate's chosen UI language, so the interview SPA can render in it too
-    // — previously only sent separately to authManager for STT model selection,
-    // never to the web app itself (see README "Web app integration").
+  // One tab is reused across interviews, so a finished session left in
+  // sessionStorage would come back as a stale scorecard.
+  const statements = [
+    "sessionStorage.removeItem('interview_session');",
+    `sessionStorage.setItem('locale', ${JSON.stringify(localeManager.getPreferred())});`,
+  ];
+  if (tokens?.accessToken) {
+    statements.push(`sessionStorage.setItem('ac', ${JSON.stringify(tokens.accessToken)});`);
+  }
+  if (tokens?.refreshToken) {
+    statements.push(`sessionStorage.setItem('rc', ${JSON.stringify(tokens.refreshToken)});`);
+  }
+  if (_candidatePhotoBase64) {
     statements.push(
-      `sessionStorage.setItem('locale', ${JSON.stringify(localeManager.getPreferred())});`
+      `sessionStorage.setItem('candidate_photo', ${JSON.stringify(_candidatePhotoBase64)});`
     );
-    if (tokens?.accessToken) {
-      statements.push(`sessionStorage.setItem('ac', ${JSON.stringify(tokens.accessToken)});`);
-    }
-    if (tokens?.refreshToken) {
-      statements.push(`sessionStorage.setItem('rc', ${JSON.stringify(tokens.refreshToken)});`);
-    }
-    if (_candidatePhotoBase64) {
-      statements.push(
-        `sessionStorage.setItem('candidate_photo', ${JSON.stringify(_candidatePhotoBase64)});`
-      );
-    }
-    if (roleSelection) {
-      // JSON-encode twice: once for the stored value, once to embed it as a
-      // string literal inside the injected executeJavaScript() statement.
-      statements.push(
-        `sessionStorage.setItem('role_selection', ${JSON.stringify(JSON.stringify(roleSelection))});`
-      );
-    }
+  }
+  if (roleSelection) {
+    statements.push(
+      `sessionStorage.setItem('role_selection', ${JSON.stringify(JSON.stringify(roleSelection))});`
+    );
+  }
 
-    win.webContents
-      .executeJavaScript(statements.join("\n"))
-      .catch((err) => logger.warn("[window] sessionStorage injection failed:", err.message));
-  });
+  interviewUrl = url;
+  pendingInjection = statements.join("\n");
+  loadRetryAttempt = 0;
+  clearTimeout(loadRetryTimer);
+  loadRetryTimer = null;
 
-  win.loadURL(interviewUrl);
   logger.info("[window] lockdown activated — navigating to interview");
+  win.loadURL(url).catch(() => {});
+}
+
+function _isInterviewPage(url) {
+  return Boolean(INTERVIEW_BASE_URL) && String(url || "").startsWith(INTERVIEW_BASE_URL);
+}
+
+/** Reloads the interview after a failed load. The lockdown stays on throughout. */
+function retryInterview() {
+  if (!win || win.isDestroyed() || !isInterviewActive || !interviewUrl) {
+    return;
+  }
+  clearTimeout(loadRetryTimer);
+  loadRetryTimer = null;
+  logger.info("[window] retrying interview load");
+  win.loadURL(interviewUrl).catch(() => {});
 }
 
 /**
- * Stores the base64 photo captured during identity verification so it can be
- * injected into the interview SPA sessionStorage on the next dom-ready event.
- * @param {string} dataUrl — base64 data URL ("data:image/jpeg;base64,…")
+ * Electron leaves a blank white page when a load fails, so a failed interview
+ * load shows a local "can't reach the interview" page and keeps retrying.
  */
+function _applyInterviewLoadHandling() {
+  const wc = win.webContents;
+  // Error pages fire dom-ready under the interview URL but never did-navigate,
+  // so this is what keeps the injection off them.
+  let interviewPageCommitted = false;
+
+  const onLoadFailed = (reason) => {
+    interviewPageCommitted = false;
+    const delay = LOAD_RETRY_DELAYS_MS[Math.min(loadRetryAttempt, LOAD_RETRY_DELAYS_MS.length - 1)];
+    loadRetryAttempt += 1;
+    logger.warn(
+      `[window] interview failed to load (${reason}) — retry ${loadRetryAttempt} in ${delay / 1000}s`
+    );
+    wc.loadFile(path.join(__dirname, "../../assets/interview-unavailable.html")).catch(() => {});
+    clearTimeout(loadRetryTimer);
+    loadRetryTimer = setTimeout(retryInterview, delay);
+  };
+
+  wc.on("did-navigate", (_event, url, httpResponseCode) => {
+    const isInterview = isInterviewActive && _isInterviewPage(url);
+    interviewPageCommitted = isInterview && httpResponseCode < 500;
+    if (isInterview && httpResponseCode >= 500) {
+      onLoadFailed(`HTTP ${httpResponseCode}`);
+    }
+  });
+
+  wc.on("did-fail-load", (_event, code, description, url, isMainFrame) => {
+    // -3 is ERR_ABORTED: the load was replaced by another navigation, not a failure.
+    if (!isInterviewActive || !isMainFrame || code === -3 || !_isInterviewPage(url)) {
+      return;
+    }
+    onLoadFailed(`${code} ${description}`);
+  });
+
+  wc.on("dom-ready", () => {
+    if (!isInterviewActive || !pendingInjection || !interviewPageCommitted) {
+      return;
+    }
+    const script = pendingInjection;
+    wc.executeJavaScript(script)
+      .then(() => {
+        if (pendingInjection === script) {
+          pendingInjection = null;
+        }
+      })
+      .catch((err) => logger.warn("[window] sessionStorage injection failed:", err.message));
+  });
+
+  wc.on("did-finish-load", () => {
+    if (interviewPageCommitted) {
+      loadRetryAttempt = 0;
+    }
+  });
+}
+
+/** @param {string} dataUrl base64 data URL from identity verification */
 function storeCandidatePhoto(dataUrl) {
   if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) {
     logger.warn("[window] storeCandidatePhoto: invalid data URL, ignoring");
@@ -392,22 +421,12 @@ function storeCandidatePhoto(dataUrl) {
   logger.info("[window] candidate photo stored for interview injection");
 }
 
-/**
- * Clears the in-memory candidate photo. Called on logout so one account's face
- * capture can never linger into another account's session.
- */
+/** Called on logout so one account's photo never reaches another account's interview. */
 function clearCandidatePhoto() {
   _candidatePhotoBase64 = null;
 }
 
-/**
- * Wipes the interview site's persisted storage (cookies, localStorage,
- * IndexedDB, service worker + cache) for INTERVIEW_BASE_URL on logout, so a
- * previous candidate's tokens/data don't carry into the next account.
- * sessionStorage isn't touched — the interview page isn't loaded at logout,
- * and the next interview overwrites it anyway.
- * @returns {Promise<void>}
- */
+/** Wipes the interview site's stored data on logout so it can't carry into the next account. */
 function clearInterviewSessionData() {
   return session.defaultSession
     .clearStorageData({
@@ -418,9 +437,7 @@ function clearInterviewSessionData() {
     .catch((err) => logger.warn("[window] clearInterviewSessionData failed:", err.message));
 }
 
-// ─── Internal Hardening
-
-/** Blocks DevTools shortcuts, and Alt+F4 / F11 while an interview is live. */
+/** Blocks DevTools shortcuts, Alt+F4 and F11 during the interview, and locks system keys. */
 function _applyInputLockdown() {
   win.webContents.on("before-input-event", (event, input) => {
     const isDevTools =
@@ -436,12 +453,24 @@ function _applyInputLockdown() {
       event.preventDefault();
     }
   });
+
+  // Keyboard lock only holds while the page itself is fullscreen, so it is
+  // (re)applied each time the interview enters fullscreen.
+  win.webContents.on("enter-html-full-screen", () => {
+    if (!isInterviewActive || !_isInterviewPage(win.webContents.getURL())) {
+      return;
+    }
+    win.webContents
+      .executeJavaScript(
+        "navigator.keyboard ? navigator.keyboard.lock() : Promise.reject(new Error('Keyboard API unavailable'))",
+        true
+      )
+      .then(() => logger.info("[window] keyboard lock on"))
+      .catch((err) => logger.warn("[window] keyboard lock failed:", err.message));
+  });
 }
 
-/**
- * Prevents navigation to any URL outside the interview domain or local files.
- * Also blocks all window.open() calls.
- */
+/** Only the interview site and local pages may load; window.open is always refused. */
 function _applyNavigationGuardrails() {
   win.webContents.on("will-navigate", (event, url) => {
     if (!url.startsWith(INTERVIEW_BASE_URL) && !url.startsWith("file://")) {
@@ -487,16 +516,10 @@ function _applyWindowProtections(onViolation) {
   });
 }
 
-/**
- * Sets a Content-Security-Policy response header on all requests
- * served through the default session.
- */
 function _applyCSPHeaders() {
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    // Only enforce a strict CSP on local pages (preflight.html, etc.).
-    // interview.letshyre.com manages its own server-side CSP —
-    // overriding it here blocks images, API calls, and other resources
-    // that work fine in a regular browser.
+    // Local pages only: the interview site sends its own CSP, and overriding it
+    // breaks its images and API calls.
     if (!details.url.startsWith("file://")) {
       return callback({ responseHeaders: details.responseHeaders });
     }
@@ -518,8 +541,6 @@ function _applyCSPHeaders() {
   });
 }
 
-// ─── Accessors
-
 function getWindow() {
   return win;
 }
@@ -535,75 +556,42 @@ function minimizeWindow() {
   }
 }
 
-/**
- * Navigates to the security-check (preflight) screen. Called after the user
- * picks "Take Interview" on the dashboard — the interview session tokens are
- * set first by the IPC handler. The preflight → permissions → lockdown →
- * interview flow is unchanged from here.
- */
 function loadSecurityCheck() {
   if (win && !win.isDestroyed()) {
     win.loadFile(path.join(__dirname, "../../assets/preflight.html"));
   }
 }
 
-/**
- * Navigates to the language-selection screen that sits between the dashboard
- * and the preflight scan. Callers are responsible for skipping this page when
- * only one locale is selectable — see ipcHandlers.js.
- */
 function loadLanguageSelectionPage() {
   if (win && !win.isDestroyed()) {
     win.loadFile(path.join(__dirname, "../../assets/language-selection.html"));
   }
 }
 
-/**
- * Navigates to the permissions page. Called when the user clicks Proceed on
- * the preflight screen — all security checks have passed but the window is
- * NOT yet in kiosk/lockdown mode (the OS needs to show native permission
- * dialogs). Lockdown happens only after the user clicks Start Interview.
- */
 function loadPermissionsPage() {
   if (win && !win.isDestroyed()) {
     win.loadFile(path.join(__dirname, "../../assets/permissions.html"));
   }
 }
 
-/**
- * Navigates to the identity verification page. Called after all permissions
- * are granted — camera/mic/screen already approved by the OS.
- */
 function loadIdentityVerificationPage() {
   if (win && !win.isDestroyed()) {
     win.loadFile(path.join(__dirname, "../../assets/identity-verification.html"));
   }
 }
 
-/**
- * Navigates back to the dashboard. Used by the back button on the security
- * check page — does not clear the session, just shows the dashboard again.
- */
 function loadDashboard() {
   if (win && !win.isDestroyed()) {
     win.loadFile(path.join(__dirname, "../../assets/dashboard.html"));
   }
 }
 
-/**
- * Navigates to the role selection page. Called after identity verification
- * passes — candidate confirms or enters their role before interview lockdown.
- */
 function loadRoleSelectionPage() {
   if (win && !win.isDestroyed()) {
     win.loadFile(path.join(__dirname, "../../assets/role-selection.html"));
   }
 }
 
-/**
- * Navigates to the how-it-works page. Accessible from login and dashboard —
- * no auth required, purely informational.
- */
 function loadHowItWorksPage() {
   if (win && !win.isDestroyed()) {
     win.loadFile(path.join(__dirname, "../../assets/how-it-works.html"));
@@ -613,11 +601,11 @@ function loadHowItWorksPage() {
 module.exports = {
   createWindow,
   lockdownForInterview,
+  retryInterview,
   storeCandidatePhoto,
   clearCandidatePhoto,
   clearInterviewSessionData,
   endInterview,
-  enforceViolation,
   loadDashboard,
   loadSecurityCheck,
   loadLanguageSelectionPage,

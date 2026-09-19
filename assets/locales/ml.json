@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "b27c5e82b7127a27"
+    "_sourceHash": "b64c176d36baf549"
   },
   "common": {
     "back": "തിരികെ",
@@ -314,6 +314,11 @@
     "readyHint": "\"ഇപ്പോൾ അപ്‌ഡേറ്റ് ചെയ്യുക\" ആപ്പ് അടച്ച് ഇൻസ്റ്റാൾ ചെയ്യും — നിങ്ങളുടെ ഇന്റർവ്യൂ ലിങ്കിൽ നിന്ന് വീണ്ടും തുറക്കുക.",
     "whatsNew": "എന്താണ് പുതിയത്",
     "hideNotes": "മറയ്ക്കുക"
+  },
+  "interviewUnavailable": {
+    "title": "നിങ്ങളുടെ അഭിമുഖത്തിലേക്ക് എത്താൻ കഴിയുന്നില്ല",
+    "body": "നിങ്ങളുടെ ഇന്റർനെറ്റ് കണക്ഷൻ പരിശോധിക്കുക. ഞങ്ങൾ സ്വയമേവ വീണ്ടും കണക്റ്റ് ചെയ്യാൻ ശ്രമിച്ചുകൊണ്ടിരിക്കും.",
+    "retry": "വീണ്ടും ശ്രമിക്കുക"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

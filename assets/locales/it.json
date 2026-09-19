@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "b27c5e82b7127a27"
+    "_sourceHash": "b64c176d36baf549"
   },
   "common": {
     "back": "Indietro",
@@ -314,6 +314,11 @@
     "readyHint": "\"Aggiorna ora\" chiude l'app e la installa — riaprila dal tuo link per il colloquio.",
     "whatsNew": "Novità",
     "hideNotes": "Nascondi"
+  },
+  "interviewUnavailable": {
+    "title": "Impossibile raggiungere il colloquio",
+    "body": "Controlla la connessione a Internet. Continueremo a tentare di riconnetterci automaticamente.",
+    "retry": "Riprova"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

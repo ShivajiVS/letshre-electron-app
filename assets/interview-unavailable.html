@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en" class="i18n-pending fluid-scale">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="./css/fonts.css" />
+    <link rel="stylesheet" href="./css/base.css" />
+    <link rel="stylesheet" href="./css/components.css" />
+    <link rel="stylesheet" href="./css/interview-unavailable.css" />
+    <link rel="stylesheet" href="./css/i18n.css" />
+  </head>
+  <body class="iu-body">
+    <main class="card iu-card" role="alert">
+      <span class="iu-icon" aria-hidden="true">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M2 8.8a15 15 0 0 1 4.2-2.6" />
+          <path d="M10.7 5.1A15 15 0 0 1 22 8.8" />
+          <path d="M5 12.5a10 10 0 0 1 5.2-2.6" />
+          <path d="M16.9 10.8A10 10 0 0 1 19 12.5" />
+          <path d="M8.5 16.4a5 5 0 0 1 7 0" />
+          <path d="M12 20h.01" />
+          <path d="M3 3l18 18" />
+        </svg>
+      </span>
+      <h1 class="iu-title" data-i18n="interviewUnavailable.title">Can't reach your interview</h1>
+      <p class="iu-body-text" data-i18n="interviewUnavailable.body">
+        Check your internet connection. We'll keep trying to reconnect automatically.
+      </p>
+      <button
+        class="btn btn--primary btn--lg"
+        id="btn-retry"
+        type="button"
+        onclick="window.electronAPI?.retryInterview?.()"
+      >
+        <span data-i18n="interviewUnavailable.retry">Try again</span>
+      </button>
+    </main>
+
+    <script src="./js/i18n.js"></script>
+  </body>
+</html>

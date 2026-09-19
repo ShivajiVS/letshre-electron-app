@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "b27c5e82b7127a27"
+    "_sourceHash": "b64c176d36baf549"
   },
   "common": {
     "back": "Voltar",
@@ -314,6 +314,11 @@
     "readyHint": "\"Atualizar agora\" fecha o aplicativo e o instala — reabra-o pelo link da sua entrevista.",
     "whatsNew": "Novidades",
     "hideNotes": "Ocultar"
+  },
+  "interviewUnavailable": {
+    "title": "Não foi possível acessar sua entrevista",
+    "body": "Verifique sua conexão com a internet. Continuaremos tentando reconectar automaticamente.",
+    "retry": "Tentar novamente"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Source-of-truth bundle. Every other locale file must have exactly the same keys (see test/locales.test.js).",
     "_reviewedBy": null,
-    "_sourceHash": "b27c5e82b7127a27"
+    "_sourceHash": "b64c176d36baf549"
   },
   "common": {
     "back": "Back",
@@ -314,6 +314,11 @@
     "readyHint": "\"Update now\" closes the app and installs — reopen from your interview link.",
     "whatsNew": "What’s new",
     "hideNotes": "Hide"
+  },
+  "interviewUnavailable": {
+    "title": "Can't reach your interview",
+    "body": "Check your internet connection. We'll keep trying to reconnect automatically.",
+    "retry": "Try again"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

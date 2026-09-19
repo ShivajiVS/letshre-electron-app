@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "b27c5e82b7127a27"
+    "_sourceHash": "b64c176d36baf549"
   },
   "common": {
     "back": "뒤로",
@@ -314,6 +314,11 @@
     "readyHint": "\"지금 업데이트\"를 누르면 앱이 닫히고 설치됩니다 — 인터뷰 링크에서 다시 여세요.",
     "whatsNew": "새로운 기능",
     "hideNotes": "숨기기"
+  },
+  "interviewUnavailable": {
+    "title": "면접에 연결할 수 없습니다",
+    "body": "인터넷 연결을 확인하세요. 자동으로 다시 연결을 계속 시도합니다.",
+    "retry": "다시 시도"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

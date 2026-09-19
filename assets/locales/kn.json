@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "b27c5e82b7127a27"
+    "_sourceHash": "b64c176d36baf549"
   },
   "common": {
     "back": "ಹಿಂದೆ",
@@ -314,6 +314,11 @@
     "readyHint": "\"ಈಗಲೇ ಅಪ್‌ಡೇಟ್ ಮಾಡಿ\" ಆ್ಯಪ್ ಮುಚ್ಚಿ ಸ್ಥಾಪಿಸುತ್ತದೆ — ನಿಮ್ಮ ಸಂದರ್ಶನ ಲಿಂಕ್‌ನಿಂದ ಮತ್ತೆ ತೆರೆಯಿರಿ.",
     "whatsNew": "ಹೊಸದೇನಿದೆ",
     "hideNotes": "ಮರೆಮಾಡಿ"
+  },
+  "interviewUnavailable": {
+    "title": "ನಿಮ್ಮ ಸಂದರ್ಶನವನ್ನು ತಲುಪಲು ಸಾಧ್ಯವಾಗುತ್ತಿಲ್ಲ",
+    "body": "ನಿಮ್ಮ ಇಂಟರ್ನೆಟ್ ಸಂಪರ್ಕವನ್ನು ಪರಿಶೀಲಿಸಿ. ನಾವು ಸ್ವಯಂಚಾಲಿತವಾಗಿ ಮರುಸಂಪರ್ಕಿಸಲು ಪ್ರಯತ್ನಿಸುತ್ತಲೇ ಇರುತ್ತೇವೆ.",
+    "retry": "ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

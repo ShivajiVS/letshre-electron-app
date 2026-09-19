@@ -123,12 +123,7 @@ const UPDATE_MAX_RETRIES = 3;
  */
 const INDETERMINATE_ESCALATION_THRESHOLD = 3;
 
-/**
- * Grace period (ms) after a hard-block violation before Electron self-enforces.
- * The violation goes to the website first; if the session is still active after
- * this window (site dropped the event or failed to terminate), Electron lifts
- * lockdown and shows the local violation screen itself.
- */
+/** How long the site has to acknowledge a hard block before it is sent again. */
 const HARD_BLOCK_GRACE_MS = 8000;
 
 // Checks run concurrently, each under its own deadline. A check that misses
@@ -197,7 +192,7 @@ const KILL_RELAUNCH_WATCH_MS = 3000;
 const KILL_RELAUNCH_POLL_MS = 600;
 
 /**
- * Budget for an elevated kill (Phase 5). Generous because it spans a UAC /
+ * Budget for an elevated kill. Generous because it spans a UAC /
  * osascript prompt a human has to read and accept, but still bounded so a
  * prompt left untouched can't wedge the preflight forever.
  */
@@ -254,7 +249,7 @@ const IPC = {
   // Process management
   KILL_BLOCKED_APP: "kill-blocked-app",
   KILL_ALL_BLOCKED_APPS: "kill-all-blocked-apps",
-  /** Phase 5: explicit, user-initiated elevated retry (shows a consent prompt). */
+  /** explicit, user-initiated elevated retry (shows a consent prompt). */
   KILL_BLOCKED_APP_ELEVATED: "kill-blocked-app-elevated",
   /** Whether the current user could actually satisfy an elevation prompt. */
   CAN_ELEVATE: "can-elevate",
@@ -275,16 +270,16 @@ const IPC = {
   // App version (renderer invoke → main)
   GET_APP_VERSION: "get-app-version",
 
-  // Audit trail (ADD-07)
+  // Audit trail
   GET_AUDIT_LOG: "get-audit-log",
 
-  // App list (ADD-10)
+  // App list
   GET_APP_LIST: "get-app-list",
 
   // Soft-violation warning push (main → renderer)
   PUSH_WARNING: "push-warning",
 
-  // ADD-02: Streaming preflight — main pushes per-step results as they complete
+  // Streaming preflight — main pushes per-step results as they complete
   PREFLIGHT_PROGRESS: "preflight-progress",
 
   // Preflight UX: allow user to minimize to manage other apps manually
@@ -332,6 +327,7 @@ const IPC = {
 
   // How-it-works page navigation
   LOAD_HOW_IT_WORKS: "load-how-it-works",
+  RETRY_INTERVIEW: "retry-interview",
 
   // Localization (renderer invoke → main)
   GET_LOCALE: "get-locale",

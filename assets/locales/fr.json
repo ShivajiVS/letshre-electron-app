@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "b27c5e82b7127a27"
+    "_sourceHash": "b64c176d36baf549"
   },
   "common": {
     "back": "Retour",
@@ -314,6 +314,11 @@
     "readyHint": "« Mettre à jour maintenant » ferme l'application et l'installe — rouvrez-la depuis votre lien d'entretien.",
     "whatsNew": "Nouveautés",
     "hideNotes": "Masquer"
+  },
+  "interviewUnavailable": {
+    "title": "Impossible d’accéder à votre entretien",
+    "body": "Vérifiez votre connexion Internet. Nous continuerons d’essayer de nous reconnecter automatiquement.",
+    "retry": "Réessayer"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

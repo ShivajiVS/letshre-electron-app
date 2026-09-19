@@ -46,6 +46,7 @@ const IPC = {
   LOAD_SECURITY_CHECK: "load-security-check",
   LOAD_LANGUAGE_SELECTION: "load-language-selection",
   LOAD_HOW_IT_WORKS: "load-how-it-works",
+  RETRY_INTERVIEW: "retry-interview",
 
   // Image proxy: main fetches CDN image → base64 data URL (bypasses renderer CSP)
   FETCH_PROFILE_IMAGE: "fetch-profile-image",
@@ -85,7 +86,7 @@ const IPC = {
   // Soft-violation warning push (main → renderer)
   PUSH_WARNING: "push-warning",
 
-  // ADD-02: Per-step preflight progress push (main → renderer)
+  // Per-step preflight progress push (main → renderer)
   PREFLIGHT_PROGRESS: "preflight-progress",
 
   // Preflight UX: allow user to minimize to manage other apps manually
@@ -103,7 +104,7 @@ const IPC = {
   // Violation acknowledgement: website → main
   ACK_VIOLATION: "ack-violation",
 
-  // App list (ADD-10)
+  // App list
   GET_APP_LIST: "get-app-list",
 
   // Pre-proceed watcher: main → renderer push — real-time blocked-app status
@@ -146,6 +147,7 @@ const ALLOWED_SEND_CHANNELS = [
   IPC.LOAD_SECURITY_CHECK,
   IPC.LOAD_LANGUAGE_SELECTION,
   IPC.LOAD_HOW_IT_WORKS,
+  IPC.RETRY_INTERVIEW,
   IPC.PROCTORING_STOP,
 ];
 
@@ -210,7 +212,7 @@ function safeOn(channel, callback) {
   }
 }
 
-// ADD-02: Tracked handler reference so we can remove it on rescan without removeAllListeners.
+// Tracked handler reference so we can remove it on rescan without removeAllListeners.
 // Module-level variable — one active preflight listener at a time.
 let _preflightProgressHandler = null;
 
@@ -264,6 +266,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   /** Open the how-it-works informational page (login and dashboard). */
   loadHowItWorks: () => safeSend(IPC.LOAD_HOW_IT_WORKS),
+  retryInterview: () => safeSend(IPC.RETRY_INTERVIEW),
 
   /** Back: navigate to dashboard (from security check). */
   loadDashboard: () => safeSend(IPC.LOAD_DASHBOARD),
@@ -358,12 +361,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
    */
   killAllProcesses: (processNames) => safeInvoke(IPC.KILL_ALL_BLOCKED_APPS, processNames),
 
-  /** Phase 5: can the current user actually satisfy an elevation prompt?
+  /** can the current user actually satisfy an elevation prompt?
    *  False for standard users, so the UI can withhold an offer that would
    *  only produce a credential dialog they cannot complete. */
   canElevate: () => safeInvoke(IPC.CAN_ELEVATE),
 
-  /** Phase 5: explicit, user-initiated elevated retry. Shows a system consent
+  /** explicit, user-initiated elevated retry. Shows a system consent
    *  prompt, so main refuses it outright during an active interview. */
   killProcessElevated: (processName) => safeInvoke(IPC.KILL_BLOCKED_APP_ELEVATED, processName),
 
@@ -450,11 +453,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   /** Returns the running application version string. */
   getAppVersion: () => safeInvoke(IPC.GET_APP_VERSION),
 
-  // ── Audit trail (ADD-07)
+  // ── Audit trail
   /** Fetch the full in-memory session audit log. */
   getAuditLog: () => safeInvoke(IPC.GET_AUDIT_LOG),
 
-  // ── Streaming Preflight (ADD-02)
+  // ── Streaming Preflight
   /**
    * Subscribe to per-step preflight progress events.
    * Replaces the previous single-response approach — cards update as each
@@ -534,13 +537,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
 
   /**
-   * Acknowledge a received violation. Call this from your onViolation handler
-   * (hard AND soft) to tell Electron the renderer is alive and handling it.
-   * While acks keep arriving, Electron will NOT self-enforce — your in-app
-   * warning/termination flow stays in control. If acks stop (page crashed /
-   * listener dropped), Electron falls back to its own violation screen.
-   *
-   * Safe to call in a plain browser — no-ops if electronAPI is unavailable.
+   * Call first thing in the onViolation handler. A hard block that isn't
+   * acknowledged is sent again, since the page probably missed it.
    */
   acknowledgeViolation: () => safeSend(IPC.ACK_VIOLATION),
 

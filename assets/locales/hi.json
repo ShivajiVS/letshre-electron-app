@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "b27c5e82b7127a27"
+    "_sourceHash": "b64c176d36baf549"
   },
   "common": {
     "back": "वापस",
@@ -314,6 +314,11 @@
     "readyHint": "\"अभी अपडेट करें\" ऐप बंद करके इंस्टॉल करता है — अपने इंटरव्यू लिंक से दोबारा खोलें।",
     "whatsNew": "नया क्या है",
     "hideNotes": "छुपाएं"
+  },
+  "interviewUnavailable": {
+    "title": "आपके इंटरव्यू तक नहीं पहुँचा जा सका",
+    "body": "अपना इंटरनेट कनेक्शन जाँचें। हम अपने आप दोबारा कनेक्ट करने की कोशिश करते रहेंगे।",
+    "retry": "फिर से कोशिश करें"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

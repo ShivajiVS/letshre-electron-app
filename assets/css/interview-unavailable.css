@@ -1,0 +1,54 @@
+.iu-body {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  background: var(--bg);
+}
+
+.iu-card {
+  width: 100%;
+  max-width: 30rem;
+  padding: var(--space-8) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  animation: fade-up var(--dur-slow) var(--ease) both;
+}
+
+.iu-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.iu-icon svg {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.iu-title {
+  margin: var(--space-5) 0 0;
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.iu-body-text {
+  margin: var(--space-3) 0 var(--space-6);
+  font-size: var(--text-base);
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+html[dir="rtl"] .iu-title {
+  letter-spacing: normal;
+}

@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "b27c5e82b7127a27"
+    "_sourceHash": "b64c176d36baf549"
   },
   "common": {
     "back": "পিছনে",
@@ -314,6 +314,11 @@
     "readyHint": "\"এখনই আপডেট করুন\" অ্যাপ বন্ধ করে ইনস্টল করে — আপনার ইন্টারভিউ লিঙ্ক থেকে আবার খুলুন।",
     "whatsNew": "নতুন কী আছে",
     "hideNotes": "লুকান"
+  },
+  "interviewUnavailable": {
+    "title": "আপনার সাক্ষাৎকারে পৌঁছানো যাচ্ছে না",
+    "body": "আপনার ইন্টারনেট সংযোগ পরীক্ষা করুন। আমরা স্বয়ংক্রিয়ভাবে আবার সংযোগের চেষ্টা চালিয়ে যাব।",
+    "retry": "আবার চেষ্টা করুন"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "b27c5e82b7127a27"
+    "_sourceHash": "b64c176d36baf549"
   },
   "common": {
     "back": "戻る",
@@ -314,6 +314,11 @@
     "readyHint": "「今すぐ更新」を選ぶとアプリが閉じてインストールされます。面接用リンクから再度開いてください。",
     "whatsNew": "更新内容",
     "hideNotes": "非表示"
+  },
+  "interviewUnavailable": {
+    "title": "面接に接続できません",
+    "body": "インターネット接続を確認してください。自動的に再接続を試み続けます。",
+    "retry": "再試行"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

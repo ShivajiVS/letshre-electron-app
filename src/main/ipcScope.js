@@ -88,6 +88,33 @@ function isUrlOriginAllowed(scope, url) {
   return isOriginAllowed(scope, origin);
 }
 
+// Camera, mic and screen are requested by the local permission and identity
+// pages, and possibly by the interview site. Nothing else may ask.
+function isMediaFrameAllowed(frame) {
+  return isFrameAllowed(SCOPE.LOCAL, frame) || isFrameAllowed(SCOPE.INTERVIEW, frame);
+}
+
+// Keyboard lock lets Alt+Tab and the Windows key reach the interview page
+// instead of switching apps while it is fullscreen.
+const INTERVIEW_ONLY_PERMISSIONS = ["fullscreen", "keyboardLock"];
+
+/** Decides every renderer permission request; anything not listed is refused. */
+function isPermissionAllowed(permission, requestingUrl, isMainFrame) {
+  if (isMainFrame === false) {
+    return false;
+  }
+  if (permission === "media" || permission === "display-capture") {
+    return (
+      isUrlOriginAllowed(SCOPE.LOCAL, requestingUrl) ||
+      isUrlOriginAllowed(SCOPE.INTERVIEW, requestingUrl)
+    );
+  }
+  return (
+    INTERVIEW_ONLY_PERMISSIONS.includes(permission) &&
+    isUrlOriginAllowed(SCOPE.INTERVIEW, requestingUrl)
+  );
+}
+
 function _describeFrame(frame) {
   return frame && typeof frame.origin === "string" ? frame.origin : "(no frame)";
 }
@@ -151,6 +178,8 @@ module.exports = {
   isTopFrame,
   isFrameAllowed,
   isUrlOriginAllowed,
+  isMediaFrameAllowed,
+  isPermissionAllowed,
   registerHandler,
   registerSend,
 };

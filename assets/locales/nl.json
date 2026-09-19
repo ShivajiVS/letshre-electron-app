@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "b27c5e82b7127a27"
+    "_sourceHash": "b64c176d36baf549"
   },
   "common": {
     "back": "Terug",
@@ -314,6 +314,11 @@
     "readyHint": "\"Nu bijwerken\" sluit de app en installeert de update — open deze opnieuw via uw interviewlink.",
     "whatsNew": "Wat is er nieuw",
     "hideNotes": "Verbergen"
+  },
+  "interviewUnavailable": {
+    "title": "Je interview is niet bereikbaar",
+    "body": "Controleer je internetverbinding. We blijven automatisch proberen opnieuw verbinding te maken.",
+    "retry": "Opnieuw proberen"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

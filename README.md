@@ -99,12 +99,13 @@ Two cooperating detection tiers:
 ├── preload.js                  # contextBridge: exposes window.electronAPI to all pages
 ├── preload-recorder.js         # minimal contextBridge for the hidden recorder window
 ├── scripts/build_agent.py      # PyInstaller build → resources/agent.exe
+├── scripts/check-env.js        # beforePack hook: refuses to package a dev .env
 │
 ├── src/
 │   ├── main/                   # Electron main process
 │   │   ├── index.js            # single-instance lock, protocol registration
 │   │   ├── app.js              # app lifecycle (onReady, updater, screen capture)
-│   │   ├── windowManager.js    # window creation, page navigation, CSP, self-enforcement
+│   │   ├── windowManager.js    # window creation, page navigation, CSP, interview load retries
 │   │   ├── lockdownGuard.js    # applies and holds the interview lockdown for the whole session
 │   │   ├── ipcHandlers.js      # the only file that registers ipcMain channels
 │   │   ├── ipcScope.js         # which caller (local pages vs interview site) each channel trusts
@@ -155,6 +156,7 @@ Two cooperating detection tiers:
 │   ├── identity-verification.html
 │   ├── role-selection.html
 │   ├── how-it-works.html
+│   ├── interview-unavailable.html # shown, still locked, while the interview site can't be reached
 │   ├── recorder.html           # hidden recorder window
 │   ├── css/                    # base.css + components.css (shared design system), update-card.css, per-page sheets
 │   ├── fonts/                  # self-hosted Inter + Noto subsets for non-Latin scripts
@@ -242,7 +244,7 @@ The blocked‑app lists (meeting, screen‑share, casting, browsers, AI tools) a
 - **Escalates** repeat offences (`isHardBlock = severity === "high" || count >= 2`);
 - **Pushes** to the web app: `webContents.send("push-violation", payload)`;
 - **Reports** to the backend (`POST /interview/violation`) via a bounded FIFO retry queue;
-- **Arms** the self‑enforcement failsafe for hard blocks (see below).
+- **Holds** each hard block until the web app acknowledges it, re‑sending it if not ([see below](#detection-reliability--design-principles)).
 
 Payload delivered to the renderer / backend:
 
@@ -265,8 +267,9 @@ Payload delivered to the renderer / backend:
 - **Held:** the lock is re‑applied on minimize, fullscreen exit, always‑on‑top loss, maximize/restore and focus loss, with a 1s watchdog as a backstop.
 - **Reported:** a minimize attempt is a `high` violation, a fullscreen exit a `medium` one. An always‑on‑top drop is repaired silently (Windows causes it on its own).
 - **Keys:** F11 is blocked in‑window. Alt+F4 is blocked in‑window; at OS level it is reported as a `high` violation and the app quits.
-- **Fullscreen API:** the interview site is allowed to request fullscreen; every other origin is refused.
-- **Released** by `interviewComplete()` or the [self‑enforcement failsafe](#detection-reliability--design-principles), which restore a normal window.
+- **Keyboard lock:** each time the interview page enters fullscreen, Electron calls `navigator.keyboard.lock()` so Alt+Tab, the Windows key and Win+Tab go to the page instead of Windows. The interview site gets the `fullscreen` and `keyboardLock` permissions; every other origin is refused. Ctrl+Alt+Del can never be captured.
+- **Page won't load:** if the interview site is unreachable or answers with a 5xx, the window shows `interview-unavailable.html` ("Can't reach your interview", with **Try again**) and retries after 3s, 5s, 10s, 20s, then every 30s. The lockdown stays on throughout, and the session data is injected only into a page that actually loaded.
+- **Released** only by `interviewComplete()` or the candidate confirming the exit dialog. Nothing else unlocks the window, including an unacknowledged violation.
 
 ## Closing blocked apps
 
@@ -315,24 +318,18 @@ The detection layer follows three rules that make it predictable:
 - **One verdict path.** All live checks run in a single `runDetectionTick` and route through one `sendViolation`, so there is no duplicate timer, race, or double‑fire.
 - **Pipe‑first agent.** Electron talks to the agent over a stdin/stdout JSON pipe (no TCP port → immune to AV/firewall/port conflicts). HTTP `:9999` remains only as a best‑effort fallback, and a failed bind is non‑fatal.
 
-**Self‑enforcement failsafe.** Enforcement is the web app’s job: it shows the warning and termination screens and decides when to end the session. There is **no local violation page**. `assets/violation.html` was removed on 2026‑07‑03, and a redirect to the site's `/electron-violation` route was dropped the same day, because violations raised while the interview page was still loading had nothing listening yet and threw candidates out wrongly.
+**Unacknowledged hard blocks.** Enforcement is the web app’s job: it shows the warning and termination screens and decides when to end the session. There is **no local violation page**.
 
-On a hard block Electron arms an 8s grace timer (`HARD_BLOCK_GRACE_MS`). If the web app **acknowledges** a violation within that window, it stays in control. If no ack arrives, `windowManager.enforceViolation()`:
+A hard block the web app doesn't acknowledge was probably missed (page still loading, reloading or down). Electron sends it again after `HARD_BLOCK_GRACE_MS` (8s) and again on every later page load, marked `redelivered: true`. It never lifts the lockdown or stops detection because of a missing ack.
 
-1. lifts the lockdown (normal window again),
-2. re‑sends the violation to the web app, and
-3. stops live detection for the rest of the session.
-
-The violation has already been reported to the backend either way.
-
-> ⚠️ Known gap: if the web app has really crashed, step 2 reaches nobody and the candidate is left in an unlocked window with detection stopped. Keeping the lockdown and detection running until the web app or backend ends the session is under consideration.
+> Until 1.4.0 a missing ack made Electron unlock the window and stop detection 8s later. The web app never sent acks, so the first hard block of any interview left a normal window behind. That was the "minimize / maximize / Alt+Tab work in the installed app" report.
 
 ## Web app integration (the contract)
 
 The interview web app (`interview.letshyre.com`) runs inside this Electron window, so `window.electronAPI` is available to it. The integration is:
 
 1. **Receive** violations and route hard vs soft.
-2. **Acknowledge** every violation so Electron knows the page is alive (this suppresses the self‑enforcement failsafe and lets your in‑app warning UX stay in control).
+2. **Acknowledge** every violation so Electron knows the page received it. An unacknowledged hard block is sent again.
 3. **Signal completion** when the interview ends or you decide to terminate.
 
 ```js
@@ -366,7 +363,7 @@ When your app decides the session is over (normal finish, or terminate after N v
 window.electronAPI.interviewComplete("terminated"); // "completed" | "auto-submitted" | "terminated" | "expired"
 ```
 
-> ⚠️ If the deployed web app does **not** call `acknowledgeViolation()`, no acks arrive and every hard block self‑enforces after the 8s grace: the lockdown is lifted and detection stops while the interview is still open. Ship the ack alongside this client.
+> ⚠️ If the web app doesn't call `acknowledgeViolation()`, every hard block is sent to it twice (and again on each page load). The lockdown is unaffected either way.
 
 When the scorecard's "View Dashboard" button is pressed (still on the interview origin — `interviewComplete` lifted lockdown but did not navigate away):
 
@@ -411,10 +408,11 @@ Exposed by `preload.js` via `contextBridge` (only whitelisted channels). Safe to
 | `startProctoring(meta)` / `stopProctoring()` / `onProctoringStarted(cb)`                            | Start/stop the screen recording (interview site)                                                                             |
 | `onViolation(cb)` / `removeViolationListener()`                                                     | Receive violations during the interview                                                                                      |
 | `onProctoringError(cb)`                                                                             | Recording failed (no screen source, upload session lost, etc.) — see [Recording failures](#web-app-integration-the-contract) |
-| `acknowledgeViolation()`                                                                            | Confirm receipt (suppresses self‑enforcement)                                                                                |
+| `acknowledgeViolation()`                                                                            | Confirm receipt; stops the hard block being sent again                                                                       |
 | `interviewComplete(reason)`                                                                         | End the session; lifts lockdown                                                                                              |
 | `viewDashboard()`                                                                                   | Scorecard "View Dashboard" button; leaves the interview flow for the dashboard                                               |
 | `recheckSystem()` / `minimizeWindow()` / `quitApp()`                                                | Preflight UX controls                                                                                                        |
+| `retryInterview()`                                                                                  | Reload the interview from the "Can't reach your interview" page                                                              |
 | `getAppList()` / `getAuditLog()`                                                                    | Blocked‑app lists; in‑memory audit log                                                                                       |
 | `onUpdateAvailable` / `onUpdateProgress` / `onUpdateDownloaded` / `onUpdateError` / `onUpdateState` | Auto‑updater events (used by `updateCard.js`)                                                                                |
 | `getUpdateState()` / `installUpdate()` / `getAppVersion()`                                          | Current updater snapshot; quit and install; running version                                                                  |
@@ -514,6 +512,8 @@ pnpm run dist:mac       # package for macOS
 
 Output goes to `release/` (NSIS installer on Windows, DMG on macOS). The agent binary is per-platform and PyInstaller cannot cross-compile, so `dist:mac` needs a Mac to have produced `resources/agent`.
 
+> **`.env` is checked before every package** (`scripts/check-env.js`, an electron-builder `beforePack` hook, so CI's direct `electron-builder` call is covered too). Both hosts must be set, use https and not point at `localhost`, loopback or `.local`. For a local test build against a dev server, set `ALLOW_DEV_ENV=1`.
+
 > **`resources/agent.exe` is gitignored** — it is a build artifact rebuilt from `agent.py`. Always run `build:agent` (or `build:full`) before packaging so the bundled binary matches the current `agent.py`. The `dist` scripts refuse to package when it does not, comparing the source hash recorded in `resources/agent.build.json`.
 
 ### Releasing
@@ -541,7 +541,7 @@ Most knobs live in `src/shared/constants.js`:
 | `VIOLATION_COOLDOWN_MS`                  | `15000`                                     | Min gap between repeats of the same violation    |
 | `HEARTBEAT_INTERVAL_MS`                  | `30000`                                     | Backend heartbeat cadence                        |
 | `INDETERMINATE_ESCALATION_THRESHOLD`     | `3`                                         | Consecutive unverifiable scans before escalating |
-| `HARD_BLOCK_GRACE_MS`                    | `8000`                                      | Grace before Electron self‑enforces a hard block |
+| `HARD_BLOCK_GRACE_MS`                    | `8000`                                      | Wait for an ack before re‑sending a hard block   |
 | `AGENT_PORT`                             | `9999`                                      | Agent HTTP fallback port                         |
 | `UPDATE_CHECK_INTERVAL_MS`               | 6 h                                         | Auto‑update re‑check cadence                     |
 | `UPDATE_RETRY_MS` / `UPDATE_MAX_RETRIES` | 5 min / 3                                   | Sooner retries after a failed update check       |
@@ -555,7 +555,7 @@ Environment variables: `INTERVIEW_FRONTEND_BASE_URL` / `API_BASE_URL` (required)
 - Navigation is restricted to the interview origin and `file://`; `window.open` is denied.
 - Copy, view‑source, PrintScreen and the context menu are blocked (paste is allowed in form fields). F12 / Ctrl+Shift+I are blocked unless `DEVTOOLS` is on. F11 and Alt+F4 are blocked during interviews.
 - The [interview lockdown](#interview-lockdown) is held for the whole session, not set once.
-- Only media capture (local pages and the interview site) and fullscreen (interview site only) permissions are granted; everything else is refused.
+- Only media capture (local pages and the interview site) plus fullscreen and keyboard lock (interview site only) are granted; everything else is refused (`ipcScope.isPermissionAllowed`).
 - Strict CSP on local `file://` pages.
 - The agent HTTP fallback requires a per‑launch secret (`X-Agent-Token`) and restricts CORS; the primary pipe is parent‑only.
 - `processKiller` can only kill apps on the blocked whitelist (or their registered relaunchers), never itself, its own process tree or the agent. PIDs and service names are validated before they reach a command line, and elevation is refused during an interview.
@@ -564,18 +564,18 @@ Environment variables: `INTERVIEW_FRONTEND_BASE_URL` / `API_BASE_URL` (required)
 
 ## Troubleshooting
 
-| Symptom                                                   | Likely cause / fix                                                                                                                                             |
-| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Preflight blocks on “Deep Scan Agent — Required”          | `agent.exe` didn’t start (AV quarantine, missing binary). Click **Re‑scan** (auto‑respawns). For dev, build it: `pnpm run build:agent`, or run `AGENT_PY=1`.   |
-| Agent changes have no effect                              | Dev/prod run `resources/agent.exe`. Rebuild with `pnpm run build:agent`, or use `AGENT_PY=1`.                                                                  |
-| Single external display never passes                      | Any second display is a violation by design. Use a single screen.                                                                                              |
-| Violations don’t reach the web app                        | Ensure the page registers `onViolation` and runs inside this client (not a normal browser).                                                                    |
-| Window unlocks ~8s after a hard block and violations stop | The web app isn’t calling `acknowledgeViolation()`, so the [failsafe](#detection-reliability--design-principles) fired. Add the ack to your violation handler. |
-| App points at no server / sign‑in fails immediately       | `.env` missing or incomplete. Both `INTERVIEW_FRONTEND_BASE_URL` and `API_BASE_URL` are required; there is no fallback.                                        |
-| Blocked app shows “Reopened itself”                       | A background service or relauncher brought it back. Admins get **Close with admin rights**; others must turn off the app's auto‑start, then Rescan.            |
-| Closed app still shows as running                         | Check the log for `registered service … is not installed` — a wrong name in `APP_SERVICES` looks identical to a working one.                                   |
-| Quit asks “Recording still uploading”                     | Chunks are still queued. _Finish upload_ waits up to 5 min; _Quit anyway_ resumes the upload on next launch.                                                   |
-| Auto‑update “Cannot parse releases feed”                  | No published GitHub release for the configured repo; harmless in dev. Never shown to the candidate.                                                            |
+| Symptom                                                       | Likely cause / fix                                                                                                                                                  |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Preflight blocks on “Deep Scan Agent — Required”              | `agent.exe` didn’t start (AV quarantine, missing binary). Click **Re‑scan** (auto‑respawns). For dev, build it: `pnpm run build:agent`, or run `AGENT_PY=1`.        |
+| Agent changes have no effect                                  | Dev/prod run `resources/agent.exe`. Rebuild with `pnpm run build:agent`, or use `AGENT_PY=1`.                                                                       |
+| Single external display never passes                          | Any second display is a violation by design. Use a single screen.                                                                                                   |
+| Violations don’t reach the web app                            | Ensure the page registers `onViolation` and runs inside this client (not a normal browser).                                                                         |
+| White screen or "Can't reach your interview" in the interview | The interview site is unreachable or returned a 5xx; the app retries on its own. For a local build, check `.env` isn't pointing at a dev server that isn't running. |
+| App points at no server / sign‑in fails immediately           | `.env` missing or incomplete. Both `INTERVIEW_FRONTEND_BASE_URL` and `API_BASE_URL` are required; there is no fallback.                                             |
+| Blocked app shows “Reopened itself”                           | A background service or relauncher brought it back. Admins get **Close with admin rights**; others must turn off the app's auto‑start, then Rescan.                 |
+| Closed app still shows as running                             | Check the log for `registered service … is not installed` — a wrong name in `APP_SERVICES` looks identical to a working one.                                        |
+| Quit asks “Recording still uploading”                         | Chunks are still queued. _Finish upload_ waits up to 5 min; _Quit anyway_ resumes the upload on next launch.                                                        |
+| Auto‑update “Cannot parse releases feed”                      | No published GitHub release for the configured repo; harmless in dev. Never shown to the candidate.                                                                 |
 
 ## npm scripts reference
 

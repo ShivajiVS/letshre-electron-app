@@ -25,6 +25,7 @@ const {
 } = require("./processKiller");
 const {
   lockdownForInterview,
+  retryInterview,
   storeCandidatePhoto,
   clearCandidatePhoto,
   clearInterviewSessionData,
@@ -62,7 +63,7 @@ const {
 
 /**
  * Validates and sanitises a process name coming from the renderer.
- * IMP-03: Prevents type confusion and oversized payloads from reaching processKiller.
+ * Prevents type confusion and oversized payloads from reaching processKiller.
  * @param {unknown} value
  * @returns {{ valid: boolean, safe: string }}
  */
@@ -326,6 +327,8 @@ function registerIpcHandlers() {
     loadRoleSelectionPage();
   });
 
+  registerSend(IPC.RETRY_INTERVIEW, SCOPE.LOCAL, () => retryInterview());
+
   registerSend(IPC.LOAD_HOW_IT_WORKS, SCOPE.LOCAL, () => {
     logger.info("[ipc] load-how-it-works");
     loadHowItWorksPage();
@@ -498,7 +501,7 @@ function registerIpcHandlers() {
   });
 
   registerHandler(IPC.KILL_BLOCKED_APP, SCOPE.LOCAL, async (_event, processName) => {
-    // IMP-03: Validate and sanitise before passing to processKiller
+    // Validate and sanitise before passing to processKiller
     const { valid, safe } = validateProcessName(processName);
     if (!valid) {
       logger.warn("[ipc] kill-blocked-app rejected — invalid processName:", processName);
@@ -519,7 +522,7 @@ function registerIpcHandlers() {
     return result;
   });
 
-  // Phase 5: does the candidate even have an admin account? Offering an elevated
+  // does the candidate even have an admin account? Offering an elevated
   // retry to a standard user just produces a credential prompt they cannot
   // satisfy, which reads as the app being broken.
   registerHandler(IPC.CAN_ELEVATE, SCOPE.LOCAL, async () => {
@@ -564,7 +567,7 @@ function registerIpcHandlers() {
   });
 
   registerHandler(IPC.KILL_ALL_BLOCKED_APPS, SCOPE.LOCAL, async (_event, processNames) => {
-    // IMP-03: Validate array input
+    // Validate array input
     if (!Array.isArray(processNames)) {
       logger.warn("[ipc] kill-all-blocked-apps rejected — not an array");
       return [];
@@ -614,7 +617,7 @@ function registerIpcHandlers() {
   // Renderer asks for the running app version (shown in the preflight footer).
   registerHandler(IPC.GET_APP_VERSION, SCOPE.LOCAL, () => app.getVersion());
 
-  // ADD-07: Exposes the in-memory audit log to the renderer (support
+  // Exposes the in-memory audit log to the renderer (support
   // diagnostics). The audit log records auth/violation/session events —
   // local-only, never the interview site's business.
   registerHandler(IPC.GET_AUDIT_LOG, SCOPE.LOCAL, () => {

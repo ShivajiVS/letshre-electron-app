@@ -32,20 +32,18 @@ const { whenAgentReady, isAgentReady } = require("../main/agentManager");
 const logger = require("../main/logger");
 
 const violationCache = new Map(); // event key → last-fired timestamp
-const violationEscalation = new Map(); // event key → total fire count (ADD-06)
+const violationEscalation = new Map(); // event key → total fire count
 
 let isSessionActive = false;
 
-// One unified detection timer replaces the old four overlapping intervals
-// (hdmi+mirror / agent poll / anti-tamper / process watch), which each pushed
-// violations independently and could race each other.
 let detectionInterval = null;
 let preProceedInterval = null;
 let heartbeatInterval = null;
-let hardBlockFailsafeTimer = null; // one-shot self-enforcement timer (Phase 3 follow-up)
-let lastViolationAckAt = 0; // ms timestamp of the renderer's most recent ack
+let redeliveryTimer = null;
+let unackedHardBlock = null;
+let sessionWin = null;
 
-// ─── Pre-proceed monitor ↔ preflight scan mutual exclusion (Phase C) ──────────
+// ─── Pre-proceed monitor ↔ preflight scan mutual exclusion
 // The monitor and a preflight scan read the SAME process list and drive the SAME
 // Proceed button, so they must never run at once. See pausePreProceedMonitor().
 let _preProceedWin = null; // window the monitor pushes to, for resume
@@ -293,9 +291,10 @@ async function runDetectionTick(win) {
   }
 }
 
-//  INTERVIEW MONITOR (single unified tick during active interview)
 function start(win) {
-  isSessionActive = true; // enable violation push
+  isSessionActive = true;
+  sessionWin = win;
+  win?.webContents?.on("did-finish-load", redeliverUnackedHardBlock);
 
   detectionInterval = setInterval(() => {
     runDetectionTick(win).catch((e) =>
@@ -307,15 +306,15 @@ function start(win) {
 }
 
 /**
- * VIOLATION HANDLER:
- * Pushes a violation payload to the renderer (interview.letshyre.com) via IPC.
- * The website receives this on `window.electronAPI.onViolation()` and handles
- * its own UX — warning toasts for soft blocks, termination for hard blocks.
- *
+ * Pushes a violation to the interview site, which shows the warning or ends
+ * the session (`window.electronAPI.onViolation()`).
  * @param {Electron.BrowserWindow} win
  * @param {{ event: string, severity: string, count: number, isHardBlock: boolean }} payload
  */
 function _pushViolationToRenderer(win, payload) {
+  if (!win || win.isDestroyed()) {
+    return;
+  }
   try {
     win.webContents.send(IPC.PUSH_VIOLATION, {
       ...payload,
@@ -329,8 +328,6 @@ function _pushViolationToRenderer(win, payload) {
 }
 
 async function sendViolation(win, event, severity) {
-  // Guard: never push violations after the session has ended.
-  // stop() sets isSessionActive = false — any in-flight interval tick is dropped.
   if (!isSessionActive) {
     logger.info("[systemChecks] sendViolation suppressed — session no longer active");
     return;
@@ -367,65 +364,54 @@ async function sendViolation(win, event, severity) {
     timestamp: new Date().toISOString(),
   };
 
-  // 1. Best-effort renderer push (immediate in-session UX).
-  if (win) {
-    _pushViolationToRenderer(win, { event, severity, count, isHardBlock });
-  }
-
-  // 2. Authoritative backend report (durable, retried) — Phase 3.
+  _pushViolationToRenderer(win, { event, severity, count, isHardBlock });
   reportViolationToBackend(payload);
 
-  // 3. Self-enforcement failsafe — if this is a hard block and the website does
-  //    not terminate within the grace window, Electron enforces it locally.
   if (isHardBlock) {
-    armHardBlockFailsafe(event);
+    holdUntilAcked(win, { event, severity, count, isHardBlock });
   }
 }
 
 /**
- * Arms the one-shot self-enforcement timer. If the session is still active when
- * it fires (the website didn't call interviewComplete), Electron lifts the
- * lockdown and shows the local violation screen, then halts detection. A no-op
- * if already armed — the first hard block wins.
- * @param {string} reason
+ * The site ends the interview on a hard block, so a hard block it never
+ * acknowledges was probably missed (page still loading, reloaded or down).
+ * It is sent again after the grace period and on every later page load.
+ * The lockdown and detection stay on either way: only the site ending the
+ * interview unlocks the window.
  */
-function armHardBlockFailsafe(reason) {
-  if (hardBlockFailsafeTimer) {
+function holdUntilAcked(win, payload) {
+  if (unackedHardBlock) {
     return;
   }
-  const armedAt = Date.now();
-  hardBlockFailsafeTimer = setTimeout(() => {
-    hardBlockFailsafeTimer = null;
-    if (!isSessionActive) {
-      return;
-    } // website already terminated the session
-
-    // If the renderer acknowledged a violation during the grace window, the
-    // website is alive and owns the warning/termination UX — do NOT override it.
-    if (lastViolationAckAt >= armedAt) {
-      logger.info("[systemChecks] violation acked by renderer — self-enforcement skipped");
+  unackedHardBlock = { ...payload, redelivered: true };
+  redeliveryTimer = setTimeout(() => {
+    redeliveryTimer = null;
+    if (!isSessionActive || !unackedHardBlock) {
       return;
     }
-
     logger.warn(
-      "[systemChecks] hard-block failsafe fired (no renderer ack) — self-enforcing locally"
+      `[systemChecks] hard block not acknowledged, sending again (lockdown stays on): ${payload.event}`
     );
-    try {
-      require("../main/windowManager").enforceViolation(reason);
-    } catch (err) {
-      logger.warn("[systemChecks] self-enforcement failed:", err.message);
-    }
-    stop(); // session is over — halt all detection loops
+    _pushViolationToRenderer(win, unackedHardBlock);
   }, HARD_BLOCK_GRACE_MS);
 }
 
-/**
- * Records a renderer acknowledgement. Called via IPC when the website confirms
- * it received and is handling a violation. Keeps the self-enforcement failsafe
- * suppressed while the renderer stays responsive.
- */
+function redeliverUnackedHardBlock() {
+  if (!isSessionActive || !unackedHardBlock) {
+    return;
+  }
+  logger.info("[systemChecks] page loaded with an unacknowledged hard block — sending again");
+  _pushViolationToRenderer(sessionWin, unackedHardBlock);
+}
+
+function clearUnackedHardBlock() {
+  clearTimeout(redeliveryTimer);
+  redeliveryTimer = null;
+  unackedHardBlock = null;
+}
+
 function acknowledgeViolation() {
-  lastViolationAckAt = Date.now();
+  clearUnackedHardBlock();
 }
 
 //PREFLIGHT: run all checks concurrently under per-check deadlines
@@ -567,7 +553,7 @@ async function runChecksOnce(onProgress = null) {
   /** @type {Record<string, {durationMs:number, deadlineMs:number, outcome:string, timedOut:boolean}>} */
   const timings = {};
 
-  // Phase C: the pre-proceed monitor must not run concurrently with a scan.
+  // the pre-proceed monitor must not run concurrently with a scan.
   // Pausing it here (and resuming in the finally below) stops it spawning
   // tasklist mid-scan and stops its PUSH_PRE_PROCEED_STATUS messages fighting
   // the scan's own card rendering.
@@ -741,21 +727,22 @@ function verifyProceedAllowed({ requireFresh = true } = {}) {
   return { ok: true, reason: "" };
 }
 
-//  STOP (called when interview session ends)
-/**
- * Stops all detection intervals and disables the violation push guard.
- * Called by ipcHandlers when INTERVIEW_COMPLETE is received from the website.
- * After this, sendViolation() is a no-op so no stale violations reach the site.
- */
+function detachSessionWin() {
+  if (sessionWin && !sessionWin.isDestroyed?.()) {
+    sessionWin.webContents?.removeListener("did-finish-load", redeliverUnackedHardBlock);
+  }
+  sessionWin = null;
+}
+
+/** Ends the interview's detection. Called when the site reports the interview is over. */
 function stop() {
   isSessionActive = false;
   indeterminateStreak.clear();
-  clearTimeout(hardBlockFailsafeTimer);
-  hardBlockFailsafeTimer = null;
+  clearUnackedHardBlock();
+  detachSessionWin();
 
-  // Final delivery attempt for any violations not yet POSTed — the access token
-  // is still valid immediately after the session ends. Fire-and-forget; the queue
-  // is not cleared here so stragglers can still drain.
+  // The token is still valid right after the session, so try once more to post
+  // anything still queued.
   flushReports().catch(() => {});
 
   clearInterval(detectionInterval);
@@ -768,16 +755,15 @@ function stop() {
   logger.info("[systemChecks] detection stopped — session ended");
 }
 
-//  RESET (called when user hits "Recheck System")
 function resetState() {
   isSessionActive = false;
-  _lastPreflight = null; // a new scan must re-establish the Proceed gate
+  _lastPreflight = null;
   violationCache.clear();
   violationEscalation.clear();
   indeterminateStreak.clear();
-  pendingReports.length = 0; // new-session boundary — drop any stale unsent reports
-  clearTimeout(hardBlockFailsafeTimer);
-  hardBlockFailsafeTimer = null;
+  pendingReports.length = 0;
+  clearUnackedHardBlock();
+  detachSessionWin();
 
   clearInterval(detectionInterval);
   detectionInterval = null;

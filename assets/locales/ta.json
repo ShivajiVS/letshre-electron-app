@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "b27c5e82b7127a27"
+    "_sourceHash": "b64c176d36baf549"
   },
   "common": {
     "back": "பின்னால்",
@@ -314,6 +314,11 @@
     "readyHint": "\"இப்போது புதுப்பிக்கவும்\" ஆப்ஸை மூடி நிறுவும் — உங்கள் நேர்காணல் இணைப்பிலிருந்து மீண்டும் திறக்கவும்.",
     "whatsNew": "புதியது என்ன",
     "hideNotes": "மறை"
+  },
+  "interviewUnavailable": {
+    "title": "உங்கள் நேர்காணலை அணுக முடியவில்லை",
+    "body": "உங்கள் இணைய இணைப்பைச் சரிபார்க்கவும். நாங்கள் தானாகவே மீண்டும் இணைக்க முயற்சித்துக்கொண்டே இருப்போம்.",
+    "retry": "மீண்டும் முயற்சிக்கவும்"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

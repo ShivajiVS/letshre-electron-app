@@ -31,6 +31,7 @@ const {
   isTopFrame,
   isFrameAllowed,
   isUrlOriginAllowed,
+  isPermissionAllowed,
   registerHandler,
   registerSend,
 } = require("../src/main/ipcScope");
@@ -122,6 +123,26 @@ test("isUrlOriginAllowed: matches isOriginAllowed via URL parsing, including fil
   assert.strictEqual(isUrlOriginAllowed(SCOPE.INTERVIEW, `${INTERVIEW_ORIGIN}/session?ac=1`), true);
   assert.strictEqual(isUrlOriginAllowed(SCOPE.INTERVIEW, "file:///C:/app/permissions.html"), false);
   assert.strictEqual(isUrlOriginAllowed(SCOPE.LOCAL, "not a url"), false);
+});
+
+test("isPermissionAllowed: fullscreen and keyboard lock only for the interview site", () => {
+  const site = `${INTERVIEW_ORIGIN}/interview`;
+  const local = "file:///C:/app/preflight.html";
+  for (const permission of ["fullscreen", "keyboardLock"]) {
+    assert.strictEqual(isPermissionAllowed(permission, site, true), true, permission);
+    assert.strictEqual(isPermissionAllowed(permission, local, true), false, permission);
+    assert.strictEqual(isPermissionAllowed(permission, "https://evil.example", true), false);
+    assert.strictEqual(isPermissionAllowed(permission, site, false), false, "subframes never");
+  }
+});
+
+test("isPermissionAllowed: media for local pages and the interview site, nothing else", () => {
+  assert.strictEqual(isPermissionAllowed("media", "file:///C:/app/permissions.html", true), true);
+  assert.strictEqual(isPermissionAllowed("display-capture", `${INTERVIEW_ORIGIN}/`, true), true);
+  assert.strictEqual(isPermissionAllowed("media", "https://evil.example", true), false);
+  for (const permission of ["geolocation", "notifications", "clipboard-read", "pointerLock"]) {
+    assert.strictEqual(isPermissionAllowed(permission, `${INTERVIEW_ORIGIN}/`, true), false);
+  }
 });
 
 test("registerHandler/registerSend: a missing or mistyped scope throws at registration time", () => {

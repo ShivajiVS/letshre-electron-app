@@ -5,7 +5,7 @@
     "dir": "rtl",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "b27c5e82b7127a27"
+    "_sourceHash": "b64c176d36baf549"
   },
   "common": {
     "back": "رجوع",
@@ -314,6 +314,11 @@
     "readyHint": "يؤدي \"التحديث الآن\" إلى إغلاق التطبيق وتثبيته — أعد فتحه من رابط المقابلة الخاص بك.",
     "whatsNew": "ما الجديد",
     "hideNotes": "إخفاء"
+  },
+  "interviewUnavailable": {
+    "title": "تعذّر الوصول إلى المقابلة",
+    "body": "تحقق من اتصالك بالإنترنت. سنواصل محاولة إعادة الاتصال تلقائيًا.",
+    "retry": "حاول مرة أخرى"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

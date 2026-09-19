@@ -52,6 +52,7 @@
     "directories": {
       "output": "release"
     },
+    "beforePack": "scripts/check-env.js",
     "extraFiles": [
       ".env"
     ],

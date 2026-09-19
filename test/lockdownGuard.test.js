@@ -235,12 +235,17 @@ test("the interview lockdown is held by the guard, not set once", () => {
   assert.doesNotMatch(WINDOW_MANAGER, /setKiosk\(true\)/, "only lockdownGuard applies the lock");
 });
 
-test("every way out of an interview stops the guard", () => {
-  for (const name of ["endInterview", "enforceViolation"]) {
-    const fn = WINDOW_MANAGER.match(
-      new RegExp(`function ${name}\\([^)]*\\)\\s*\\{([\\s\\S]*?)\\n\\}`)
-    );
-    assert.ok(fn, `could not locate ${name}()`);
-    assert.match(fn[1], /_releaseLockdown\(\)/, `${name} must release the lockdown`);
-  }
+test("ending the interview stops the guard", () => {
+  const fn = WINDOW_MANAGER.match(/function endInterview\([^)]*\)\s*\{([\s\S]*?)\n\}/);
+  assert.ok(fn, "could not locate endInterview()");
+  assert.match(fn[1], /_releaseLockdown\(\)/);
+});
+
+test("only the interview ending or a confirmed exit unlocks the window", () => {
+  const callers = [...WINDOW_MANAGER.matchAll(/_releaseLockdown\(\)/g)].length;
+  // The definition, endInterview() and the confirmed-exit branch of the close dialog.
+  assert.strictEqual(callers, 3);
+  assert.doesNotMatch(WINDOW_MANAGER, /enforceViolation/);
+  const checks = fs.readFileSync(path.join(__dirname, "../src/detector/systemChecks.js"), "utf8");
+  assert.doesNotMatch(checks, /windowManager/, "detection must never reach into the window lock");
 });

@@ -25,22 +25,7 @@ const authManager = require("./authManager");
 const pendingUploads = require("./pendingUploads");
 const { loadSpillKey } = require("./spillKey");
 const screenRecorder = require("./screenRecorder");
-const { SCOPE, isFrameAllowed, isUrlOriginAllowed } = require("./ipcScope");
-
-// Screen share and getUserMedia are legitimately requested from two places:
-// local file:// pages (permissions.html probes screen/camera/mic during
-// preflight; identity-verification.html probes camera/mic) and the interview
-// origin, in case the SPA ever requests media directly instead of going
-// through the hidden recorder window (which uses desktopCapturer +
-// chromeMediaSourceId and never goes through either handler below). Nothing
-// else in this app calls either API, so every other origin is refused.
-function isMediaFrameAllowed(frame) {
-  return isFrameAllowed(SCOPE.LOCAL, frame) || isFrameAllowed(SCOPE.INTERVIEW, frame);
-}
-
-function isMediaUrlAllowed(url) {
-  return isUrlOriginAllowed(SCOPE.LOCAL, url) || isUrlOriginAllowed(SCOPE.INTERVIEW, url);
-}
+const { isMediaFrameAllowed, isPermissionAllowed } = require("./ipcScope");
 
 function safeViolation(event, severity) {
   try {
@@ -136,16 +121,9 @@ async function onReady() {
     }
   });
 
-  // 6b. Deny every permission except media capture, plus fullscreen for the
-  // interview site, which requests it and flags a violation when refused.
   session.defaultSession.setPermissionRequestHandler(
     (_webContents, permission, callback, details) => {
-      const isMediaPermission = permission === "media" || permission === "display-capture";
-      const allowed =
-        details.isMainFrame !== false &&
-        ((isMediaPermission && isMediaUrlAllowed(details.requestingUrl)) ||
-          (permission === "fullscreen" &&
-            isUrlOriginAllowed(SCOPE.INTERVIEW, details.requestingUrl)));
+      const allowed = isPermissionAllowed(permission, details.requestingUrl, details.isMainFrame);
       if (!allowed) {
         logger.warn(
           `[app] permission "${permission}" denied for ${details.requestingUrl || "(no url)"}`

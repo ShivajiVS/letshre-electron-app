@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "b27c5e82b7127a27"
+    "_sourceHash": "b64c176d36baf549"
   },
   "common": {
     "back": "Назад",
@@ -314,6 +314,11 @@
     "readyHint": "«Обновить сейчас» закроет приложение и установит обновление — откройте его снова по ссылке на собеседование.",
     "whatsNew": "Что нового",
     "hideNotes": "Скрыть"
+  },
+  "interviewUnavailable": {
+    "title": "Не удаётся подключиться к интервью",
+    "body": "Проверьте подключение к интернету. Мы продолжим автоматически пытаться переподключиться.",
+    "retry": "Повторить"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

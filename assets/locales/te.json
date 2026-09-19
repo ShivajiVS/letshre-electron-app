@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "b27c5e82b7127a27"
+    "_sourceHash": "b64c176d36baf549"
   },
   "common": {
     "back": "వెనుకకు",
@@ -314,6 +314,11 @@
     "readyHint": "\"ఇప్పుడే అప్‌డేట్ చేయండి\" యాప్‌ను మూసివేసి ఇన్‌స్టాల్ చేస్తుంది — మీ ఇంటర్వ్యూ లింక్ నుండి మళ్లీ తెరవండి.",
     "whatsNew": "కొత్తగా ఏముంది",
     "hideNotes": "దాచు"
+  },
+  "interviewUnavailable": {
+    "title": "మీ ఇంటర్వ్యూను చేరుకోలేకపోతున్నాం",
+    "body": "మీ ఇంటర్నెట్ కనెక్షన్‌ను తనిఖీ చేయండి. మేము స్వయంచాలకంగా మళ్లీ కనెక్ట్ చేయడానికి ప్రయత్నిస్తూనే ఉంటాము.",
+    "retry": "మళ్లీ ప్రయత్నించండి"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

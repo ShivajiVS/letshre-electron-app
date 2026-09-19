@@ -875,14 +875,17 @@ async function killSingleProcess(processName, overrides) {
       logger.warn(
         `[processKiller] refusing to kill shared companion "${targetName}" — no path scope for ${name}`
       );
-      return { name: targetName, procs: [] };
+      return { name: targetName, scope: null, dropped: true, procs: [] };
     }
     const matches = procs.filter((p) => matchesImageName(p, targetName, deps.platform, scope));
     const killable = matches.filter((p) => !excluded.has(p.pid));
     found += matches.length;
     protectedMatches += matches.length - killable.length;
-    return { name: targetName, procs: killable };
+    return { name: targetName, scope, dropped: false, procs: killable };
   });
+  // Verification must use the same path scope as the kill: an unscoped name
+  // check sees every vendor's update.exe and reports a closed app as running.
+  const verifyTargets = groups.filter((g) => !g.dropped);
   const killable = groups.reduce((sum, g) => sum + g.procs.length, 0);
 
   if (found === 0) {
@@ -981,12 +984,28 @@ async function killSingleProcess(processName, overrides) {
 
   // Verification: poll until no target PID remains, or the budget expires
   const anyTargetAlive = async () => {
-    for (const targetName of targetNames) {
-      const r = await deps.findPidsByName(targetName);
+    for (const target of verifyTargets) {
+      const r = await deps.findPidsByName(target.name);
       if (!r || !r.ok) {
         return null;
       } // indeterminate — treat as "still there"
-      if (r.pids.length > 0) {
+      if (r.pids.length === 0) {
+        continue;
+      }
+      if (!target.scope) {
+        return true;
+      }
+      // Something by that name is running; only the full table has paths.
+      const table = await deps.listProcessTable();
+      if (!table || !table.ok) {
+        return null;
+      }
+      const running = new Set(r.pids);
+      if (
+        table.procs.some(
+          (p) => running.has(p.pid) && matchesImageName(p, target.name, deps.platform, target.scope)
+        )
+      ) {
         return true;
       }
     }

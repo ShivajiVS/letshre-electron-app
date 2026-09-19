@@ -901,6 +901,92 @@ test("getCompanionScopeSafe is target-specific", () => {
   assert.strictEqual(_t5.getCompanionScopeSafe("zoom.exe", "update.exe"), null);
 });
 
+/**
+ * A live fake machine: killPid removes a process, and both the full table and
+ * the by-name probe read the same state. findPidsByName is name-only like the
+ * real tasklist probe — it cannot tell one vendor's update.exe from another's.
+ */
+function squirrelMachine(initial, { onSleep } = {}) {
+  const alive = new Map(initial.map((p) => [p.pid, p]));
+  const killedPids = [];
+  let sleeps = 0;
+  const deps = fakeDeps({
+    isBlocked: (n) => ["discord.exe"].includes(n),
+    getCompanions: (n) => (n === "discord.exe" ? ["update.exe"] : []),
+    listProcessTable: async () => ({ ok: true, procs: [...alive.values()] }),
+    findPidsByName: async (name) => ({
+      ok: true,
+      pids: [...alive.values()].filter((p) => p.name === name).map((p) => p.pid),
+    }),
+    killPid: async (pid) => {
+      killedPids.push(pid);
+      alive.delete(pid);
+      return { status: "killed" };
+    },
+    sleep: async () => {
+      sleeps++;
+      if (onSleep) {
+        onSleep(sleeps, alive);
+      }
+    },
+  });
+  return { deps, killedPids };
+}
+
+const DISCORD_UPDATE = String.raw`C:\Users\me\AppData\Local\Discord\Update.exe`;
+const GITHUB_UPDATE = String.raw`C:\Users\me\AppData\Local\GitHubDesktop\Update.exe`;
+
+test("path scope: another vendor's update.exe doesn't keep a closed Discord 'running'", async () => {
+  const { deps, killedPids } = squirrelMachine([
+    proc(1000, 900, "electron.exe"),
+    proc(10, 1, "discord.exe"),
+    proc(11, 1, "update.exe", { path: DISCORD_UPDATE }),
+    proc(12, 1, "update.exe", { path: GITHUB_UPDATE }),
+  ]);
+
+  const r = await killSingleProcess("discord.exe", deps);
+
+  assert.strictEqual(r.outcome, "closed");
+  assert.deepStrictEqual(r.companionsKilled, ["update.exe"]);
+  assert.ok(!killedPids.includes(12), "GitHub Desktop's updater must be left alone");
+});
+
+test("path scope: Discord's own updater relaunching is still reported as respawned", async () => {
+  const { deps } = squirrelMachine(
+    [
+      proc(1000, 900, "electron.exe"),
+      proc(10, 1, "discord.exe"),
+      proc(11, 1, "update.exe", { path: DISCORD_UPDATE }),
+      proc(12, 1, "update.exe", { path: GITHUB_UPDATE }),
+    ],
+    {
+      // Sleep 1 precedes the verify poll, sleep 2 the relaunch watch.
+      onSleep: (n, alive) => {
+        if (n === 2) {
+          alive.set(13, proc(13, 1, "update.exe", { path: DISCORD_UPDATE }));
+        }
+      },
+    }
+  );
+
+  const r = await killSingleProcess("discord.exe", deps);
+  assert.strictEqual(r.outcome, "respawned");
+});
+
+test("path scope: a shared companion skipped for lack of a scope isn't verified either", async () => {
+  const { deps, killedPids } = squirrelMachine([
+    proc(1000, 900, "electron.exe"),
+    proc(10, 1, "discord.exe"),
+    proc(12, 1, "update.exe", { path: GITHUB_UPDATE }),
+  ]);
+  deps.getCompanionScope = () => null;
+
+  const r = await killSingleProcess("discord.exe", deps);
+
+  assert.strictEqual(r.outcome, "closed");
+  assert.deepStrictEqual(killedPids, [10]);
+});
+
 // ─── Service-backed apps ─────────────────────────────────────────────────────
 // Parsec, AnyDesk and the Chrome Remote Desktop host run their service under the
 // app's own image name, so killing processes never reaches it and the app came

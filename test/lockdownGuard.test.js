@@ -249,3 +249,28 @@ test("only the interview ending or a confirmed exit unlocks the window", () => {
   const checks = fs.readFileSync(path.join(__dirname, "../src/detector/systemChecks.js"), "utf8");
   assert.doesNotMatch(checks, /windowManager/, "detection must never reach into the window lock");
 });
+
+const IPC_HANDLERS = fs.readFileSync(path.join(__dirname, "../src/main/ipcHandlers.js"), "utf8");
+
+test("recording only starts for an interview that is locked down", () => {
+  const handler = IPC_HANDLERS.match(/registerHandler\(IPC\.PROCTORING_START[\s\S]*?\n {2}\}\);/);
+  assert.ok(handler, "could not locate the proctoring-start handler");
+  const guard = handler[0].indexOf("if (!getIsInterviewActive())");
+  assert.ok(guard > -1, "proctoring-start must check the lockdown");
+  assert.ok(guard < handler[0].indexOf("screenRecorder.start("), "check before recording");
+  assert.match(handler[0], /_leaveInterviewFlowToDashboard\(/);
+});
+
+test("a finished interview page cannot be reloaded into a new one", () => {
+  assert.match(
+    WINDOW_MANAGER,
+    /const isReload =[\s\S]*?!isInterviewActive[\s\S]*?_isInterviewPage/
+  );
+  assert.match(WINDOW_MANAGER, /\|\| isReload\)/);
+});
+
+test("each interview registers its own reference face", () => {
+  const fn = WINDOW_MANAGER.match(/function lockdownForInterview\([^)]*\)\s*\{([\s\S]*?)\n\}/);
+  assert.match(fn[1], /removeItem\('face_registered'\)/);
+  assert.match(fn[1], /removeItem\('face_registered_for'\)/);
+});

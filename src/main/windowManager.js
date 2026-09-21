@@ -253,6 +253,7 @@ function createWindow(onViolation, startPage = "login") {
   _applyNavigationGuardrails();
   _applyWindowProtections(onViolation);
   _applyInterviewLoadHandling();
+  _forwardInterviewConsole();
   _applyCSPHeaders();
 
   return win;
@@ -308,6 +309,8 @@ function lockdownForInterview(url, tokens = null, roleSelection = null) {
   // sessionStorage would come back as a stale scorecard.
   const statements = [
     "sessionStorage.removeItem('interview_session');",
+    "sessionStorage.removeItem('face_registered');",
+    "sessionStorage.removeItem('face_registered_for');",
     `sessionStorage.setItem('locale', ${JSON.stringify(localeManager.getPreferred())});`,
   ];
   if (tokens?.accessToken) {
@@ -448,8 +451,13 @@ function _applyInputLockdown() {
     // Before the interview the candidate may need to leave the app to close other windows.
     const isAltF4 = input.alt && input.key === "F4" && isInterviewActive;
     const isFullscreenToggle = input.key === "F11" && isInterviewActive;
+    // Reloading a finished interview makes the site start a new one outside lockdown.
+    const isReload =
+      (input.key === "F5" || ((input.control || input.meta) && input.key.toLowerCase() === "r")) &&
+      !isInterviewActive &&
+      _isInterviewPage(win.webContents.getURL());
 
-    if ((isDevTools && !DEVTOOLS_ENABLED) || isAltF4 || isFullscreenToggle) {
+    if ((isDevTools && !DEVTOOLS_ENABLED) || isAltF4 || isFullscreenToggle || isReload) {
       event.preventDefault();
     }
   });
@@ -460,13 +468,49 @@ function _applyInputLockdown() {
     if (!isInterviewActive || !_isInterviewPage(win.webContents.getURL())) {
       return;
     }
+    // Settled in the page: a rejection crossing executeJavaScript loses its message.
     win.webContents
       .executeJavaScript(
-        "navigator.keyboard ? navigator.keyboard.lock() : Promise.reject(new Error('Keyboard API unavailable'))",
+        "navigator.keyboard ? navigator.keyboard.lock().then(() => 'ok', (e) => e.name + ': ' + e.message) : 'Keyboard API unavailable'",
         true
       )
-      .then(() => logger.info("[window] keyboard lock on"))
-      .catch((err) => logger.warn("[window] keyboard lock failed:", err.message));
+      .then((result) => {
+        if (result === "ok") {
+          logger.info("[window] keyboard lock on");
+        } else if (String(result).startsWith("AbortError")) {
+          // The site locks too; the later call holds and the earlier one aborts.
+          logger.info("[window] keyboard lock held by the page's own lock() call");
+        } else {
+          logger.warn(`[window] keyboard lock failed: ${result}`);
+        }
+      })
+      .catch((err) => logger.warn(`[window] keyboard lock failed: ${err?.message || err}`));
+  });
+}
+
+const CONSOLE_LOG_LIMIT = 300;
+
+// The interview site's warnings and errors, so a proctoring problem a candidate
+// saw can be traced from the app log. Capped so a noisy session can't flood it.
+function _forwardInterviewConsole() {
+  let forwarded = 0;
+  win.webContents.on("did-navigate", () => {
+    forwarded = 0;
+  });
+  win.webContents.on("console-message", ({ level, message, frame }) => {
+    if (level !== "warning" && level !== "error") {
+      return;
+    }
+    if (forwarded >= CONSOLE_LOG_LIMIT || !_isInterviewPage(frame?.url ?? "")) {
+      return;
+    }
+    forwarded += 1;
+    const text = String(message).slice(0, 500);
+    if (level === "error") {
+      logger.error(`[interview-console] ${text}`);
+    } else {
+      logger.warn(`[interview-console] ${text}`);
+    }
   });
 }
 

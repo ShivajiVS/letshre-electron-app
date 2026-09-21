@@ -31,6 +31,7 @@ const {
   clearInterviewSessionData,
   endInterview,
   getWindow,
+  getIsInterviewActive,
   minimizeWindow,
   loadDashboard,
   loadSecurityCheck,
@@ -670,6 +671,13 @@ function registerIpcHandlers() {
       sessionId: safeSessionId,
       interviewId: safeInterviewId,
     });
+    // Only an interview started through the security check may run. Anything
+    // else (a reload after the last one ended) goes back to the dashboard.
+    if (!getIsInterviewActive()) {
+      logger.warn("[ipc] proctoring-start refused — interview is not locked down");
+      _leaveInterviewFlowToDashboard({ alreadyTornDown: true });
+      return { ok: false, error: "Interview is not locked down" };
+    }
     return await screenRecorder.start({ sessionId: safeSessionId, interviewId: safeInterviewId });
   });
 

@@ -230,7 +230,7 @@ launch ─▶ onReady (src/main/app.js)
 4. Browser‑automation drivers (ChromeDriver, Selenium, …)
 5. Suspicious Win32 window classes
 6. AI interview‑copilot tools (process name / install path / stealth cmdline flags)
-7. Transparent click‑through overlays (`WS_EX_LAYERED|TRANSPARENT|TOPMOST`)
+7. Transparent click‑through overlays (`WS_EX_LAYERED|TRANSPARENT|TOPMOST`). Only windows visible for 5s count, so volume/brightness pop‑ups are ignored; laptop pop‑up utilities in `OVERLAY_TRUSTED_LOCATIONS` are trusted only from their install folder. Reported as medium: the first one warns, the next ends the interview.
 8. Virtual audio devices (VB‑Cable, Voicemeeter, …)
 9. **Physical monitor count** (`EnumDisplayDevices`) — catches Windows _“Duplicate”_ mode, which the logical‑display API reports as a single screen.
 

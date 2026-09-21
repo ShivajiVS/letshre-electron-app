@@ -192,6 +192,19 @@ OVERLAY_WHITELIST = {
     "letshyre secure interview.exe", "electron.exe",
 }
 
+# Laptop on-screen displays (volume, brightness, mic mute). Trusted by install
+# location, not name alone, so a renamed copilot can't borrow the name. The
+# driver store needs admin rights to write.
+_DRIVER_STORE = os.path.normcase(os.path.join(
+    os.environ.get("SystemRoot", r"C:\Windows"), "System32", "DriverStore", "FileRepository"
+))
+OVERLAY_TRUSTED_LOCATIONS = {
+    "fnhotkeyutility.exe": (_DRIVER_STORE,),  # Lenovo Fn keys
+}
+
+# Pop-ups like the volume display vanish within a few seconds; answer overlays stay.
+OVERLAY_MIN_VISIBLE_SECONDS = 5
+
 # Virtual audio device keywords
 VIRTUAL_AUDIO_KEYWORDS = [
     "vb-cable", "vb-audio", "voicemeeter", "virtual cable",
@@ -756,6 +769,27 @@ def detect_ai_cheating_tools():
 #  Catches all overlay-based AI copilots by
 #  detecting invisible click-through windows.
 # ─────────────────────────────────────────────
+_overlay_first_seen = {}  # hwnd → when it was first seen
+
+
+def _keep_persistent(hwnds, now):
+    """Returns the overlays visible for OVERLAY_MIN_VISIBLE_SECONDS, forgetting ones that closed."""
+    global _overlay_first_seen
+    _overlay_first_seen = {h: _overlay_first_seen.get(h, now) for h in hwnds}
+    return {h for h, since in _overlay_first_seen.items() if now - since >= OVERLAY_MIN_VISIBLE_SECONDS}
+
+
+def _is_trusted_overlay(proc):
+    roots = OVERLAY_TRUSTED_LOCATIONS.get(proc.name().lower())
+    if not roots:
+        return False
+    try:
+        exe = os.path.normcase(os.path.normpath(proc.exe()))
+    except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
+        return False
+    return any(exe.startswith(root + os.sep) for root in roots)
+
+
 def detect_overlay_windows():
     """
     Detect transparent overlay windows — the primary delivery mechanism
@@ -764,7 +798,10 @@ def detect_overlay_windows():
       - WS_EX_LAYERED     (0x00080000) — enables transparency
       - WS_EX_TRANSPARENT (0x00000020) — click-through
       - WS_EX_TOPMOST     (0x00000008) — always on top
-    Whitelisted system processes are excluded.
+    Whitelisted system processes, trusted laptop pop-ups and windows that
+    have not stayed up for OVERLAY_MIN_VISIBLE_SECONDS are excluded.
+    Reported as MEDIUM so the candidate is warned first; a second report ends
+    the interview.
     """
     if OS_NAME != "Windows":
         return []
@@ -785,7 +822,7 @@ def detect_overlay_windows():
         IsWindowVisible = user32.IsWindowVisible
         EnumWindows = user32.EnumWindows
 
-        suspicious_pids = []
+        overlays = {}  # hwnd → pid
 
         def callback(hwnd, _):
             if not IsWindowVisible(hwnd):
@@ -798,7 +835,7 @@ def detect_overlay_windows():
             if is_layered and is_transparent and is_topmost:
                 pid = ctypes.c_ulong()
                 GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-                suspicious_pids.append(pid.value)
+                overlays[ctypes.cast(hwnd, ctypes.c_void_p).value] = pid.value
             return True
 
         WNDENUMPROC = ctypes.WINFUNCTYPE(
@@ -807,20 +844,21 @@ def detect_overlay_windows():
             ctypes.POINTER(ctypes.c_int)
         )
         EnumWindows(WNDENUMPROC(callback), 0)
+        persistent = _keep_persistent(overlays.keys(), time.monotonic())
 
-        # Resolve PIDs to process names and filter whitelist
         seen = set()
-        for pid in suspicious_pids:
+        for hwnd in persistent:
+            pid = overlays[hwnd]
             if pid in seen:
                 continue
             seen.add(pid)
             try:
                 proc = psutil.Process(pid)
                 pname = proc.name().lower()
-                if pname not in OVERLAY_WHITELIST:
+                if pname not in OVERLAY_WHITELIST and not _is_trusted_overlay(proc):
                     threats.append({
                         "type": "transparent_overlay",
-                        "severity": "HIGH",
+                        "severity": "MEDIUM",
                         "detail": f"Suspicious transparent overlay detected: '{proc.name()}' (PID {pid})",
                         "process": proc.name(),
                         "pid": pid

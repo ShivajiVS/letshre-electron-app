@@ -230,6 +230,7 @@
     "noMatchMessage": "Nous n'avons pas pu faire correspondre votre photo en direct avec nos enregistrements. Assurez-vous d'être dans un endroit bien éclairé et de regarder directement la caméra.",
     "startUnavailable": "Impossible de continuer. Veuillez redémarrer l'application.",
     "startTimedOut": "Cela a pris trop de temps. Veuillez réessayer.",
+    "photoStoreFailed": "Impossible d'enregistrer votre photo. Veuillez réessayer.",
     "sessionExpired": "Votre session a expiré. Veuillez redémarrer l'application et vous reconnecter."
   },
   "preflightResults": {

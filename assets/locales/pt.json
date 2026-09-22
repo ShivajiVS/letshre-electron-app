@@ -230,6 +230,7 @@
     "noMatchMessage": "Não conseguimos corresponder sua foto ao vivo com nossos registros. Certifique-se de estar em um ambiente bem iluminado e olhando diretamente para a câmera.",
     "startUnavailable": "Não é possível continuar. Reinicie o aplicativo.",
     "startTimedOut": "Isso demorou demais. Tente novamente.",
+    "photoStoreFailed": "Não foi possível salvar sua foto. Tente novamente.",
     "sessionExpired": "Sua sessão expirou. Reinicie o aplicativo e faça login novamente."
   },
   "preflightResults": {

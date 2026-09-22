@@ -230,6 +230,7 @@
     "noMatchMessage": "We konden je live foto niet matchen met onze gegevens. Zorg dat je in een goed verlichte ruimte bent en recht in de camera kijkt.",
     "startUnavailable": "Kan niet doorgaan. Start de app opnieuw.",
     "startTimedOut": "Dit duurde te lang. Probeer het opnieuw.",
+    "photoStoreFailed": "Uw foto kon niet worden opgeslagen. Probeer het opnieuw.",
     "sessionExpired": "Je sessie is verlopen. Start de app opnieuw en log opnieuw in."
   },
   "preflightResults": {

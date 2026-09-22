@@ -230,6 +230,7 @@
     "noMatchMessage": "We couldn't match your live photo with our records. Ensure you are in a well-lit area and looking directly at the camera.",
     "startUnavailable": "Unable to continue. Please restart the app.",
     "startTimedOut": "That took too long. Please try again.",
+    "photoStoreFailed": "We couldn't save your photo. Please try again.",
     "sessionExpired": "Your session has expired. Please restart the app and sign in again."
   },
   "preflightResults": {

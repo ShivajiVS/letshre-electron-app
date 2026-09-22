@@ -807,11 +807,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     beginLoading = true;
     renderBeginButton();
-    // Main injects this photo into the interview window's sessionStorage.
+    // Main injects this photo into the interview window's sessionStorage. The
+    // interview's identity checks compare against it, so none without it.
+    let stored = false;
     try {
-      await window.electronAPI?.storeCandidatePhoto?.(capturedDataUrl);
+      stored = (await window.electronAPI?.storeCandidatePhoto?.(capturedDataUrl)) === true;
     } catch {
-      /* non-fatal — continue to role selection */
+      stored = false;
+    }
+    if (!stored) {
+      beginLoading = false;
+      renderBeginButton();
+      showError("identity.photoStoreFailed", "We couldn't save your photo. Please try again.");
+      return;
     }
     window.electronAPI.loadRoleSelection();
     // Navigation tears this page down; if we're still here, let the user retry.

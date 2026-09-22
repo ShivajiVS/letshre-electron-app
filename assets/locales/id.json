@@ -230,6 +230,7 @@
     "noMatchMessage": "Kami tidak dapat mencocokkan foto langsung Anda dengan catatan kami. Pastikan Anda berada di area dengan pencahayaan baik dan menghadap langsung ke kamera.",
     "startUnavailable": "Tidak dapat melanjutkan. Silakan mulai ulang aplikasi.",
     "startTimedOut": "Prosesnya terlalu lama. Silakan coba lagi.",
+    "photoStoreFailed": "Foto Anda tidak dapat disimpan. Silakan coba lagi.",
     "sessionExpired": "Sesi Anda telah berakhir. Silakan mulai ulang aplikasi dan masuk kembali."
   },
   "preflightResults": {

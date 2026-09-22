@@ -414,14 +414,18 @@ function _applyInterviewLoadHandling() {
   });
 }
 
-/** @param {string} dataUrl base64 data URL from identity verification */
+/**
+ * @param {string} dataUrl base64 data URL from identity verification
+ * @returns {boolean} whether the interview will have a reference face
+ */
 function storeCandidatePhoto(dataUrl) {
   if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) {
     logger.warn("[window] storeCandidatePhoto: invalid data URL, ignoring");
-    return;
+    return false;
   }
   _candidatePhotoBase64 = dataUrl;
   logger.info("[window] candidate photo stored for interview injection");
+  return true;
 }
 
 /** Called on logout so one account's photo never reaches another account's interview. */

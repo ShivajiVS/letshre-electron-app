@@ -230,6 +230,7 @@
     "noMatchMessage": "Non siamo riusciti a far corrispondere la tua foto dal vivo con i nostri archivi. Assicurati di trovarti in un'area ben illuminata e di guardare direttamente la fotocamera.",
     "startUnavailable": "Impossibile continuare. Riavvia l'app.",
     "startTimedOut": "L'operazione ha impiegato troppo tempo. Riprova.",
+    "photoStoreFailed": "Impossibile salvare la tua foto. Riprova.",
     "sessionExpired": "La sessione è scaduta. Riavvia l'app ed effettua di nuovo l'accesso."
   },
   "preflightResults": {

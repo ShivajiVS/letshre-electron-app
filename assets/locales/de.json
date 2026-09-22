@@ -230,6 +230,7 @@
     "noMatchMessage": "Ihr Live-Foto konnte nicht mit unseren Unterlagen abgeglichen werden. Achten Sie auf gute Beleuchtung und schauen Sie direkt in die Kamera.",
     "startUnavailable": "Fortfahren nicht möglich. Bitte starten Sie die App neu.",
     "startTimedOut": "Das hat zu lange gedauert. Bitte versuchen Sie es erneut.",
+    "photoStoreFailed": "Ihr Foto konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.",
     "sessionExpired": "Ihre Sitzung ist abgelaufen. Bitte starten Sie die App neu und melden Sie sich erneut an."
   },
   "preflightResults": {

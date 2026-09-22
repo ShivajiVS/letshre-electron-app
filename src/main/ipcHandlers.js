@@ -463,7 +463,7 @@ function registerIpcHandlers() {
   // Identity verification: store candidate photo for sessionStorage injection.
   registerHandler(IPC.STORE_CANDIDATE_PHOTO, SCOPE.LOCAL, (_event, dataUrl) => {
     logger.info("[ipc] store-candidate-photo received");
-    storeCandidatePhoto(dataUrl);
+    return storeCandidatePhoto(dataUrl);
   });
 
   // Sent by role-selection.html — still a local file:// page at this point;

@@ -1,6 +1,6 @@
 {
   "name": "letshyre-secure-interview",
-  "version": "1.4.3",
+  "version": "1.4.4",
   "description": "LetsHyre Secure Interview Application",
   "main": "main.js",
   "author": "LetsHyre",
@@ -11,8 +11,8 @@
     "pnpm": ">=10.0.0"
   },
   "scripts": {
-    "start": "electron .",
-    "dev": "nodemon --watch src --watch assets --watch preload.js --ext js,html,css --exec \"electron .\"",
+    "dev": "electron .",
+    "start": "nodemon --watch src --watch assets --watch preload.js --ext js,html,css --exec \"electron .\"",
     "clean": "node scripts/clean.js",
     "build:agent": "python scripts/build_agent.py",
     "build:full": "pnpm run build:agent && electron-builder",

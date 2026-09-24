@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "b25e88032772ca7f"
+    "_sourceHash": "50acd5c83b30f6d7"
   },
   "common": {
     "back": "Terug",
@@ -115,7 +115,6 @@
     "sub": "We controleren of niets anders op deze computer je gesprek kan zien, delen of je erbij kan helpen. Sluit alles wat we vinden en ga daarna verder.",
     "whatWeCheck": "Wat we controleren",
     "whatWeCheckIntro": "Deze controles zorgen ervoor dat alleen deze app je scherm kan zien of delen tijdens het gesprek.",
-    "minimize": "Minimaliseren",
     "help": "Hulp nodig?",
     "firstRunHint": "De eerste controle kan tot 30 seconden duren.",
     "hdmiTitle": "Externe beeldschermen",

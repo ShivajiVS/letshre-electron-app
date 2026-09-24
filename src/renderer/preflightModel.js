@@ -95,29 +95,6 @@
     };
   }
 
-  /**
-   * Two-column layout: wide cards take a full row. A compact card that would
-   * otherwise sit alone next to a hole is widened too, so the grid never gaps.
-   * @param {boolean[]} wide
-   * @returns {boolean[]} whether each card spans both columns
-   */
-  function gridSpans(wide) {
-    const spans = [];
-    let column = 0;
-    for (let i = 0; i < wide.length; i += 1) {
-      if (wide[i]) {
-        spans.push(true);
-        column = 0;
-      } else if (column === 0 && (i === wide.length - 1 || wide[i + 1])) {
-        spans.push(true);
-      } else {
-        spans.push(false);
-        column = column === 0 ? 1 : 0;
-      }
-    }
-    return spans;
-  }
-
   // ── Live (pre-proceed) status
 
   function readLiveStatus(payload) {
@@ -296,16 +273,10 @@
     return retryCapHit === true || unverifiedStreak >= UNVERIFIED_STREAK_FOR_SUPPORT;
   }
 
-  function shouldRescanOnFocus(s) {
-    return (
-      s.problem === true &&
-      !s.scanning &&
-      !s.killing &&
-      !s.elevating &&
-      !s.dialogOpen &&
-      !s.proceeding &&
-      !s.scheduled
-    );
+  /** A problem shows at once; "clear" only counts after `needed` clean reads in a row. */
+  function debounceClear(isClean, streak, needed) {
+    const next = isClean ? streak + 1 : 0;
+    return { streak: next, settled: !isClean || next >= needed };
   }
 
   // ── Threats
@@ -419,7 +390,6 @@
     toneOf,
     sameVerdict,
     summarize,
-    gridSpans,
     readLiveStatus,
     normalizeKillResult,
     killOutcomeView,
@@ -429,7 +399,7 @@
     autoRescanDecision,
     scanErrorDecision,
     shouldOfferSupport,
-    shouldRescanOnFocus,
+    debounceClear,
     severityInfo,
     threatTitle,
     threatHint,

@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "b25e88032772ca7f"
+    "_sourceHash": "50acd5c83b30f6d7"
   },
   "common": {
     "back": "Zurück",
@@ -115,7 +115,6 @@
     "sub": "Wir prüfen, dass nichts anderes auf diesem Computer Ihr Interview sehen, teilen oder Ihnen dabei helfen kann. Schließen Sie alles, was wir finden, und fahren Sie dann fort.",
     "whatWeCheck": "Was wir prüfen",
     "whatWeCheckIntro": "Diese Prüfungen stellen sicher, dass während des Interviews nur diese App Ihren Bildschirm sehen oder teilen kann.",
-    "minimize": "Minimieren",
     "help": "Brauchen Sie Hilfe?",
     "firstRunHint": "Die erste Prüfung kann bis zu 30 Sekunden dauern.",
     "hdmiTitle": "Externe Bildschirme",

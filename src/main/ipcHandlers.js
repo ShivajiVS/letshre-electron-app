@@ -212,10 +212,11 @@ function registerIpcHandlers() {
 
   // Continue on the security check. Not locked down yet: the OS still has to
   // show its mic/camera/screen prompts on the permissions page.
-  registerSend(IPC.LOAD_PERMISSIONS_PAGE, SCOPE.LOCAL, async () => {
+  // Refusals go back to the page, which confirms in place instead of reloading.
+  registerHandler(IPC.LOAD_PERMISSIONS_PAGE, SCOPE.LOCAL, async () => {
     logger.info("[ipc] load-permissions-page");
     if (_continuing) {
-      return;
+      return { ok: false, reason: "scanning" };
     }
     _continuing = true;
     try {
@@ -224,19 +225,20 @@ function registerIpcHandlers() {
       if (gate.code === "stale") {
         await startDetection.renewStalePass();
         if (_pageGeneration !== generation) {
-          return;
+          return { ok: false, reason: "stale" };
         }
         gate = startDetection.verifyProceedAllowed();
       }
-      _leaveSecurityCheck();
       if (!gate.ok) {
         logger.warn(`[ipc] load-permissions-page REFUSED — ${gate.reason}`);
-        loadSecurityCheck(BOUNCE_REASONS[gate.code]);
-        return;
+        return { ok: false, reason: BOUNCE_REASONS[gate.code] || "dirty" };
       }
+      _leaveSecurityCheck();
       loadPermissionsPage();
+      return { ok: true };
     } catch (err) {
       logger.error("[ipc] load-permissions-page failed:", err.message);
+      return { ok: false, reason: "dirty" };
     } finally {
       _continuing = false;
     }

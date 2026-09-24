@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "b25e88032772ca7f"
+    "_sourceHash": "50acd5c83b30f6d7"
   },
   "common": {
     "back": "戻る",
@@ -115,7 +115,6 @@
     "sub": "このコンピューター上に、面接を見たり、共有したり、手助けしたりできるものがないかを確認します。見つかったものを閉じてから、続行してください。",
     "whatWeCheck": "確認する項目",
     "whatWeCheckIntro": "これらのチェックにより、面接中にこのアプリだけが画面を表示・共有できる状態であることを確認します。",
-    "minimize": "最小化",
     "help": "お困りですか？",
     "firstRunHint": "最初のチェックには最大30秒かかることがあります。",
     "hdmiTitle": "外部ディスプレイ",

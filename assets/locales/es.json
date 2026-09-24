@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "b25e88032772ca7f"
+    "_sourceHash": "50acd5c83b30f6d7"
   },
   "common": {
     "back": "Atrás",
@@ -115,7 +115,6 @@
     "sub": "Comprobamos que nada más en este equipo pueda ver, compartir o ayudarte en tu entrevista. Cierra lo que encontremos y luego continúa.",
     "whatWeCheck": "Qué comprobamos",
     "whatWeCheckIntro": "Estas comprobaciones garantizan que solo esta aplicación pueda ver o compartir tu pantalla durante la entrevista.",
-    "minimize": "Minimizar",
     "help": "¿Necesitas ayuda?",
     "firstRunHint": "La primera comprobación puede tardar hasta 30 segundos.",
     "hdmiTitle": "Pantallas externas",

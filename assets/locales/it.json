@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "b25e88032772ca7f"
+    "_sourceHash": "50acd5c83b30f6d7"
   },
   "common": {
     "back": "Indietro",
@@ -115,7 +115,6 @@
     "sub": "Verifichiamo che nient'altro su questo computer possa vedere, condividere o aiutarti durante il colloquio. Chiudi tutto ciò che troviamo, quindi continua.",
     "whatWeCheck": "Cosa verifichiamo",
     "whatWeCheckIntro": "Questi controlli assicurano che solo questa app possa vedere o condividere il tuo schermo durante il colloquio.",
-    "minimize": "Riduci a icona",
     "help": "Serve aiuto?",
     "firstRunHint": "Il primo controllo può richiedere fino a 30 secondi.",
     "hdmiTitle": "Schermi esterni",

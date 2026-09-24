@@ -5,7 +5,7 @@
     "dir": "rtl",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "b25e88032772ca7f"
+    "_sourceHash": "50acd5c83b30f6d7"
   },
   "common": {
     "back": "پیچھے",
@@ -115,7 +115,6 @@
     "sub": "ہم چیک کرتے ہیں کہ اس کمپیوٹر پر کوئی اور چیز آپ کا انٹرویو نہ دیکھ سکے، نہ شیئر کر سکے اور نہ اس میں مدد کر سکے۔ ہمیں جو کچھ ملے اسے بند کریں، پھر جاری رکھیں۔",
     "whatWeCheck": "ہم کیا چیک کرتے ہیں",
     "whatWeCheckIntro": "یہ چیکس یقینی بناتے ہیں کہ انٹرویو کے دوران صرف یہ ایپ آپ کی اسکرین دیکھ یا شیئر کر سکے۔",
-    "minimize": "چھوٹا کریں",
     "help": "مدد چاہیے؟",
     "firstRunHint": "پہلے چیک میں 30 سیکنڈ تک لگ سکتے ہیں۔",
     "hdmiTitle": "خارجی ڈسپلے",

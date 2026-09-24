@@ -38,6 +38,7 @@ class ScenarioContext {
   constructor(name, options) {
     this.name = name;
     this.locale = options.locale || "en";
+    this.size = { width: options.width || 1100, height: options.height || 900 };
     this.calls = [];
     this.requests = [];
     this.consoleErrors = [];
@@ -62,6 +63,7 @@ class ScenarioContext {
     this.handle("getSupportInfo", () => ({ available: false }));
     this.handle("getAuditLog", () => []);
     this.handle("getUpdateState", () => ({ state: "idle" }));
+    this.handle("loadPermissionsPage", () => ({ ok: true }));
     this.handle("runPreflight", (token) => {
       const script = this.scans.length > 1 ? this.scans.shift() : this.scans[0];
       if (!script) {
@@ -205,8 +207,8 @@ async function openPage(ctx, index, query) {
 
   const win = new BrowserWindow({
     show: false,
-    width: 1100,
-    height: 900,
+    width: ctx.size.width,
+    height: ctx.size.height,
     webPreferences: {
       preload: PRELOAD,
       contextIsolation: true,

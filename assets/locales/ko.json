@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "b25e88032772ca7f"
+    "_sourceHash": "50acd5c83b30f6d7"
   },
   "common": {
     "back": "뒤로",
@@ -115,7 +115,6 @@
     "sub": "이 컴퓨터에서 면접을 보거나 공유하거나 도울 수 있는 다른 프로그램이 없는지 확인합니다. 발견된 항목을 닫은 후 계속하세요.",
     "whatWeCheck": "확인 항목",
     "whatWeCheckIntro": "이 검사는 면접 중에 이 앱만 화면을 보거나 공유할 수 있도록 합니다.",
-    "minimize": "최소화",
     "help": "도움이 필요하신가요?",
     "firstRunHint": "첫 검사는 최대 30초가 걸릴 수 있습니다.",
     "hdmiTitle": "외부 디스플레이",

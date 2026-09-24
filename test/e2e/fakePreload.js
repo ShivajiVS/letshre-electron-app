@@ -16,6 +16,7 @@ const INVOKE = [
   "submitFaceVerification",
   "storeCandidatePhoto",
   "runPreflight",
+  "loadPermissionsPage",
   "killProcess",
   "killAllProcesses",
   "canElevate",
@@ -36,7 +37,6 @@ const INVOKE = [
 
 const SEND = [
   "startInterview",
-  "loadPermissionsPage",
   "backToPermissions",
   "loadIdentityVerification",
   "loadRoleSelection",

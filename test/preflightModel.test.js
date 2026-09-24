@@ -73,15 +73,6 @@ test("summary counts progress and what needs attention", () => {
   });
 });
 
-test("grid spans leave no holes and keep failing cards full width", () => {
-  assert.deepStrictEqual(PM.gridSpans([false, false, false, false]), [false, false, false, false]);
-  assert.deepStrictEqual(PM.gridSpans([false, true, false, false]), [true, true, false, false]);
-  assert.deepStrictEqual(PM.gridSpans([false, false, true, false]), [false, false, true, true]);
-  assert.deepStrictEqual(PM.gridSpans([false, false, false]), [false, false, true]);
-  assert.deepStrictEqual(PM.gridSpans([true, true]), [true, true]);
-  assert.deepStrictEqual(PM.gridSpans([]), []);
-});
-
 test("live status: a clean flag never outranks a failing verdict", () => {
   const clean = PM.readLiveStatus({ clean: true, unverified: false, apps: [], verdicts: [] });
   assert.strictEqual(clean.state, "clean");
@@ -184,28 +175,11 @@ test("support is offered after repeated unverified scans or the retry cap", () =
   assert.ok(!PM.shouldOfferSupport());
 });
 
-test("focus rescans only when something is wrong and nothing else is going on", () => {
-  const idle = {
-    problem: true,
-    scanning: false,
-    killing: false,
-    elevating: false,
-    dialogOpen: false,
-    proceeding: false,
-    scheduled: false,
-  };
-  assert.ok(PM.shouldRescanOnFocus(idle));
-  assert.ok(!PM.shouldRescanOnFocus({ ...idle, problem: false }));
-  for (const busy of [
-    "scanning",
-    "killing",
-    "elevating",
-    "dialogOpen",
-    "proceeding",
-    "scheduled",
-  ]) {
-    assert.ok(!PM.shouldRescanOnFocus({ ...idle, [busy]: true }), busy);
-  }
+test("a problem shows at once but clear needs repeated clean reads", () => {
+  assert.deepStrictEqual(PM.debounceClear(false, 1, 2), { streak: 0, settled: true });
+  assert.deepStrictEqual(PM.debounceClear(true, 0, 2), { streak: 1, settled: false });
+  assert.deepStrictEqual(PM.debounceClear(true, 1, 2), { streak: 2, settled: true });
+  assert.deepStrictEqual(PM.debounceClear(true, 5, 2), { streak: 6, settled: true });
 });
 
 test("severity maps to a translated label and a two-level tone", () => {

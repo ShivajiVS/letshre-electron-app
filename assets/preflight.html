@@ -11,9 +11,6 @@
     <link rel="stylesheet" href="./css/update-card.css" />
   </head>
   <body class="sc-body">
-    <div class="sc-blob sc-blob--1" aria-hidden="true"></div>
-    <div class="sc-blob sc-blob--2" aria-hidden="true"></div>
-
     <header class="sc-topbar animate-fade-in">
       <button
         id="btn-back-dashboard"
@@ -44,67 +41,68 @@
 
     <main class="sc-main animate-fade-in" style="animation-delay: 0.1s; opacity: 0">
       <div class="sc-intro">
-        <h1 class="sc-intro__title" data-i18n="preflight.title">Security Checks</h1>
-        <p class="sc-intro__sub" data-i18n="preflight.sub">
-          We check that nothing else on this computer can see, share or help with your interview.
-          Close anything we find, then continue.
-        </p>
-        <div class="sc-help">
-          <button
-            id="btn-what-we-check"
-            type="button"
-            class="sc-link-btn"
-            aria-expanded="false"
-            aria-controls="what-we-check"
-          >
-            <svg
-              class="sc-icon-xs sc-help__chevron"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-              focusable="false"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2.5"
-                d="M19 9l-7 7-7-7"
-              ></path>
-            </svg>
-            <span data-i18n="preflight.whatWeCheck">What we check</span>
-          </button>
-          <button id="btn-minimize" type="button" class="sc-link-btn" hidden>
-            <svg
-              class="sc-icon-xs"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-              focusable="false"
-            >
-              <path stroke-linecap="round" stroke-width="2.5" d="M5 18h14"></path>
-            </svg>
-            <span data-i18n="preflight.minimize">Minimize</span>
-          </button>
-          <button id="btn-help-support" type="button" class="sc-link-btn" hidden>
-            <svg
-              class="sc-icon-xs"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-              focusable="false"
-            >
+        <div class="sc-intro__head">
+          <span class="sc-intro__icon" aria-hidden="true">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" focusable="false">
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 stroke-width="2"
-                d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
               ></path>
             </svg>
-            <span data-i18n="preflight.help">Need help?</span>
-          </button>
+          </span>
+          <div class="sc-intro__text">
+            <h1 class="sc-intro__title" data-i18n="preflight.title">Security Checks</h1>
+            <p class="sc-intro__sub" data-i18n="preflight.sub">
+              We check that nothing else on this computer can see, share or help with your
+              interview. Close anything we find, then continue.
+            </p>
+          </div>
+          <div class="sc-help">
+            <button
+              id="btn-what-we-check"
+              type="button"
+              class="sc-chip-btn"
+              aria-expanded="false"
+              aria-controls="what-we-check"
+            >
+              <svg
+                class="sc-icon-xs sc-help__chevron"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2.5"
+                  d="M19 9l-7 7-7-7"
+                ></path>
+              </svg>
+              <span data-i18n="preflight.whatWeCheck">What we check</span>
+            </button>
+            <button id="btn-help-support" type="button" class="sc-link-btn" hidden>
+              <svg
+                class="sc-icon-xs"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                ></path>
+              </svg>
+              <span data-i18n="preflight.help">Need help?</span>
+            </button>
+          </div>
         </div>
         <div id="what-we-check" class="sc-explainer" hidden>
           <p class="sc-explainer__intro" data-i18n="preflight.whatWeCheckIntro">
@@ -155,7 +153,7 @@
         </div>
       </div>
 
-      <section class="sc-checks" aria-labelledby="summary-text">
+      <section class="sc-panel" aria-labelledby="summary-text">
         <div class="sc-summary">
           <p id="summary-text" class="sc-summary__text">Checking your computer…</p>
           <div
@@ -354,57 +352,59 @@
         </div>
       </section>
 
-      <div class="sc-actionbar">
-        <div class="sc-actionbar__inner">
-          <p id="final-status" class="sc-status">Checking your computer…</p>
-          <div id="support-wrap" class="sc-support" hidden>
-            <p id="support-text" class="sc-support__text"></p>
-            <div class="sc-support__actions">
-              <button
-                id="btn-diagnostics"
-                type="button"
-                class="sc-link-btn sc-link-btn--strong"
-              ></button>
-              <button
-                id="btn-contact-support"
-                type="button"
-                class="sc-link-btn sc-link-btn--strong"
-                hidden
-              ></button>
-            </div>
-            <p id="diagnostics-note" class="sc-support__note"></p>
-          </div>
-          <div class="sc-actionbar__buttons">
-            <button id="btn-rescan" type="button" class="sc-btn-rescan">
-              <svg
-                class="sc-icon"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-                focusable="false"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2.5"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                ></path>
-              </svg>
-              <span data-i18n="preflight.rescan">Rescan</span>
-            </button>
+      <div id="sc-end" class="sc-end" aria-hidden="true"></div>
+    </main>
+
+    <footer class="sc-actionbar animate-fade-in" style="animation-delay: 0.1s; opacity: 0">
+      <div class="sc-actionbar__inner">
+        <p id="final-status" class="sc-status">Checking your computer…</p>
+        <div id="support-wrap" class="sc-support" hidden>
+          <p id="support-text" class="sc-support__text"></p>
+          <div class="sc-support__actions">
             <button
-              id="btn-proceed"
+              id="btn-diagnostics"
               type="button"
-              disabled
-              class="sc-btn-proceed sc-btn-proceed--disabled"
-            >
-              <span>Continue</span>
-            </button>
+              class="sc-link-btn sc-link-btn--strong"
+            ></button>
+            <button
+              id="btn-contact-support"
+              type="button"
+              class="sc-link-btn sc-link-btn--strong"
+              hidden
+            ></button>
           </div>
+          <p id="diagnostics-note" class="sc-support__note"></p>
+        </div>
+        <div class="sc-actionbar__buttons">
+          <button id="btn-rescan" type="button" class="sc-btn-rescan">
+            <svg
+              class="sc-icon"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2.5"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              ></path>
+            </svg>
+            <span data-i18n="preflight.rescan">Rescan</span>
+          </button>
+          <button
+            id="btn-proceed"
+            type="button"
+            disabled
+            class="sc-btn-proceed sc-btn-proceed--disabled"
+          >
+            <span>Continue</span>
+          </button>
         </div>
       </div>
-    </main>
+    </footer>
 
     <dialog
       id="kill-dialog"

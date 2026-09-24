@@ -77,6 +77,19 @@ function cardTone(ctx, id) {
   );
 }
 
+function cardTones(ctx) {
+  return Promise.all(IDS.map((id) => cardTone(ctx, id)));
+}
+
+/** A reload would wipe this, so it proves the page stayed put. */
+function markPage(ctx) {
+  return ctx.eval("window.__e2eMarker = 1");
+}
+
+async function assertSamePage(ctx) {
+  assert.strictEqual(await ctx.eval("window.__e2eMarker"), 1, "page reloaded");
+}
+
 async function openDialogFrom(ctx, selector) {
   await ctx.click(selector);
   await ctx.until("document.getElementById('kill-dialog').open", "kill dialog to open");
@@ -290,6 +303,7 @@ const scenarios = [
     async run(ctx) {
       await untilAllPassed(ctx);
 
+      await markPage(ctx);
       ctx.live(liveStatus({ meeting: blocked("meeting", ["Zoom.exe"]) }));
       await ctx.until("document.getElementById('btn-proceed').disabled", "Continue to close");
       assert.strictEqual(await cardTone(ctx, "meeting"), "fail");
@@ -298,11 +312,25 @@ const scenarios = [
         await pageT(ctx, "preflightResults.blockedAppLaunched", { names: "Zoom.exe", count: 1 })
       );
       assert.ok(await ctx.hasClass("#final-status", "sc-status--fail"));
+      assert.ok(
+        await ctx.eval(
+          "!!document.querySelector(\"#actions-meeting .sc-kill-row[data-process='Zoom.exe']\")"
+        ),
+        "Close row for the app opened after the pass"
+      );
+
+      // One clean read isn't enough: apps often shut down in stages.
+      ctx.live(liveStatus());
+      await delay(300);
+      assert.strictEqual(await cardTone(ctx, "meeting"), "fail");
+      assert.strictEqual(await ctx.q("#btn-proceed", "el.disabled"), true);
 
       ctx.live(liveStatus());
       await ctx.until("!document.getElementById('btn-proceed').disabled", "Continue to reopen");
       assert.strictEqual(await cardTone(ctx, "meeting"), "pass");
       assert.strictEqual(await ctx.text("#final-status"), ctx.t("preflightResults.allPassed"));
+      assert.strictEqual(ctx.callsTo("runPreflight").length, 1, "no rescan needed");
+      await assertSamePage(ctx);
 
       ctx.live({ clean: false, unverified: true, apps: [], verdicts: [] });
       await ctx.until("document.getElementById('btn-proceed').disabled", "Continue to close");
@@ -310,6 +338,140 @@ const scenarios = [
         await ctx.text("#final-status"),
         ctx.t("preflightResults.liveUnverified", { rescan: ctx.t("preflight.rescan") })
       );
+    },
+  },
+
+  {
+    name: "switching windows away and back never rescans",
+    setup(ctx) {
+      ctx.onScan((token) =>
+        result(token, verdicts({ browser: blocked("browser", ["chrome.exe"]) }))
+      );
+    },
+    async run(ctx) {
+      await ctx.untilText(
+        "#final-status",
+        ctx.t("preflightResults.resolveAlerts", { rescan: ctx.t("preflight.rescan") })
+      );
+      await markPage(ctx);
+      const before = await cardTones(ctx);
+      for (let i = 0; i < 3; i += 1) {
+        await ctx.eval(
+          "window.dispatchEvent(new Event('blur')); window.dispatchEvent(new Event('focus')); " +
+            "document.dispatchEvent(new Event('visibilitychange'))"
+        );
+        await delay(200);
+      }
+      await delay(2500);
+      assert.strictEqual(ctx.callsTo("runPreflight").length, 1);
+      assert.deepStrictEqual(await cardTones(ctx), before);
+      await assertSamePage(ctx);
+    },
+  },
+
+  {
+    name: "closing an app yourself confirms quietly without resetting the cards",
+    setup(ctx) {
+      ctx.gate = deferred();
+      ctx.onScan((token) =>
+        result(token, verdicts({ browser: blocked("browser", ["chrome.exe"]) }))
+      );
+      ctx.onScan(async (token) => {
+        await ctx.gate.promise;
+        return passScan(token);
+      });
+    },
+    async run(ctx) {
+      await ctx.until(
+        "document.getElementById('card-browser').classList.contains('sc-card--fail')",
+        "browser card to fail"
+      );
+      ctx.live(liveStatus());
+      await delay(300);
+      assert.strictEqual(await cardTone(ctx, "browser"), "fail");
+      ctx.live(liveStatus());
+      await ctx.untilCalls("runPreflight", 2, 6000);
+
+      await ctx.untilText("#final-status", ctx.t("preflightResults.checkingAgain"));
+      const during = await cardTones(ctx);
+      assert.ok(!during.includes("scanning"), `cards were reset: ${during.join(",")}`);
+      assert.strictEqual(await ctx.q("#btn-proceed", "el.disabled"), true);
+
+      ctx.gate.resolve();
+      await untilAllPassed(ctx);
+    },
+  },
+
+  {
+    name: "a refused Continue confirms in place instead of reloading",
+    setup(ctx) {
+      ctx.gate = deferred();
+      ctx.handle("loadPermissionsPage", () => ({ ok: false, reason: "dirty" }));
+      ctx.onScan(passScan);
+      ctx.onScan(async (token) => {
+        await ctx.gate.promise;
+        return passScan(token);
+      });
+    },
+    async run(ctx) {
+      await untilAllPassed(ctx);
+      await markPage(ctx);
+      await ctx.click("#btn-proceed");
+      await ctx.untilCalls("loadPermissionsPage", 1);
+      await ctx.untilCalls("runPreflight", 2);
+      await ctx.untilText("#final-status", ctx.t("preflightResults.bouncedDirty"));
+      assert.ok(!(await cardTones(ctx)).includes("scanning"));
+
+      ctx.gate.resolve();
+      await untilAllPassed(ctx);
+      await assertSamePage(ctx);
+    },
+  },
+
+  {
+    name: "one column that keeps its shape in every state, with no sideways scroll",
+    width: 1920,
+    height: 1080,
+    setup(ctx) {
+      ctx.onScan((token) =>
+        result(
+          token,
+          verdicts({
+            meeting: blocked("meeting", ["Zoom.exe"]),
+            screen: unverified("screen"),
+          })
+        )
+      );
+      ctx.onScan(passScan);
+    },
+    async run(ctx) {
+      const shape = () =>
+        ctx.eval(`(() => {
+          const rects = [...document.querySelectorAll(".sc-card")].map((c) => c.getBoundingClientRect());
+          return {
+            lefts: [...new Set(rects.map((r) => Math.round(r.left)))],
+            widths: [...new Set(rects.map((r) => Math.round(r.width)))],
+            overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+            panelWidth: Math.round(document.querySelector(".sc-panel").getBoundingClientRect().width),
+          };
+        })()`);
+
+      await ctx.until(
+        "document.getElementById('card-meeting').classList.contains('sc-card--fail')",
+        "failing scan"
+      );
+      const failing = await shape();
+      assert.strictEqual(failing.lefts.length, 1, "cards share one left edge");
+      assert.strictEqual(failing.widths.length, 1, "cards share one width");
+      assert.strictEqual(failing.overflow, false);
+      assert.ok(failing.panelWidth < 1920 * 0.6, `panel stretched to ${failing.panelWidth}px`);
+
+      await ctx.click("#btn-rescan");
+      await untilAllPassed(ctx);
+      const passing = await shape();
+      assert.deepStrictEqual(passing.lefts, failing.lefts);
+      assert.deepStrictEqual(passing.widths, failing.widths);
+      assert.strictEqual(passing.overflow, false);
     },
   },
 

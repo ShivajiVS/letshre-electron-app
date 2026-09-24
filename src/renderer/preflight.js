@@ -15,8 +15,9 @@ const MAX_SCAN_RETRIES = 3;
 const MAX_AUTO_RESCANS = 3;
 const RETRY_COUNTDOWN_MS = 5000;
 const KILL_RESCAN_DELAY_MS = 2000;
-const FOCUS_RESCAN_DELAY_MS = 1500;
 const LIVE_CLEAR_RESCAN_DELAY_MS = 1500;
+// Clean pushes needed before a card turns back green, so apps shutting down in stages don't flicker.
+const LIVE_CLEAN_TICKS = 2;
 const DEFER_RESCAN_MS = 1000;
 
 const STATUS = "sc-status";
@@ -161,6 +162,11 @@ let _scansStarted = 0;
 let _pageState = "scanning"; // scanning | pass | fail | error
 let _passValid = false;
 let _liveState = null; // null | clean | dirty | unverified
+let _liveCleanStreak = 0;
+/** True while an automatic confirm runs without resetting the cards. */
+let _quietScan = false;
+/** Consecutive clean live reads per card, so a red card only turns green once the app stays gone. */
+const _cardCleanStreak = {};
 let _proceedLoading = false;
 
 let _scanRetryCount = 0;
@@ -393,25 +399,10 @@ function paintCard(id) {
   badge.textContent = view.badge;
 }
 
-/** Wide window: failing cards take a full row, the rest sit two to a row. */
-function layoutCards() {
-  const wide = PM.CHECK_IDS.map((id) => {
-    const tone = cardTone(id);
-    return tone === "fail" || tone === "unverified";
-  });
-  const spans = PM.gridSpans(wide);
-  PM.CHECK_IDS.forEach((id, i) => {
-    const card = document.getElementById(`card-${id}`);
-    card?.classList.toggle("sc-card--span", spans[i]);
-    card?.classList.toggle("sc-card--compact", !wide[i]);
-  });
-}
-
 function setCard(id, state) {
   _cards[id] = state;
   paintCard(id);
   syncActions(id);
-  layoutCards();
   paintSummary();
 }
 
@@ -442,11 +433,13 @@ function paintSummary() {
   const s = PM.summarize(cardTones());
   let tone = "scanning";
   let label;
-  if (_scanToken || _pageState === "scanning") {
+  if ((_scanToken && !_quietScan) || _pageState === "scanning") {
     label = tr("preflightResults.summaryProgress", "{done} of {total} checks complete", {
       done: s.done,
       total: s.total,
     });
+  } else if (_quietScan && s.attention === 0) {
+    label = tr("preflightResults.checkingAgain", "Checking again…");
   } else if (proceedAllowed()) {
     tone = "pass";
     label = tr("preflightResults.summaryAllPassed", "All checks passed");
@@ -543,7 +536,13 @@ async function runScans({ auto = false } = {}) {
   const token = PM.newScanToken();
   _scanToken = token;
   _scansStarted += 1;
-  beginScanUi();
+  // Automatic confirms keep the cards as they are; only a first or manual scan redraws them.
+  _quietScan = auto && _pageState !== "scanning";
+  if (_quietScan) {
+    beginQuietScanUi();
+  } else {
+    beginScanUi();
+  }
 
   const api = window.electronAPI;
   if (!api) {
@@ -584,17 +583,25 @@ async function runScans({ auto = false } = {}) {
   }
   // Cleared before painting so late events from this scan are dropped too.
   _scanToken = null;
+  const quiet = _quietScan;
+  _quietScan = false;
   if (error) {
     console.error("[preflight] scan error:", error);
     showScanError(error?.message || tr("preflightResults.unknownError", "Something went wrong."));
   } else {
-    finishScan(results);
+    finishScan(results, { quiet });
   }
+}
+
+function resetLiveTracking() {
+  _liveState = null;
+  _liveCleanStreak = 0;
+  Object.keys(_cardCleanStreak).forEach((id) => delete _cardCleanStreak[id]);
 }
 
 function beginScanUi() {
   _passValid = false;
-  _liveState = null;
+  resetLiveTracking();
   _pageState = "scanning";
   _lastVerdicts = [];
 
@@ -603,12 +610,28 @@ function beginScanUi() {
     paintCard(id);
     syncActions(id);
   });
-  layoutCards();
 
   if (_bounce) {
     setStatus(_bounce.key, _bounce.fallback, null, STATUS);
   } else {
     setStatus("preflight.runningDiagnostics", "Checking your computer…", null, STATUS);
+  }
+  const rescan = document.getElementById("btn-rescan");
+  if (rescan) {
+    rescan.disabled = true;
+  }
+  renderProceedGate();
+  paintSummary();
+}
+
+function beginQuietScanUi() {
+  _passValid = false;
+  resetLiveTracking();
+  _lastVerdicts = [];
+  if (_bounce) {
+    setStatus(_bounce.key, _bounce.fallback, null, STATUS);
+  } else {
+    setStatus("preflightResults.checkingAgain", "Checking again…", null, STATUS);
   }
   const rescan = document.getElementById("btn-rescan");
   if (rescan) {
@@ -658,10 +681,19 @@ function markInterrupted() {
   });
 }
 
-function finishScan(results) {
+function finishScan(results, { quiet = false } = {}) {
   const verdicts = Array.isArray(results?.verdicts) ? results.verdicts : [];
+  const stateBefore = _pageState;
   verdicts.forEach(applyVerdict);
   markInterrupted();
+  if (quiet) {
+    const reported = new Set(verdicts.map((v) => v?.id));
+    PM.CHECK_IDS.forEach((id) => {
+      if (!reported.has(id) && !_cards[id].interrupted) {
+        setCard(id, { interrupted: true });
+      }
+    });
+  }
 
   _lastScanId = results?.scanId ?? null;
   _lastTimings = results?.timings ?? null;
@@ -671,7 +703,7 @@ function finishScan(results) {
 
   // Fail-closed: a malformed or empty response never opens the gate.
   _passValid = results?.canProceed === true && verdicts.length > 0;
-  _liveState = null;
+  resetLiveTracking();
   _scanRetryCount = 0;
   _retryCapHit = false;
   _bounce = null;
@@ -715,8 +747,10 @@ function finishScan(results) {
   renderProceedGate();
   renderSupport();
   paintSummary();
-  announce(`${summaryLine()}. ${statusText()}`);
-  if (!_passValid) {
+  if (!quiet || _pageState !== stateBefore) {
+    announce(`${summaryLine()}. ${statusText()}`);
+  }
+  if (!_passValid && !quiet) {
     focusFirstProblem();
   }
 }
@@ -816,12 +850,29 @@ function onLiveStatus(payload) {
   const live = PM.readLiveStatus(payload);
 
   live.verdicts.forEach((v) => {
+    const cardClear = PM.debounceClear(
+      PM.toneOf(v.status) === "pass",
+      _cardCleanStreak[v.id] || 0,
+      LIVE_CLEAN_TICKS
+    );
+    _cardCleanStreak[v.id] = cardClear.streak;
     const current = _cards[v.id].verdict;
     if (current && PM.sameVerdict(current, v)) {
       return;
     }
+    if (!cardClear.settled && current && PM.toneOf(current.status) !== "pass") {
+      return;
+    }
     setCard(v.id, { verdict: v });
   });
+
+  const pageClear = PM.debounceClear(live.state === "clean", _liveCleanStreak, LIVE_CLEAN_TICKS);
+  _liveCleanStreak = pageClear.streak;
+  if (!pageClear.settled) {
+    renderProceedGate();
+    paintSummary();
+    return;
+  }
 
   if (_passValid) {
     const previous = _liveState;
@@ -898,36 +949,6 @@ function paintLiveStatus(live) {
     () => ({ rescan: rescanLabel() }),
     STATUS_FAIL
   );
-}
-
-function onWindowReturn() {
-  if (document.visibilityState === "hidden") {
-    return;
-  }
-  const problem =
-    _pageState === "fail" ||
-    _pageState === "error" ||
-    _liveState === "dirty" ||
-    _liveState === "unverified";
-  const allowed = PM.shouldRescanOnFocus({
-    problem,
-    scanning: !!_scanToken,
-    killing: _killsInFlight > 0,
-    elevating: _elevationsPending > 0,
-    dialogOpen: !!_dialog,
-    proceeding: _proceedLoading,
-    scheduled: !!_scheduled,
-  });
-  if (allowed) {
-    scheduleRescan(FOCUS_RESCAN_DELAY_MS, "focus");
-  }
-}
-
-function onWindowLeave() {
-  // The candidate left again before the debounce ran out; wait for them.
-  if (_scheduled?.kind === "focus") {
-    cancelScheduledRescan();
-  }
 }
 
 // ─── Kill rows
@@ -1963,9 +1984,8 @@ function onProceedClick() {
   cancelScheduledRescan();
   _proceedLoading = true;
   renderProceedGate();
-  window.electronAPI.loadPermissionsPage();
   // Navigation tears this page down; if the timer still fires, it never happened.
-  window.armButtonRestore(btn, btn.innerHTML, {
+  const watchdog = window.armButtonRestore(btn, btn.innerHTML, {
     onRestore: () => {
       _proceedLoading = false;
       _proceedMarkup = "";
@@ -1978,6 +1998,27 @@ function onProceedClick() {
       );
     },
   });
+  Promise.resolve(window.electronAPI.loadPermissionsPage())
+    .then((res) => {
+      if (res && res.ok === false) {
+        clearTimeout(watchdog);
+        onProceedRefused(res.reason);
+      }
+    })
+    .catch(() => {});
+}
+
+/** Main said no (something changed, or the pass expired): confirm here rather than reloading. */
+function onProceedRefused(reason) {
+  _proceedLoading = false;
+  _proceedMarkup = "";
+  _bounce = PM.bounceReason(reason) || PM.bounceReason("dirty");
+  renderProceedGate();
+  if (reason === "scanning") {
+    setStatus(_bounce.key, _bounce.fallback, null, STATUS);
+    return;
+  }
+  runScans({ auto: true });
 }
 
 function wireControls() {
@@ -1988,16 +2029,29 @@ function wireControls() {
   document.getElementById("btn-contact-support")?.addEventListener("click", openSupport);
   document.getElementById("btn-help-support")?.addEventListener("click", openSupport);
 
-  const minimize = document.getElementById("btn-minimize");
-  if (minimize && typeof window.electronAPI?.minimizeWindow === "function") {
-    minimize.hidden = false;
-    minimize.addEventListener("click", () => window.electronAPI.minimizeWindow());
-  }
-
   wireDialog();
-  window.addEventListener("focus", onWindowReturn);
-  window.addEventListener("blur", onWindowLeave);
-  document.addEventListener("visibilitychange", onWindowReturn);
+  watchStickyBars();
+}
+
+/** Hairlines on the sticky bars only while content is scrolled under them. */
+function watchStickyBars() {
+  if (typeof IntersectionObserver !== "function") {
+    return;
+  }
+  const topbar = document.querySelector(".sc-topbar");
+  const actionbar = document.querySelector(".sc-actionbar");
+  const intro = document.querySelector(".sc-intro");
+  const end = document.getElementById("sc-end");
+  if (topbar && intro) {
+    new IntersectionObserver(([entry]) => {
+      topbar.classList.toggle("sc-topbar--raised", entry.boundingClientRect.top < 0);
+    }).observe(intro);
+  }
+  if (actionbar && end) {
+    new IntersectionObserver(([entry]) => {
+      actionbar.classList.toggle("sc-actionbar--raised", !entry.isIntersecting);
+    }).observe(end);
+  }
 }
 
 document.addEventListener("DOMContentLoaded", async () => {

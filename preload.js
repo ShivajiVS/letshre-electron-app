@@ -133,7 +133,6 @@ const ALLOWED_SEND_CHANNELS = [
   IPC.START_INTERVIEW,
   IPC.INTERVIEW_COMPLETE,
   IPC.ACK_VIOLATION,
-  IPC.LOAD_PERMISSIONS_PAGE,
   IPC.BACK_TO_PERMISSIONS,
   IPC.LOAD_IDENTITY_VERIFICATION,
   IPC.LOAD_ROLE_SELECTION,
@@ -148,6 +147,7 @@ const ALLOWED_SEND_CHANNELS = [
 ];
 
 const ALLOWED_INVOKE_CHANNELS = [
+  IPC.LOAD_PERMISSIONS_PAGE,
   IPC.RUN_PREFLIGHT,
   IPC.KILL_BLOCKED_APP,
   IPC.KILL_ALL_BLOCKED_APPS,
@@ -245,12 +245,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   /** Dashboard "Take Interview": hand the session to the security check. */
   startInterview: () => safeSend(IPC.START_INTERVIEW),
 
-  /**
-   * Preflight "Proceed": navigate to the permissions page.
-   * The window is NOT locked down yet — the OS needs to present native
-   * permission dialogs. Lockdown happens when the user clicks Start Interview.
-   */
-  loadPermissionsPage: () => safeSend(IPC.LOAD_PERMISSIONS_PAGE),
+  /** Security check Continue. Resolves {ok:false, reason} when main refuses. */
+  loadPermissionsPage: () => safeInvoke(IPC.LOAD_PERMISSIONS_PAGE),
   backToPermissions: () => safeSend(IPC.BACK_TO_PERMISSIONS),
 
   /** Permissions "Start interview": navigate to identity verification. */

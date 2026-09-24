@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "b25e88032772ca7f"
+    "_sourceHash": "50acd5c83b30f6d7"
   },
   "common": {
     "back": "वापस",
@@ -115,7 +115,6 @@
     "sub": "हम जाँचते हैं कि इस कंप्यूटर पर कोई और चीज़ आपका इंटरव्यू देख, शेयर या उसमें मदद न कर सके। हमें जो कुछ भी मिले, उसे बंद करें, फिर आगे बढ़ें।",
     "whatWeCheck": "हम क्या जाँचते हैं",
     "whatWeCheckIntro": "ये जाँचें सुनिश्चित करती हैं कि इंटरव्यू के दौरान केवल यही ऐप आपकी स्क्रीन देख या शेयर कर सके।",
-    "minimize": "छोटा करें",
     "help": "मदद चाहिए?",
     "firstRunHint": "पहली जाँच में 30 सेकंड तक लग सकते हैं।",
     "hdmiTitle": "बाहरी डिस्प्ले",

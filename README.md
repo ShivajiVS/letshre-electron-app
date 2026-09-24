@@ -458,6 +458,59 @@ The client calls these on `API_BASE_URL` (from `.env`, no default) with `Authori
 
 > **Required for enforcement:** `POST /interview/violation` must be implemented server‑side to record/flag/terminate sessions. Until it exists, violation reports are queued and retried client‑side.
 
+### Optional security-check endpoints
+
+Both are off unless their path is set in `.env` (relative to `API_BASE_URL`, must start with `/`). Both send `Authorization: Bearer <accessToken>` with a 5s timeout and never hold up the candidate.
+
+**Blocklist policy** — `GET <PREFLIGHT_POLICY_PATH>`, once on Start Interview; cleared on logout and on returning to the dashboard.
+
+```json
+{
+  "allow": ["slack.exe", "slack.app"],
+  "block": [{ "name": "examtool.exe", "category": "screen", "displayName": "Exam Tool" }]
+}
+```
+
+- `allow` removes built-in entries; AI tools can't be allowed. `block` adds image names to a card: `meeting`, `screen`, `wireless`, `browser` or `ai`. `displayName` is optional.
+- Names are lowercased and must match `^[\w.\- ]{1,120}$`; at most 200 entries per list. Invalid entries and OS/app process names are dropped.
+- The result drives detection, the check cards, the kill whitelist and the page's app names. Unset, failing or invalid → the built-in lists.
+
+**Scan telemetry** — `POST <PREFLIGHT_TELEMETRY_PATH>` after each security-check scan the page keeps. No process names, paths or personal data:
+
+```json
+{
+  "scanId": "m1x2y3-ab12cd",
+  "capturedAt": "2026-09-24T10:00:00.000Z",
+  "appVersion": "1.4.4",
+  "agentVersion": "2.1.0",
+  "agentSource": "0123456789ab",
+  "platform": "win32",
+  "arch": "x64",
+  "osRelease": "10.0.26200",
+  "locale": "en",
+  "canProceed": false,
+  "durationMs": 1830,
+  "verdicts": [
+    {
+      "id": "browser",
+      "status": "fail",
+      "reasonKey": "preflightResults.browserRunning",
+      "blockedCount": 1
+    },
+    {
+      "id": "agent",
+      "status": "fail",
+      "reasonKey": "preflightResults.agentThreatsDetected",
+      "threatTypes": ["remote_session"]
+    }
+  ],
+  "timings": { "display": { "durationMs": 4, "outcome": "ok" } },
+  "policyApplied": false
+}
+```
+
+Any 2xx is success. Failures are retried up to 3 times with backoff, then dropped; at most 20 are queued in memory.
+
 ## Getting started
 
 ### Prerequisites
@@ -546,7 +599,7 @@ Most knobs live in `src/shared/constants.js`:
 | `UPDATE_CHECK_INTERVAL_MS`               | 6 h                                         | Auto‑update re‑check cadence                     |
 | `UPDATE_RETRY_MS` / `UPDATE_MAX_RETRIES` | 5 min / 3                                   | Sooner retries after a failed update check       |
 
-Environment variables: `INTERVIEW_FRONTEND_BASE_URL` / `API_BASE_URL` (required), `DEVTOOLS`, `AGENT_PY` / `AGENT_PY_BIN` (dev agent), `AGENT_LOG_DIR` / `APP_VERSION` / `AGENT_SECRET` (set automatically for the spawned agent), `LOG_LEVEL` (main-process log verbosity, default `info`; see `src/main/logger.js`).
+Environment variables: `INTERVIEW_FRONTEND_BASE_URL` / `API_BASE_URL` (required), `DEVTOOLS`, `SUPPORT_URL`, `PREFLIGHT_POLICY_PATH` / `PREFLIGHT_TELEMETRY_PATH` (optional, see [Optional security-check endpoints](#optional-security-check-endpoints)), `AGENT_PY` / `AGENT_PY_BIN` (dev agent), `AGENT_LOG_DIR` / `APP_VERSION` / `AGENT_SECRET` (set automatically for the spawned agent), `LOG_LEVEL` (main-process log verbosity, default `info`; see `src/main/logger.js`).
 
 ## Security hardening
 

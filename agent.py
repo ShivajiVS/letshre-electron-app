@@ -1,21 +1,18 @@
 """
-=============================================================
-  INTERVIEW SECURITY DESKTOP AGENT
-  Behavioral deep-detection — catches threats the Node.js
-  preflight checkers cannot see:
-    1. Network connections to AI/cheating APIs
-    2. DLL/memory signatures of renamed AI tools
-    3. Browser automation (Selenium/ChromeDriver)
-    4. Suspicious Win32 window class names
-    5. Open window title scanning (Win32/AppleScript)
+Interview security desktop agent.
 
-  Communication: Local HTTP Server on port 9999
-  Supports: Windows, macOS, Linux
-=============================================================
+Behavioural checks the Electron preflight can't do from Node (window titles and
+classes, network peers, loaded modules, overlays, virtual audio, remote
+sessions, virtual machines, renamed blocked apps). Process bans by image name
+and display counting stay on the Node side.
+
+Electron talks to it over newline-delimited JSON on stdin/stdout; the HTTP
+server on 127.0.0.1:9999 is a fallback. Windows, macOS and Linux.
 """
 
 import psutil
 import platform
+import queue
 import subprocess
 import threading
 import time
@@ -28,11 +25,11 @@ import hashlib
 import tempfile
 import csv
 import io
+import re
 from datetime import datetime
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
-# Force stdout/stderr to UTF-8 to prevent Windows cp1252 crash on non-ascii
-# (stdout carries protocol JSON; stderr carries logs with arrows like →).
+# Windows defaults to cp1252, which crashes on non-ASCII in protocol JSON and logs.
 if sys.stdout.encoding != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8')
 if sys.stderr.encoding != 'utf-8':
@@ -42,48 +39,29 @@ if sys.stderr.encoding != 'utf-8':
 #  CONFIGURATION
 # ─────────────────────────────────────────────
 PORT          = 9999
-SCAN_INTERVAL = 3  # seconds between scans
+SCAN_INTERVAL = 3  # seconds between background scans
 
-# Delay before the FIRST background scan, so the candidate-facing "scan" command
-# (which arrives within a second or two of spawn) starts the scan itself instead
-# of waiting on a cold background scan that is already in flight.
-FIRST_SCAN_DELAY = 2
+# Electron gives a whole scan AGENT_SCAN_TIMEOUT_MS (12s); stay well inside it.
+SCAN_BUDGET_S = 9.5
 
-# IMP-12: Single version source — passed via APP_VERSION env by agentManager.js.
-# Previously there were 3 different version strings in the codebase.
 AGENT_VERSION = os.environ.get("APP_VERSION", "1.0.0")
 
-# Protocol/contract version of the scan RESULT SHAPE — deliberately separate from
-# AGENT_VERSION (which tracks the Electron app's release version and changes on
-# every release). Bump this ONLY when the scan result's fields change, so the
-# Electron side can detect a stale bundled agent.exe that predates a field it
-# depends on.
-#   1 — status/timestamp/os/threats/safe_to_proceed/scan_count/agent_version/
-#       physical_monitors
-#   2 — adds checks{} / degraded / contract_version; safe_to_proceed now also
-#       requires that no check errored (fail-CLOSED on unrunnable checks)
+# Version of the scan result shape, separate from AGENT_VERSION. Bump only when
+# the fields change, so Electron can spot a stale agent.exe.
+# 2 added checks{}, degraded and contract_version; safe_to_proceed needs every check to have run.
 CONTRACT_VERSION = 2
 
-# SHA-256 of the agent.py that produced this binary, written by
-# scripts/build_agent.py at package time. "dev" when running from source.
+# Hash of the agent.py this binary was built from; "dev" when running from source.
 try:
     from _build_stamp import SOURCE_SHA
 except ImportError:
     SOURCE_SHA = "dev"
 
-# IMP-08: Write logs to AGENT_LOG_DIR env var (set to userData by Electron).
-# Falls back to the OS temp directory so packaged builds never hit a read-only CWD.
 LOG_FILE = os.path.join(
     os.environ.get("AGENT_LOG_DIR") or tempfile.gettempdir(),
     "letshyre_agent.log"
 )
 
-# NOTE: Process-name bans, display counting, and screen-sharing
-# detection are already handled by the Electron preflight
-# (mirrorDetector.js + hdmiDetector.js). This agent only performs
-# the five BEHAVIORAL checks that Node.js cannot do.
-
-# AI/cheating service domains checked during network scan
 SUSPICIOUS_DOMAINS = [
     # LLM API providers
     "openai.com", "api.openai.com",
@@ -114,7 +92,6 @@ SUSPICIOUS_DOMAINS = [
     "interview-copilot", "interview-assistant",
 ]
 
-# DLL / module name fragments that indicate AI tools
 SUSPICIOUS_DLLS = [
     "parakeet", "pmodule", "openai", "anthropic", "claude",
     "gemini", "interview", "cheat", "answer",
@@ -122,12 +99,8 @@ SUSPICIOUS_DLLS = [
     "finalround", "cluely", "lockedinai", "interviewcoder",
 ]
 
-# Win32 window class names that indicate automation / injection tools.
-# NOTE (Phase 4): "IEFrame" and "MozillaWindowClass" were removed — they are the
-# ordinary window classes of Internet Explorer/embedded WebView and Firefox, so
-# they false-positived on every such window. Browsers are already covered by the
-# Node-side process check (BROWSER_APPS); flagging their window class here was
-# both redundant and mislabeled as "automation/injection".
+# Win32 window class names that indicate automation / injection tools. Browser
+# classes (IEFrame, MozillaWindowClass) don't belong here: every browser window has them.
 SUSPICIOUS_WINDOW_CLASSES = [
     "tcpListener",
     "websocketServer",
@@ -135,7 +108,6 @@ SUSPICIOUS_WINDOW_CLASSES = [
     "tunnelServer",
 ]
 
-# Window title keywords that suggest cheating tools
 SUSPICIOUS_WINDOW_TITLES = [
     # AI assistants
     "parakeet", "chatgpt", "claude ai", "gemini", "copilot",
@@ -153,9 +125,6 @@ SUSPICIOUS_WINDOW_TITLES = [
     "stealth mode", "invisible overlay",
 ]
 
-# ─── AI CHEATING TOOL DEEP DETECTION CONFIG ──────────────────
-
-# Process name / exe path / cmdline keywords for AI copilot tools
 AI_TOOL_PROCESS_KEYWORDS = [
     "pmodule",  # Parakeet AI real process name
     "parakeet", "finalround", "final round", "final_round",
@@ -176,19 +145,16 @@ AI_TOOL_PATH_KEYWORDS = [
     "aceround", "hedyai",
 ]
 
-# Stealth-mode command-line flags used by copilot tools
 AI_TOOL_CMDLINE_FLAGS = [
     "--stealth", "--invisible", "--overlay", "--ghost",
     "--hidden-mode", "--undetectable", "--no-taskbar",
 ]
 
-# Overlay window detection whitelist (legitimate overlay processes)
 OVERLAY_WHITELIST = {
     "explorer.exe", "searchhost.exe", "shellexperiencehost.exe",
     "textinputhost.exe", "nvidia share.exe", "gamebar.exe",
     "gamebarftserver.exe", "widgets.exe", "startmenuexperiencehost.exe",
     "msedgewebview2.exe", "runtimebroker.exe",
-    # Our own app
     "letshyre secure interview.exe", "electron.exe",
 }
 
@@ -205,21 +171,57 @@ OVERLAY_TRUSTED_LOCATIONS = {
 # Pop-ups like the volume display vanish within a few seconds; answer overlays stay.
 OVERLAY_MIN_VISIBLE_SECONDS = 5
 
-# Virtual audio device keywords
 VIRTUAL_AUDIO_KEYWORDS = [
     "vb-cable", "vb-audio", "voicemeeter", "virtual cable",
     "blackhole", "soundflower", "loopback",
     "virtual audio", "cable input", "cable output",
 ]
 
+SM_REMOTESESSION = 0x1000
+SM_REMOTECONTROL = 0x2001
+
+# Guest-side tools only. Host services (VBoxSVC, vmware-authd, and Hyper-V/WSL's
+# vmmem, vmcompute, vmwp on a Windows 11 host) must never be listed here.
+VM_GUEST_PROCESSES = frozenset({
+    "vmtoolsd.exe", "vboxservice.exe", "vboxtray.exe", "qemu-ga.exe", "xenservice.exe",
+})
+VM_GUEST_PROCESS_PREFIXES = ("prl_tools",)
+
+VM_BIOS_KEYWORDS = ("vmware", "virtualbox", "innotek", "qemu", "parallels", "bochs")
+VM_BIOS_WORDS = re.compile(r"\b(?:kvm|xen)\b")
+
+# Windows image names from ALL_BLOCKED_APPS in src/shared/appList.js
+# (agentBlocklistParity.test.js keeps them equal).
+RENAMED_APP_BLOCKLIST = frozenset({
+    "zoom.exe", "teams.exe", "ms-teams.exe", "msteams.exe", "webex.exe",
+    "gotomeeting.exe", "skype.exe",
+    "obs64.exe", "obs32.exe", "obs-studio.exe", "discord.exe", "slack.exe",
+    "anydesk.exe", "teamviewer.exe", "bandicam.exe", "camtasia.exe", "snagit.exe",
+    "parsecd.exe", "parsec.exe", "srserver.exe", "srfeature.exe", "stserver.exe",
+    "remoting_host.exe",
+    "scrcpy.exe", "miracast.exe", "apowermirror.exe", "letsview.exe",
+    "chrome.exe", "msedge.exe", "firefox.exe", "opera.exe", "brave.exe", "vivaldi.exe",
+    "pmodule.exe", "parakeet.exe", "parakeetai.exe", "finalroundai.exe",
+    "final round ai.exe", "finalround.exe", "interviewcoder.exe", "interview-coder.exe",
+    "cluely.exe", "lockedinai.exe", "lockedin.exe", "locked-in.exe", "sensei.exe",
+    "sensaiai.exe", "interviewsolver.exe", "interview-solver.exe", "interviewman.exe",
+    "aceround.exe", "hedy.exe", "hedyai.exe",
+})
+
+# Audio endpoints rarely change and the PowerShell query behind them is the slowest check.
+VIRTUAL_AUDIO_CACHE_S = 180
+
+# An IPv4 address with no reverse DNS takes ~4.5s to fail on Windows.
+RDNS_WORKERS = 8
+RDNS_WAIT_S = 5
+RDNS_CACHE_MAX = 1024
+
 OS_NAME = platform.system()  # 'Windows', 'Darwin', 'Linux'
 
 # ─────────────────────────────────────────────
 #  LOGGING SETUP
 # ─────────────────────────────────────────────
-# Phase 2: logs go to STDERR. stdout is now reserved for the newline-delimited
-# JSON command protocol the Electron parent speaks over the pipe — mixing log
-# text into stdout would corrupt that stream.
+# stdout carries the JSON pipe protocol, so logs go to stderr.
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
@@ -237,47 +239,34 @@ scan_results = {
     "threats": [],
     "safe_to_proceed": False,
     "scan_count": 0,
-    "agent_version": AGENT_VERSION,  # IMP-12: uses single constant
+    "agent_version": AGENT_VERSION,
     "contract_version": CONTRACT_VERSION,
     "source_sha": SOURCE_SHA,
-    # Before the first scan completes nothing has been verified — say so, so a
-    # "status" query that races the first scan cannot read as clean.
+    # Nothing is verified until the first scan lands, so an early "status" can't read as clean.
     "checks": {},
     "degraded": True,
     "physical_monitors": None,
 }
 scan_lock = threading.Lock()
 
-# Serializes EXECUTION of the scan body — separate from scan_lock, which only
-# protects the shared scan_results VARIABLE. Two scans running at once each spawn
-# their own PowerShell/tasklist/WMI subprocesses and slow each other down badly.
+# Only one scan body runs at a time; scan_lock just guards scan_results.
 scan_run_lock = threading.Lock()
 
-# Coalescing gate. A caller arriving mid-scan waits for the IN-FLIGHT scan and
-# returns its result rather than queueing a second full scan behind it.
+# A caller arriving mid-scan waits for the in-flight scan instead of queueing another.
 _scan_inflight = None            # threading.Event set when the running scan ends
 _scan_inflight_lock = threading.Lock()
 SCAN_WAIT_TIMEOUT = 60           # seconds a coalesced waiter waits before giving up
 
+# Check name -> the thread that last ran it, so a check stuck from an earlier scan isn't doubled up.
+_check_threads = {}
+
 event_log = []
 
 # ─────────────────────────────────────────────
-#  CHECK OUTCOME REPORTING (contract v2)
+#  CHECK OUTCOME REPORTING
 # ─────────────────────────────────────────────
-# Every detector used to swallow its own fatal errors and return an empty threat
-# list, which the compiler then read as "nothing found" → status CLEAR →
-# safe_to_proceed True. On a machine where Win32 enumeration, tasklist or
-# PowerShell is blocked by policy/AV, several checks silently contributed zero
-# threats and the agent confidently reported a clean device.
-#
-# Detectors now raise CheckError when an error ABORTS the check. Errors that only
-# skip one process/window (psutil.NoSuchProcess, AccessDenied, a malformed CSV
-# row) are still handled locally and do NOT mark the check as failed — those are
-# expected on any healthy machine.
-#
-# _run_check() turns that into a per-check "ok"/"error" outcome. Threats found
-# BEFORE the abort are preserved via CheckError.partial, so a check that finds
-# something and then dies still reports what it saw.
+# A detector raises CheckError when it couldn't finish, so "couldn't look" never
+# reads as "found nothing". Skipping one process or window is normal and stays local.
 
 
 class CheckError(Exception):
@@ -306,17 +295,24 @@ def _run_check(name, fn, checks, threats):
         checks[name] = "error"
         found = e.partial
     except Exception as e:
-        # A detector that raises something unexpected must also count as failed,
-        # never as "clean" — this is the fail-CLOSED backstop.
         logger.warning(f"[CHECK FAILED] {name}: unexpected error: {e}")
         checks[name] = "error"
         found = []
     threats.extend(found)
 
+
+_proc_lock = threading.Lock()
+
+
+def _processes(attrs):
+    """Snapshot of process info dicts."""
+    # process_iter shares its Process objects (and their .info) between callers,
+    # so checks running in parallel take turns.
+    with _proc_lock:
+        return [dict(p.info) for p in psutil.process_iter(attrs)]
+
 # ─────────────────────────────────────────────
 #  BEHAVIORAL DETECTION 1: WINDOW TITLE SCAN
-#  Catches hidden/minimized cheating tools by
-#  reading actual window titles from the OS.
 # ─────────────────────────────────────────────
 def scan_window_titles():
     """Scan open window titles for AI/cheating tool keywords."""
@@ -331,7 +327,6 @@ def scan_window_titles():
         elif OS_NAME == "Linux":
             titles = _get_all_window_titles_linux()
     except Exception as e:
-        # Enumeration failed entirely — we know nothing about open windows.
         raise CheckError(f"Window title scan error: {e}") from e
 
     for title in titles:
@@ -387,9 +382,7 @@ def _get_all_window_titles_mac():
         return winList
     end tell
     '''
-    # No try/except here on purpose: a failure to enumerate must reach
-    # scan_window_titles() so the check is reported as "error", not as an empty
-    # (and therefore apparently clean) window list.
+    # Failures propagate so the check reports "error" rather than an empty window list.
     result = subprocess.run(
         ["osascript", "-e", script],
         capture_output=True, text=True, timeout=5
@@ -403,8 +396,6 @@ def _get_all_window_titles_mac():
 
 def _get_all_window_titles_linux():
     """Get all window titles on Linux via wmctrl."""
-    # As above: wmctrl missing / X11 unavailable must surface as a failed check
-    # rather than as "no windows open".
     result = subprocess.run(
         ["wmctrl", "-l"], capture_output=True, text=True, timeout=5
     )
@@ -441,46 +432,76 @@ def get_clipboard_snapshot():
     return False
 
 # ─────────────────────────────────────────────
-#  BEHAVIORAL DETECTION (detects renamed apps)
+#  BEHAVIORAL DETECTION 2: NETWORK PEERS
 # ─────────────────────────────────────────────
-
-import functools
-
-@functools.lru_cache(maxsize=256)
 def reverse_dns(ip):
-    """Resolve IP to hostname, cached to avoid repeated lookups."""
+    """Resolve IP to hostname, "" when it has none."""
     try:
         return socket.gethostbyaddr(ip)[0].lower()
     except (socket.herror, socket.gaierror, OSError):
         return ""
 
+
+_rdns_cache = {}      # ip -> hostname
+_rdns_queued = set()
+_rdns_queue = queue.Queue()
+_rdns_cond = threading.Condition()
+_rdns_workers = []
+
+
+def _rdns_worker():
+    while True:
+        ip = _rdns_queue.get()
+        try:
+            host = reverse_dns(ip)
+        except Exception:
+            host = ""
+        with _rdns_cond:
+            _rdns_cache[ip] = host
+            _rdns_queued.discard(ip)
+            _rdns_cond.notify_all()
+
+
+def resolve_hosts(ips):
+    """
+    Reverse-resolve ips in parallel on a shared pool. A lookup still pending
+    after RDNS_WAIT_S counts as unresolved for this scan, like a failed one, and
+    lands in the cache for the next.
+    """
+    with _rdns_cond:
+        if len(_rdns_cache) > RDNS_CACHE_MAX:
+            _rdns_cache.clear()
+        while len(_rdns_workers) < RDNS_WORKERS:
+            worker = threading.Thread(target=_rdns_worker, name="rdns", daemon=True)
+            worker.start()
+            _rdns_workers.append(worker)
+        for ip in ips:
+            if ip not in _rdns_cache and ip not in _rdns_queued:
+                _rdns_queued.add(ip)
+                _rdns_queue.put(ip)
+        _rdns_cond.wait_for(lambda: all(ip in _rdns_cache for ip in ips), timeout=RDNS_WAIT_S)
+        return {ip: _rdns_cache.get(ip, "") for ip in ips}
+
+
 def detect_suspicious_network_activity():
     """
-    BEHAVIORAL DETECTION 2: Network connection signatures.
-    Detects any process connecting to known AI/cheating API domains.
-    Works even if the application has been renamed.
-    Uses psutil.net_connections() — cross-platform (Win/Mac/Linux).
+    Flags any process connected to a known AI/cheating API domain, even when
+    the app has been renamed.
     """
     threats = []
 
     try:
-        # Build a PID → process name lookup once
-        pid_to_name = {}
-        for proc in psutil.process_iter(['pid', 'name']):
-            try:
-                pid_to_name[proc.info['pid']] = proc.info['name'] or ""
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                continue
+        pid_to_name = {info['pid']: info['name'] or "" for info in _processes(['pid', 'name'])}
 
-        # Iterate all ESTABLISHED connections (cross-platform)
-        for conn in psutil.net_connections(kind='inet'):
-            if conn.status != psutil.CONN_ESTABLISHED:
-                continue
-            if not conn.raddr:
-                continue
+        conns = [
+            c for c in psutil.net_connections(kind='inet')
+            if c.status == psutil.CONN_ESTABLISHED and c.raddr
+        ]
+        hosts = resolve_hosts({c.raddr.ip for c in conns})
 
+        for conn in conns:
             remote_ip = conn.raddr.ip
-            remote_host = reverse_dns(remote_ip)
+            remote_host = hosts.get(remote_ip, "")
             pid       = conn.pid
 
             for domain in SUSPICIOUS_DOMAINS:
@@ -497,23 +518,19 @@ def detect_suspicious_network_activity():
                     break
 
     except Exception as e:
-        # psutil.net_connections() needs elevated rights on some platforms; when
-        # it fails we have not inspected ANY connection.
+        # net_connections() needs elevated rights on some platforms.
         raise CheckError(f"Network detection error: {e}", threats) from e
 
     return threats
 
+# ─────────────────────────────────────────────
+#  BEHAVIORAL DETECTION 3: LOADED MODULES
+# ─────────────────────────────────────────────
 def detect_suspicious_memory_patterns():
     """
-    BEHAVIORAL DETECTION 3: DLL / loaded-module signatures.
-    Catches AI tools that have been renamed by inspecting which DLLs
-    or modules are loaded in each non-system process.
-    Windows only — uses a single batched `tasklist /M` call for performance.
-
-    Fix: parses the CSV columns properly so only the MODULE column (col 5)
-    is checked against SUSPICIOUS_DLLS — not the process name column (col 0).
-    This prevents the host app name (e.g. 'LetsHyre Secure Interview.exe')
-    from matching the keyword 'interview' and causing a false positive.
+    Catches renamed AI tools by the DLLs loaded into each process. Windows only,
+    one batched `tasklist /M` call. Only the module column is matched, so the
+    host app's own name ('LetsHyre Secure Interview.exe') can't hit 'interview'.
     """
     threats = []
 
@@ -521,14 +538,12 @@ def detect_suspicious_memory_patterns():
         return threats
 
     try:
-        # Single batched call — much faster than one call per PID
         result = subprocess.run(
             ["tasklist", "/M", "/FO", "CSV"],
-            capture_output=True, text=True, timeout=10
+            capture_output=True, text=True, timeout=8
         )
 
-        # A non-zero exit (blocked by policy/AV) leaves stdout empty, which would
-        # otherwise read as "no suspicious modules loaded".
+        # Blocked by policy/AV means empty stdout, not "nothing loaded".
         if result.returncode != 0:
             raise RuntimeError(
                 f"tasklist exited {result.returncode}: {result.stderr.strip()[:200]}"
@@ -536,25 +551,20 @@ def detect_suspicious_memory_patterns():
 
         for line in result.stdout.splitlines():
             line_lower = line.lower()
-            # Skip header and empty lines
             if not line_lower or "image name" in line_lower:
                 continue
 
-            # Parse the CSV row properly so quoted fields with commas
-            # (e.g. "50,000 K" for Mem Usage) don't break field indexing.
-            # tasklist /M /FO CSV columns:
-            #   [0] Image Name  [1] PID  [2] Session Name
-            #   [3] Session#    [4] Mem Usage  [5] Module (DLL name)
+            # Columns: [0] Image Name [1] PID [2] Session Name [3] Session# [4] Mem Usage [5] Module
             try:
                 cols = next(csv.reader(io.StringIO(line)))
             except Exception:
                 continue
 
             if len(cols) < 6:
-                continue  # malformed / incomplete line
+                continue
 
-            proc_name   = cols[0]          # e.g. "LetsHyre Secure Interview.exe"
-            module_name = cols[5].lower()  # e.g. "ntdll.dll" — ONLY column checked
+            proc_name   = cols[0]
+            module_name = cols[5].lower()
 
             for dll in SUSPICIOUS_DLLS:
                 if dll in module_name:
@@ -565,21 +575,18 @@ def detect_suspicious_memory_patterns():
                         "process": proc_name,
                         "module": cols[5]
                     })
-                    break  # one threat per process line
+                    break
 
     except Exception as e:
-        # NOTE: the per-row `except: continue` inside the loop above stays local —
-        # one malformed CSV row must not invalidate the whole check.
         raise CheckError(f"Memory pattern detection error: {e}", threats) from e
 
     return threats
 
+# ─────────────────────────────────────────────
+#  BEHAVIORAL DETECTION 4: BROWSER AUTOMATION
+# ─────────────────────────────────────────────
 def detect_suspicious_file_access():
-    """
-    BEHAVIORAL DETECTION 4: Browser automation tools.
-    Detects ChromeDriver, GeckoDriver, Selenium, PhantomJS, etc.
-    Cross-platform — checks exe path and command line of every process.
-    """
+    """Detects ChromeDriver, GeckoDriver, Selenium, PhantomJS etc. by exe path and command line."""
     threats = []
 
     AUTOMATION_MARKERS = [
@@ -588,42 +595,36 @@ def detect_suspicious_file_access():
     ]
 
     try:
-        for proc in psutil.process_iter(['pid', 'name', 'exe', 'cmdline']):
-            try:
-                exe_path = (proc.info['exe'] or "").lower()
-                cmd_line = " ".join(proc.info['cmdline'] or []).lower()
+        for info in _processes(['pid', 'name', 'exe', 'cmdline']):
+            exe_path = (info['exe'] or "").lower()
+            cmd_line = " ".join(info['cmdline'] or []).lower()
 
-                for marker in AUTOMATION_MARKERS:
-                    if marker in exe_path or marker in cmd_line:
-                        threats.append({
-                            "type": "browser_automation",
-                            "severity": "HIGH",
-                            "detail": f"Browser automation tool detected: '{proc.info['name']}' (PID {proc.info['pid']})",
-                            "process": proc.info['name'],
-                            "pid": proc.info['pid']
-                        })
-                        break
-
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                continue
+            for marker in AUTOMATION_MARKERS:
+                if marker in exe_path or marker in cmd_line:
+                    threats.append({
+                        "type": "browser_automation",
+                        "severity": "HIGH",
+                        "detail": f"Browser automation tool detected: '{info['name']}' (PID {info['pid']})",
+                        "process": info['name'],
+                        "pid": info['pid']
+                    })
+                    break
 
     except Exception as e:
-        # Only a failure of process_iter() itself lands here; the per-process
-        # NoSuchProcess/AccessDenied above is handled locally and is normal.
         raise CheckError(f"Browser automation detection error: {e}", threats) from e
 
     return threats
 
+# ─────────────────────────────────────────────
+#  BEHAVIORAL DETECTION 5: WINDOW CLASSES
+# ─────────────────────────────────────────────
 def detect_suspicious_window_properties():
     """
-    BEHAVIORAL DETECTION 5: Win32 window class names.
-    Identifies automation frameworks and injection proxies even if their
-    window title has been spoofed, by reading the underlying Win32 class.
-    Windows only.
+    Flags automation frameworks and injection proxies by their Win32 window
+    class, which survives a spoofed title. Windows only.
     """
     threats = []
 
-    # Legitimate browser / OS window classes to ignore
     SAFE_WINDOW_CLASSES = {
         "chrome", "widgetwin", "msedge", "firefox", "opera",
         "shell_traywnd", "progman", "button", "tooltips_class32",
@@ -657,7 +658,6 @@ def detect_suspicious_window_properties():
 
         for cls in found_classes:
             cls_lower = cls.lower()
-            # Skip known-safe classes
             if any(safe in cls_lower for safe in SAFE_WINDOW_CLASSES):
                 continue
             for suspicious in SUSPICIOUS_WINDOW_CLASSES:
@@ -671,103 +671,86 @@ def detect_suspicious_window_properties():
                     break
 
     except Exception as e:
-        # EnumWindows blocked (policy / AV hooking) → no classes inspected at all.
         raise CheckError(f"Window class detection error: {e}", threats) from e
 
     return threats
 
 # ─────────────────────────────────────────────
 #  BEHAVIORAL DETECTION 6: AI CHEATING TOOLS
-#  Catches copilot tools even if renamed by
-#  scanning process names, paths, and cmdlines.
 # ─────────────────────────────────────────────
 def detect_ai_cheating_tools():
     """
-    Scans all running processes for AI interview copilot tools.
-    Three-layer detection:
-      1. Process names against keyword list
-      2. Executable install paths for tool directory names
-      3. Command-line arguments for stealth flags
+    Finds AI interview copilots, renamed or not, by process name, then install
+    path, then stealth command-line flags. One threat per process.
     """
     threats = []
-    seen_pids = set()  # avoid duplicate threats per process
+    seen_pids = set()
 
     try:
-        for proc in psutil.process_iter(['pid', 'name', 'exe', 'cmdline']):
-            try:
-                pid  = proc.info['pid']
-                name = (proc.info['name'] or "").lower()
-                exe  = (proc.info['exe'] or "").lower()
-                cmd  = " ".join(proc.info['cmdline'] or []).lower()
+        for info in _processes(['pid', 'name', 'exe', 'cmdline']):
+            pid  = info['pid']
+            name = (info['name'] or "").lower()
+            exe  = (info['exe'] or "").lower()
+            cmd  = " ".join(info['cmdline'] or []).lower()
 
-                if pid in seen_pids:
-                    continue
-
-                # 1. Process name match
-                for kw in AI_TOOL_PROCESS_KEYWORDS:
-                    if kw in name:
-                        seen_pids.add(pid)
-                        threats.append({
-                            "type": "ai_cheating_tool",
-                            "severity": "HIGH",
-                            "detail": f"AI cheating tool detected (process name): '{proc.info['name']}' (PID {pid})",
-                            "process": proc.info['name'],
-                            "pid": pid,
-                            "match_type": "process_name",
-                            "keyword": kw
-                        })
-                        break
-
-                if pid in seen_pids:
-                    continue
-
-                # 2. Executable path match (catches renamed binaries)
-                for kw in AI_TOOL_PATH_KEYWORDS:
-                    if kw in exe:
-                        seen_pids.add(pid)
-                        threats.append({
-                            "type": "ai_cheating_tool",
-                            "severity": "HIGH",
-                            "detail": f"AI cheating tool detected (install path): '{proc.info['name']}' at '{proc.info['exe']}' (PID {pid})",
-                            "process": proc.info['name'],
-                            "pid": pid,
-                            "match_type": "exe_path",
-                            "keyword": kw
-                        })
-                        break
-
-                if pid in seen_pids:
-                    continue
-
-                # 3. Stealth command-line flags
-                for flag in AI_TOOL_CMDLINE_FLAGS:
-                    if flag in cmd:
-                        seen_pids.add(pid)
-                        threats.append({
-                            "type": "ai_cheating_tool",
-                            "severity": "HIGH",
-                            "detail": f"Suspicious stealth flag detected: '{proc.info['name']}' with '{flag}' (PID {pid})",
-                            "process": proc.info['name'],
-                            "pid": pid,
-                            "match_type": "cmdline_flag",
-                            "keyword": flag
-                        })
-                        break
-
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
+            if pid in seen_pids:
                 continue
 
+            for kw in AI_TOOL_PROCESS_KEYWORDS:
+                if kw in name:
+                    seen_pids.add(pid)
+                    threats.append({
+                        "type": "ai_cheating_tool",
+                        "severity": "HIGH",
+                        "detail": f"AI cheating tool detected (process name): '{info['name']}' (PID {pid})",
+                        "process": info['name'],
+                        "pid": pid,
+                        "match_type": "process_name",
+                        "keyword": kw
+                    })
+                    break
+
+            if pid in seen_pids:
+                continue
+
+            for kw in AI_TOOL_PATH_KEYWORDS:
+                if kw in exe:
+                    seen_pids.add(pid)
+                    threats.append({
+                        "type": "ai_cheating_tool",
+                        "severity": "HIGH",
+                        "detail": f"AI cheating tool detected (install path): '{info['name']}' at '{info['exe']}' (PID {pid})",
+                        "process": info['name'],
+                        "pid": pid,
+                        "match_type": "exe_path",
+                        "keyword": kw
+                    })
+                    break
+
+            if pid in seen_pids:
+                continue
+
+            for flag in AI_TOOL_CMDLINE_FLAGS:
+                if flag in cmd:
+                    seen_pids.add(pid)
+                    threats.append({
+                        "type": "ai_cheating_tool",
+                        "severity": "HIGH",
+                        "detail": f"Suspicious stealth flag detected: '{info['name']}' with '{flag}' (PID {pid})",
+                        "process": info['name'],
+                        "pid": pid,
+                        "match_type": "cmdline_flag",
+                        "keyword": flag
+                    })
+                    break
+
     except Exception as e:
-        # Per-process NoSuchProcess/AccessDenied is handled inside the loop and is
-        # expected; reaching here means the enumeration itself broke.
         raise CheckError(f"AI cheating tool detection error: {e}", threats) from e
 
     return threats
 
 # ─────────────────────────────────────────────
 #  BEHAVIORAL DETECTION 7: TRANSPARENT OVERLAYS
-#  Catches all overlay-based AI copilots by
-#  detecting invisible click-through windows.
 # ─────────────────────────────────────────────
 _overlay_first_seen = {}  # hwnd → when it was first seen
 
@@ -867,41 +850,45 @@ def detect_overlay_windows():
                 continue
 
     except Exception as e:
-        # The per-PID NoSuchProcess/AccessDenied above is handled locally; an
-        # abort here means no overlay window was inspected.
         raise CheckError(f"Overlay window detection error: {e}", threats) from e
 
     return threats
 
 # ─────────────────────────────────────────────
 #  BEHAVIORAL DETECTION 8: VIRTUAL AUDIO DEVICES
-#  Detects VB-Cable, Voicemeeter, and similar
-#  audio routing for hidden AI earpieces.
 # ─────────────────────────────────────────────
+_virtual_audio_cache = None  # (monotonic time, threats) from the last successful query
+
+
 def detect_virtual_audio_devices():
     """
-    Detect virtual audio cables that could be used to pipe
-    AI-generated answers to earpieces.  Windows only —
-    queries PnP audio endpoint devices via PowerShell.
-
-    Timeout is 20s, not 5s: a cold `powershell.exe` start plus Get-PnpDevice
-    measured 4.3–5.1s on a normal idle machine, so the old 5s limit tripped
-    intermittently. That used to be invisible (the check just returned no
-    threats); now it would mark every such scan degraded, so the limit has to
-    have real headroom.
+    Detect virtual audio cables (VB-Cable, Voicemeeter...) that could pipe
+    AI answers to an earpiece. Windows only. Successful results are reused for
+    VIRTUAL_AUDIO_CACHE_S; errors are never cached.
     """
+    global _virtual_audio_cache
     if OS_NAME != "Windows":
         return []
 
+    cached = _virtual_audio_cache
+    if cached is not None and time.monotonic() - cached[0] < VIRTUAL_AUDIO_CACHE_S:
+        return [dict(t) for t in cached[1]]
+
+    threats = _query_virtual_audio()
+    _virtual_audio_cache = (time.monotonic(), threats)
+    return [dict(t) for t in threats]
+
+
+def _query_virtual_audio():
     threats = []
     try:
+        # A cold PowerShell start plus Get-PnpDevice takes ~5s.
         result = subprocess.run(
             ["powershell", "-NoProfile", "-NonInteractive", "-Command",
              "Get-PnpDevice -Class AudioEndpoint -Status OK | Select-Object FriendlyName | Format-List"],
-            capture_output=True, text=True, timeout=20
+            capture_output=True, text=True, timeout=8
         )
-        # PowerShell blocked by execution policy / AV returns empty stdout, which
-        # would otherwise read as "no virtual audio devices present".
+        # Blocked by execution policy / AV means empty stdout, not "no devices".
         if result.returncode != 0:
             raise RuntimeError(
                 f"Get-PnpDevice exited {result.returncode}: "
@@ -915,7 +902,7 @@ def detect_virtual_audio_devices():
                     "severity": "MEDIUM",
                     "detail": f"Virtual audio device detected (keyword: '{kw}')",
                 })
-                break  # one alert is enough
+                break
 
     except Exception as e:
         raise CheckError(f"Virtual audio detection error: {e}", threats) from e
@@ -923,22 +910,252 @@ def detect_virtual_audio_devices():
     return threats
 
 # ─────────────────────────────────────────────
-#  PHYSICAL MONITOR COUNT (Phase 4)
-#  Counts physically-attached display monitors via EnumDisplayDevices. Unlike the
-#  Electron screen API (which sees ONE logical display in "Duplicate" mode), this
-#  counts both panels of a cloned/mirrored setup — recovering duplicate-to-
-#  projector detection that the logical-display count alone would miss.
+#  BEHAVIORAL DETECTION 9: REMOTE SESSION
+# ─────────────────────────────────────────────
+def _system_metric(index):
+    import ctypes
+    return ctypes.windll.user32.GetSystemMetrics(index)
+
+
+def detect_remote_session():
+    """
+    Flags an RDP session or a remotely controlled one. Windows only: on macOS
+    remote-control tools are caught by the process blocklist.
+    """
+    if OS_NAME != "Windows":
+        return []
+    try:
+        remote = bool(_system_metric(SM_REMOTESESSION)) or bool(_system_metric(SM_REMOTECONTROL))
+    except Exception as e:
+        raise CheckError(f"Remote session check error: {e}") from e
+    if not remote:
+        return []
+    return [{
+        "type": "remote_session",
+        "severity": "HIGH",
+        "detail": "This computer is being used through a remote desktop session",
+    }]
+
+# ─────────────────────────────────────────────
+#  BEHAVIORAL DETECTION 10: VIRTUAL MACHINE
+# ─────────────────────────────────────────────
+def _bios_is_vm(manufacturer, product):
+    maker, model = manufacturer.strip().lower(), product.strip().lower()
+    both = f"{maker} {model}"
+    if any(k in both for k in VM_BIOS_KEYWORDS) or VM_BIOS_WORDS.search(both):
+        return True
+    # Surfaces are "Microsoft Corporation" too; only Hyper-V guests say "Virtual Machine".
+    return maker == "microsoft corporation" and model == "virtual machine"
+
+
+def _read_bios_strings():
+    import winreg
+    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\BIOS") as key:
+        values = []
+        for name in ("SystemManufacturer", "SystemProductName"):
+            try:
+                values.append(str(winreg.QueryValueEx(key, name)[0]))
+            except FileNotFoundError:
+                values.append("")
+        return values
+
+
+def _is_vm_guest_tool(name):
+    name = (name or "").lower()
+    return name in VM_GUEST_PROCESSES or name.startswith(VM_GUEST_PROCESS_PREFIXES)
+
+
+def detect_virtual_machine():
+    """
+    Flags running as a VM guest, from the firmware strings and guest tools.
+    Never the CPUID hypervisor bit: Windows 11 sets it on hosts with VBS or WSL.
+    """
+    try:
+        if OS_NAME == "Windows":
+            found = _bios_is_vm(*_read_bios_strings()) or any(
+                _is_vm_guest_tool(info["name"]) for info in _processes(["name"])
+            )
+        elif OS_NAME == "Darwin":
+            result = subprocess.run(
+                ["sysctl", "-n", "kern.hv_vmm_present"],
+                capture_output=True, text=True, timeout=2
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"sysctl exited {result.returncode}: {result.stderr.strip()[:200]}")
+            found = result.stdout.strip() == "1"
+        else:
+            return []
+    except Exception as e:
+        raise CheckError(f"Virtual machine check error: {e}") from e
+    if not found:
+        return []
+    return [{
+        "type": "virtual_machine",
+        "severity": "HIGH",
+        "detail": "This computer is a virtual machine",
+    }]
+
+# ─────────────────────────────────────────────
+#  BEHAVIORAL DETECTION 11: RENAMED BLOCKED APPS
+# ─────────────────────────────────────────────
+_version_api = None
+_original_name_cache = {}  # (exe, mtime, size) -> original file name or None
+
+
+def _version_functions():
+    global _version_api
+    if _version_api is None:
+        import ctypes
+        from ctypes import wintypes
+        dll = ctypes.WinDLL("version")
+        dll.GetFileVersionInfoSizeW.argtypes = [wintypes.LPCWSTR, ctypes.POINTER(wintypes.DWORD)]
+        dll.GetFileVersionInfoSizeW.restype = wintypes.DWORD
+        dll.GetFileVersionInfoW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p]
+        dll.GetFileVersionInfoW.restype = wintypes.BOOL
+        dll.VerQueryValueW.argtypes = [
+            ctypes.c_void_p, wintypes.LPCWSTR,
+            ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(wintypes.UINT),
+        ]
+        dll.VerQueryValueW.restype = wintypes.BOOL
+        _version_api = dll
+    return _version_api
+
+
+def _read_original_name(path):
+    """OriginalFilename from the exe's version resource (InternalName if that's empty), or None."""
+    import ctypes
+    from ctypes import wintypes
+    api = _version_functions()
+    size = api.GetFileVersionInfoSizeW(path, None)
+    if not size:
+        return None
+    data = ctypes.create_string_buffer(size)
+    if not api.GetFileVersionInfoW(path, 0, size, data):
+        return None
+
+    ptr, length = ctypes.c_void_p(), wintypes.UINT()
+
+    def query(sub_block):
+        if api.VerQueryValueW(data, sub_block, ctypes.byref(ptr), ctypes.byref(length)) and ptr.value:
+            return ptr.value, length.value
+        return None, 0
+
+    addr, count = query("\\VarFileInfo\\Translation")
+    words = (wintypes.WORD * (count // 2)).from_address(addr) if addr else []
+    langs = [f"{words[i]:04x}{words[i + 1]:04x}" for i in range(0, len(words) - 1, 2)]
+
+    for field in ("OriginalFilename", "InternalName"):
+        for lang in langs:
+            addr, count = query(f"\\StringFileInfo\\{lang}\\{field}")
+            value = ctypes.wstring_at(addr, count).split("\0")[0].strip() if addr and count else ""
+            if value:
+                return value
+    return None
+
+
+def _normalise_original(name):
+    name = name.lower()
+    # System binaries carry their strings in a .mui satellite.
+    if name.endswith(".mui"):
+        name = name[:-4]
+    if not os.path.splitext(name)[1]:
+        name += ".exe"
+    return name
+
+
+def _original_names(exes):
+    """exe path -> normalised original name, reusing cached reads while the file is unchanged."""
+    global _original_name_cache
+    cache, names = {}, {}
+    for exe in exes:
+        try:
+            st = os.stat(exe)
+        except OSError:
+            continue
+        key = (os.path.normcase(exe), st.st_mtime_ns, st.st_size)
+        if key in _original_name_cache:
+            cache[key] = _original_name_cache[key]
+        else:
+            try:
+                raw = _read_original_name(exe)
+            except OSError:
+                continue
+            cache[key] = _normalise_original(raw) if raw else None
+        names[exe] = cache[key]
+    _original_name_cache = cache
+    return names
+
+
+def _parent_pid(pid):
+    # Per call, psutil walks every process on Windows, so it isn't in the shared snapshot.
+    try:
+        return psutil.Process(pid).ppid()
+    except psutil.Error:
+        return None
+
+
+def _own_app_exes(procs):
+    """The agent's exe and the exe of the app that launched it (all Electron processes share one)."""
+    exe_of = {info["pid"]: info["exe"] for info in procs}
+    pid = os.getpid()
+    own = exe_of.get(pid)
+    if not own:
+        return set()
+    seen = {pid}
+    parent = _parent_pid(pid)
+    # The PyInstaller bootloader runs the same exe as its child.
+    while parent is not None and parent not in seen and exe_of.get(parent) == own:
+        seen.add(parent)
+        parent = _parent_pid(parent)
+    exes = {own, exe_of.get(parent)}
+    return {os.path.normcase(e) for e in exes if e}
+
+
+def detect_renamed_blocked_apps():
+    """
+    Flags a blocked app renamed to dodge the image-name check, by the original
+    file name in its version resource. Windows only. Apps running under their
+    blocked name are left to Electron's own process scan.
+    """
+    if OS_NAME != "Windows":
+        return []
+    try:
+        procs = _processes(["pid", "name", "exe"])
+        skip = _own_app_exes(procs)
+        candidates = [
+            info for info in procs
+            if info["exe"] and info["name"]
+            and info["name"].lower() not in RENAMED_APP_BLOCKLIST
+            and os.path.normcase(info["exe"]) not in skip
+        ]
+        originals = _original_names({info["exe"] for info in candidates})
+    except Exception as e:
+        raise CheckError(f"Renamed app check error: {e}") from e
+
+    threats = []
+    for info in candidates:
+        original = originals.get(info["exe"])
+        if original in RENAMED_APP_BLOCKLIST and original != info["name"].lower():
+            threats.append({
+                "type": "renamed_blocked_app",
+                "severity": "HIGH",
+                "detail": "A blocked app is running under a different name",
+                "process": info["name"],
+                "pid": info["pid"],
+                "original": original,
+            })
+    return threats
+
+# ─────────────────────────────────────────────
+#  PHYSICAL MONITOR COUNT
 # ─────────────────────────────────────────────
 def count_physical_monitors():
     """
-    Return the number of active, non-mirror-driver physical monitors (Windows).
+    Number of active, non-mirror-driver physical monitors (Windows). Electron's
+    screen API sees one logical display in Duplicate mode; this counts both panels.
 
-    Returns None when the enumeration FAILED, so the caller can tell "could not
-    count" apart from a real count. It previously returned 0 on error, which the
-    Node side (`agentStatus.physical_monitors || 0`) read as "no extra monitor" —
-    i.e. a mirrored projector went undetected whenever EnumDisplayDevices was
-    blocked. 0 is still returned on non-Windows, where the check does not apply
-    and the Electron screen API is authoritative.
+    None means the enumeration failed, so it can't be mistaken for "no extra
+    monitor". 0 on other platforms, where the screen API is authoritative.
     """
     if OS_NAME != "Windows":
         return 0
@@ -970,7 +1187,6 @@ def count_physical_monitors():
             i += 1
             if not (adapter.StateFlags & DISPLAY_DEVICE_ACTIVE):
                 continue
-            # Enumerate the physical monitor(s) attached to this active adapter.
             j = 0
             while True:
                 mon = DISPLAY_DEVICE()
@@ -990,14 +1206,26 @@ def count_physical_monitors():
 # ─────────────────────────────────────────────
 #  MAIN SCAN ORCHESTRATOR
 # ─────────────────────────────────────────────
+_CHECKS = [
+    ("window_titles", scan_window_titles),
+    ("network", detect_suspicious_network_activity),
+    ("memory_patterns", detect_suspicious_memory_patterns),
+    ("browser_automation", detect_suspicious_file_access),
+    ("window_classes", detect_suspicious_window_properties),
+    ("ai_tools", detect_ai_cheating_tools),
+    ("overlay_windows", detect_overlay_windows),
+    ("virtual_audio", detect_virtual_audio_devices),
+    ("remote_session", detect_remote_session),
+    ("virtual_machine", detect_virtual_machine),
+    ("renamed_blocked_app", detect_renamed_blocked_apps),
+]
+
+
 def run_full_scan():
     """
-    Run a full scan, or join the one already in flight.
-
-    Coalescing: the first caller executes the scan; callers that arrive while it
-    runs wait for it and return ITS result. Waiters always return a real stored
-    scan result (fail-closed initial value if none has completed yet) — never a
-    fabricated clean one.
+    Run a full scan, or join the one already in flight and return its result.
+    Waiters get the stored result (the fail-closed initial one if no scan has
+    finished yet), never a made-up clean one.
     """
     global _scan_inflight
 
@@ -1022,58 +1250,64 @@ def run_full_scan():
         pending.set()
 
 
+def _launch(name, target, *args):
+    """Start a check on its own thread, unless its thread from an earlier scan is still stuck."""
+    prev = _check_threads.get(name)
+    if prev is not None and prev.is_alive():
+        logger.warning(f"[CHECK FAILED] {name}: still running from an earlier scan")
+        return None
+    thread = threading.Thread(target=target, args=args, name=f"check-{name}", daemon=True)
+    _check_threads[name] = thread
+    thread.start()
+    return thread
+
+
 def _execute_full_scan():
     """
-    Run all 8 behavioral deep-detection checks and compile results.
-    Process/display/screen-sharing checks are handled by the Electron
-    preflight (Node.js) and are intentionally excluded here.
-
-    Contract v2: every check reports "ok" or "error" in result["checks"], and a
-    scan with ANY errored check is `degraded` and NOT safe_to_proceed. An empty
-    threat list is only trustworthy when all checks actually ran.
+    Run every check in parallel within SCAN_BUDGET_S and compile the result.
+    A check that errors, overruns the budget or is still stuck from an earlier
+    scan is "error", which makes the scan degraded and not safe_to_proceed.
     """
     global scan_results, event_log
 
     with scan_run_lock:
+        deadline = time.monotonic() + SCAN_BUDGET_S
+
+        # Each run writes to its own dict and list, so a check abandoned past the
+        # deadline can't touch a later scan's result.
+        runs = []
+        for name, fn in _CHECKS:
+            outcome, found = {}, []
+            runs.append((name, _launch(name, _run_check, name, fn, outcome, found), outcome, found))
+        monitor_box = []
+        monitor_thread = _launch(
+            "physical_monitors", lambda: monitor_box.append(count_physical_monitors())
+        )
+
+        for thread in [run[1] for run in runs] + [monitor_thread]:
+            if thread is not None:
+                thread.join(max(0.0, deadline - time.monotonic()))
+
         threats = []
         checks = {}
+        for name, thread, outcome, found in runs:
+            if thread is None:
+                checks[name] = "error"
+            elif thread.is_alive():
+                logger.warning(f"[CHECK FAILED] {name}: over the {SCAN_BUDGET_S}s scan budget")
+                checks[name] = "error"
+            else:
+                checks[name] = outcome.get(name, "error")
+                threats.extend(found)
 
-        # 1. Window title scan (Win32 / AppleScript / wmctrl)
-        _run_check("window_titles", scan_window_titles, checks, threats)
-
-        # 2. Network connections to AI/cheating APIs (cross-platform psutil)
-        _run_check("network", detect_suspicious_network_activity, checks, threats)
-
-        # 3. DLL / loaded-module signatures (Windows, batched)
-        _run_check("memory_patterns", detect_suspicious_memory_patterns, checks, threats)
-
-        # 4. Browser automation tools — ChromeDriver, Selenium, etc.
-        _run_check("browser_automation", detect_suspicious_file_access, checks, threats)
-
-        # 5. Suspicious Win32 window class names
-        _run_check("window_classes", detect_suspicious_window_properties, checks, threats)
-
-        # 6. AI interview cheating tools (process name/path/cmdline)
-        _run_check("ai_tools", detect_ai_cheating_tools, checks, threats)
-
-        # 7. Transparent overlay windows (Win32 WS_EX flags)
-        _run_check("overlay_windows", detect_overlay_windows, checks, threats)
-
-        # 8. Virtual audio devices (VB-Cable, Voicemeeter, etc.)
-        _run_check("virtual_audio", detect_virtual_audio_devices, checks, threats)
-
-        # Physical monitor count is not a threat check, but a silent failure there
-        # hides a mirrored projector — so it reports its own outcome too.
-        monitors = count_physical_monitors()
+        # Not a threat check, but a silent failure here hides a mirrored projector.
+        monitors = monitor_box[0] if monitor_box else None
         checks["physical_monitors"] = "error" if monitors is None else "ok"
 
-    # ── Compile result ───────────────────────────────────────
     failed    = sorted(n for n, outcome in checks.items() if outcome != "ok")
     degraded  = len(failed) > 0
-    # `status` keeps its original two-state meaning (did we FIND anything) — the
-    # Node side reads it as-is. "Could not look" lives in degraded, not here.
+    # status only says whether anything was found; "couldn't look" is degraded.
     status    = "CLEAR" if len(threats) == 0 else "THREAT_DETECTED"
-    # Fail CLOSED: a clean result only counts as safe when every check ran.
     safe      = len(threats) == 0 and not degraded
     timestamp = datetime.now().isoformat()
 
@@ -1084,13 +1318,9 @@ def _execute_full_scan():
         "threats": threats,
         "safe_to_proceed": safe,
         "scan_count": scan_results.get("scan_count", 0) + 1,
-        "agent_version": AGENT_VERSION,  # IMP-12
-        # Phase 4: physical monitor count for duplicate/mirror-mode detection
-        # (the Node screen API only sees logical displays). Cross-checked in
-        # Node; not itself a threat here to avoid double-counting extend mode.
-        # None means "could not count" — see checks["physical_monitors"].
+        "agent_version": AGENT_VERSION,
+        # Cross-checked against logical displays in Node; None means it couldn't count.
         "physical_monitors": monitors,
-        # ── contract v2 additions ────────────────────────────
         "contract_version": CONTRACT_VERSION,
         "source_sha": SOURCE_SHA,
         "checks": checks,
@@ -1104,7 +1334,6 @@ def _execute_full_scan():
             f"Reporting safe_to_proceed=False; this device was NOT fully verified."
         )
 
-    # ── Persist event log ────────────────────────────────────
     log_entry = {
         "timestamp": timestamp,
         "threat_count": len(threats),
@@ -1138,10 +1367,11 @@ def _execute_full_scan():
 #  BACKGROUND SCAN LOOP
 # ─────────────────────────────────────────────
 def background_scanner():
-    """Continuously scan every SCAN_INTERVAL seconds."""
+    """
+    Scan every SCAN_INTERVAL seconds, starting straight away so the first
+    preflight scan joins a warm one instead of paying for a cold start.
+    """
     logger.info("Background scanner started.")
-    # Let the parent's first on-demand scan win the race — see FIRST_SCAN_DELAY.
-    time.sleep(FIRST_SCAN_DELAY)
     while True:
         try:
             run_full_scan()
@@ -1150,7 +1380,7 @@ def background_scanner():
         time.sleep(SCAN_INTERVAL)
 
 # ─────────────────────────────────────────────
-#  HTTP SERVER (talks to browser module)
+#  HTTP SERVER (fallback channel)
 # ─────────────────────────────────────────────
 AGENT_SECRET = os.environ.get("AGENT_SECRET", "")
 
@@ -1176,32 +1406,28 @@ class AgentHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if not self._check_auth():
             return
-            
+
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self._send_cors_headers()
         self.end_headers()
 
         if self.path == "/status":
-            # Return latest scan result
             with scan_lock:
                 response = scan_results.copy()
             self.wfile.write(json.dumps(response).encode())
 
         elif self.path == "/scan":
-            # Trigger an immediate scan
             result = run_full_scan()
             self.wfile.write(json.dumps(result).encode())
 
         elif self.path == "/log":
-            # Return full event log
             self.wfile.write(json.dumps(event_log).encode())
 
         elif self.path == "/ping":
-            # Simple health check
             self.wfile.write(json.dumps({
                 "alive": True,
-                "agent": f"Interview Security Agent v{AGENT_VERSION}",  # IMP-12
+                "agent": f"Interview Security Agent v{AGENT_VERSION}",
                 "version": AGENT_VERSION,
                 "contract_version": CONTRACT_VERSION,
                 "source_sha": SOURCE_SHA,
@@ -1213,26 +1439,17 @@ class AgentHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"error": "Unknown endpoint"}).encode())
 
     def do_OPTIONS(self):
-        # Handle CORS preflight
         self.send_response(200)
         self._send_cors_headers()
         self.end_headers()
 
     def log_message(self, format, *args):
-        # Suppress default HTTP logs (too noisy)
         pass
 
 def start_http_server():
-    """
-    Start the local HTTP server (best-effort secondary channel).
-
-    Phase 2: a failed bind (port already in use, firewall, AV) is NO LONGER fatal.
-    The Electron parent talks to this agent over the stdin/stdout pipe, which does
-    not depend on a TCP port, so the agent stays fully functional even when HTTP
-    cannot start. HTTP remains available for any consumer that still uses it.
-    """
+    """Start the HTTP fallback. A failed bind isn't fatal: Electron uses the stdio pipe."""
     try:
-        # Threading server: a slow /scan must not block /ping on this channel.
+        # Threading, so a slow /scan can't block /ping.
         server = ThreadingHTTPServer(("127.0.0.1", PORT), AgentHandler)
         logger.info(f"HTTP server running at http://127.0.0.1:{PORT}")
         server.serve_forever()
@@ -1277,12 +1494,10 @@ def _handle_command(cmd):
         return {"log": event_log}
     return {"error": "unknown_cmd", "cmd": cmd}
 
-# Commands cheap enough to answer inline on the read loop. Everything else runs
-# on a worker thread so a slow scan can never delay the liveness ping behind it.
+# Answered inline; anything else runs on a worker so a slow scan can't delay a ping.
 _INLINE_CMDS = ("ping", "status", "log")
 
-# Concurrent scans all coalesce onto one scan, so a thread per request is fine —
-# this cap only stops a pathological client from spawning threads without bound.
+# Scans coalesce, so this cap only stops a runaway client spawning threads.
 MAX_WORKER_THREADS = 8
 _worker_count = 0
 _worker_count_lock = threading.Lock()
@@ -1307,15 +1522,10 @@ def _dispatch_worker(req_id, cmd):
             _worker_count -= 1
 
 def stdio_protocol_loop():
-    """
-    Blocking read loop over stdin. Keeps the process alive for as long as the
-    parent holds the pipe open — when Electron exits and closes stdin, the loop
-    ends and the agent terminates cleanly (no orphan).
-    """
+    """Blocking read loop over stdin. When Electron closes the pipe the agent exits, so it can't be orphaned."""
     global _worker_count
     logger.info("stdio pipe protocol ready (primary channel).")
-    # Unsolicited event (no `id`) emitted exactly once, right as the reader is
-    # about to start consuming — this is the parent's "agent is up" signal.
+    # The parent's "agent is up" signal: sent once, without an id.
     _write_response({
         "event": "ready",
         "agent_version": AGENT_VERSION,
@@ -1330,7 +1540,7 @@ def stdio_protocol_loop():
         try:
             req = json.loads(line)
         except Exception:
-            continue  # ignore malformed input
+            continue
         req_id = req.get("id")
         cmd = req.get("cmd")
 
@@ -1363,7 +1573,6 @@ def main():
     logger.info("=" * 55)
     logger.info("Checking dependencies...")
 
-    # Check psutil
     try:
         import psutil
         logger.info("  [OK] psutil")
@@ -1371,17 +1580,12 @@ def main():
         logger.error("  [MISSING] psutil — run: pip install psutil")
         sys.exit(1)
 
-    # Start background scanner in a daemon thread (runs the first scan immediately)
     scanner_thread = threading.Thread(target=background_scanner, daemon=True)
     scanner_thread.start()
 
-    # HTTP server is now a best-effort SECONDARY channel — run it in a daemon
-    # thread so a bind failure cannot take down the agent.
     http_thread = threading.Thread(target=start_http_server, daemon=True)
     http_thread.start()
 
-    # The stdin/stdout pipe is the PRIMARY channel and the blocking main loop —
-    # it keeps the agent alive and tied to the Electron parent's lifetime.
     stdio_protocol_loop()
 
 if __name__ == "__main__":

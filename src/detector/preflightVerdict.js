@@ -1,33 +1,20 @@
-/**
- * Pure mapping from raw detector output to the preflight's verdict contract.
- *
- * Each check resolves to pass (verified clean), fail (verified problem), or
- * unverified (couldn't tell). We used to branch on a boolean `detected` flag,
- * which quietly treated "couldn't verify" as "passed" — this three-state
- * contract exists so `unverified` blocks Proceed like `fail` does, while still
- * letting the UI say "couldn't verify, retry" instead of accusing the candidate.
- *
- * Pure and synchronous so it's unit-testable without Electron — see
- * test/preflightVerdict.test.js.
- */
+// Pure mapping from raw detector output to the preflight's verdicts. Each check
+// is pass, fail or unverified, and unverified blocks Continue just like fail.
 
 "use strict";
 
-const { MEETING_APPS, SCREEN_SHARING_APPS, AI_CHEATING_APPS } = require("../shared/appList");
+const { getLists } = require("../shared/blocklist");
 const { MINIMUM_SUPPORTED_CONTRACT_VERSION } = require("../shared/constants");
 const { agentSourceMatches } = require("../shared/agentBuild");
 
-/** Verdict states. `unverified` is fail-closed — it blocks Proceed. */
 const PASS = "pass";
 const FAIL = "fail";
 const UNVERIFIED = "unverified";
 
-/**
- * Every card the preflight renders, in display order. The renderer builds its
- * UI from this list, so adding a check here is the only change needed to
- * surface it (plus its i18n keys).
- */
-const CHECK_IDS = ["hdmi", "meeting", "screen", "wireless", "ai", "agent"];
+/** Every card the preflight renders, in display order. */
+const CHECK_IDS = ["hdmi", "meeting", "screen", "wireless", "browser", "ai", "agent"];
+
+const PROCESS_CHECK_IDS = ["meeting", "screen", "wireless", "browser", "ai"];
 
 /**
  * @typedef {object} Verdict
@@ -39,15 +26,13 @@ const CHECK_IDS = ["hdmi", "meeting", "screen", "wireless", "ai", "agent"];
  * @property {object[]} [threats]   - agent threat rows
  */
 
-/** Builds a verdict object, omitting empty optional fields. */
 function verdict(id, status, reasonKey, extra = {}) {
   return { id, status, reasonKey, ...extra };
 }
 
 /**
- * Maps the external-display probe. A throw inside the probe surfaces as
- * status "indeterminate" with detected === false — must not be read as
- * "no external display".
+ * An indeterminate probe also reports detected === false, so status is checked
+ * first: a thrown probe must never read as "no external display".
  * @param {object|null|undefined} result
  * @returns {Verdict}
  */
@@ -56,39 +41,34 @@ function mapHdmi(result) {
     return verdict("hdmi", UNVERIFIED, "preflightResults.hdmiUnverified");
   }
   if (result.detected) {
-    return verdict("hdmi", FAIL, "preflightResults.hdmiDetected");
+    const params = Number.isInteger(result.count) ? { reasonParams: { count: result.count } } : {};
+    return result.mirrored
+      ? verdict("hdmi", FAIL, "preflightResults.hdmiMirrored", params)
+      : verdict("hdmi", FAIL, "preflightResults.hdmiDetected", params);
   }
   return verdict("hdmi", PASS, "preflightResults.hdmiClear");
 }
 
 /**
- * Maps the blocked-process scan onto its four cards. Categorisation lives here
- * (not the renderer) because `canProceed` is computed from these verdicts and
- * re-verified before lockdown — the renderer must not decide clean vs. dirty.
+ * Sorts the blocked-process scan onto its cards. This lives in main, not the
+ * renderer, because the gate is computed from these verdicts.
  *
  * @param {object|null|undefined} result - detectMirroring() output
- * @returns {Verdict[]} exactly four verdicts: meeting, screen, wireless, ai
+ * @returns {Verdict[]} one verdict per PROCESS_CHECK_IDS entry, in order
  */
 function mapProcesses(result) {
-  const ids = ["meeting", "screen", "wireless", "ai"];
-
-  // A failed scan leaves all four cards unverified, not an empty (all-pass) list.
   if (!result || result.status === "indeterminate") {
-    return ids.map((id) => verdict(id, UNVERIFIED, "preflightResults.checkUnverified"));
+    return PROCESS_CHECK_IDS.map((id) =>
+      verdict(id, UNVERIFIED, "preflightResults.checkUnverified")
+    );
   }
 
   const procs = result.details?.processes || [];
+  const lists = getLists();
   const inList = (list) => procs.filter((p) => list.includes(p));
-
-  const meeting = inList(MEETING_APPS);
-  const screen = inList(SCREEN_SHARING_APPS);
-  const ai = inList(AI_CHEATING_APPS);
-  // Anything blocked that isn't meeting/screen/ai is a casting or remote-desktop
-  // tool, which is what the "wireless" card covers.
-  const other = procs.filter(
-    (p) =>
-      !MEETING_APPS.includes(p) && !SCREEN_SHARING_APPS.includes(p) && !AI_CHEATING_APPS.includes(p)
-  );
+  const categorised = [lists.meeting, lists.screen, lists.browser, lists.ai];
+  // Anything blocked that fits no other card is a casting or remote tool.
+  const other = procs.filter((p) => !categorised.some((list) => list.includes(p)));
 
   const card = (id, found, runningKey, clearKey) =>
     found.length > 0
@@ -96,30 +76,43 @@ function mapProcesses(result) {
       : verdict(id, PASS, clearKey);
 
   return [
-    card("meeting", meeting, "preflightResults.meetingRunning", "preflightResults.meetingClear"),
-    card("screen", screen, "preflightResults.screenRunning", "preflightResults.screenClear"),
+    card(
+      "meeting",
+      inList(lists.meeting),
+      "preflightResults.meetingRunning",
+      "preflightResults.meetingClear"
+    ),
+    card(
+      "screen",
+      inList(lists.screen),
+      "preflightResults.screenRunning",
+      "preflightResults.screenClear"
+    ),
     card("wireless", other, "preflightResults.wirelessRunning", "preflightResults.wirelessClear"),
-    card("ai", ai, "preflightResults.aiRunning", "preflightResults.aiClear"),
+    card(
+      "browser",
+      inList(lists.browser),
+      "preflightResults.browserRunning",
+      "preflightResults.browserClear"
+    ),
+    card("ai", inList(lists.ai), "preflightResults.aiRunning", "preflightResults.aiClear"),
   ];
 }
 
 /**
- * Maps the security agent's deep scan. Distinct cases: not alive → fail
- * (it's mandatory; Re-scan respawns it); alive but no scan result → unverified
- * (used to render as clean); alive and scanned but on a stale contract_version
- * → unverified (can't trust fields it predates); alive, current, but
- * degraded → unverified (some of its 8 checks errored).
- *
- * @param {{alive: boolean, status: object|null}|null|undefined} agent
+ * Not running is a fail (the agent is mandatory); anything short of a clean,
+ * current, non-degraded scan is unverified.
+ * @param {{alive: boolean, status: object|null, blocked?: boolean}|null|undefined} agent
  * @returns {Verdict}
  */
 function mapAgent(agent) {
   if (!agent || !agent.alive) {
-    return verdict("agent", FAIL, "preflightResults.agentFailedStart");
+    return agent?.blocked
+      ? verdict("agent", FAIL, "preflightResults.agentBlocked")
+      : verdict("agent", FAIL, "preflightResults.agentFailedStart");
   }
 
   const status = agent.status;
-  // Scan didn't come back (timeout / pipe error) — unknown, not clean.
   if (!status) {
     return verdict("agent", UNVERIFIED, "preflightResults.agentUnverified");
   }
@@ -132,12 +125,7 @@ function mapAgent(agent) {
     });
   }
 
-  // A stale agent.exe (missing contract_version entirely, or below the minimum
-  // this Electron build depends on) predates fields like `degraded` — its
-  // `safe_to_proceed` can't be trusted to mean what it means today (see
-  // MINIMUM_SUPPORTED_CONTRACT_VERSION). Used to fall through and read as
-  // "not degraded" / "no verdict to override", i.e. a silent pass; that's the
-  // exact stale-binary bug this check exists to close.
+  // An older agent.exe predates fields like `degraded`, so its "safe" means less.
   if (!(status.contract_version >= MINIMUM_SUPPORTED_CONTRACT_VERSION)) {
     return verdict("agent", UNVERIFIED, "preflightResults.agentUnverified");
   }
@@ -148,12 +136,10 @@ function mapAgent(agent) {
     return verdict("agent", UNVERIFIED, "preflightResults.agentUnverified");
   }
 
-  // Agent self-reports if some of its checks errored.
   if (status.degraded === true) {
     return verdict("agent", UNVERIFIED, "preflightResults.agentDegraded");
   }
 
-  // Trust the agent's own verdict.
   if (status.safe_to_proceed === false) {
     return verdict("agent", UNVERIFIED, "preflightResults.agentUnverified");
   }
@@ -162,7 +148,6 @@ function mapAgent(agent) {
 }
 
 /**
- * Assembles the full verdict list from one raw scan result.
  * @param {{hdmi: object, mirror: object, agent: object}} raw
  * @returns {Verdict[]} one verdict per CHECK_IDS entry, in display order
  */
@@ -177,14 +162,13 @@ function buildVerdicts(raw) {
 }
 
 /**
- * The authoritative gate. Proceed is allowed only when EVERY check passed —
- * `unverified` counts against it exactly like `fail`.
+ * The authoritative gate: every check must have passed.
  * @param {Verdict[]} verdicts
  * @returns {boolean}
  */
 function canProceed(verdicts) {
   if (!Array.isArray(verdicts) || verdicts.length !== CHECK_IDS.length) {
-    return false; // a malformed/short list must never open the gate
+    return false;
   }
   return verdicts.every((v) => v && v.status === PASS);
 }
@@ -194,6 +178,7 @@ module.exports = {
   FAIL,
   UNVERIFIED,
   CHECK_IDS,
+  PROCESS_CHECK_IDS,
   mapHdmi,
   mapProcesses,
   mapAgent,

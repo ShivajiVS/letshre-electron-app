@@ -11,6 +11,9 @@ const fs = require("fs");
 const path = require("path");
 
 const REQUIRED = ["INTERVIEW_FRONTEND_BASE_URL", "API_BASE_URL"];
+// Checked only when set.
+const OPTIONAL = ["SUPPORT_URL"];
+const OPTIONAL_PATHS = ["PREFLIGHT_POLICY_PATH", "PREFLIGHT_TELEMETRY_PATH"];
 const LOCAL_HOST = /^(localhost|127\.\d+\.\d+\.\d+|0\.0\.0\.0|\[::1\]|.+\.local)$/i;
 
 function parseEnv(text) {
@@ -28,10 +31,12 @@ function parseEnv(text) {
 function checkEnv(text) {
   const values = parseEnv(text);
   const problems = [];
-  for (const key of REQUIRED) {
+  for (const key of [...REQUIRED, ...OPTIONAL]) {
     const value = values[key];
     if (!value) {
-      problems.push(`${key} is not set`);
+      if (REQUIRED.includes(key)) {
+        problems.push(`${key} is not set`);
+      }
       continue;
     }
     let url;
@@ -45,6 +50,12 @@ function checkEnv(text) {
       problems.push(`${key} points at a local host: ${value}`);
     } else if (url.protocol !== "https:") {
       problems.push(`${key} must use https: ${value}`);
+    }
+  }
+  for (const key of OPTIONAL_PATHS) {
+    const value = values[key];
+    if (value && !/^\/\S*$/.test(value)) {
+      problems.push(`${key} must be a path starting with "/": ${value}`);
     }
   }
   return problems;

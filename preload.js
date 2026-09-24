@@ -1,13 +1,6 @@
 /**
- * Renderer context bridge — runs in a sandboxed context before the page loads.
- * NOTE: With sandbox:true, Node's require() is NOT available for local files.
- * Only require('electron') works. IPC channel names are therefore inlined here
- * directly (they mirror src/shared/constants.js IPC — keep them in sync).
- *
- * Security hardening (capture phase):
- *   - Blocks right-click context menu
- *   - Blocks copy/paste/view-source keyboard shortcuts
- *   - Blocks PrintScreen
+ * Renderer context bridge. sandbox:true leaves only require("electron"), so the
+ * channel names below mirror src/shared/constants.js IPC by hand.
  */
 
 /* eslint-env browser */
@@ -15,8 +8,6 @@
 
 const { contextBridge, ipcRenderer } = require("electron");
 
-// ─── IPC Channel Names (mirrors src/shared/constants.js IPC object) ───────────
-// Cannot require() the shared file here due to sandbox:true restriction.
 const IPC = {
   // App control
   QUIT_APP: "quit-app",
@@ -65,6 +56,11 @@ const IPC = {
   KILL_ALL_BLOCKED_APPS: "kill-all-blocked-apps",
   KILL_BLOCKED_APP_ELEVATED: "kill-blocked-app-elevated",
   CAN_ELEVATE: "can-elevate",
+  KILL_THREAT_PROCESS: "kill-threat-process",
+
+  // Support link
+  GET_SUPPORT_INFO: "get-support-info",
+  OPEN_SUPPORT: "open-support",
 
   // Auto-updater — push events (main → renderer)
   PUSH_UPDATE_AVAILABLE: "push-update-available",
@@ -128,7 +124,6 @@ const IPC = {
   LOCALE_CHANGED: "locale-changed",
 };
 
-// Hardened IPC wrapper — only whitelisted channels are allowed
 const ALLOWED_SEND_CHANNELS = [
   IPC.QUIT_APP,
   IPC.RECHECK_SYSTEM,
@@ -149,6 +144,7 @@ const ALLOWED_SEND_CHANNELS = [
   IPC.LOAD_HOW_IT_WORKS,
   IPC.RETRY_INTERVIEW,
   IPC.PROCTORING_STOP,
+  IPC.OPEN_SUPPORT,
 ];
 
 const ALLOWED_INVOKE_CHANNELS = [
@@ -156,7 +152,9 @@ const ALLOWED_INVOKE_CHANNELS = [
   IPC.KILL_BLOCKED_APP,
   IPC.KILL_ALL_BLOCKED_APPS,
   IPC.KILL_BLOCKED_APP_ELEVATED,
+  IPC.KILL_THREAT_PROCESS,
   IPC.CAN_ELEVATE,
+  IPC.GET_SUPPORT_INFO,
   IPC.GET_AUDIT_LOG,
   IPC.GET_APP_LIST,
   IPC.GET_APP_VERSION,
@@ -212,11 +210,8 @@ function safeOn(channel, callback) {
   }
 }
 
-// Tracked handler reference so we can remove it on rescan without removeAllListeners.
-// Module-level variable — one active preflight listener at a time.
+// One tracked listener per channel, so re-subscribing replaces instead of stacking.
 let _preflightProgressHandler = null;
-
-// Violation bridge: tracked handler so we can deregister cleanly on unmount.
 let _violationHandler = null;
 
 let _updateAvailableHandler = null;
@@ -341,8 +336,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   minimizeWindow: () => safeSend(IPC.MINIMIZE_WINDOW),
 
   // ── Preflight
-  /** Run all preflight security scans and return combined results. */
-  runPreflight: () => safeInvoke(IPC.RUN_PREFLIGHT),
+  /**
+   * Runs the security check. `token` ([A-Za-z0-9-], up to 64 chars) is echoed on
+   * every progress event and on the result, so a stale scan's events can be dropped.
+   * @param {string} token
+   */
+  runPreflight: (token) => safeInvoke(IPC.RUN_PREFLIGHT, token),
 
   // ── Interview flow
   /** Activate interview lockdown mode and navigate to the interview URL.
@@ -369,6 +368,21 @@ contextBridge.exposeInMainWorld("electronAPI", {
   /** explicit, user-initiated elevated retry. Shows a system consent
    *  prompt, so main refuses it outright during an active interview. */
   killProcessElevated: (processName) => safeInvoke(IPC.KILL_BLOCKED_APP_ELEVATED, processName),
+
+  /**
+   * Kill one process the agent reported as a threat. Main only acts on a PID from
+   * the latest scan that still runs `processName`.
+   * @param {number} pid
+   * @param {string} processName
+   * @returns {Promise<{ processName: string, success: boolean, outcome: string, pid: number }>}
+   */
+  killThreatProcess: (pid, processName) => safeInvoke(IPC.KILL_THREAT_PROCESS, pid, processName),
+
+  /** @returns {Promise<{ available: boolean }>} whether a support link is configured */
+  getSupportInfo: () => safeInvoke(IPC.GET_SUPPORT_INFO),
+
+  /** Opens the configured support link in the default browser. */
+  openSupport: () => safeSend(IPC.OPEN_SUPPORT),
 
   // ── Auto-updater
   /**
@@ -457,13 +471,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   /** Fetch the full in-memory session audit log. */
   getAuditLog: () => safeInvoke(IPC.GET_AUDIT_LOG),
 
-  // ── Streaming Preflight
   /**
-   * Subscribe to per-step preflight progress events.
-   * Replaces the previous single-response approach — cards update as each
-   * check completes instead of all at once at the end.
-   * Automatically removes any previously registered listener before adding.
-   * @param {(data: { step: string, status: 'running'|'done', result: any }) => void} callback
+   * Subscribe to preflight progress: one verdict (or agent phase) per event,
+   * each carrying the scan's `token`. Replaces any previous listener.
+   * @param {(data: object) => void} callback
    */
   onPreflightProgress: (callback) => {
     if (_preflightProgressHandler) {
@@ -473,10 +484,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     safeOn(IPC.PREFLIGHT_PROGRESS, _preflightProgressHandler);
   },
 
-  /**
-   * Remove the active preflight progress listener.
-   * Always call this in the finally block of runScans().
-   */
+  /** Remove the preflight progress listener. */
   removePreflightProgressListener: () => {
     if (_preflightProgressHandler) {
       ipcRenderer.removeListener(IPC.PREFLIGHT_PROGRESS, _preflightProgressHandler);
@@ -588,16 +596,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
     safeOn(IPC.PUSH_PROCTORING_ERROR, (_, data) => callback(data));
   },
 
-  // ── Pre-proceed watcher (background blocked-app status)
   /**
-   * Subscribe to real-time blocked-app status pushes from the background
-   * pre-proceed watcher (active after preflight passes, stopped on Proceed).
-   *
-   * Payload: { clean: boolean, apps: string[] }
-   *   clean: true  → all clear, Proceed button should be enabled
-   *   clean: false → blocked apps still running, Proceed should be disabled
-   *
-   * @param {(payload: { clean: boolean, apps: string[] }) => void} callback
+   * Subscribe to the live monitor on the security-check page.
+   * @param {(payload: { clean: boolean, unverified: boolean, apps: string[], verdicts: object[] }) => void} callback
    */
   onPreProceedStatus: (callback) => {
     ipcRenderer.removeAllListeners(IPC.PUSH_PRE_PROCEED_STATUS);
@@ -638,8 +639,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
 });
 
-// ─── Input Security (capture phase)
-// Use capture:true to intercept events BEFORE the webpage can stop them.
+// Capture phase, so the page can't stop these first.
 
 document.addEventListener(
   "contextmenu",
@@ -655,18 +655,16 @@ document.addEventListener(
     if (e.ctrlKey || e.metaKey) {
       const key = e.key.toLowerCase();
       if (["c", "v", "u"].includes(key)) {
-        // Allow Ctrl+V paste into form inputs on auth pages (login / dashboard).
-        // Copy and View-Source remain blocked unconditionally.
+        // Paste stays allowed in form fields.
         const tag = e.target?.tagName;
         if (key === "v" && (tag === "INPUT" || tag === "TEXTAREA")) {
-          return; // let the browser handle native paste
+          return;
         }
         e.preventDefault();
         e.stopPropagation();
       }
     }
 
-    // Block PrintScreen
     if (e.key === "PrintScreen") {
       e.preventDefault();
       e.stopPropagation();

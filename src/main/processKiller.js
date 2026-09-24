@@ -1,7 +1,7 @@
 /**
- * Force-terminates blocked applications, PID-accurately. Only processes in
- * ALL_BLOCKED_APPS (src/shared/appList.js) may be killed — this whitelist is
- * what stops the IPC handler from being abused to kill arbitrary OS processes.
+ * Force-terminates blocked applications, PID-accurately. Only processes on the
+ * effective blocklist (src/shared/blocklist.js) may be killed — this whitelist
+ * is what stops the IPC handler from being abused to kill arbitrary OS processes.
  *
  * Flow: a vendor service that would restart the app is stopped first (see
  * APP_SERVICES — this needs elevation, so it usually takes the elevated retry),
@@ -24,7 +24,8 @@
 
 const { spawn } = require("child_process");
 const logger = require("./logger");
-const { ALL_BLOCKED_APPS, getServices, isKnownService } = require("../shared/appList");
+const { getServices, isKnownService } = require("../shared/appList");
+const blocklist = require("../shared/blocklist");
 const {
   baseName,
   parseCsvLine,
@@ -347,7 +348,7 @@ function planTargetNames(processName, getCompanions) {
 /**
  * Whitelist rule for ONE kill candidate: killable if blocklisted, OR listed
  * as a companion of the target CURRENTLY being killed. Companions are
- * deliberately not on ALL_BLOCKED_APPS (a stray helper alone shouldn't fail
+ * deliberately not on the blocklist (a stray helper alone shouldn't fail
  * a detection scan), so the rule is scoped to that one target rather than a
  * union of every companion — otherwise the IPC surface could kill an
  * arbitrary helper by naming an unrelated app. isOwnProcess() and the
@@ -661,7 +662,7 @@ async function stopServiceReal(serviceName, platform, timeoutMs) {
   return { status: "error", detail: (r.stderr || "").trim() || `exit ${r.code}` };
 }
 
-// ─── Phase 5: elevation ──────────────────────────────────────────────────────
+// ─── Elevation ───────────────────────────────────────────────────────────────
 
 /**
  * Whether the CURRENT USER could satisfy an elevation prompt — deliberately
@@ -788,7 +789,7 @@ function createDefaultDeps() {
     platform,
     selfPid: process.pid,
     timing,
-    isBlocked: (name) => ALL_BLOCKED_APPS.includes(name),
+    isBlocked: blocklist.isBlocked,
     getCompanions: getCompanionsSafe,
     getCompanionScope: getCompanionScopeSafe,
     requiresPathScope: requiresPathScopeSafe,
@@ -808,7 +809,7 @@ function createDefaultDeps() {
 /**
  * Force-terminates a single blocked application, PID-accurately.
  *
- * @param {string} processName - image name, must be on ALL_BLOCKED_APPS
+ * @param {string} processName - image name, must be on the effective blocklist
  * @param {object} [overrides] - dependency injection seam for tests ONLY;
  *                               production callers pass one argument.
  * @returns {Promise<KillResult>}
@@ -841,7 +842,6 @@ async function killSingleProcess(processName, overrides) {
     return finish({ outcome: "unsupported", error: `Unsupported platform: ${deps.platform}` });
   }
 
-  // Snapshot the process table
   const snapshot = await deps.listProcessTable();
   if (!snapshot || !snapshot.ok || !Array.isArray(snapshot.procs) || snapshot.procs.length === 0) {
     // Fail closed: without a table we can't compute the exclusion set, and
@@ -905,7 +905,7 @@ async function killSingleProcess(processName, overrides) {
     });
   }
 
-  // Kill children before parents, group by group
+  // Children before parents, group by group.
   let killed = 0;
   let denied = 0;
   let spawnErrors = 0;
@@ -1026,7 +1026,7 @@ async function killSingleProcess(processName, overrides) {
     }
   }
 
-  // Relaunch watch — the actual reported bug
+  // A launcher or service often brings the app straight back.
   let respawned = false;
   if (cleared) {
     const watchAttempts = Math.max(1, Math.ceil(timing.relaunchWatchMs / timing.relaunchPollMs));
@@ -1122,10 +1122,95 @@ async function killSingleProcessElevated(processName, overrides) {
   return await killSingleProcess(processName, { ...(overrides || {}), elevated: true });
 }
 
+/**
+ * Kills one process the security agent reported as a threat. Only a PID from
+ * the agent's latest report is accepted, and only while that PID still runs
+ * the image name the agent saw, so a recycled PID can't be hit.
+ *
+ * @param {number} pid
+ * @param {string} processName
+ * @param {Map<number, string>} allowed - reported threat PID → lowercase image name
+ * @param {object} [overrides] - test injection seam
+ * @returns {Promise<KillResult & {pid: number}>}
+ */
+async function killThreatProcess(pid, processName, allowed, overrides) {
+  const deps = { ...createDefaultDeps(), ...(overrides || {}) };
+  const timing = { ...DEFAULT_TIMING, ...(deps.timing || {}) };
+  const name = String(processName || "").toLowerCase();
+  const finish = (partial) => ({
+    processName,
+    pid,
+    success: SUCCESS_OUTCOMES.includes(partial.outcome),
+    ...partial,
+  });
+
+  if (
+    !Number.isInteger(pid) ||
+    pid <= 0 ||
+    !(allowed instanceof Map) ||
+    allowed.get(pid) !== name
+  ) {
+    logger.warn(`[processKiller] refusing threat kill — pid ${pid} is not a reported ${name}`);
+    return finish({ outcome: "not-blocked", error: "PID is not a reported threat" });
+  }
+  if (isOwnProcess(name)) {
+    return finish({ outcome: "own-process", error: "Cannot kill own process" });
+  }
+  if (deps.platform !== "win32" && deps.platform !== "darwin") {
+    return finish({ outcome: "unsupported", error: `Unsupported platform: ${deps.platform}` });
+  }
+
+  const snapshot = await deps.listProcessTable();
+  if (!snapshot || !snapshot.ok || !Array.isArray(snapshot.procs) || snapshot.procs.length === 0) {
+    return finish({
+      outcome: "spawn-error",
+      error: (snapshot && snapshot.error) || "process table unavailable",
+    });
+  }
+  const target = snapshot.procs.find((p) => p.pid === pid);
+  if (!target) {
+    return finish({ outcome: "already-gone", pidsKilled: 0 });
+  }
+  if (!matchesImageName(target, name, deps.platform)) {
+    logger.warn(`[processKiller] pid ${pid} is now ${target.name}, not ${name} — refusing`);
+    return finish({ outcome: "not-blocked", error: "PID now belongs to a different process" });
+  }
+  if (computeExclusionPids(snapshot.procs, deps.selfPid, deps.platform).has(pid)) {
+    return finish({ outcome: "own-process", error: "PID is inside the protected process tree" });
+  }
+
+  const r = await deps.killPid(pid);
+  if (r.status === "gone") {
+    return finish({ outcome: "already-gone", pidsKilled: 0 });
+  }
+  if (r.status === "denied") {
+    return finish({ outcome: "access-denied", error: r.detail || "access denied" });
+  }
+  if (r.status !== "killed") {
+    return finish({ outcome: "spawn-error", error: r.detail || "kill failed" });
+  }
+
+  const attempts = Math.max(1, Math.ceil(timing.verifyTimeoutMs / timing.verifyPollMs));
+  for (let i = 0; i < attempts; i++) {
+    await deps.sleep(timing.verifyPollMs);
+    const alive = await deps.findPidsByName(name);
+    if (alive && alive.ok && !alive.pids.includes(pid)) {
+      logger.info(`[processKiller] threat ${name} (pid ${pid}) closed`);
+      return finish({ outcome: "closed", pidsKilled: 1 });
+    }
+  }
+  return finish({
+    outcome: "still-running",
+    pidsKilled: 1,
+    error: "Process still running after termination",
+  });
+}
+
 module.exports = {
   killSingleProcess,
   killAllProcesses,
   killSingleProcessElevated,
+  killThreatProcess,
   canElevate,
   isOwnProcess,
   // Exported for unit tests — pure decision logic, no OS access.

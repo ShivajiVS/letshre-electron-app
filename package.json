@@ -20,6 +20,7 @@
     "dist:win": "node scripts/check-agent-freshness.js --target=win && electron-builder --win",
     "dist:mac": "node scripts/check-agent-freshness.js --target=mac && electron-builder --mac",
     "test": "node --test --require ./test/_setup.js test/*.test.js",
+    "test:e2e": "electron test/e2e/run.js",
     "lint": "eslint src scripts test assets/js preload.js preload-recorder.js main.js --ext .js",
     "lint:fix": "eslint src scripts test assets/js preload.js preload-recorder.js main.js --ext .js --fix",
     "format": "prettier --write \"{src,scripts,test}/**/*.js\" \"assets/**/*.{html,css,js}\" \"preload.js\" \"preload-recorder.js\" \"main.js\"",

@@ -13,6 +13,7 @@ const {
   FAIL,
   UNVERIFIED,
   CHECK_IDS,
+  PROCESS_CHECK_IDS,
   mapHdmi,
   mapProcesses,
   mapAgent,
@@ -34,6 +35,19 @@ test("mapHdmi: a detected external display fails", () => {
   assert.strictEqual(mapHdmi({ detected: true, status: "violation" }).status, FAIL);
 });
 
+test("mapHdmi: an extra display carries the display count", () => {
+  const v = mapHdmi({ detected: true, status: "violation", count: 3 });
+  assert.strictEqual(v.reasonKey, "preflightResults.hdmiDetected");
+  assert.deepStrictEqual(v.reasonParams, { count: 3 });
+});
+
+test("mapHdmi: a mirrored display gets its own reason with the physical count", () => {
+  const v = mapHdmi({ detected: true, status: "violation", mirrored: true, count: 2 });
+  assert.strictEqual(v.status, FAIL);
+  assert.strictEqual(v.reasonKey, "preflightResults.hdmiMirrored");
+  assert.deepStrictEqual(v.reasonParams, { count: 2 });
+});
+
 test("mapHdmi: indeterminate is unverified, NOT a pass", () => {
   // hdmiDetector returns detected:false alongside indeterminate — reading only
   // the boolean made a thrown display probe render as "no external display".
@@ -46,24 +60,28 @@ test("mapHdmi: a missing result is unverified", () => {
   assert.strictEqual(mapHdmi(null).status, UNVERIFIED);
 });
 
-test("mapProcesses: a clean scan passes all four cards", () => {
+test("mapProcesses: a clean scan passes all five cards, in display order", () => {
   const vs = mapProcesses({ detected: false, status: "clear", details: { processes: [] } });
-  assert.strictEqual(vs.length, 4);
+  assert.deepStrictEqual(
+    vs.map((v) => v.id),
+    PROCESS_CHECK_IDS
+  );
+  assert.deepStrictEqual(PROCESS_CHECK_IDS, ["meeting", "screen", "wireless", "browser", "ai"]);
   assert.ok(vs.every((v) => v.status === PASS));
 });
 
-test("mapProcesses: indeterminate marks ALL four cards unverified", () => {
+test("mapProcesses: indeterminate marks every card unverified", () => {
   // Regression: detectMirroring returns an empty process list alongside
   // indeterminate, so every category looked clean and all four went green.
   const vs = mapProcesses({ detected: false, status: "indeterminate", details: { processes: [] } });
-  assert.strictEqual(vs.length, 4);
+  assert.strictEqual(vs.length, PROCESS_CHECK_IDS.length);
   assert.ok(
     vs.every((v) => v.status === UNVERIFIED),
     "no category may pass on an incomplete scan"
   );
 });
 
-test("mapProcesses: a missing result marks all four unverified", () => {
+test("mapProcesses: a missing result marks every card unverified", () => {
   assert.ok(mapProcesses(undefined).every((v) => v.status === UNVERIFIED));
 });
 
@@ -91,6 +109,30 @@ test("mapProcesses: an unrecognised blocked app lands on the wireless card", () 
   assert.deepStrictEqual(wireless.blockedApps, ["some-remote-tool.exe"]);
 });
 
+test("mapProcesses: a browser fails the browser card, not the wireless one", () => {
+  const vs = mapProcesses({
+    detected: true,
+    status: "violation",
+    details: { processes: ["chrome.exe", "scrcpy.exe"] },
+  });
+  const byId = Object.fromEntries(vs.map((v) => [v.id, v]));
+  assert.strictEqual(byId.browser.status, FAIL);
+  assert.strictEqual(byId.browser.reasonKey, "preflightResults.browserRunning");
+  assert.deepStrictEqual(byId.browser.blockedApps, ["chrome.exe"]);
+  assert.deepStrictEqual(byId.wireless.blockedApps, ["scrcpy.exe"]);
+});
+
+test("mapProcesses: no browser running passes the browser card", () => {
+  const vs = mapProcesses({
+    detected: true,
+    status: "violation",
+    details: { processes: ["zoom.exe"] },
+  });
+  const browser = vs.find((v) => v.id === "browser");
+  assert.strictEqual(browser.status, PASS);
+  assert.strictEqual(browser.reasonKey, "preflightResults.browserClear");
+});
+
 test("mapAgent: a clean scan passes", () => {
   const v = mapAgent({
     alive: true,
@@ -102,6 +144,13 @@ test("mapAgent: a clean scan passes", () => {
 test("mapAgent: a dead agent fails", () => {
   assert.strictEqual(mapAgent({ alive: false, status: null }).status, FAIL);
   assert.strictEqual(mapAgent(null).status, FAIL);
+  assert.strictEqual(mapAgent(null).reasonKey, "preflightResults.agentFailedStart");
+});
+
+test("mapAgent: an agent that can't be started at all says so", () => {
+  const v = mapAgent({ alive: false, status: null, blocked: true });
+  assert.strictEqual(v.status, FAIL);
+  assert.strictEqual(v.reasonKey, "preflightResults.agentBlocked");
 });
 
 test("mapAgent: alive but no scan result is unverified, NOT a clean pass", () => {
@@ -237,6 +286,18 @@ const cleanRaw = {
     status: { threats: [], safe_to_proceed: true, contract_version: 2, source_sha: SOURCE_SHA },
   },
 };
+
+test("CHECK_IDS: seven cards in display order", () => {
+  assert.deepStrictEqual(CHECK_IDS, [
+    "hdmi",
+    "meeting",
+    "screen",
+    "wireless",
+    "browser",
+    "ai",
+    "agent",
+  ]);
+});
 
 test("buildVerdicts: returns one verdict per check, in display order", () => {
   const vs = buildVerdicts(cleanRaw);

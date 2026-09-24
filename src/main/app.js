@@ -1,14 +1,6 @@
 /**
- * Electron app lifecycle manager:
- * Handles:
- *   - app.whenReady()  → logger init, auth restore, IPC, window, auto-updater
- *   - window-all-closed
- *   - activate (macOS re-open)
- *   - will-quit         → cleanup (shortcuts, agent)
- *
- * The security agent is NOT spawned here — it is scoped to the security-check →
- * interview window (started via ensureAgent() when the preflight page opens,
- * stopped on interview completion / return to dashboard / app quit).
+ * App lifecycle. The security agent isn't spawned here — it starts when the
+ * candidate enters the security check and stops after the interview.
  */
 
 "use strict";

@@ -29,7 +29,10 @@ function extractStripClass(src, label) {
 
 test("renderer's sanitiseProcessKey mirrors main's validateProcessName rule", () => {
   const mainClass = extractStripClass(read("src/main/ipcHandlers.js"), "ipcHandlers.js");
-  const rendererClass = extractStripClass(read("src/renderer/preflight.js"), "preflight.js");
+  const rendererClass = extractStripClass(
+    read("src/renderer/preflightModel.js"),
+    "preflightModel.js"
+  );
 
   assert.strictEqual(
     rendererClass,

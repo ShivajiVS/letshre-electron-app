@@ -155,3 +155,47 @@ test("detectMirroring: propagates indeterminate from a failed scan", async () =>
   assert.strictEqual(r.status, "indeterminate");
   assert.strictEqual(r.detected, false);
 });
+
+function onMac(fn) {
+  return async () => {
+    const original = Object.getOwnPropertyDescriptor(process, "platform");
+    Object.defineProperty(process, "platform", { value: "darwin" });
+    try {
+      await fn();
+    } finally {
+      Object.defineProperty(process, "platform", original);
+    }
+  };
+}
+
+test(
+  "checkProcesses (macOS): exact command names match, ignoring .app",
+  onMac(async () => {
+    invalidateProcessCache();
+    stubExecFile(null, "zoom.us\nGoogle Chrome\n/Applications/Slack.app/Contents/MacOS/Slack\n");
+    const { found, status } = await checkProcesses();
+    assert.strictEqual(status, "clear");
+    assert.ok(found.includes("zoom.us.app"));
+    assert.ok(found.includes("google chrome.app"));
+    assert.ok(found.includes("slack.app"));
+  })
+);
+
+test(
+  "checkProcesses (macOS): no substring matches",
+  onMac(async () => {
+    invalidateProcessCache();
+    stubExecFile(null, "SafariBookmarksSyncAgent\nzoomdaemon\nOBS Helper\nsafari-helper\n");
+    const { found } = await checkProcesses();
+    assert.deepStrictEqual(found, []);
+  })
+);
+
+test(
+  "checkProcesses (macOS): fail-closed on a failed listing",
+  onMac(async () => {
+    invalidateProcessCache();
+    stubExecFile(new Error("ps failed"), "");
+    assert.strictEqual((await checkProcesses()).status, "indeterminate");
+  })
+);

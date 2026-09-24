@@ -1,26 +1,22 @@
 /**
- * Centralised registration of ALL ipcMain channels.
- * This is the only file that registers ipcMain handlers, always through
- * ipcScope's registerHandler()/registerSend() so every channel declares a
- * sender scope ("local" | "interview") up front — see ipcScope.js.
- * Channel names come from shared/constants.js — no raw strings here.
- *
- * Call `registerIpcHandlers()` once during app initialisation.
+ * The only place ipcMain channels are registered, always through ipcScope so
+ * each declares a sender scope. Call registerIpcHandlers() once at startup.
  */
 
 "use strict";
 
 const path = require("path");
-const { app } = require("electron");
+const { app, shell } = require("electron");
 const updater = require("./updater");
 const logger = require("./logger");
 const appState = require("./appState");
-const { IPC } = require("../shared/constants");
+const { IPC, SUPPORT_URL } = require("../shared/constants");
 const { SCOPE, registerHandler, registerSend } = require("./ipcScope");
 const {
   killSingleProcess,
   killAllProcesses,
   killSingleProcessElevated,
+  killThreatProcess,
   canElevate,
 } = require("./processKiller");
 const {
@@ -53,19 +49,15 @@ const authValidators = require("../shared/authValidators");
 const localeManager = require("./localeManager");
 const startDetection = require("../detector/systemChecks");
 const screenRecorder = require("./screenRecorder");
+const blocklistPolicy = require("./blocklistPolicy");
+const { getLists, getDisplayNames } = require("../shared/blocklist");
 const { startPreProceedMonitor, stopPreProceedMonitor } = startDetection;
 
-const {
-  MEETING_APPS,
-  SCREEN_SHARING_APPS,
-  AI_CHEATING_APPS,
-  APP_DISPLAY_NAMES,
-} = require("../shared/appList");
+// Longest a scan waits for the company policy fetched at Start Interview.
+const POLICY_WAIT_MS = 2000;
 
 /**
- * Validates and sanitises a process name coming from the renderer.
- * Prevents type confusion and oversized payloads from reaching processKiller.
- * @param {unknown} value
+ * @param {unknown} value - process name from the renderer
  * @returns {{ valid: boolean, safe: string }}
  */
 function validateProcessName(value) {
@@ -75,67 +67,68 @@ function validateProcessName(value) {
   if (value.length === 0 || value.length > 120) {
     return { valid: false, safe: "" };
   }
-  // Strip anything that isn't alphanumeric, dot, dash, space, or underscore
   const safe = value.replace(/[^\w.\- ]/g, "");
   return { valid: safe.length > 0, safe };
 }
 
-/**
- * Fire-and-forget spawn of the security agent as the security-check page opens,
- * so it is warming up before the preflight scan probes it. whenAgentReady() is
- * the single readiness owner — concurrent callers share one spawn and one poll,
- * so this can't race the preflight's own readiness wait.
- */
+/** @param {unknown} value @returns {string|null} */
+function validateScanToken(value) {
+  return typeof value === "string" && /^[A-Za-z0-9-]{1,64}$/.test(value) ? value : null;
+}
+
+/** @returns {string|null} the support link, only when it is a valid https URL */
+function supportUrl() {
+  try {
+    const url = new URL(SUPPORT_URL);
+    return url.protocol === "https:" ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Starts the agent early so it is warm by the time the scan needs it. */
 function prewarmAgent() {
   whenAgentReady().catch((err) => logger.warn("[ipc] agent pre-warm failed:", err.message));
 }
 
-/**
- * Whether the language-selection page has anything to offer. Unreviewed locales
- * are gated out of packaged builds (localeManager's `_localeAllowed`), so a
- * production build resolves to English alone — showing a one-option page there
- * would be a dead end. This flips to true on its own once a second locale is
- * certified; nothing else needs changing.
- */
+/** Packaged builds may offer English alone, and a one-option page is a dead end. */
 function _languageSelectionIsMeaningful() {
   return localeManager.getSupportedLocales().length > 1;
 }
 
-/**
- * Leaves the security-check → interview flow for the dashboard, stopping the
- * agent (only needed on preflight and during the interview; no-op if already
- * stopped). Shared by the back button and by the single-locale fall-through, so
- * the two teardowns can't drift apart.
- */
+/** Leaves the interview flow for the dashboard and stops the agent. */
 function _leaveInterviewFlowToDashboard({ alreadyTornDown = false } = {}) {
   if (!alreadyTornDown) {
-    stopPreProceedMonitor();
-    _pageGeneration++; // leaving the page — any scan still running is orphaned
+    _leaveSecurityCheck();
   }
   killAgent();
+  blocklistPolicy.reset();
   loadDashboard();
 }
 
-// Security-check page generation. Bumped whenever that page's lifecycle
-// restarts, so an in-flight scan from a previous visit (whose agent was killed
-// on the way out) can never be joined and reported by the new page.
+// Bumped every time the security-check page is left or reloaded. A scan from an
+// older generation still finishes but can't be joined or commit its result.
 let _pageGeneration = 0;
-/** @type {Promise<object> | null} */
+/** @type {{ promise: Promise<object>, generation: number, tokens: Set<string|null> } | null} */
 let _preflightInFlight = null;
-let _preflightGeneration = -1;
+let _continuing = false;
+
+const BOUNCE_REASONS = { stale: "stale", dirty: "dirty", scanning: "scanning" };
+
+function _leaveSecurityCheck() {
+  stopPreProceedMonitor();
+  _pageGeneration++;
+}
 
 /**
- * Sanitises the role-selection payload sent by the role-selection renderer before
- * it is injected into the interview site's sessionStorage. Renderer input is
- * untrusted — coerce types and cap sizes so a malformed/oversized payload can't
- * reach the site or the start-interview API.
+ * Renderer input is untrusted: coerce types and cap sizes before the role
+ * selection reaches the interview site.
  * @param {unknown} payload
  * @returns {{ is_custom_role: boolean, selected_role?: string[], manual_skills?: string[] }}
  */
 function sanitizeRoleSelection(payload) {
   const isCustom = payload?.is_custom_role === true;
   if (!isCustom) {
-    // Confirmed profile role — the backend resolves the role itself.
     return { is_custom_role: false };
   }
   const toStringArray = (arr) =>
@@ -157,30 +150,15 @@ function sanitizeRoleSelection(payload) {
   return result;
 }
 
-//Registers all IPC handlers. Must be called after app is ready.
 function registerIpcHandlers() {
-  // Tokens are handled entirely in main (authManager); the renderer only ever
-  // receives display-safe user fields.
-
-  // Auth, profile, and navigation channels are all local-only: the candidate
-  // authenticates and moves through login/dashboard/preflight entirely on
-  // file:// pages, before the window ever navigates to the interview origin.
+  // Tokens stay in main; the renderer only ever gets display-safe user fields.
   registerHandler(IPC.AUTH_LOGIN, SCOPE.LOCAL, async (_event, creds) => {
-    // Defensive caps against a pathological paste — well above any real
-    // email/password, cheap insurance before this ever reaches axios.
     const email = typeof creds?.email === "string" ? creds.email.trim().slice(0, 254) : "";
     const password = typeof creds?.password === "string" ? creds.password.slice(0, 256) : "";
     if (!email || !password) {
       return { success: false, code: authManager.AUTH_ERROR.MISSING_FIELDS };
     }
-    // Backstop, not the primary gate — the renderer already validates before
-    // ever calling this. Electron's threat model assumes the renderer can be
-    // compromised, so main re-checks rather than trusting it alone. Email
-    // shape is safe to reject here (a malformed email can't match a real
-    // account either way); password complexity is NOT re-checked — the
-    // backend is the actual authority on whether a password is valid for a
-    // given account, and rejecting here on a guessed policy risks blocking a
-    // real login the server would have accepted.
+    // Password rules are left to the backend; a guessed policy could block a real login.
     if (!authValidators.validateEmail(email).valid) {
       return { success: false, code: authManager.AUTH_ERROR.INVALID_EMAIL };
     }
@@ -191,9 +169,8 @@ function registerIpcHandlers() {
   registerHandler(IPC.AUTH_LOGOUT, SCOPE.LOCAL, async () => {
     logger.info("[ipc] auth-logout received");
     const result = await authManager.logout();
-    // Wipe all per-user state so the next account starts clean — no stale face
-    // photo, interview tokens, or cached interview-site data from the previous
-    // candidate. The renderer awaits this before navigating to login.
+    blocklistPolicy.reset();
+    // Nothing of this candidate may carry over to the next account.
     clearCandidatePhoto();
     resetInterviewSession();
     await clearInterviewSessionData();
@@ -223,9 +200,8 @@ function registerIpcHandlers() {
     logger.info("[ipc] start-interview — entering security check");
     setInterviewSession(tokens.accessToken, tokens.refreshToken);
     _pageGeneration++;
-    // Prewarm now rather than on the preflight page itself: the candidate
-    // spends a few seconds choosing a language, which the agent gets to use
-    // for booting before preflight actually needs it.
+    blocklistPolicy.loadForInterview(tokens.accessToken);
+    // Warm up during language selection rather than on the preflight page.
     prewarmAgent();
     if (_languageSelectionIsMeaningful()) {
       loadLanguageSelectionPage();
@@ -234,22 +210,36 @@ function registerIpcHandlers() {
     }
   });
 
-  // Preflight "Proceed" → load the permissions page (NOT locked down yet;
-  // the OS needs to present native mic/camera/screen dialogs).
-  registerSend(IPC.LOAD_PERMISSIONS_PAGE, SCOPE.LOCAL, () => {
+  // Continue on the security check. Not locked down yet: the OS still has to
+  // show its mic/camera/screen prompts on the permissions page.
+  registerSend(IPC.LOAD_PERMISSIONS_PAGE, SCOPE.LOCAL, async () => {
     logger.info("[ipc] load-permissions-page");
-
-    // Authoritative preflight gate — the renderer enabling its Proceed button
-    // is UX only. Re-verify the last scan actually passed and is still fresh,
-    // so devtools/a renderer bug can't walk past checks, and a stale pass
-    // (green screen, then a blocked app launched) doesn't count as a pass.
-    const gate = startDetection.verifyProceedAllowed();
-    if (!gate.ok) {
-      logger.warn(`[ipc] load-permissions-page REFUSED — ${gate.reason}`);
-      loadSecurityCheck(); // bounce back to a fresh scan
+    if (_continuing) {
       return;
     }
-    loadPermissionsPage();
+    _continuing = true;
+    try {
+      const generation = _pageGeneration;
+      let gate = startDetection.verifyProceedAllowed();
+      if (gate.code === "stale") {
+        await startDetection.renewStalePass();
+        if (_pageGeneration !== generation) {
+          return;
+        }
+        gate = startDetection.verifyProceedAllowed();
+      }
+      _leaveSecurityCheck();
+      if (!gate.ok) {
+        logger.warn(`[ipc] load-permissions-page REFUSED — ${gate.reason}`);
+        loadSecurityCheck(BOUNCE_REASONS[gate.code]);
+        return;
+      }
+      loadPermissionsPage();
+    } catch (err) {
+      logger.error("[ipc] load-permissions-page failed:", err.message);
+    } finally {
+      _continuing = false;
+    }
   });
 
   // Back from identity verification. Skips Proceed's freshness window: the scan
@@ -282,7 +272,6 @@ function registerIpcHandlers() {
     }
   );
 
-  // Identity verification — face photo upload (data URL string).
   registerHandler(IPC.SUBMIT_FACE_VERIFICATION, SCOPE.LOCAL, async (_event, dataUrl) => {
     logger.info("[ipc] submit-face-verification");
     return await authManager.submitFaceVerification(dataUrl);
@@ -300,8 +289,7 @@ function registerIpcHandlers() {
 
   registerSend(IPC.LOAD_SECURITY_CHECK, SCOPE.LOCAL, () => {
     logger.info("[ipc] load-security-check (back nav)");
-    stopPreProceedMonitor();
-    _pageGeneration++;
+    _leaveSecurityCheck();
     prewarmAgent();
     loadSecurityCheck();
   });
@@ -310,16 +298,14 @@ function registerIpcHandlers() {
   // there is nothing to choose it was never shown on the way in either, so
   // falling through to the dashboard is what "back" actually means there.
   registerSend(IPC.LOAD_LANGUAGE_SELECTION, SCOPE.LOCAL, () => {
-    stopPreProceedMonitor();
-    _pageGeneration++;
+    _leaveSecurityCheck();
     if (!_languageSelectionIsMeaningful()) {
       logger.info("[ipc] load-language-selection — single locale, going to dashboard");
       _leaveInterviewFlowToDashboard({ alreadyTornDown: true });
       return;
     }
     logger.info("[ipc] load-language-selection (back nav)");
-    // The agent stays warm deliberately: the candidate is one click from
-    // returning to preflight. Going on to the dashboard from here kills it.
+    // The agent stays warm: the candidate is one click from the security check.
     loadLanguageSelectionPage();
   });
 
@@ -346,9 +332,6 @@ function registerIpcHandlers() {
   });
 
   // ── Localization
-  // The interview site's locale is never read via this bridge (README/A3: not
-  // part of the documented contract — the candidate's locale choice does not
-  // currently reach the SPA at all), so these all stay local-only.
 
   registerHandler(IPC.GET_LOCALE, SCOPE.LOCAL, () => localeManager.getPreferred());
 
@@ -367,8 +350,6 @@ function registerIpcHandlers() {
     const safeLocale = typeof locale === "string" ? locale.slice(0, 20) : "";
     const applied = await localeManager.setPreferred(safeLocale);
     logger.info("[ipc] set-locale:", applied);
-    // Broadcast so every open window (there's normally only one, but this is
-    // cheap and future-proof) can re-apply translations without a reload.
     const win = getWindow();
     if (win && !win.isDestroyed()) {
       win.webContents.send(IPC.LOCALE_CHANGED, applied);
@@ -378,12 +359,17 @@ function registerIpcHandlers() {
 
   // ── App Control
 
-  registerHandler(IPC.GET_APP_LIST, SCOPE.LOCAL, () => ({
-    meetingApps: MEETING_APPS,
-    screenSharingApps: SCREEN_SHARING_APPS,
-    aiCheatingApps: AI_CHEATING_APPS,
-    displayNames: APP_DISPLAY_NAMES,
-  }));
+  registerHandler(IPC.GET_APP_LIST, SCOPE.LOCAL, () => {
+    const lists = getLists();
+    return {
+      meetingApps: lists.meeting,
+      screenSharingApps: lists.screen,
+      castingApps: lists.wireless,
+      browserApps: lists.browser,
+      aiCheatingApps: lists.ai,
+      displayNames: getDisplayNames(),
+    };
+  });
 
   registerSend(IPC.QUIT_APP, SCOPE.LOCAL, () => {
     logger.info("[ipc] quit-app received");
@@ -391,7 +377,6 @@ function registerIpcHandlers() {
     app.quit();
   });
 
-  // Preflight UX: user can minimize to close other apps manually before rescanning
   registerSend(IPC.MINIMIZE_WINDOW, SCOPE.LOCAL, () => {
     minimizeWindow();
   });
@@ -402,7 +387,7 @@ function registerIpcHandlers() {
       return;
     }
     logger.info("[ipc] recheck-system received");
-    stopPreProceedMonitor();
+    _leaveSecurityCheck();
     invalidateProcessCache();
     if (startDetection.resetState) {
       startDetection.resetState();
@@ -412,51 +397,52 @@ function registerIpcHandlers() {
 
   // ── Preflight
 
-  // In-flight preflight, shared by concurrent callers WITHIN one page
-  // generation. A renderer-side timeout used to abandon its invoke and
-  // immediately fire another, stacking two full scans on top of each other;
-  // dedupe fixes that, but only a scan from the current visit may be joined —
-  // an older one's agent was killed on the way out to the dashboard.
-  registerHandler(IPC.RUN_PREFLIGHT, SCOPE.LOCAL, async (event) => {
+  // A second call within the same page generation joins the running scan
+  // instead of stacking another one; its token gets the remaining progress.
+  registerHandler(IPC.RUN_PREFLIGHT, SCOPE.LOCAL, async (event, rawToken) => {
+    const token = validateScanToken(rawToken);
     const generation = _pageGeneration;
-    if (_preflightInFlight && _preflightGeneration === generation) {
+    if (_preflightInFlight && _preflightInFlight.generation === generation) {
       logger.info("[ipc] run-preflight-scans — joining in-flight scan");
-      return await _preflightInFlight;
+      _preflightInFlight.tokens.add(token);
+      const joined = await _preflightInFlight.promise;
+      return { ...joined, token };
     }
     logger.info("[ipc] run-preflight-scans invoked");
 
-    // Not awaited — a cold spawn can take up to AGENT_READY_TIMEOUT_MS, which
-    // would block the first card. This shares the same readiness promise the
-    // agent check awaits, so it can no longer trigger its own spawn or kill.
+    // Not awaited: the agent card waits on the same readiness promise.
     whenAgentReady().catch((err) => logger.warn("[ipc] agent readiness failed:", err.message));
 
-    // Streaming preflight: each verdict is pushed the moment its check lands.
-    // event.sender.send() is safe to call from within a registerHandler() callback.
-    const onProgress = (verdict) => {
-      try {
-        event.sender.send(IPC.PREFLIGHT_PROGRESS, verdict);
-      } catch {
-        // Renderer was destroyed before the scan finished — ignore
+    const tokens = new Set([token]);
+    const policyReady = blocklistPolicy.whenSettled(POLICY_WAIT_MS);
+    const onProgress = (payload) => {
+      for (const t of tokens) {
+        try {
+          event.sender.send(IPC.PREFLIGHT_PROGRESS, { ...payload, token: t });
+        } catch {
+          // Renderer was destroyed before the scan finished.
+        }
       }
     };
 
-    const scan = startDetection.runChecksOnce(onProgress).finally(() => {
-      // Only clear our own entry — a newer generation may already have claimed it.
-      if (_preflightInFlight === scan) {
-        _preflightInFlight = null;
-      }
-    });
-    _preflightInFlight = scan;
-    _preflightGeneration = generation;
+    const promise = policyReady
+      .then(() =>
+        startDetection.runChecksOnce(onProgress, {
+          token,
+          isCurrent: () => _pageGeneration === generation,
+        })
+      )
+      .finally(() => {
+        if (_preflightInFlight?.promise === promise) {
+          _preflightInFlight = null;
+        }
+      });
+    _preflightInFlight = { promise, generation, tokens };
 
-    const result = await scan;
-
-    // Start the background pre-proceed watcher as soon as preflight is done.
-    // It polls checkProcesses() every 2s and pushes { clean, apps } to the
-    // renderer — this keeps the Proceed button state accurate without any
-    // blocking scan at click-time.
-    startPreProceedMonitor(getWindow());
-
+    const result = await promise;
+    if (_pageGeneration === generation) {
+      startPreProceedMonitor(getWindow());
+    }
     return result;
   });
 
@@ -466,19 +452,14 @@ function registerIpcHandlers() {
     return storeCandidatePhoto(dataUrl);
   });
 
-  // Sent by role-selection.html — still a local file:// page at this point;
-  // this IS the call that triggers the navigation to the interview origin,
-  // so by definition it can never come from the interview site itself.
+  // Sent by the local role-selection page; this is what navigates to the interview site.
   registerSend(IPC.PROCEED_TO_INTERVIEW, SCOPE.LOCAL, (_event, payload) => {
     const roleSelection = sanitizeRoleSelection(payload);
     logger.info("[ipc] proceed-to-interview received", {
       is_custom_role: roleSelection.is_custom_role,
     });
 
-    // Backstop gate, freshness not required — permissions/identity/role
-    // selection have legitimately aged the preflight by now, and live
-    // detection takes over once the interview starts. Still refuses entry
-    // if no preflight ever passed.
+    // Freshness isn't required here: the later steps legitimately age the pass.
     const gate = startDetection.verifyProceedAllowed({ requireFresh: false });
     if (!gate.ok) {
       logger.warn(`[ipc] proceed-to-interview REFUSED — ${gate.reason}`);
@@ -486,7 +467,6 @@ function registerIpcHandlers() {
       return;
     }
 
-    // Stop the pre-proceed watcher — no longer needed once interview starts.
     stopPreProceedMonitor();
 
     const tokens = authManager.getTokens();
@@ -502,12 +482,9 @@ function registerIpcHandlers() {
   });
 
   registerHandler(IPC.KILL_BLOCKED_APP, SCOPE.LOCAL, async (_event, processName) => {
-    // Validate and sanitise before passing to processKiller
     const { valid, safe } = validateProcessName(processName);
     if (!valid) {
       logger.warn("[ipc] kill-blocked-app rejected — invalid processName:", processName);
-      // Carries `outcome` like every other path so the renderer has one shape
-      // to switch on rather than a special case for the validation reject.
       return {
         success: false,
         outcome: "not-blocked",
@@ -517,15 +494,12 @@ function registerIpcHandlers() {
     }
     logger.info("[ipc] kill-blocked-app:", safe);
     const result = await killSingleProcess(safe);
-    // Drop the 3s process cache so the next scan reflects the kill immediately
-    // (otherwise the just-killed app shows as still running until the TTL).
+    // So the next scan doesn't still show the app from the 3s process cache.
     invalidateProcessCache();
     return result;
   });
 
-  // does the candidate even have an admin account? Offering an elevated
-  // retry to a standard user just produces a credential prompt they cannot
-  // satisfy, which reads as the app being broken.
+  // A standard user can't complete an elevation prompt, so it isn't offered to them.
   registerHandler(IPC.CAN_ELEVATE, SCOPE.LOCAL, async () => {
     try {
       return await canElevate();
@@ -547,10 +521,7 @@ function registerIpcHandlers() {
       };
     }
 
-    // Elevation raises a SYSTEM-MODAL consent dialog. During a live interview
-    // that would cover the proctored screen and hand the candidate a system
-    // surface mid-session, so it is preflight-only — refused outright once the
-    // session is active, regardless of what the renderer asks for.
+    // The consent dialog would cover the proctored screen mid-session.
     if (startDetection.isSessionActive?.()) {
       logger.warn("[ipc] kill-blocked-app-elevated REFUSED — interview session is active");
       return {
@@ -567,23 +538,41 @@ function registerIpcHandlers() {
     return result;
   });
 
+  registerHandler(IPC.KILL_THREAT_PROCESS, SCOPE.LOCAL, async (_event, pid, processName) => {
+    const { valid, safe } = validateProcessName(processName);
+    const reply = (outcome, error) => ({
+      processName: valid ? safe : String(processName).slice(0, 40),
+      pid,
+      success: false,
+      outcome,
+      error,
+    });
+    if (startDetection.isSessionActive?.()) {
+      logger.warn("[ipc] kill-threat-process REFUSED — interview session is active");
+      return reply("access-denied", "Not available during an interview");
+    }
+    if (!valid) {
+      return reply("not-blocked", "Invalid process name");
+    }
+    logger.info(`[ipc] kill-threat-process: ${safe} (pid ${pid})`);
+    const result = await killThreatProcess(pid, safe, startDetection.getThreatProcesses());
+    invalidateProcessCache();
+    return result;
+  });
+
   registerHandler(IPC.KILL_ALL_BLOCKED_APPS, SCOPE.LOCAL, async (_event, processNames) => {
-    // Validate array input
     if (!Array.isArray(processNames)) {
       logger.warn("[ipc] kill-all-blocked-apps rejected — not an array");
       return [];
     }
-    // Every requested name gets one result at its original index — filtering
-    // invalid names out before mapping used to shift results onto the wrong
-    // app's row, so rejected names report themselves instead of vanishing.
+    // One result per requested name, at its original index.
     const validated = processNames.map((n) => ({ ...validateProcessName(n), original: n }));
     const validNames = validated.filter((r) => r.valid).map((r) => r.safe);
 
     logger.info("[ipc] kill-all-blocked-apps:", validNames);
     const killed = await killAllProcesses(validNames);
-    invalidateProcessCache(); // refresh cache so killed apps clear immediately
+    invalidateProcessCache();
 
-    // Re-expand to the caller's original shape, in order.
     const byName = new Map(killed.map((r) => [r.processName, r]));
     const results = validated.map((r) =>
       r.valid
@@ -603,29 +592,31 @@ function registerIpcHandlers() {
     return results;
   });
 
-  // ── Auto-Updater — updater UI lives on local pages only; the interview
-  // site never surfaces update state, so these stay local-only.
+  // ── Auto-updater
   registerSend(IPC.INSTALL_UPDATE, SCOPE.LOCAL, () => {
     logger.info("[ipc] install-update received");
-    // Gated internally — refuses during an active interview.
+    // Refused internally during an interview.
     updater.installUpdate();
   });
 
-  // Renderer pulls the current updater snapshot on load to recover any
-  // state/progress events it missed before its listeners were attached.
+  // Lets a page recover updater events it missed before its listeners attached.
   registerHandler(IPC.GET_UPDATE_STATE, SCOPE.LOCAL, () => updater.getState());
 
-  // Renderer asks for the running app version (shown in the preflight footer).
   registerHandler(IPC.GET_APP_VERSION, SCOPE.LOCAL, () => app.getVersion());
 
-  // Exposes the in-memory audit log to the renderer (support
-  // diagnostics). The audit log records auth/violation/session events —
-  // local-only, never the interview site's business.
   registerHandler(IPC.GET_AUDIT_LOG, SCOPE.LOCAL, () => {
     return startDetection.getAuditLog ? startDetection.getAuditLog() : [];
   });
 
-  // Signal sent by interview.letshyre.com when the session ends.
+  registerHandler(IPC.GET_SUPPORT_INFO, SCOPE.LOCAL, () => ({ available: supportUrl() !== null }));
+
+  registerSend(IPC.OPEN_SUPPORT, SCOPE.LOCAL, () => {
+    const url = supportUrl();
+    if (!url) {
+      return;
+    }
+    shell.openExternal(url).catch((err) => logger.warn("[ipc] open-support failed:", err.message));
+  });
 
   // Contract channel #2 (README "Web app integration"): the interview site
   // acknowledges every violation so Electron knows the page is alive.
@@ -644,25 +635,16 @@ function registerIpcHandlers() {
       startDetection.stop();
     }
 
-    // Interview is over — stop the security agent (deep detection is done; the
-    // post-interview recording uses desktopCapturer, not the agent).
     killAgent();
 
-    // Recording continues until the site sends PROCTORING_STOP (after the
-    // scorecard or termination screen has rendered). Stopping here would cut
-    // the video before the candidate sees their result.
-
-    // Lift window lockdown (allows close, minimize, etc.)
+    // Recording keeps going until PROCTORING_STOP, so the video includes the result screen.
     endInterview(safeReason);
 
-    // Safe moment to surface any held update / re-check.
     updater.onInterviewEnded();
   });
 
-  // Register internal recorder↔main IPC (recorder:ready, recorder:chunk, recorder:error).
   screenRecorder.registerRecorderIpc();
 
-  // interview.letshyre.com → start recording
   registerHandler(IPC.PROCTORING_START, SCOPE.INTERVIEW, async (_event, meta = {}) => {
     const safeSessionId = typeof meta?.sessionId === "string" ? meta.sessionId.slice(0, 100) : null;
     const safeInterviewId =
@@ -681,7 +663,6 @@ function registerIpcHandlers() {
     return await screenRecorder.start({ sessionId: safeSessionId, interviewId: safeInterviewId });
   });
 
-  // interview.letshyre.com → stop recording
   registerSend(IPC.PROCTORING_STOP, SCOPE.INTERVIEW, () => {
     logger.info("[ipc] proctoring-stop");
     screenRecorder.stop();

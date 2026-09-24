@@ -604,9 +604,11 @@ function minimizeWindow() {
   }
 }
 
-function loadSecurityCheck() {
+/** @param {"stale"|"dirty"|"scanning"} [reason] - why Continue sent the candidate back */
+function loadSecurityCheck(reason) {
   if (win && !win.isDestroyed()) {
-    win.loadFile(path.join(__dirname, "../../assets/preflight.html"));
+    const file = path.join(__dirname, "../../assets/preflight.html");
+    win.loadFile(file, reason ? { query: { reason } } : undefined);
   }
 }
 

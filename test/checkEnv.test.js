@@ -50,6 +50,43 @@ test("missing, malformed and plain-http hosts are refused", () => {
   );
 });
 
+test("SUPPORT_URL is optional but must be a public https link when set", () => {
+  assert.deepStrictEqual(
+    checkEnv(`${PROD}SUPPORT_URL=
+`),
+    []
+  );
+  assert.deepStrictEqual(
+    checkEnv(`${PROD}SUPPORT_URL=https://help.letshyre.com/
+`),
+    []
+  );
+  assert.match(
+    checkEnv(`${PROD}SUPPORT_URL=http://help.letshyre.com`).join(),
+    /SUPPORT_URL must use https/
+  );
+  assert.match(checkEnv(`${PROD}SUPPORT_URL=help`).join(), /SUPPORT_URL is not a valid URL/);
+});
+
+test("the preflight endpoint paths are optional but must start with / when set", () => {
+  assert.deepStrictEqual(
+    checkEnv(`${PROD}PREFLIGHT_POLICY_PATH=\nPREFLIGHT_TELEMETRY_PATH=\n`),
+    []
+  );
+  assert.deepStrictEqual(
+    checkEnv(
+      `${PROD}PREFLIGHT_POLICY_PATH=/interview/preflight/policy\n` +
+        "PREFLIGHT_TELEMETRY_PATH=/interview/preflight/telemetry\n"
+    ),
+    []
+  );
+  for (const key of ["PREFLIGHT_POLICY_PATH", "PREFLIGHT_TELEMETRY_PATH"]) {
+    for (const bad of ["interview/policy", "https://evil.com/p", "/a b"]) {
+      assert.match(checkEnv(`${PROD}${key}=${bad}\n`).join(), new RegExp(`${key} must be a path`));
+    }
+  }
+});
+
 test("the check runs before every package, including CI's direct electron-builder call", () => {
   assert.strictEqual(pkg.build.beforePack, "scripts/check-env.js");
 });

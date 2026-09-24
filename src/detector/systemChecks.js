@@ -12,6 +12,9 @@ const {
   PREFLIGHT_AGENT_SCAN_RESERVE_MS,
   PREFLIGHT_GLOBAL_DEADLINE_MS,
   PREFLIGHT_RESULT_MAX_AGE_MS,
+  PREFLIGHT_REVERIFY_DEADLINE_MS,
+  PRE_PROCEED_INTERVAL_MS,
+  AGENT_RESTART_AFTER_FAILURES,
 } = require("../shared/constants");
 const { getCurrentAccessToken } = require("../main/protocolHandler");
 const axios = require("axios");
@@ -19,17 +22,25 @@ const { detectHDMIWindows } = require("./hdmiDetector");
 const detectMirroring = require("./mirrorDetector");
 const { checkProcesses, invalidateProcessCache } = require("./mirrorDetector");
 const {
+  PASS,
+  UNVERIFIED,
   mapHdmi,
   mapProcesses,
   mapAgent,
   buildVerdicts,
   canProceed,
 } = require("./preflightVerdict");
-const { getDisplayName } = require("../shared/appList");
+const { getDisplayName, filterAgentStatus } = require("../shared/blocklist");
 const { expectedAgentSource } = require("../shared/agentBuild");
 const { fetchAgentStatus, triggerAgentScan } = require("./agentClient");
-const { whenAgentReady, isAgentReady } = require("../main/agentManager");
+const {
+  whenAgentReady,
+  isAgentReady,
+  isAgentBlocked,
+  restartAgent,
+} = require("../main/agentManager");
 const logger = require("../main/logger");
+const preflightTelemetry = require("../main/preflightTelemetry");
 
 const violationCache = new Map(); // event key → last-fired timestamp
 const violationEscalation = new Map(); // event key → total fire count
@@ -37,38 +48,26 @@ const violationEscalation = new Map(); // event key → total fire count
 let isSessionActive = false;
 
 let detectionInterval = null;
-let preProceedInterval = null;
 let heartbeatInterval = null;
 let redeliveryTimer = null;
 let unackedHardBlock = null;
 let sessionWin = null;
 
-// ─── Pre-proceed monitor ↔ preflight scan mutual exclusion
-// The monitor and a preflight scan read the SAME process list and drive the SAME
-// Proceed button, so they must never run at once. See pausePreProceedMonitor().
-let _preProceedWin = null; // window the monitor pushes to, for resume
-let _preProceedDesired = false; // flow WANTS the monitor running (vs. paused)
-let _scanInProgress = false; // a preflight scan currently owns the screen
+// Pre-proceed monitor state (see the monitor section below).
+let preProceedInterval = null;
+let _preProceedWin = null;
+let _preProceedDesired = false;
+let _monitorEpoch = 0;
+let _tickSeq = 0;
+let _appliedTickSeq = 0;
+/** Latest live-monitor result; null until its first tick after a scan. */
+let _live = null;
 
-/**
- * Result of the most recent preflight pass, used to re-verify the gate in the
- * main process before lockdown. The renderer enabling its own Proceed button is
- * UX only — it must never be the thing that authorises entering the interview.
- * @type {{scanId: string, canProceed: boolean, capturedAt: number} | null}
- */
-let _lastPreflight = null;
-
-/**
- * Fail-CLOSED bookkeeping: counts consecutive "indeterminate" results per check
- * key during an active session. A check that errors/times out cannot confirm the
- * system is clean, so after INDETERMINATE_ESCALATION_THRESHOLD consecutive
- * failures we escalate to a violation instead of silently passing.
- */
+// Consecutive "indeterminate" results per check during a session. A check that
+// keeps failing can't vouch for the system, so it escalates to a violation.
 const indeterminateStreak = new Map(); // check key → consecutive indeterminate count
 
 /**
- * Records one check's outcome and escalates a sustained inability-to-verify
- * into a violation.
  * @param {Electron.BrowserWindow} win
  * @param {string} key   - stable check identifier, e.g. "hdmi" / "process"
  * @param {string} label - human-readable check name for the violation message
@@ -202,25 +201,20 @@ function startHeartbeat() {
 }
 
 /**
- * One unified detection pass: gathers every signal, applies fail-closed policy
- * uniformly, and routes all violations through sendViolation().
- *
- * Reads the process list ONCE via checkProcesses() and emits a single
- * de-duplicated violation — the old code also ran detectMirroring() over the
- * same blocked-app list, so a running blocked app fired twice ("medium" casting
- * + "high"). detectMirroring() is now only used by the preflight.
- *
+ * One detection pass during the interview: gathers every signal, fails closed
+ * on sustained indeterminate results and routes violations through sendViolation().
  * @param {Electron.BrowserWindow} win
  */
 async function runDetectionTick(win) {
   const [hdmi, proc, agentStatus] = await Promise.all([
     detectHDMIWindows().catch((e) => ({ status: "indeterminate", reason: e.message })),
     checkProcesses().catch(() => ({ found: [], status: "indeterminate" })),
-    fetchAgentStatus().catch(() => null),
+    fetchAgentStatus()
+      .then(filterAgentStatus)
+      .catch(() => null),
   ]);
 
-  // Agent reachability doubles as the anti-tamper liveness signal: a null
-  // response means the agent is unreachable (killed / crashed / blocked).
+  // An unreachable agent may have been killed, so reachability is also a tamper signal.
   const agentReachable = !!agentStatus;
   const found = proc.found || [];
 
@@ -235,14 +229,9 @@ async function runDetectionTick(win) {
     physicalMonitors: agentStatus?.physical_monitors ?? null,
   });
 
-  // ── Fail-CLOSED: sustained inability to verify any signal escalates ──────────
   trackIndeterminate(win, "hdmi", "External display check", hdmi.status);
   trackIndeterminate(win, "process", "Blocked-process check", proc.status);
-  // Agent down = indeterminate deep-scan, same N-strike model as the other
-  // checks, so a single transient miss doesn't false-fire "agent terminated".
-  // `degraded` (agent contract v2) means the agent ran but some of its own
-  // checks errored, so it can't vouch for the machine either — same treatment.
-  // Older agent builds omit the field, which reads as not degraded.
+  // A degraded agent ran but some of its own checks errored, so it can't vouch either.
   trackIndeterminate(
     win,
     "agent",
@@ -250,10 +239,7 @@ async function runDetectionTick(win) {
     !agentReachable || agentStatus.degraded === true ? "indeterminate" : "clear"
   );
 
-  // Duplicate-display cross-check. agent.py returns null (not 0) when it can't
-  // read the physical monitor count; coercing that to 0 would read as "no
-  // mirrored display" — a silent fail-open. Only tracked while reachable; an
-  // unreachable agent already escalates under the "agent" key above.
+  // A null monitor count means "unknown", never "no mirrored display".
   if (agentReachable) {
     const physicalCount = agentStatus.physical_monitors;
     trackIndeterminate(
@@ -264,19 +250,16 @@ async function runDetectionTick(win) {
     );
   }
 
-  // ── Positive detections ──────────────────────────────────────────────────────
   if (hdmi.detected) {
     sendViolation(win, hdmi.reason || "External display detected", "high");
   } else if (agentReachable && agentStatus.physical_monitors > 1) {
-    // Screen API saw one logical display but the agent counted multiple physical
-    // panels → "Duplicate these displays" mode (mirror to projector/second screen).
+    // One logical display but several physical panels: "Duplicate these displays".
     sendViolation(
       win,
       `Duplicate/mirrored display detected (${agentStatus.physical_monitors} physical monitors)`,
       "high"
     );
   }
-  // Single de-duplicated process violation (friendly names where known).
   if (found.length > 0) {
     const names = found.map((p) => getDisplayName(p)).join(", ");
     sendViolation(win, `Blocked application running during interview: ${names}`, "high");
@@ -414,15 +397,12 @@ function acknowledgeViolation() {
   clearUnackedHardBlock();
 }
 
-//PREFLIGHT: run all checks concurrently under per-check deadlines
+// ─── Preflight ───────────────────────────────────────────────────────────────
+
 /**
- * Resolves `promise` with `fallback` if it does not settle within `ms`, and
- * also if it rejects. Never rejects itself — one slow/broken probe degrades its
- * own card to "unverified" instead of aborting the whole scan (a single hung
- * check used to leave every card stuck on "Scanning").
- *
- * Also records duration/outcome into `timings[key]` when a record sink is
- * supplied, so a timed-out card can be told apart from an errored one.
+ * Resolves with `fallback` if `promise` rejects or doesn't settle within `ms`,
+ * so one hung probe marks only its own card unverified. Never rejects.
+ * Records duration and outcome into `timings[key]` when given.
  *
  * @template T
  * @param {Promise<T>} promise
@@ -458,8 +438,7 @@ function withDeadline(promise, ms, fallback, label, record = {}) {
   return Promise.race([
     Promise.resolve(promise).then(
       (value) => {
-        // A probe that resolves after its deadline already fired must not
-        // overwrite the recorded "timeout" outcome with a late "ok".
+        // A late result must not overwrite the recorded timeout.
         if (!timings?.[key]) {
           note("ok");
         }
@@ -477,9 +456,7 @@ function withDeadline(promise, ms, fallback, label, record = {}) {
   ]).finally(() => clearTimeout(timer));
 }
 
-// "Could not verify" sentinels. These are FACTORIES, not shared constants: a
-// shared object handed out as a timeout fallback can be mutated by a caller and
-// then silently poisons every later scan in the process. Each call gets its own.
+// Factories, not shared objects: a caller mutating a shared fallback would poison later scans.
 const hdmiUnverified = () => ({
   detected: false,
   status: "indeterminate",
@@ -493,103 +470,112 @@ const mirrorUnverified = () => ({
 });
 const agentUnreachable = () => ({ alive: false, status: null });
 
+/** Consecutive scans in which the agent was unreachable or returned nothing. */
+let _agentFailStreak = 0;
+
 /**
- * Fetches the agent's deep-scan result.
- *
- * Happy path is one round trip: a successful scan proves liveness, so a
- * separate ping first would be pure latency. We only ping as a fallback when
- * the scan fails, to tell "agent is dead" (Re-scan respawns it) apart from
- * "agent alive but scan didn't come back" (unverified) — those used to be
- * indistinguishable, with the second one rendering as a clean pass.
+ * Fetches the agent's deep-scan result. Readiness is owned by agentManager; the
+ * reserve at the end of the budget is for the scan itself.
  *
  * @param {number} [budgetMs]
- * @param {((phase: "starting"|"scanning") => void)} [onPhase] - progress only;
- *        reports which half of the budget we are in so the card can say
- *        "starting" instead of implying the scan is already running.
- * @returns {Promise<{alive: boolean, status: object|null}>}
+ * @param {((phase: "starting"|"scanning") => void)} [onPhase] - progress only
+ * @returns {Promise<{alive: boolean, status: object|null, blocked?: boolean}>}
  */
 async function scanAgent(budgetMs = PREFLIGHT_AGENT_DEADLINE_MS, onPhase = null) {
-  // Liveness is owned by agentManager (ready event, with a ping poll for older
-  // agent binaries). Polling here independently used to race the pre-warm and
-  // report a false "failed to start" while the agent was still booting. The
-  // rest of the budget is reserved for the deep scan itself; a genuinely dead
-  // agent still fails, just at the deadline instead of instantly.
+  const startedAt = Date.now();
   const livenessBudget = budgetMs - PREFLIGHT_AGENT_SCAN_RESERVE_MS;
 
-  // A cold spawn is the one wait long enough to need explaining. Only announce
-  // it when the agent genuinely isn't up — on the warm path both phases would
-  // land in the same tick and the card would flicker for nothing.
-  if (!isAgentReady()) {
+  // The readiness wait never replaces a live agent, so a hung one is restarted here.
+  if (_agentFailStreak >= AGENT_RESTART_AFTER_FAILURES) {
+    onPhase?.("starting");
+    await restartAgent();
+  } else if (!isAgentReady()) {
     onPhase?.("starting");
   }
 
-  const alive = await whenAgentReady(livenessBudget);
-
+  const alive = await whenAgentReady(Math.max(0, livenessBudget - (Date.now() - startedAt)));
   if (!alive) {
-    return { alive: false, status: null };
+    return isAgentBlocked() ? { alive: false, status: null, blocked: true } : agentUnreachable();
   }
 
   onPhase?.("scanning");
   const status = await triggerAgentScan();
-  return { alive: true, status: status && !status.error ? status : null };
+  return { alive: true, status: status && !status.error ? filterAgentStatus(status) : null };
 }
 
+/** Result of the most recent committed preflight pass. */
+let _lastPreflight = null;
+
+/** Threat PID → lowercase image name, from the latest agent scan that came back. */
+let _threatProcesses = new Map();
+
+function _rememberThreats(threats) {
+  const map = new Map();
+  for (const t of threats || []) {
+    if (Number.isInteger(t?.pid) && t.pid > 0 && typeof t.process === "string" && t.process) {
+      map.set(t.pid, t.process.toLowerCase());
+    }
+  }
+  _threatProcesses = map;
+}
+
+/** @returns {Map<number, string>} */
+function getThreatProcesses() {
+  return new Map(_threatProcesses);
+}
+
+/** Scans currently running; each knows whether its page is still the current one. */
+const _activeScans = new Set();
+
 /**
- * Runs every preflight check and returns the verdict list plus the authoritative
- * `canProceed` gate.
+ * Runs every preflight check concurrently, streaming each verdict through
+ * `onProgress` as it lands, and returns the verdicts plus the gate.
  *
- * Checks run concurrently, each under its own deadline, streaming each verdict
- * to the renderer via `onProgress` as it lands. (They used to run sequentially
- * behind one renderer-side timeout shorter than their combined worst case, so a
- * cold agent reliably aborted an otherwise-healthy scan.)
+ * Only a scan whose `isCurrent()` is still true when it finishes may commit its
+ * result; a scan whose page was left still completes and is logged.
  *
- * @param {((verdict: object) => void) | null} onProgress - called once per verdict
- * @returns {Promise<{scanId: string, verdicts: object[], canProceed: boolean,
- *                    capturedAt: number, timings: object}>}
+ * @param {((payload: object) => void) | null} onProgress
+ * @param {{token?: string|null, isCurrent?: () => boolean}} [opts]
+ * @returns {Promise<{token: string|null, scanId: string, verdicts: object[],
+ *   canProceed: boolean, capturedAt: number, expiresAt: number, timings: object}>}
  */
-async function runChecksOnce(onProgress = null) {
+async function runChecksOnce(onProgress = null, { token = null, isCurrent = () => true } = {}) {
   const scanId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const scan = { isCurrent };
+  _activeScans.add(scan);
+  // The monitor reads the same process list and drives the same page, so it pauses.
+  _pauseMonitor();
+  try {
+    return await _runChecksOnceInner(onProgress, { scanId, token, isCurrent });
+  } finally {
+    _activeScans.delete(scan);
+    if (_activeScans.size === 0) {
+      _resumeMonitor();
+    }
+  }
+}
+
+async function _runChecksOnceInner(onProgress, { scanId, token, isCurrent }) {
   const startedAt = Date.now();
   /** @type {Record<string, {durationMs:number, deadlineMs:number, outcome:string, timedOut:boolean}>} */
   const timings = {};
 
-  // the pre-proceed monitor must not run concurrently with a scan.
-  // Pausing it here (and resuming in the finally below) stops it spawning
-  // tasklist mid-scan and stops its PUSH_PRE_PROCEED_STATUS messages fighting
-  // the scan's own card rendering.
-  const resumeMonitor = pausePreProceedMonitor();
-
-  try {
-    return await _runChecksOnceInner(onProgress, scanId, startedAt, timings);
-  } finally {
-    // Restores the monitor even when a probe throws all the way out, so a failed
-    // scan can never leave the success screen without its live gating.
-    resumeMonitor();
-  }
-}
-
-/**
- * The scan body. Split out so runChecksOnce() can wrap it in the monitor
- * pause/resume without an extra level of indentation.
- */
-async function _runChecksOnceInner(onProgress, scanId, startedAt, timings) {
-  // Always scan a fresh process list. The pre-proceed watcher polls every 2s and
-  // keeps checkProcesses' 3s cache permanently warm, so without this a Re-scan
-  // could answer from a snapshot taken before the candidate closed the app.
-  // The monitor is paused above, and invalidateProcessCache() additionally
-  // discards any probe it left in flight (see mirrorDetector's cache epoch), so
-  // the reads below are guaranteed uncached.
+  // The monitor keeps the 3s process cache warm; a Re-scan must not answer from it.
   invalidateProcessCache();
 
-  const emit = (verdict) => {
+  const emit = (payload) => {
     try {
-      onProgress?.({ ...verdict, scanId });
+      onProgress?.({ ...payload, scanId, token });
     } catch {
-      // Renderer went away mid-scan — keep scanning, the result is still logged.
+      // Renderer went away mid-scan; the result is still logged.
     }
   };
 
-  // Kick all three probes off together.
+  let firstProbeAt = null;
+  const landed = () => {
+    firstProbeAt ??= Date.now();
+  };
+
   const hdmiPromise = withDeadline(
     detectHDMIWindows(),
     PREFLIGHT_HDMI_DEADLINE_MS,
@@ -604,10 +590,7 @@ async function _runChecksOnceInner(onProgress, scanId, startedAt, timings) {
     "process scan",
     { timings, key: "process" }
   );
-  // `phase` events carry no verdict — they only repaint the pending card while
-  // the agent boots. Deliberately not a status: an in-progress agent must never
-  // be able to reach the gate, and the fail-closed timeout fallback below is
-  // still what decides the card if the agent never arrives.
+  // Phase events carry no verdict, so an agent still booting can never reach the gate.
   const agentPromise = withDeadline(
     scanAgent(PREFLIGHT_AGENT_DEADLINE_MS, (phase) => emit({ id: "agent", phase })),
     PREFLIGHT_AGENT_DEADLINE_MS,
@@ -616,17 +599,18 @@ async function _runChecksOnceInner(onProgress, scanId, startedAt, timings) {
     { timings, key: "agent" }
   );
 
-  // Stream each card as soon as its own probe lands, rather than waiting for
-  // the slowest one.
   const hdmiSettled = hdmiPromise.then((raw) => {
+    landed();
     emit(mapHdmi(raw));
     return raw;
   });
   const mirrorSettled = mirrorPromise.then((raw) => {
+    landed();
     mapProcesses(raw).forEach(emit);
     return raw;
   });
   const agentSettled = agentPromise.then((raw) => {
+    landed();
     emit(mapAgent(raw));
     return raw;
   });
@@ -639,18 +623,9 @@ async function _runChecksOnceInner(onProgress, scanId, startedAt, timings) {
     { timings, key: "overall" }
   );
 
-  // Cross-check (needs both probes): the screen API only sees LOGICAL displays,
-  // so Windows "Duplicate these displays" mode reads as a single display. If the
-  // agent counted more physical panels, upgrade the HDMI result and re-emit the
-  // card (renderer keys cards by id, so re-emit replaces the earlier one).
-  //
-  // Built as a new object, not mutated in place: rawHdmi may be a timeout
-  // fallback, and an "unverified" result must never get upgraded to a concrete
-  // verdict from data (physical count) that doesn't actually confirm it.
-  // No `|| 0` on physical_monitors: agent contract v2 returns null (not 0) when
-  // unreadable, and `null > 1` is false, so an unreadable count just doesn't
-  // upgrade the verdict — the agent's own `degraded` flag independently keeps
-  // its card, and the gate, from silently passing.
+  // The screen API sees logical displays only, so "Duplicate these displays"
+  // reads as one. More physical panels than that means a mirrored screen. Only a
+  // verified-clear probe is upgraded, and a null count never upgrades anything.
   const physical = agent?.status?.physical_monitors;
   const hdmi =
     !rawHdmi.detected && rawHdmi.status === "clear" && physical > 1
@@ -658,27 +633,46 @@ async function _runChecksOnceInner(onProgress, scanId, startedAt, timings) {
           ...rawHdmi,
           detected: true,
           status: "violation",
+          mirrored: true,
+          count: physical,
           reason: `Duplicate/mirrored display detected (${physical} physical monitors)`,
         }
       : rawHdmi;
 
   const verdicts = buildVerdicts({ hdmi, mirror, agent });
   const proceed = canProceed(verdicts);
-  const capturedAt = Date.now();
+  const finishedAt = Date.now();
+  const capturedAt = firstProbeAt ?? finishedAt;
+  const expiresAt = capturedAt + PREFLIGHT_RESULT_MAX_AGE_MS;
 
-  // Re-emit so a cross-check upgrade reaches a renderer that already drew the
-  // streamed version. Idempotent by card id.
+  // Re-emit so a mirror upgrade replaces the card already drawn (cards are keyed by id).
   verdicts.forEach(emit);
+
+  const committed = isCurrent();
+  if (committed) {
+    _agentFailStreak = agent?.alive && agent.status ? 0 : _agentFailStreak + 1;
+    if (agent?.status) {
+      _rememberThreats(agent.status.threats);
+    }
+    _lastPreflight = { scanId, canProceed: proceed, capturedAt };
+    _live = null;
+    preflightTelemetry.recordScan({
+      scanId,
+      capturedAt,
+      canProceed: proceed,
+      durationMs: finishedAt - startedAt,
+      verdicts,
+      timings,
+      agentStatus: agent?.status,
+    });
+  }
 
   appendAuditEvent("scan", {
     phase: "preflight",
     scanId,
-    durationMs: capturedAt - startedAt,
+    committed,
+    durationMs: finishedAt - startedAt,
     canProceed: proceed,
-    // Per-probe duration + whether it hit its deadline. This is what turns
-    // "the security check didn't work" into a diagnosable report: a card that
-    // reads "unverified" because its probe blew a 8000ms budget looks nothing
-    // like one that returned an error in 40ms, but the verdict is identical.
     timings,
     verdicts: verdicts.map((v) => ({ id: v.id, status: v.status, reason: v.reasonKey })),
     physicalMonitors: agent?.status?.physical_monitors ?? null,
@@ -687,16 +681,15 @@ async function _runChecksOnceInner(onProgress, scanId, startedAt, timings) {
     agentSourceExpected: expectedAgentSource(),
   });
   logger.info(
-    `[preflight] scan ${scanId} finished in ${capturedAt - startedAt}ms — ` +
-      `canProceed=${proceed} [${verdicts.map((v) => `${v.id}:${v.status}`).join(" ")}] ` +
+    `[preflight] scan ${scanId} finished in ${finishedAt - startedAt}ms — ` +
+      `canProceed=${proceed}${committed ? "" : " (page left, not committed)"} ` +
+      `[${verdicts.map((v) => `${v.id}:${v.status}`).join(" ")}] ` +
       `timings=[${formatTimings(timings)}]`
   );
 
-  _lastPreflight = { scanId, canProceed: proceed, capturedAt };
-  return { scanId, verdicts, canProceed: proceed, capturedAt, timings };
+  return { token, scanId, verdicts, canProceed: proceed, capturedAt, expiresAt, timings };
 }
 
-/** Renders the per-check timing map as a compact one-line log fragment. */
 function formatTimings(timings) {
   return Object.entries(timings || {})
     .map(([key, t]) => `${key}:${t.durationMs}ms/${t.outcome}`)
@@ -704,27 +697,87 @@ function formatTimings(timings) {
 }
 
 /**
- * Authoritative check performed when leaving the security-check page.
+ * Authoritative check performed when leaving the security-check page. The
+ * renderer enabling its button is UX only.
  *
  * @param {{requireFresh?: boolean}} [opts] - `requireFresh` (default true) also
- *   requires the pass to be recent. Use false for later stages of the flow,
- *   where the preflight is legitimately minutes old by the time it is consulted.
- * @returns {{ok: boolean, reason: string}}
+ *   requires a recent pass, no running scan and a clean live monitor. Later
+ *   stages pass false: by then the preflight is legitimately minutes old.
+ * @returns {{ok: boolean, code: "none"|"failed"|"stale"|"dirty"|"scanning", reason: string}}
  */
 function verifyProceedAllowed({ requireFresh = true } = {}) {
+  if (requireFresh && [..._activeScans].some((s) => s.isCurrent())) {
+    return { ok: false, code: "scanning", reason: "a preflight scan is still running" };
+  }
   if (!_lastPreflight) {
-    return { ok: false, reason: "no preflight has been run" };
+    return { ok: false, code: "failed", reason: "no preflight has been run" };
   }
   if (!_lastPreflight.canProceed) {
-    return { ok: false, reason: "last preflight did not pass" };
+    return { ok: false, code: "failed", reason: "last preflight did not pass" };
   }
   if (requireFresh) {
+    if (_live && !_live.clean) {
+      return {
+        ok: false,
+        code: "dirty",
+        reason: _live.unverified
+          ? "the live check could not verify the system"
+          : "the live check found a blocked app or an extra display",
+      };
+    }
     const age = Date.now() - _lastPreflight.capturedAt;
     if (age > PREFLIGHT_RESULT_MAX_AGE_MS) {
-      return { ok: false, reason: `preflight result is stale (${Math.round(age / 1000)}s old)` };
+      return {
+        ok: false,
+        code: "stale",
+        reason: `preflight result is stale (${Math.round(age / 1000)}s old)`,
+      };
     }
   }
-  return { ok: true, reason: "" };
+  return { ok: true, code: "none", reason: "" };
+}
+
+/**
+ * Renews a pass whose only problem is its age, with a quick fresh look at
+ * processes, displays and the agent's latest status.
+ * @param {number} [budgetMs]
+ * @returns {Promise<boolean>} true if the pass was renewed
+ */
+async function renewStalePass(budgetMs = PREFLIGHT_REVERIFY_DEADLINE_MS) {
+  if (verifyProceedAllowed().code !== "stale") {
+    return false;
+  }
+  const pass = _lastPreflight;
+  invalidateProcessCache();
+  const [proc, hdmi, agent] = await withDeadline(
+    Promise.all([
+      checkProcesses(),
+      detectHDMIWindows(),
+      fetchAgentStatus().then(filterAgentStatus),
+    ]),
+    budgetMs,
+    [null, null, null],
+    "stale-pass re-check"
+  );
+  const clean =
+    proc?.status === "clear" &&
+    (proc.found || []).length === 0 &&
+    hdmi?.status === "clear" &&
+    !hdmi.detected &&
+    !!agent &&
+    !agent.error &&
+    agent.degraded !== true &&
+    !(agent.threats?.length > 0) &&
+    !(agent.physical_monitors > 1);
+
+  if (!clean || _lastPreflight !== pass) {
+    logger.warn("[preflight] stale pass could not be renewed");
+    return false;
+  }
+  _lastPreflight = { ...pass, capturedAt: Date.now() };
+  appendAuditEvent("scan", { phase: "renew", scanId: pass.scanId });
+  logger.info(`[preflight] stale pass ${pass.scanId} renewed`);
+  return true;
 }
 
 function detachSessionWin() {
@@ -758,6 +811,8 @@ function stop() {
 function resetState() {
   isSessionActive = false;
   _lastPreflight = null;
+  _live = null;
+  _threatProcesses = new Map();
   violationCache.clear();
   violationEscalation.clear();
   indeterminateStreak.clear();
@@ -769,104 +824,130 @@ function resetState() {
   detectionInterval = null;
 }
 
-// ─── PRE-PROCEED MONITOR ─────────────────────────────────────────────────────
+// ─── Pre-proceed monitor ─────────────────────────────────────────────────────
+// Runs only while the security-check page is shown, re-checking processes and
+// displays so the page (and the gate) notice an app opened after the scan.
 
 /**
- * Starts a lightweight background poller that runs checkProcesses() every 2s
- * and pushes the result to the preflight renderer via PUSH_PRE_PROCEED_STATUS.
- * This keeps the Proceed button state accurate in real-time without any blocking
- * scan at click-time.
- *
- * Call after preflight passes. Stopped when the user clicks Proceed or Recheck.
- *
+ * Turns one monitor tick's raw probes into the pushed payload.
+ * @returns {{clean: boolean, unverified: boolean, apps: string[], verdicts: object[]}}
+ */
+function buildLiveStatus(hdmi, proc) {
+  const apps = proc?.found || [];
+  const verdicts = [
+    mapHdmi(hdmi),
+    ...mapProcesses({ status: proc?.status ?? "indeterminate", details: { processes: apps } }),
+  ];
+  return {
+    clean: verdicts.every((v) => v.status === PASS),
+    unverified: verdicts.some((v) => v.status === UNVERIFIED),
+    apps,
+    verdicts,
+  };
+}
+
+async function _monitorTick() {
+  const win = _preProceedWin;
+  const epoch = _monitorEpoch;
+  const seq = ++_tickSeq;
+  if (!win || _activeScans.size > 0) {
+    return;
+  }
+  try {
+    const [proc, hdmi] = await Promise.all([
+      checkProcesses().catch(() => ({ found: [], status: "indeterminate" })),
+      detectHDMIWindows().catch(() => hdmiUnverified()),
+    ]);
+    // Drop a tick that outlived the monitor or lost the race to a newer one.
+    if (epoch !== _monitorEpoch || seq < _appliedTickSeq || _activeScans.size > 0) {
+      return;
+    }
+    _appliedTickSeq = seq;
+    const payload = buildLiveStatus(hdmi, proc);
+    _live = { clean: payload.clean, unverified: payload.unverified };
+    if (!win.isDestroyed()) {
+      win.webContents.send(IPC.PUSH_PRE_PROCEED_STATUS, payload);
+    }
+  } catch (e) {
+    logger.warn("[systemChecks] pre-proceed monitor error:", e.message);
+  }
+}
+
+function _screen() {
+  try {
+    const { screen } = require("electron");
+    return screen && typeof screen.on === "function" ? screen : null;
+  } catch {
+    return null;
+  }
+}
+
+function _onDisplayChange() {
+  _monitorTick();
+}
+
+function _watchDisplays(on) {
+  const screen = _screen();
+  if (!screen) {
+    return;
+  }
+  try {
+    for (const event of ["display-added", "display-removed"]) {
+      if (on) {
+        screen.on(event, _onDisplayChange);
+      } else {
+        screen.removeListener(event, _onDisplayChange);
+      }
+    }
+  } catch (e) {
+    logger.warn("[systemChecks] display events unavailable:", e.message);
+  }
+}
+
+function _haltMonitor() {
+  clearInterval(preProceedInterval);
+  preProceedInterval = null;
+  _watchDisplays(false);
+  _monitorEpoch += 1;
+}
+
+/**
+ * Starts the live monitor for the security-check page. While a scan runs it is
+ * deferred and starts when the scan finishes.
  * @param {Electron.BrowserWindow} win
  */
 function startPreProceedMonitor(win) {
   _preProceedDesired = true;
   _preProceedWin = win;
-  if (preProceedInterval) {
-    return;
-  } // already running
-  // A scan owns the process list and the screen right now; the resume hook
-  // installed by pausePreProceedMonitor() will start us when it finishes.
-  if (_scanInProgress) {
-    logger.info("[systemChecks] pre-proceed monitor deferred — preflight scan in progress");
+  if (preProceedInterval || _activeScans.size > 0) {
     return;
   }
   logger.info("[systemChecks] pre-proceed monitor started");
-  preProceedInterval = setInterval(async () => {
-    // Belt-and-braces with pausePreProceedMonitor(): a tick already queued when
-    // the pause happened must not spawn tasklist or push a status mid-scan.
-    if (_scanInProgress) {
-      return;
-    }
-    try {
-      const { found } = await checkProcesses();
-      if (_scanInProgress) {
-        return;
-      } // a scan started while we were probing
-      const payload = { clean: found.length === 0, apps: found };
-      if (win && !win.isDestroyed()) {
-        win.webContents.send(IPC.PUSH_PRE_PROCEED_STATUS, payload);
-      }
-    } catch (e) {
-      logger.warn("[systemChecks] pre-proceed monitor error:", e.message);
-    }
-  }, 2000);
+  preProceedInterval = setInterval(_monitorTick, PRE_PROCEED_INTERVAL_MS);
+  _watchDisplays(true);
 }
 
-/**
- * Stops the pre-proceed watcher. Call when the user clicks Proceed or Recheck.
- */
+/** Stops the monitor for good (page left) and forgets its live state. */
 function stopPreProceedMonitor() {
-  // Clears the DESIRED state too, so a scan's resume hook cannot revive a
-  // monitor the user explicitly stopped (Proceed / Recheck) mid-scan.
   _preProceedDesired = false;
   _preProceedWin = null;
-  clearInterval(preProceedInterval);
-  preProceedInterval = null;
+  _live = null;
+  _haltMonitor();
   logger.info("[systemChecks] pre-proceed monitor stopped");
 }
 
-/**
- * Suspends the pre-proceed watcher for the duration of a preflight scan and
- * returns the resume function.
- *
- * Must pause, not overlap: the monitor's 2s poll keeps checkProcesses' 3s cache
- * warm, so it could refill the cache right after the scan invalidates it,
- * making the scan read a stale snapshot from before the candidate closed an
- * app. It also pushes PUSH_PRE_PROCEED_STATUS, fighting the scan for the same
- * Proceed button/status line. Pausing sidesteps both — the scan already reads
- * the same process list, more thoroughly, so the poller has nothing to add
- * while it runs.
- *
- * Resume only restores what the flow actually wants running: if no monitor was
- * active (normal for the first scan, before ipcHandlers starts one) or the
- * user stopped it mid-scan via Proceed/Recheck, resume is a no-op.
- *
- * @returns {() => void} resume — idempotent; call from a finally.
- */
-function pausePreProceedMonitor() {
-  _scanInProgress = true;
-
+function _pauseMonitor() {
   if (preProceedInterval) {
-    clearInterval(preProceedInterval);
-    preProceedInterval = null;
+    _haltMonitor();
     logger.info("[systemChecks] pre-proceed monitor paused for preflight scan");
   }
+}
 
-  let resumed = false;
-  return function resumePreProceedMonitor() {
-    if (resumed) {
-      return;
-    }
-    resumed = true;
-    _scanInProgress = false;
-    const win = _preProceedWin;
-    if (_preProceedDesired && win && !win.isDestroyed()) {
-      startPreProceedMonitor(win);
-    }
-  };
+function _resumeMonitor() {
+  const win = _preProceedWin;
+  if (_preProceedDesired && win && !win.isDestroyed()) {
+    startPreProceedMonitor(win);
+  }
 }
 
 module.exports = {
@@ -875,12 +956,19 @@ module.exports = {
   sendViolation,
   resetState,
   runChecksOnce,
-  /** True while an interview is live. Used to refuse actions that show system
-   *  UI (e.g. the elevated-kill consent prompt) during a proctored session. */
+  /** True while an interview is live; refuses actions that show system UI mid-session. */
   isSessionActive: () => isSessionActive,
   verifyProceedAllowed,
+  renewStalePass,
+  getThreatProcesses,
   getAuditLog,
   acknowledgeViolation,
   startPreProceedMonitor,
   stopPreProceedMonitor,
+  _internal: {
+    buildLiveStatus,
+    runDetectionTick,
+    monitorTick: _monitorTick,
+    agentFailStreak: () => _agentFailStreak,
+  },
 };

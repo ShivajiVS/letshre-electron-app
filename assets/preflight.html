@@ -11,14 +11,13 @@
     <link rel="stylesheet" href="./css/update-card.css" />
   </head>
   <body class="sc-body">
-    <!-- Background blobs -->
-    <div class="sc-blob sc-blob--1"></div>
-    <div class="sc-blob sc-blob--2"></div>
+    <div class="sc-blob sc-blob--1" aria-hidden="true"></div>
+    <div class="sc-blob sc-blob--2" aria-hidden="true"></div>
 
-    <!-- Top bar (synced with permissions / identity / role-selection) -->
     <header class="sc-topbar animate-fade-in">
       <button
         id="btn-back-dashboard"
+        type="button"
         onclick="window.electronAPI?.loadLanguageSelection?.()"
         class="btn-back-nav"
       >
@@ -32,6 +31,8 @@
           stroke-width="2.5"
           stroke-linecap="round"
           stroke-linejoin="round"
+          aria-hidden="true"
+          focusable="false"
         >
           <path d="M19 12H5" />
           <path d="M12 19l-7-7 7-7" />
@@ -41,192 +42,403 @@
       <div id="lang-switcher"></div>
     </header>
 
-    <!-- Main Content -->
     <main class="sc-main animate-fade-in" style="animation-delay: 0.1s; opacity: 0">
-      <!-- Intro (centered title + subtitle, synced with perm-intro) -->
       <div class="sc-intro">
         <h1 class="sc-intro__title" data-i18n="preflight.title">Security Checks</h1>
         <p class="sc-intro__sub" data-i18n="preflight.sub">
-          Environment Compliance Required — close all unauthorized screens, apps, or browsers to
-          proceed
+          We check that nothing else on this computer can see, share or help with your interview.
+          Close anything we find, then continue.
         </p>
-      </div>
-
-      <!-- Cards -->
-      <div class="sc-cards">
-        <!-- Card 1: HDMI Display -->
-        <div id="card-hdmi" class="sc-card">
-          <div class="sc-card__row">
-            <div class="sc-card__row-left">
-              <div id="icon-hdmi" class="sc-card__icon">
-                <svg class="sc-icon spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  ></path>
-                </svg>
-              </div>
-              <div class="sc-card__body">
-                <h3 class="sc-card__title" data-i18n="preflight.hdmiTitle">HDMI Connection</h3>
-                <p id="desc-hdmi" class="sc-card__desc">
-                  Scanning for external display connections...
-                </p>
-              </div>
-            </div>
-            <div id="badge-hdmi" class="sc-badge sc-badge--scanning">Scanning</div>
-          </div>
-          <div id="actions-hdmi" class="sc-card__actions"></div>
-        </div>
-
-        <!-- Card 2: Meeting Apps -->
-        <div id="card-meeting" class="sc-card">
-          <div class="sc-card__row">
-            <div class="sc-card__row-left">
-              <div id="icon-meeting" class="sc-card__icon">
-                <svg class="sc-icon spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  ></path>
-                </svg>
-              </div>
-              <div class="sc-card__body">
-                <h3 class="sc-card__title" data-i18n="preflight.meetingTitle">Active Meetings</h3>
-                <p id="desc-meeting" class="sc-card__desc">
-                  Scanning for active communication software...
-                </p>
-              </div>
-            </div>
-            <div id="badge-meeting" class="sc-badge sc-badge--scanning">Scanning</div>
-          </div>
-          <div id="actions-meeting" class="sc-card__actions"></div>
-        </div>
-
-        <!-- Card 3: Screen Sharing -->
-        <div id="card-screen" class="sc-card">
-          <div class="sc-card__row">
-            <div class="sc-card__row-left">
-              <div id="icon-screen" class="sc-card__icon">
-                <svg class="sc-icon spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  ></path>
-                </svg>
-              </div>
-              <div class="sc-card__body">
-                <h3 class="sc-card__title" data-i18n="preflight.screenTitle">
-                  Screen Capture &amp; Recording
-                </h3>
-                <p id="desc-screen" class="sc-card__desc">
-                  Scanning for recording or streaming applications...
-                </p>
-              </div>
-            </div>
-            <div id="badge-screen" class="sc-badge sc-badge--scanning">Scanning</div>
-          </div>
-          <div id="actions-screen" class="sc-card__actions"></div>
-        </div>
-
-        <!-- Card 4: Wireless Mirroring -->
-        <div id="card-wireless" class="sc-card">
-          <div class="sc-card__row">
-            <div class="sc-card__row-left">
-              <div id="icon-wireless" class="sc-card__icon">
-                <svg class="sc-icon spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  ></path>
-                </svg>
-              </div>
-              <div class="sc-card__body">
-                <h3 class="sc-card__title" data-i18n="preflight.wirelessTitle">
-                  Wireless Mirroring &amp; Browsers
-                </h3>
-                <p id="desc-wireless" class="sc-card__desc">
-                  Scanning for wireless casting or browser activity...
-                </p>
-              </div>
-            </div>
-            <div id="badge-wireless" class="sc-badge sc-badge--scanning">Scanning</div>
-          </div>
-          <div id="actions-wireless" class="sc-card__actions"></div>
-        </div>
-
-        <!-- Card 5: AI Assistants -->
-        <div id="card-ai" class="sc-card">
-          <div class="sc-card__row">
-            <div class="sc-card__row-left">
-              <div id="icon-ai" class="sc-card__icon">
-                <svg class="sc-icon spinning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  ></path>
-                </svg>
-              </div>
-              <div class="sc-card__body">
-                <h3 class="sc-card__title" data-i18n="preflight.aiTitle">AI Assistant Detection</h3>
-                <p id="desc-ai" class="sc-card__desc">
-                  Scanning for interview copilots and cheating tools...
-                </p>
-              </div>
-            </div>
-            <div id="badge-ai" class="sc-badge sc-badge--scanning">Scanning</div>
-          </div>
-          <div id="actions-ai" class="sc-card__actions"></div>
-        </div>
-      </div>
-      <!-- /sc-cards -->
-
-      <!-- Footer -->
-      <div class="sc-footer">
-        <p id="final-status" class="sc-status" role="status" aria-live="polite">
-          Running security diagnostics...
-        </p>
-        <div class="sc-footer__buttons">
-          <button id="btn-rescan" class="sc-btn-rescan">
-            <svg class="sc-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="sc-help">
+          <button
+            id="btn-what-we-check"
+            type="button"
+            class="sc-link-btn"
+            aria-expanded="false"
+            aria-controls="what-we-check"
+          >
+            <svg
+              class="sc-icon-xs sc-help__chevron"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+            >
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 stroke-width="2.5"
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                d="M19 9l-7 7-7-7"
               ></path>
             </svg>
-            <span data-i18n="preflight.rescan">Rescan</span>
+            <span data-i18n="preflight.whatWeCheck">What we check</span>
           </button>
-          <button id="btn-proceed" disabled class="sc-btn-proceed sc-btn-proceed--disabled">
-            <span>Continue</span>
-            <svg class="sc-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <button id="btn-minimize" type="button" class="sc-link-btn" hidden>
+            <svg
+              class="sc-icon-xs"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path stroke-linecap="round" stroke-width="2.5" d="M5 18h14"></path>
+            </svg>
+            <span data-i18n="preflight.minimize">Minimize</span>
+          </button>
+          <button id="btn-help-support" type="button" class="sc-link-btn" hidden>
+            <svg
+              class="sc-icon-xs"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+            >
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
-                stroke-width="2.5"
-                d="M9 5l7 7-7 7"
+                stroke-width="2"
+                d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
               ></path>
             </svg>
+            <span data-i18n="preflight.help">Need help?</span>
           </button>
+        </div>
+        <div id="what-we-check" class="sc-explainer" hidden>
+          <p class="sc-explainer__intro" data-i18n="preflight.whatWeCheckIntro">
+            These checks make sure only this app can see or share your screen during the interview.
+          </p>
+          <ul class="sc-explainer__list">
+            <li>
+              <strong data-i18n="preflight.hdmiTitle">External Displays</strong>
+              <span data-i18n="preflight.hdmiWhy">Only one screen can be in use.</span>
+            </li>
+            <li>
+              <strong data-i18n="preflight.meetingTitle">Meeting Apps</strong>
+              <span data-i18n="preflight.meetingWhy"
+                >Video call apps can share your screen or audio.</span
+              >
+            </li>
+            <li>
+              <strong data-i18n="preflight.screenTitle">Screen Recording &amp; Sharing</strong>
+              <span data-i18n="preflight.screenWhy"
+                >Recorders and streaming apps can capture the interview.</span
+              >
+            </li>
+            <li>
+              <strong data-i18n="preflight.wirelessTitle">Remote Access &amp; Casting</strong>
+              <span data-i18n="preflight.wirelessWhy"
+                >These let another device see or control this one.</span
+              >
+            </li>
+            <li>
+              <strong data-i18n="preflight.browserTitle">Web Browsers</strong>
+              <span data-i18n="preflight.browserWhy"
+                >The interview runs inside this app, so browsers need to be closed.</span
+              >
+            </li>
+            <li>
+              <strong data-i18n="preflight.aiTitle">AI Assistant Apps</strong>
+              <span data-i18n="preflight.aiWhy"
+                >These apps can suggest answers during an interview.</span
+              >
+            </li>
+            <li>
+              <strong data-i18n="preflightResults.agentTitle">Deep System Scan</strong>
+              <span data-i18n="preflight.agentWhy"
+                >Looks for hidden overlays and automation tools the other checks can miss.</span
+              >
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <section class="sc-checks" aria-labelledby="summary-text">
+        <div class="sc-summary">
+          <p id="summary-text" class="sc-summary__text">Checking your computer…</p>
+          <div
+            id="summary-meter"
+            class="sc-summary__meter"
+            role="progressbar"
+            aria-valuemin="0"
+            aria-valuemax="7"
+            aria-valuenow="0"
+            aria-labelledby="summary-text"
+          >
+            <span id="summary-bar" class="sc-summary__bar"></span>
+          </div>
+          <p id="first-run-hint" class="sc-summary__hint" hidden>
+            <span data-i18n="preflight.firstRunHint"
+              >The first check can take up to 30 seconds.</span
+            >
+          </p>
+        </div>
+
+        <div class="sc-cards">
+          <div
+            id="card-hdmi"
+            class="sc-card sc-card--scanning"
+            role="group"
+            aria-labelledby="title-hdmi"
+            aria-busy="true"
+          >
+            <div class="sc-card__row">
+              <div id="icon-hdmi" class="sc-card__icon"></div>
+              <div class="sc-card__body">
+                <h3
+                  id="title-hdmi"
+                  class="sc-card__title"
+                  tabindex="-1"
+                  data-i18n="preflight.hdmiTitle"
+                >
+                  External Displays
+                </h3>
+                <p id="desc-hdmi" class="sc-card__desc"></p>
+              </div>
+              <span id="badge-hdmi" class="sc-badge sc-badge--scanning"></span>
+            </div>
+            <div id="actions-hdmi" class="sc-card__actions"></div>
+          </div>
+
+          <div
+            id="card-meeting"
+            class="sc-card sc-card--scanning"
+            role="group"
+            aria-labelledby="title-meeting"
+            aria-busy="true"
+          >
+            <div class="sc-card__row">
+              <div id="icon-meeting" class="sc-card__icon"></div>
+              <div class="sc-card__body">
+                <h3
+                  id="title-meeting"
+                  class="sc-card__title"
+                  tabindex="-1"
+                  data-i18n="preflight.meetingTitle"
+                >
+                  Meeting Apps
+                </h3>
+                <p id="desc-meeting" class="sc-card__desc"></p>
+              </div>
+              <span id="badge-meeting" class="sc-badge sc-badge--scanning"></span>
+            </div>
+            <div id="actions-meeting" class="sc-card__actions"></div>
+          </div>
+
+          <div
+            id="card-screen"
+            class="sc-card sc-card--scanning"
+            role="group"
+            aria-labelledby="title-screen"
+            aria-busy="true"
+          >
+            <div class="sc-card__row">
+              <div id="icon-screen" class="sc-card__icon"></div>
+              <div class="sc-card__body">
+                <h3
+                  id="title-screen"
+                  class="sc-card__title"
+                  tabindex="-1"
+                  data-i18n="preflight.screenTitle"
+                >
+                  Screen Recording &amp; Sharing
+                </h3>
+                <p id="desc-screen" class="sc-card__desc"></p>
+              </div>
+              <span id="badge-screen" class="sc-badge sc-badge--scanning"></span>
+            </div>
+            <div id="actions-screen" class="sc-card__actions"></div>
+          </div>
+
+          <div
+            id="card-wireless"
+            class="sc-card sc-card--scanning"
+            role="group"
+            aria-labelledby="title-wireless"
+            aria-busy="true"
+          >
+            <div class="sc-card__row">
+              <div id="icon-wireless" class="sc-card__icon"></div>
+              <div class="sc-card__body">
+                <h3
+                  id="title-wireless"
+                  class="sc-card__title"
+                  tabindex="-1"
+                  data-i18n="preflight.wirelessTitle"
+                >
+                  Remote Access &amp; Casting
+                </h3>
+                <p id="desc-wireless" class="sc-card__desc"></p>
+              </div>
+              <span id="badge-wireless" class="sc-badge sc-badge--scanning"></span>
+            </div>
+            <div id="actions-wireless" class="sc-card__actions"></div>
+          </div>
+
+          <div
+            id="card-browser"
+            class="sc-card sc-card--scanning"
+            role="group"
+            aria-labelledby="title-browser"
+            aria-busy="true"
+          >
+            <div class="sc-card__row">
+              <div id="icon-browser" class="sc-card__icon"></div>
+              <div class="sc-card__body">
+                <h3
+                  id="title-browser"
+                  class="sc-card__title"
+                  tabindex="-1"
+                  data-i18n="preflight.browserTitle"
+                >
+                  Web Browsers
+                </h3>
+                <p id="desc-browser" class="sc-card__desc"></p>
+              </div>
+              <span id="badge-browser" class="sc-badge sc-badge--scanning"></span>
+            </div>
+            <div id="actions-browser" class="sc-card__actions"></div>
+          </div>
+
+          <div
+            id="card-ai"
+            class="sc-card sc-card--scanning"
+            role="group"
+            aria-labelledby="title-ai"
+            aria-busy="true"
+          >
+            <div class="sc-card__row">
+              <div id="icon-ai" class="sc-card__icon"></div>
+              <div class="sc-card__body">
+                <h3
+                  id="title-ai"
+                  class="sc-card__title"
+                  tabindex="-1"
+                  data-i18n="preflight.aiTitle"
+                >
+                  AI Assistant Apps
+                </h3>
+                <p id="desc-ai" class="sc-card__desc"></p>
+              </div>
+              <span id="badge-ai" class="sc-badge sc-badge--scanning"></span>
+            </div>
+            <div id="actions-ai" class="sc-card__actions"></div>
+          </div>
+
+          <div
+            id="card-agent"
+            class="sc-card sc-card--scanning"
+            role="group"
+            aria-labelledby="title-agent"
+            aria-busy="true"
+          >
+            <div class="sc-card__row">
+              <div id="icon-agent" class="sc-card__icon"></div>
+              <div class="sc-card__body">
+                <h3
+                  id="title-agent"
+                  class="sc-card__title"
+                  tabindex="-1"
+                  data-i18n="preflightResults.agentTitle"
+                >
+                  Deep System Scan
+                </h3>
+                <p id="desc-agent" class="sc-card__desc"></p>
+              </div>
+              <span id="badge-agent" class="sc-badge sc-badge--scanning"></span>
+            </div>
+            <div id="actions-agent" class="sc-card__actions"></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="sc-actionbar">
+        <div class="sc-actionbar__inner">
+          <p id="final-status" class="sc-status">Checking your computer…</p>
+          <div id="support-wrap" class="sc-support" hidden>
+            <p id="support-text" class="sc-support__text"></p>
+            <div class="sc-support__actions">
+              <button
+                id="btn-diagnostics"
+                type="button"
+                class="sc-link-btn sc-link-btn--strong"
+              ></button>
+              <button
+                id="btn-contact-support"
+                type="button"
+                class="sc-link-btn sc-link-btn--strong"
+                hidden
+              ></button>
+            </div>
+            <p id="diagnostics-note" class="sc-support__note"></p>
+          </div>
+          <div class="sc-actionbar__buttons">
+            <button id="btn-rescan" type="button" class="sc-btn-rescan">
+              <svg
+                class="sc-icon"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2.5"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                ></path>
+              </svg>
+              <span data-i18n="preflight.rescan">Rescan</span>
+            </button>
+            <button
+              id="btn-proceed"
+              type="button"
+              disabled
+              class="sc-btn-proceed sc-btn-proceed--disabled"
+            >
+              <span>Continue</span>
+            </button>
+          </div>
         </div>
       </div>
     </main>
+
+    <dialog
+      id="kill-dialog"
+      class="sc-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="kill-dialog-title"
+      aria-describedby="kill-dialog-body"
+    >
+      <div class="sc-dialog__panel">
+        <h2 id="kill-dialog-title" class="sc-dialog__title"></h2>
+        <p id="kill-dialog-body" class="sc-dialog__body"></p>
+        <ul id="kill-dialog-list" class="sc-dialog__list"></ul>
+        <div class="sc-dialog__actions">
+          <button id="kill-dialog-cancel" type="button" class="btn btn--secondary"></button>
+          <button id="kill-dialog-confirm" type="button" class="btn btn--danger"></button>
+        </div>
+      </div>
+    </dialog>
+
+    <div
+      id="sc-announcer"
+      class="sc-sr-only"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    ></div>
 
     <div id="app-version" class="app-version"></div>
     <script src="./js/i18n.js"></script>
     <script src="../src/renderer/updateCard.js"></script>
     <script src="../src/renderer/languageSwitcher.js"></script>
     <script src="../src/renderer/rendererUtils.js"></script>
+    <script src="../src/renderer/preflightModel.js"></script>
     <script src="../src/renderer/preflight.js"></script>
   </body>
 </html>

@@ -44,14 +44,8 @@ const AGENT_HOST = "127.0.0.1";
 const AGENT_POLL_INTERVAL_MS = 500;
 
 /**
- * Budget for whenAgentReady(): covers a cold spawn (stale-kill + PyInstaller
- * unpack + interpreter boot) before the agent is declared not-ready. Doubles as
- * the startup grace window during which a booting agent is never killed and
- * respawned.
- *
- * The agent now announces itself with a `ready` event the moment its stdin loop
- * is live, so this only has to cover process start — not a first scan. Measured
- * spawn→ready is ~1.6s; 10s leaves ~6x headroom for a slow disk.
+ * Budget for a cold agent spawn to report ready (measured ~1.6s). Doubles as the
+ * startup grace window in which a booting agent is never killed and respawned.
  */
 const AGENT_READY_TIMEOUT_MS = 10000;
 
@@ -62,12 +56,9 @@ const AGENT_REQUEST_TIMEOUT_MS = 2000;
 const AGENT_SCAN_TIMEOUT_MS = 12000;
 
 /**
- * Lowest agent.py `contract_version` the Electron side trusts. Below this (or
- * missing entirely, true of every pre-v2 build) the response shape predates
- * fields this verdict depends on — e.g. v1's `safe_to_proceed` never accounted
- * for a check erroring, so a silent v1 "clean" can't be told apart from one
- * that just didn't know to say otherwise. Bump this in lockstep with
- * agent.py's CONTRACT_VERSION whenever a new field becomes load-bearing here.
+ * Lowest agent.py `contract_version` trusted here; older builds predate fields
+ * the verdict depends on. Bump with agent.py's CONTRACT_VERSION when a new field
+ * becomes load-bearing.
  */
 const MINIMUM_SUPPORTED_CONTRACT_VERSION = 2;
 
@@ -80,6 +71,14 @@ const API_BASE_URL = process.env.API_BASE_URL;
 // DEVTOOLS=true (or 1) docks DevTools on the right at launch and lets
 // F12 / Ctrl+Shift+I through the input lockdown.
 const DEVTOOLS_ENABLED = /^(1|true)$/i.test(process.env.DEVTOOLS);
+
+// Optional help link on the security check; only an https URL is ever opened.
+const SUPPORT_URL = process.env.SUPPORT_URL || "";
+
+// Optional preflight endpoints, relative to API_BASE_URL; off unless a "/" path.
+const _apiPath = (value) => (/^\/\S*$/.test(value || "") ? value : "");
+const PREFLIGHT_POLICY_PATH = _apiPath(process.env.PREFLIGHT_POLICY_PATH);
+const PREFLIGHT_TELEMETRY_PATH = _apiPath(process.env.PREFLIGHT_TELEMETRY_PATH);
 
 /** Auth API paths (relative to API_BASE_URL). */
 const AUTH_LOGIN_PATH = "/user/v1/login/";
@@ -126,14 +125,9 @@ const INDETERMINATE_ESCALATION_THRESHOLD = 3;
 /** How long the site has to acknowledge a hard block before it is sent again. */
 const HARD_BLOCK_GRACE_MS = 8000;
 
-// Checks run concurrently, each under its own deadline. A check that misses
-// its deadline is reported "unverified" (fail-closed, blocks Proceed) rather
-// than failing the whole scan.
-//
+// Preflight checks run concurrently, each under its own deadline; a missed
+// deadline marks only that check unverified.
 // INVARIANT: PREFLIGHT_RENDERER_TIMEOUT_MS > PREFLIGHT_GLOBAL_DEADLINE_MS.
-// These used to live apart (renderer 20s vs. main-side worst case ~31s), so a
-// cold start could get the renderer aborting a scan still in progress and
-// retry-storming. Both sides now derive from here so they can't drift apart.
 
 /** Deadline for the native display probe (Electron screen API — effectively instant). */
 const PREFLIGHT_HDMI_DEADLINE_MS = 1000;
@@ -149,11 +143,7 @@ const PREFLIGHT_PROCESS_DEADLINE_MS = 4000;
  */
 const PREFLIGHT_AGENT_SCAN_RESERVE_MS = AGENT_SCAN_TIMEOUT_MS;
 
-/**
- * Deadline for the agent probe: wait for a cold spawn, then run the deep scan.
- * Derived rather than tuned, so the two halves can't be changed independently
- * and leave the liveness wait quietly starved (the original failure mode).
- */
+/** Deadline for the agent probe: a cold spawn, then the deep scan. */
 const PREFLIGHT_AGENT_DEADLINE_MS = AGENT_READY_TIMEOUT_MS + AGENT_SCAN_TIMEOUT_MS;
 
 /** Ceiling for one whole preflight pass in the main process. The agent is the
@@ -166,6 +156,22 @@ const PREFLIGHT_RENDERER_TIMEOUT_MS = PREFLIGHT_GLOBAL_DEADLINE_MS + 5000;
 
 /** Results older than this are considered stale and will not enable Proceed. */
 const PREFLIGHT_RESULT_MAX_AGE_MS = 60000;
+
+/** Budget for the quick re-check that renews a stale pass on Continue. */
+const PREFLIGHT_REVERIFY_DEADLINE_MS = 3000;
+
+/** How often the security-check page re-polls processes and displays. */
+const PRE_PROCEED_INTERVAL_MS = 2000;
+
+/** Consecutive failed agent scans before the next scan restarts the agent. */
+const AGENT_RESTART_AFTER_FAILURES = 2;
+
+/** Auto-respawn backoff: doubles from the base up to the cap. */
+const AGENT_RESPAWN_BASE_MS = 2000;
+const AGENT_RESPAWN_MAX_MS = 30000;
+
+/** An agent that stayed up this long resets the respawn backoff. */
+const AGENT_STABLE_UPTIME_MS = 60000;
 
 // ─── Process termination budget
 // killSingleProcess() spends enum + kill + verify + relaunch-watch, ≈12s worst
@@ -253,6 +259,12 @@ const IPC = {
   KILL_BLOCKED_APP_ELEVATED: "kill-blocked-app-elevated",
   /** Whether the current user could actually satisfy an elevation prompt. */
   CAN_ELEVATE: "can-elevate",
+  /** Kill one process the agent reported as a threat, by PID. */
+  KILL_THREAT_PROCESS: "kill-threat-process",
+
+  // Support link on the security check
+  GET_SUPPORT_INFO: "get-support-info",
+  OPEN_SUPPORT: "open-support",
 
   // Auto-updater (main → renderer push)
   PUSH_UPDATE_AVAILABLE: "push-update-available",
@@ -295,13 +307,11 @@ const IPC = {
   // flow after interview-complete already lifted lockdown)
   VIEW_DASHBOARD: "view-dashboard",
 
-  // Violation ack: website → main via renderer's onViolation handler. While
-  // acks keep arriving, Electron's self-enforcement failsafe stays suppressed;
-  // if they stop (renderer crashed/listener dropped), the failsafe kicks in.
+  // Violation ack: website → main; an unacknowledged hard block is sent again.
   ACK_VIOLATION: "ack-violation",
 
-  // Pre-proceed watcher: main → renderer, real-time blocked-app status on the
-  // "All checks passed" screen. Payload: { clean: boolean, apps: string[] }
+  // Pre-proceed watcher: main → renderer, live status on the security-check page.
+  // Payload: { clean, unverified, apps, verdicts }
   PUSH_PRE_PROCEED_STATUS: "push-pre-proceed-status",
 
   // Store the captured ID-verification photo, injected into interview SPA
@@ -387,6 +397,9 @@ module.exports = {
   INTERVIEW_BASE_URL,
   API_BASE_URL,
   DEVTOOLS_ENABLED,
+  SUPPORT_URL,
+  PREFLIGHT_POLICY_PATH,
+  PREFLIGHT_TELEMETRY_PATH,
   AUTH_LOGIN_PATH,
   AUTH_LOGOUT_PATH,
   CANDIDATE_PROFILE_PATH,
@@ -410,6 +423,12 @@ module.exports = {
   PREFLIGHT_GLOBAL_DEADLINE_MS,
   PREFLIGHT_RENDERER_TIMEOUT_MS,
   PREFLIGHT_RESULT_MAX_AGE_MS,
+  PREFLIGHT_REVERIFY_DEADLINE_MS,
+  PRE_PROCEED_INTERVAL_MS,
+  AGENT_RESTART_AFTER_FAILURES,
+  AGENT_RESPAWN_BASE_MS,
+  AGENT_RESPAWN_MAX_MS,
+  AGENT_STABLE_UPTIME_MS,
   KILL_ENUM_TIMEOUT_MS,
   KILL_ELEVATE_TIMEOUT_MS,
   KILL_VERIFY_TIMEOUT_MS,

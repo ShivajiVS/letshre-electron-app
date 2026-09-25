@@ -1,8 +1,8 @@
 "use strict";
 
-// End-to-end tests for the security-check page: `electron test/e2e/run.js`.
-// Loads the real assets/preflight.html behind test/e2e/fakePreload.js and
-// answers every bridge call from the scenario being run.
+// End-to-end tests for the security check and the setup pages after it:
+// `electron test/e2e/run.js`. Loads the real page behind test/e2e/fakePreload.js
+// and answers every bridge call from the scenario being run.
 
 require("../_setup");
 
@@ -13,7 +13,17 @@ const { pathToFileURL } = require("node:url");
 const { app, BrowserWindow, ipcMain, session } = require("electron");
 
 const ROOT = path.join(__dirname, "../..");
-const PAGE = path.join(ROOT, "assets/preflight.html");
+const PAGES = {
+  preflight: "assets/preflight.html",
+  permissions: "assets/permissions.html",
+  "identity-verification": "assets/identity-verification.html",
+  "role-selection": "assets/role-selection.html",
+};
+const GUARD_STAGES = {
+  permissions: "permissions",
+  "identity-verification": "identity",
+  "role-selection": "role",
+};
 const PRELOAD = path.join(__dirname, "fakePreload.js");
 const ROOT_URL = pathToFileURL(ROOT).href;
 
@@ -22,11 +32,18 @@ const OVERALL_TIMEOUT_MS = 240000;
 
 app.setPath("userData", fs.mkdtempSync(path.join(os.tmpdir(), "si-e2e-")));
 app.disableHardwareAcceleration();
+// Camera and mic come from Chromium's fake devices, never the real ones.
+app.commandLine.appendSwitch("use-fake-device-for-media-stream");
+app.commandLine.appendSwitch("use-fake-ui-for-media-stream");
+app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 app.on("window-all-closed", () => {});
 
 const localeManager = require("../../src/main/localeManager");
 const { scenarios } = require("./scenarios");
+const { scenarios: guardScenarios } = require("./guardScenarios");
 const { delay } = require("./util");
+
+const allScenarios = [...scenarios, ...guardScenarios];
 
 function out(line) {
   process.stdout.write(`${line}\n`);
@@ -37,8 +54,22 @@ const contexts = new Map();
 class ScenarioContext {
   constructor(name, options) {
     this.name = name;
+    this.page = options.page || "preflight";
+    if (!PAGES[this.page]) {
+      throw new Error(`unknown page ${this.page}`);
+    }
     this.locale = options.locale || "en";
     this.size = { width: options.width || 1100, height: options.height || 900 };
+    this.exactSize = Boolean(options.width || options.height);
+    // A hidden window never gets animation frames; offscreen rendering does.
+    this.offscreen = options.offscreen === true;
+    this.guardState = {
+      status: "clear",
+      stage: GUARD_STAGES[this.page] || null,
+      seq: 1,
+      checking: false,
+      issues: [],
+    };
     this.calls = [];
     this.requests = [];
     this.consoleErrors = [];
@@ -64,6 +95,24 @@ class ScenarioContext {
     this.handle("getAuditLog", () => []);
     this.handle("getUpdateState", () => ({ state: "idle" }));
     this.handle("loadPermissionsPage", () => ({ ok: true }));
+    this.handle("getAuthUser", () => ({ name: "Test Candidate" }));
+    this.handle("getCandidateProfile", () => ({
+      success: true,
+      data: { name: "Test Candidate", role: "Frontend Developer" },
+    }));
+    this.handle("setLocale", (locale) => locale);
+    this.handle("getSecurityGuardStatus", () => this.guardState);
+    this.handle("recheckSecurityGuard", () => this.guardState);
+    this.handle("loadIdentityVerification", () => ({ ok: true }));
+    this.handle("loadRoleSelection", () => ({ ok: true }));
+    this.handle("proceedToInterview", () => ({ ok: true }));
+    this.handle("submitVoiceSample", () => ({ ok: true }));
+    this.handle("submitFaceVerification", () => ({ ok: true, data: { match: true } }));
+    this.handle("storeCandidatePhoto", () => true);
+    this.handle("submitRole", () => ({
+      ok: true,
+      data: { needs_clarification: false, skills: ["JavaScript", "Accessibility"] },
+    }));
     this.handle("runPreflight", (token) => {
       const script = this.scans.length > 1 ? this.scans.shift() : this.scans[0];
       if (!script) {
@@ -106,6 +155,41 @@ class ScenarioContext {
 
   live(data) {
     this.push("push-pre-proceed-status", data);
+  }
+
+  /** A full GuardState from `partial`, on the next seq unless it names one. */
+  guardFrom(partial = {}) {
+    return {
+      status: "clear",
+      stage: this.guardState.stage,
+      checking: false,
+      issues: [],
+      ...partial,
+      seq: partial.seq ?? this.guardState.seq + 1,
+    };
+  }
+
+  /** Main's guard state from now on (what get/recheck answer); an older seq never replaces it. */
+  setGuard(partial) {
+    const next = this.guardFrom(partial);
+    if (next.seq >= this.guardState.seq) {
+      this.guardState = next;
+    }
+    return next;
+  }
+
+  guard(partial) {
+    const next = this.setGuard(partial);
+    this.push("push-guard-status", next);
+    return next;
+  }
+
+  /** A real key press, so default actions (Tab focus, Escape closing a dialog) run. */
+  async press(keyCode, modifiers = []) {
+    const wc = this.win.webContents;
+    wc.sendInputEvent({ type: "keyDown", keyCode, modifiers });
+    wc.sendInputEvent({ type: "keyUp", keyCode, modifiers });
+    await delay(60);
   }
 
   t(key, params) {
@@ -204,6 +288,14 @@ async function openPage(ctx, index, query) {
     ctx.requests.push(details.url);
     callback({ cancel: !details.url.startsWith("file:") });
   });
+  ses.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(permission === "media");
+  });
+  ses.setPermissionCheckHandler((_wc, permission) => permission === "media");
+  // Screen sharing captures the test page itself rather than the real desktop.
+  ses.setDisplayMediaRequestHandler((request, callback) => {
+    callback({ video: request.frame });
+  });
 
   const win = new BrowserWindow({
     show: false,
@@ -215,6 +307,7 @@ async function openPage(ctx, index, query) {
       sandbox: true,
       nodeIntegration: false,
       backgroundThrottling: false,
+      offscreen: ctx.offscreen,
       session: ses,
     },
   });
@@ -233,7 +326,20 @@ async function openPage(ctx, index, query) {
     ctx.consoleErrors.push(`renderer gone: ${details.reason}`);
   });
 
-  await win.loadFile(PAGE, query ? { query } : undefined);
+  await win.loadFile(path.join(ROOT, PAGES[ctx.page]), query ? { query } : undefined);
+  // Display scaling rounds the window and the screen caps it; emulation gives the exact viewport.
+  if (ctx.exactSize) {
+    win.webContents.enableDeviceEmulation({
+      screenPosition: "desktop",
+      screenSize: ctx.size,
+      viewSize: ctx.size,
+      viewPosition: { x: 0, y: 0 },
+      deviceScaleFactor: 1,
+      scale: 1,
+    });
+  }
+  // Page focus, so focus events fire as they do on screen (offscreen pages can't take it).
+  win.webContents.focus();
   await ctx.until("!document.documentElement.classList.contains('i18n-pending')", "i18n reveal");
 }
 
@@ -287,7 +393,7 @@ async function runScenario(scenario, index) {
 async function main() {
   await app.whenReady();
   const only = process.env.E2E_ONLY;
-  const selected = only ? scenarios.filter((s) => s.name.includes(only)) : scenarios;
+  const selected = only ? allScenarios.filter((s) => s.name.includes(only)) : allScenarios;
   const results = [];
   for (let i = 0; i < selected.length; i += 1) {
     const result = await runScenario(selected[i], i);

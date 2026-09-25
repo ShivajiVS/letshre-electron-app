@@ -18,12 +18,18 @@ const pendingUploads = require("./pendingUploads");
 const { loadSpillKey } = require("./spillKey");
 const screenRecorder = require("./screenRecorder");
 const { isMediaFrameAllowed, isPermissionAllowed } = require("./ipcScope");
+const { CODE } = require("../shared/violationCodes");
 
-function safeViolation(event, severity) {
+/**
+ * @param {string} event
+ * @param {"high"|"medium"} severity
+ * @param {{code?: string, category?: string|null, apps?: string[]}} [meta]
+ */
+function safeViolation(event, severity, meta) {
   try {
     const win = getWindow();
     if (startDetection.sendViolation && win) {
-      startDetection.sendViolation(win, event, severity);
+      startDetection.sendViolation(win, event, severity, meta);
     }
   } catch (err) {
     logger.error("[app] violation push failed:", err.message);
@@ -83,7 +89,7 @@ async function onReady() {
   // 5. Register OS-level Alt+F4 global shortcut
   globalShortcut.register("Alt+F4", () => {
     if (getIsInterviewActive()) {
-      safeViolation("Attempted OS level Alt+F4 kill string", "high");
+      safeViolation("Attempted OS level Alt+F4 kill string", "high", { code: CODE.CLOSE_ATTEMPT });
       setTimeout(() => app.quit(), 500);
     } else {
       app.quit();

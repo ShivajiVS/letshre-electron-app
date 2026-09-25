@@ -164,6 +164,8 @@ function runCommand(command, args, timeoutMs) {
       finish({ code: null, stdout, stderr, error: "timed out" });
     }, timeoutMs);
 
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
     if (child.stdout) {
       child.stdout.on("data", (d) => {
         stdout += d.toString();
@@ -545,7 +547,9 @@ async function listProcessTableReal(platform, timeoutMs) {
     "-Command",
     // ExecutablePath is needed for path-scoped companions (the shared Squirrel
     // update.exe), and costs nothing extra on a query we already run.
-    "Get-CimInstance Win32_Process | Select-Object Name,ProcessId,ParentProcessId,ExecutablePath," +
+    // UTF-8 out, or an image named with U+2800 arrives as "?.exe" and never matches.
+    "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; " +
+      "Get-CimInstance Win32_Process | Select-Object Name,ProcessId,ParentProcessId,ExecutablePath," +
       "@{n='Created';e={$_.CreationDate.Ticks}} | ConvertTo-Csv -NoTypeInformation",
   ];
   const ps = await runCommand("powershell.exe", psArgs, timeoutMs);

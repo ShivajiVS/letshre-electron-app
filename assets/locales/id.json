@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "50acd5c83b30f6d7"
+    "_sourceHash": "cba7781cd4b8d85c"
   },
   "common": {
     "back": "Kembali",
@@ -352,6 +352,30 @@
     "copyDiagnostics": "Salin diagnostik",
     "diagnosticsCopied": "Diagnostik disalin. Tempelkan di pesan Anda ke tim dukungan.",
     "diagnosticsCopyFailed": "Tidak dapat menyalin otomatis. Pilih teks di bawah ini lalu salin."
+  },
+  "securityGuard": {
+    "titleClose": "Tutup aplikasi ini untuk melanjutkan",
+    "descClose": "Aplikasi ini dijalankan setelah pemeriksaan keamanan Anda. Anda dapat melanjutkan setelah semuanya ditutup.",
+    "titleFix": "Perbaiki masalah ini untuk melanjutkan",
+    "descFix": "Hal ini berubah setelah pemeriksaan keamanan Anda. Anda dapat melanjutkan setelah semuanya diperbaiki.",
+    "titleUnverified": "Kami tidak dapat memeriksa sistem Anda saat ini",
+    "descUnverified": "Pemeriksaan keamanan kami tidak selesai. Tunggu sebentar, lalu periksa lagi.",
+    "titleClear": "Semua aman",
+    "descClear": "Terima kasih. Anda dapat melanjutkan.",
+    "checking": "Memeriksa sistem Anda…",
+    "checkAgain": "Periksa lagi",
+    "leave": "Keluar dari pengaturan",
+    "leaveTitle": "Keluar dari pengaturan?",
+    "leaveBody": "Anda akan kembali ke dasbor. Anda dapat memulai lagi dari sana.",
+    "stay": "Tetap di sini",
+    "more": "{count, plural, other {+# lainnya}}",
+    "hintDisplay": "Lepaskan monitor atau TV tambahan agar hanya satu layar yang digunakan.",
+    "hintDisplayCount": "{count, plural, other {# layar tersambung.}} Lepaskan layar tambahan agar hanya satu layar yang digunakan.",
+    "hintMirrored": "Hentikan pencerminan layar Anda dan lepaskan layar tambahan.",
+    "hintUnverified": "Kami belum dapat memeriksa ini sekarang.",
+    "hintManual": "Tutup sendiri, lalu periksa lagi.",
+    "hintSuspicious": "Tutup aplikasi yang tidak Anda perlukan, lalu periksa lagi.",
+    "recordAgain": "Rekaman Anda dihentikan. Silakan rekam suara Anda lagi."
   },
   "updater": {
     "available": "Pembaruan tersedia",

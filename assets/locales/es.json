@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "50acd5c83b30f6d7"
+    "_sourceHash": "cba7781cd4b8d85c"
   },
   "common": {
     "back": "Atrás",
@@ -352,6 +352,30 @@
     "copyDiagnostics": "Copiar diagnóstico",
     "diagnosticsCopied": "Diagnóstico copiado. Pégalo en tu mensaje al soporte.",
     "diagnosticsCopyFailed": "No se pudo copiar automáticamente. Selecciona el texto de abajo y cópialo."
+  },
+  "securityGuard": {
+    "titleClose": "Cierra estas aplicaciones para continuar",
+    "descClose": "Se abrieron después de tu verificación de seguridad. Podrás continuar cuando estén cerradas.",
+    "titleFix": "Soluciona estos problemas para continuar",
+    "descFix": "Esto cambió después de tu verificación de seguridad. Podrás continuar cuando esté solucionado.",
+    "titleUnverified": "No podemos comprobar tu sistema en este momento",
+    "descUnverified": "Nuestra verificación de seguridad no terminó. Espera un momento y luego comprueba de nuevo.",
+    "titleClear": "Todo en orden",
+    "descClear": "Gracias. Puedes seguir.",
+    "checking": "Comprobando tu sistema…",
+    "checkAgain": "Comprobar de nuevo",
+    "leave": "Salir de la configuración",
+    "leaveTitle": "¿Salir de la configuración?",
+    "leaveBody": "Volverás a tu panel. Desde allí podrás empezar de nuevo.",
+    "stay": "Quedarme",
+    "more": "{count, plural, one {+# más} many {+# más} other {+# más}}",
+    "hintDisplay": "Desconecta los monitores o televisores adicionales para que solo se use una pantalla.",
+    "hintDisplayCount": "{count, plural, one {Hay # pantalla conectada.} many {Hay # pantallas conectadas.} other {Hay # pantallas conectadas.}} Desconecta las adicionales para que solo se use una pantalla.",
+    "hintMirrored": "Deja de duplicar tu pantalla y desconecta la pantalla adicional.",
+    "hintUnverified": "No pudimos comprobar esto en este momento.",
+    "hintManual": "Ciérrala tú y luego comprueba de nuevo.",
+    "hintSuspicious": "Cierra las aplicaciones que no necesites y luego comprueba de nuevo.",
+    "recordAgain": "Se detuvo tu grabación. Vuelve a grabar tu voz."
   },
   "updater": {
     "available": "Actualización disponible",

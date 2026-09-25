@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "50acd5c83b30f6d7"
+    "_sourceHash": "cba7781cd4b8d85c"
   },
   "common": {
     "back": "뒤로",
@@ -352,6 +352,30 @@
     "copyDiagnostics": "진단 정보 복사",
     "diagnosticsCopied": "진단 정보를 복사했습니다. 고객 지원에 보내는 메시지에 붙여넣으세요.",
     "diagnosticsCopyFailed": "자동으로 복사하지 못했습니다. 아래 텍스트를 선택해 복사하세요."
+  },
+  "securityGuard": {
+    "titleClose": "계속하려면 이 항목을 닫으세요",
+    "descClose": "보안 검사 이후에 시작된 항목입니다. 닫으면 계속할 수 있습니다.",
+    "titleFix": "계속하려면 이 항목을 해결하세요",
+    "descFix": "보안 검사 이후에 변경된 항목입니다. 해결하면 계속할 수 있습니다.",
+    "titleUnverified": "지금은 시스템을 확인할 수 없습니다",
+    "descUnverified": "보안 검사가 완료되지 않았습니다. 잠시 기다린 후 다시 확인하세요.",
+    "titleClear": "문제 없음",
+    "descClear": "감사합니다. 계속 진행하세요.",
+    "checking": "시스템을 확인하는 중…",
+    "checkAgain": "다시 확인",
+    "leave": "설정 나가기",
+    "leaveTitle": "설정을 나가시겠습니까?",
+    "leaveBody": "대시보드로 돌아갑니다. 거기에서 다시 시작할 수 있습니다.",
+    "stay": "머무르기",
+    "more": "{count, plural, other {외 #개}}",
+    "hintDisplay": "화면을 하나만 사용하도록 추가 모니터나 TV를 분리하세요.",
+    "hintDisplayCount": "{count, plural, other {디스플레이 #개가 연결되어 있습니다.}} 화면을 하나만 사용하도록 추가 디스플레이를 분리하세요.",
+    "hintMirrored": "화면 미러링을 중지하고 추가 디스플레이를 분리하세요.",
+    "hintUnverified": "지금은 이 항목을 확인할 수 없습니다.",
+    "hintManual": "직접 닫은 후 다시 확인하세요.",
+    "hintSuspicious": "필요 없는 앱을 닫은 후 다시 확인하세요.",
+    "recordAgain": "녹음이 중지되었습니다. 음성을 다시 녹음해 주세요."
   },
   "updater": {
     "available": "업데이트 가능",

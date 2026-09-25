@@ -26,6 +26,7 @@ import tempfile
 import csv
 import io
 import re
+import unicodedata
 from datetime import datetime
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
@@ -302,6 +303,28 @@ def _run_check(name, fn, checks, threats):
 
 
 _proc_lock = threading.Lock()
+
+
+# Render as nothing but aren't whitespace, so copilots use them to look nameless.
+_BLANK_LOOKALIKES = {"⠀", "ㅤ", "ᅟ", "ᅠ", "ﾠ"}
+
+
+def _visible(text):
+    return "".join(
+        ch for ch in text or ""
+        if ch not in _BLANK_LOOKALIKES and unicodedata.category(ch)[0] not in ("C", "Z")
+    )
+
+
+def display_name(image, exe=None):
+    """
+    A name a person can read. An image named with invisible characters (ParakeetAI
+    ships as U+2800 ".exe") falls back to its install folder; "" when nothing is left.
+    """
+    stem = os.path.splitext(image or "")[0]
+    if _visible(stem):
+        return image
+    return _visible(os.path.basename(os.path.dirname(exe or "")))
 
 
 def _processes(attrs):
@@ -705,6 +728,7 @@ def detect_ai_cheating_tools():
                         "detail": f"AI cheating tool detected (process name): '{info['name']}' (PID {pid})",
                         "process": info['name'],
                         "pid": pid,
+                        "exe": info['exe'],
                         "match_type": "process_name",
                         "keyword": kw
                     })
@@ -722,6 +746,7 @@ def detect_ai_cheating_tools():
                         "detail": f"AI cheating tool detected (install path): '{info['name']}' at '{info['exe']}' (PID {pid})",
                         "process": info['name'],
                         "pid": pid,
+                        "exe": info['exe'],
                         "match_type": "exe_path",
                         "keyword": kw
                     })
@@ -739,6 +764,7 @@ def detect_ai_cheating_tools():
                         "detail": f"Suspicious stealth flag detected: '{info['name']}' with '{flag}' (PID {pid})",
                         "process": info['name'],
                         "pid": pid,
+                        "exe": info['exe'],
                         "match_type": "cmdline_flag",
                         "keyword": flag
                     })
@@ -1299,6 +1325,13 @@ def _execute_full_scan():
             else:
                 checks[name] = outcome.get(name, "error")
                 threats.extend(found)
+
+        for t in threats:
+            exe = t.pop("exe", None)
+            if isinstance(t.get("process"), str):
+                label = display_name(t["process"], exe)
+                if label:
+                    t["display_name"] = label
 
         # Not a threat check, but a silent failure here hides a mirrored projector.
         monitors = monitor_box[0] if monitor_box else None

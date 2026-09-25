@@ -285,6 +285,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("btn-screen").addEventListener("click", requestScreen);
 
   const startBtnHTML = btnStart.innerHTML; // capture original for restore
+
+  function restoreStartButton() {
+    btnStart.disabled = false;
+    btnStart.innerHTML = startBtnHTML;
+    startState = "idle";
+    renderStartButtonLabel();
+  }
+
   btnStart.addEventListener("click", () => {
     if (btnStart.disabled) {
       return;
@@ -294,16 +302,20 @@ document.addEventListener("DOMContentLoaded", async () => {
       setNoteState({ kind: "unavailable" });
       return;
     }
+    // Main still gates the step; this just saves a round trip it would refuse.
+    if (window.securityGuard?.isBlocked()) {
+      window.securityGuard.show();
+      return;
+    }
     btnStart.disabled = true;
     startState = "starting";
     // Query fresh nodes (restore below replaces these by innerHTML).
     renderStartButtonLabel();
     document.getElementById("btn-start-icon").outerHTML =
       `<svg class="spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>`;
-    window.electronAPI.loadIdentityVerification();
     // Watchdog: successful navigation tears down this page. If this fires,
     // navigation never happened — restore the button so the user can retry.
-    window.armButtonRestore(btnStart, startBtnHTML, {
+    const watchdog = window.armButtonRestore(btnStart, startBtnHTML, {
       onRestore: () => {
         startState = "idle";
         setNoteState({ kind: "timedOut" });
@@ -312,5 +324,19 @@ document.addEventListener("DOMContentLoaded", async () => {
         renderStartButtonLabel();
       },
     });
+    Promise.resolve()
+      .then(() => window.electronAPI.loadIdentityVerification())
+      .catch(() => ({ ok: false }))
+      .then((res) => {
+        // busy: the first click's gate is still running. failed: main is navigating.
+        if (res?.ok !== false || res.reason === "busy" || res.reason === "failed") {
+          return;
+        }
+        clearTimeout(watchdog);
+        restoreStartButton();
+        if (!window.securityGuard?.handleRefusal(res)) {
+          setNoteState({ kind: "unavailable" });
+        }
+      });
   });
 });

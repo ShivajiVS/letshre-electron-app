@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Source-of-truth bundle. Every other locale file must have exactly the same keys (see test/locales.test.js).",
     "_reviewedBy": null,
-    "_sourceHash": "50acd5c83b30f6d7"
+    "_sourceHash": "cba7781cd4b8d85c"
   },
   "common": {
     "back": "Back",
@@ -352,6 +352,30 @@
     "copyDiagnostics": "Copy diagnostics",
     "diagnosticsCopied": "Diagnostics copied. Paste them in your message to support.",
     "diagnosticsCopyFailed": "Could not copy automatically. Select the text below and copy it."
+  },
+  "securityGuard": {
+    "titleClose": "Close these to continue",
+    "descClose": "These started after your security check. You can continue once they're closed.",
+    "titleFix": "Fix these to continue",
+    "descFix": "These changed after your security check. You can continue once they're fixed.",
+    "titleUnverified": "We can't check your system right now",
+    "descUnverified": "Our security check didn't finish. Wait a moment, then check again.",
+    "titleClear": "All clear",
+    "descClear": "Thanks. You can carry on.",
+    "checking": "Checking your system…",
+    "checkAgain": "Check again",
+    "leave": "Leave setup",
+    "leaveTitle": "Leave setup?",
+    "leaveBody": "You'll go back to your dashboard. You can start again from there.",
+    "stay": "Stay",
+    "more": "{count, plural, one {+# more} other {+# more}}",
+    "hintDisplay": "Unplug any extra monitors or TVs so only one screen is in use.",
+    "hintDisplayCount": "{count, plural, one {# display is connected.} other {# displays are connected.}} Unplug the extra ones so only one screen is in use.",
+    "hintMirrored": "Stop mirroring your screen and unplug the extra display.",
+    "hintUnverified": "We couldn't check this just now.",
+    "hintManual": "Close it yourself, then check again.",
+    "hintSuspicious": "Close any apps you don't need, then check again.",
+    "recordAgain": "Your recording was stopped. Please record your voice again."
   },
   "updater": {
     "available": "Update available",

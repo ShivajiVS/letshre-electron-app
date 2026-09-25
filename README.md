@@ -238,18 +238,23 @@ The blocked‑app lists (meeting, screen‑share, casting, browsers, AI tools) a
 
 ## Violation model
 
-`systemChecks.sendViolation(win, event, severity)` is the single choke point for every violation. It:
+`systemChecks.sendViolation(win, event, severity, { code, category, apps })` is the single choke point for every violation. It:
 
+- **Tags** it with a UUID `id` and a machine‑readable `code` from `src/shared/violationCodes.js` (`suspicious_activity` when the caller gives none);
 - **De‑duplicates** with a per‑event cooldown (`VIOLATION_COOLDOWN_MS`, 15s);
 - **Escalates** repeat offences (`isHardBlock = severity === "high" || count >= 2`);
 - **Pushes** to the web app: `webContents.send("push-violation", payload)`;
 - **Reports** to the backend (`POST /interview/violation`) via a bounded FIFO retry queue;
-- **Holds** each hard block until the web app acknowledges it, re‑sending it if not ([see below](#detection-reliability--design-principles)).
+- **Holds** every violation until the web app acknowledges its `id`, re‑sending it if not ([see below](#detection-reliability--design-principles)).
 
-Payload delivered to the renderer / backend:
+Payload delivered to the renderer / backend (fields and codes: [Web app integration](#web-app-integration-the-contract)):
 
 ```jsonc
 {
+  "id": "0b6f3c1e-8f5d-4a52-9a41-7d2e6c9b1f03",
+  "code": "blocked_app",
+  "category": "browser", // the check that raised it, or null
+  "apps": ["Google Chrome"],
   "event": "Blocked application running during interview: Google Chrome",
   "severity": "high", // "high" | "medium"
   "count": 1, // times this event has fired this session
@@ -318,9 +323,9 @@ The detection layer follows three rules that make it predictable:
 - **One verdict path.** All live checks run in a single `runDetectionTick` and route through one `sendViolation`, so there is no duplicate timer, race, or double‑fire.
 - **Pipe‑first agent.** Electron talks to the agent over a stdin/stdout JSON pipe (no TCP port → immune to AV/firewall/port conflicts). HTTP `:9999` remains only as a best‑effort fallback, and a failed bind is non‑fatal.
 
-**Unacknowledged hard blocks.** Enforcement is the web app’s job: it shows the warning and termination screens and decides when to end the session. There is **no local violation page**.
+**Unacknowledged violations.** Enforcement is the web app’s job: it shows the warning and termination screens and decides when to end the session. There is **no local violation page**.
 
-A hard block the web app doesn't acknowledge was probably missed (page still loading, reloading or down). Electron sends it again after `HARD_BLOCK_GRACE_MS` (8s) and again on every later page load, marked `redelivered: true`. It never lifts the lockdown or stops detection because of a missing ack.
+A violation the web app doesn't acknowledge by `id` was probably missed (page still loading, reloading or down). Electron keeps the newest 20 (`MAX_UNACKED_VIOLATIONS`), soft and hard, and sends them all again, in order, on every later page load, with the same `id` and `redelivered: true`. A hard block is also sent once more after `HARD_BLOCK_GRACE_MS` (8s). An ack without an `id` acknowledges everything pending. Electron never lifts the lockdown or stops detection because of a missing ack.
 
 > Until 1.4.0 a missing ack made Electron unlock the window and stop detection 8s later. The web app never sent acks, so the first hard block of any interview left a normal window behind. That was the "minimize / maximize / Alt+Tab work in the installed app" report.
 
@@ -328,27 +333,49 @@ A hard block the web app doesn't acknowledge was probably missed (page still loa
 
 The interview web app (`interview.letshyre.com`) runs inside this Electron window, so `window.electronAPI` is available to it. The integration is:
 
-1. **Receive** violations and route hard vs soft.
-2. **Acknowledge** every violation so Electron knows the page received it. An unacknowledged hard block is sent again.
+1. **Receive** violations and route them by `code`.
+2. **Acknowledge** each violation by its `id`, so Electron knows the page received it. Unacknowledged violations are sent again.
 3. **Signal completion** when the interview ends or you decide to terminate.
+
+Live detection starts as soon as Start Interview hands off to the interview page: the first check runs immediately, then every 5s (`DETECTION_INTERVAL_MS`), so nothing goes unchecked between the pre-interview guard and the interview.
 
 ```js
 // useElectronViolation.js (web app)
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+
+// Codes that end the interview the first time (see the table below).
+const HARD_CODES = new Set([
+  "blocked_app",
+  "ai_tool",
+  "renamed_app",
+  "external_display",
+  "mirrored_display",
+  "remote_session",
+  "virtual_machine",
+  "agent_unreachable",
+  "check_unverified",
+  "window_minimize",
+  "close_attempt",
+]);
 
 export function useElectronViolation({ onHardBlock, onSoftBlock }) {
+  const seen = useRef(new Set());
+
   useEffect(() => {
     const api = window.electronAPI;
     if (!api?.onViolation) return; // running in a plain browser
 
     api.onViolation((payload) => {
-      // 1) Always ack FIRST (before any modal guard) so liveness is signalled
-      //    even while a warning is already open — this keeps Electron from
-      //    overriding your warning flow.
-      api.acknowledgeViolation?.();
+      // 1) Ack FIRST, by id (before any modal guard), so it isn't sent again
+      //    even while a warning is already open.
+      api.acknowledgeViolation?.(payload.id);
 
-      // 2) Route to your handlers. payload.event drives your title/description.
-      if (payload.isHardBlock) onHardBlock?.(payload);
+      // 2) A redelivery of something already handled has the same id.
+      if (seen.current.has(payload.id)) return;
+      seen.current.add(payload.id);
+
+      // 3) Route on code; payload.apps names the apps to show the candidate.
+      if (payload.isHardBlock || HARD_CODES.has(payload.code)) onHardBlock?.(payload);
       else onSoftBlock?.(payload);
     });
 
@@ -363,7 +390,59 @@ When your app decides the session is over (normal finish, or terminate after N v
 window.electronAPI.interviewComplete("terminated"); // "completed" | "auto-submitted" | "terminated" | "expired"
 ```
 
-> ⚠️ If the web app doesn't call `acknowledgeViolation()`, every hard block is sent to it twice (and again on each page load). The lockdown is unaffected either way.
+**Violation payload.** `onViolation` and `POST /interview/violation` get the same object:
+
+```jsonc
+{
+  "id": "0b6f3c1e-8f5d-4a52-9a41-7d2e6c9b1f03", // UUID, acknowledge with it
+  "code": "blocked_app", // what happened: key your handling and copy on this
+  "category": "meeting", // the check that raised it, or null
+  "apps": ["Zoom", "Microsoft Teams"], // display names, may be empty
+  "event": "Blocked application running during interview: Zoom, Microsoft Teams",
+  "severity": "high", // "high" | "medium"
+  "count": 1, // times this event text has fired this session
+  "isHardBlock": true, // high severity, or count >= 2
+  "source": "electron",
+  "timestamp": "2026-09-25T10:15:04.849Z",
+  "redelivered": true, // only on a re-send, which keeps the original id
+}
+```
+
+- `category` is a security-check id (`hdmi`, `meeting`, `screen`, `wireless`, `browser`, `ai`, `agent`), or `null` for window events and for the process check as a whole.
+- `event` is the English text older site builds show, kept exactly as before for them. Key new code on `code` and show `apps`: `event` wording isn't a contract and can include PIDs.
+- The 15s cooldown and the escalation (`count`, `isHardBlock`) are per `event` text.
+- A site may treat a code as harder than `isHardBlock` says, never softer.
+
+**Codes** (`src/shared/violationCodes.js`):
+
+| Code                  | Meaning                                                                                                                                                  | Treat as                  |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| `blocked_app`         | A blocklisted meeting, screen‑share, casting/remote or browser app is running. One violation per category, apps in `apps`                                | Hard                      |
+| `ai_tool`             | An AI assistant is running: on the blocklist (`category: "ai"`) or found by the agent (`"agent"`)                                                        | Hard                      |
+| `overlay`             | Agent: a transparent overlay window is over the screen                                                                                                   | Soft; hard if it persists |
+| `renamed_app`         | Agent: a blocked app is running under another name                                                                                                       | Hard                      |
+| `external_display`    | A second display is connected                                                                                                                            | Hard                      |
+| `mirrored_display`    | One display, but more physical monitors behind it ("Duplicate these displays")                                                                           | Hard                      |
+| `remote_session`      | Agent: the computer is being used through remote desktop                                                                                                 | Hard                      |
+| `virtual_machine`     | Agent: the computer is a virtual machine                                                                                                                 | Hard                      |
+| `suspicious_activity` | Any other agent finding (window titles, modules, network, automation, virtual audio), or an event without its own code (OS‑level Alt+F4, deep‑link swap) | Follow `isHardBlock`      |
+| `agent_unreachable`   | The security agent didn't answer, or couldn't finish its checks, 3 times in a row: it may have been killed                                               | Hard                      |
+| `check_unverified`    | The display (`hdmi`) or process (`null`) check couldn't answer 3 times in a row                                                                          | Hard                      |
+| `window_minimize`     | The candidate tried to minimize the window (undone)                                                                                                      | Hard                      |
+| `fullscreen_exit`     | The candidate left fullscreen (undone)                                                                                                                   | Soft; hard on repeat      |
+| `close_attempt`       | The candidate opened the exit dialog and cancelled it                                                                                                    | Hard                      |
+
+Every agent threat code in a scan is sent, not only the first. Threats sharing a code are one violation, with all their apps.
+
+**Acknowledgement and redelivery.** Call `acknowledgeViolation(payload.id)` first thing in the handler. Without an id it acknowledges everything pending, which is what builds from before ids do.
+
+- Electron keeps every violation, soft and hard, until it is acknowledged: the newest 20 (`MAX_UNACKED_VIOLATIONS`), oldest dropped first.
+- Each time the interview page finishes loading, all of them are sent again, in order, with the same `id` and `redelivered: true`.
+- An unacknowledged hard block is also sent once more after 8s (`HARD_BLOCK_GRACE_MS`).
+- A redelivery is the same violation, not a new one: dedupe on `id` so it doesn't count twice toward a termination threshold. The backend gets each violation once (queued and retried), with the same `id`.
+- None of this touches the lockdown: only `interviewComplete()` or a confirmed exit unlocks the window.
+
+> ⚠️ If the web app doesn't call `acknowledgeViolation()`, every violation is sent again on each page load, and each hard block once more after 8s. The lockdown is unaffected either way.
 
 When the scorecard's "View Dashboard" button is pressed (still on the interview origin — `interviewComplete` lifted lockdown but did not navigate away):
 
@@ -408,7 +487,7 @@ Exposed by `preload.js` via `contextBridge` (only whitelisted channels). Safe to
 | `startProctoring(meta)` / `stopProctoring()` / `onProctoringStarted(cb)`                            | Start/stop the screen recording (interview site)                                                                             |
 | `onViolation(cb)` / `removeViolationListener()`                                                     | Receive violations during the interview                                                                                      |
 | `onProctoringError(cb)`                                                                             | Recording failed (no screen source, upload session lost, etc.) — see [Recording failures](#web-app-integration-the-contract) |
-| `acknowledgeViolation()`                                                                            | Confirm receipt; stops the hard block being sent again                                                                       |
+| `acknowledgeViolation(id)`                                                                          | Confirm receipt of that violation so it isn't sent again; without an `id`, acknowledges everything pending                   |
 | `interviewComplete(reason)`                                                                         | End the session; lifts lockdown                                                                                              |
 | `viewDashboard()`                                                                                   | Scorecard "View Dashboard" button; leaves the interview flow for the dashboard                                               |
 | `recheckSystem()` / `minimizeWindow()` / `quitApp()`                                                | Preflight UX controls                                                                                                        |
@@ -442,19 +521,19 @@ https://interview.letshyre.com/?ac=<accessToken>&rc=<refreshToken>&lang=<localeC
 
 The client calls these on `API_BASE_URL` (from `.env`, no default) with `Authorization: Bearer <accessToken>` (except login/refresh):
 
-| Endpoint                                                                          | When                                                                                        |
-| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `POST /user/v1/login/` · `POST /user/v1/login_refresh/` · `POST /user/v1/logout/` | Sign‑in, token refresh, sign‑out                                                            |
-| `GET /user/v1/candidate_profile/`                                                 | Dashboard; also verifies the saved session at launch                                        |
-| `POST /user/v1/candidate/interview/face_verification/`                            | Identity verification photo                                                                 |
-| `POST /user/v1/candidate/interview/voice_sample/`                                 | Identity verification voice sample                                                          |
-| `POST /user/v1/candidate_resume_ai/skills_for_role/`                              | Role selection                                                                              |
-| `POST /user/v1/candidate_interview/video_upload/start/`                           | Register a recording upload                                                                 |
-| `POST /user/v1/candidate_interview/video_upload/chunk/`                           | Each recording chunk, during the interview                                                  |
-| `POST /user/v1/candidate_interview/video_upload/complete/`                        | After the last chunk is confirmed                                                           |
-| `GET /user/v1/candidate_interview/video_upload/status/<uploadId>/`                | Poll until the backend has merged the video                                                 |
-| `POST /interview/heartbeat`                                                       | Every 30s during the interview — `{ timestamp }`                                            |
-| `POST /interview/violation`                                                       | On every violation (retried) — `{ event, severity, count, isHardBlock, source, timestamp }` |
+| Endpoint                                                                          | When                                                                                                                                  |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /user/v1/login/` · `POST /user/v1/login_refresh/` · `POST /user/v1/logout/` | Sign‑in, token refresh, sign‑out                                                                                                      |
+| `GET /user/v1/candidate_profile/`                                                 | Dashboard; also verifies the saved session at launch                                                                                  |
+| `POST /user/v1/candidate/interview/face_verification/`                            | Identity verification photo                                                                                                           |
+| `POST /user/v1/candidate/interview/voice_sample/`                                 | Identity verification voice sample                                                                                                    |
+| `POST /user/v1/candidate_resume_ai/skills_for_role/`                              | Role selection                                                                                                                        |
+| `POST /user/v1/candidate_interview/video_upload/start/`                           | Register a recording upload                                                                                                           |
+| `POST /user/v1/candidate_interview/video_upload/chunk/`                           | Each recording chunk, during the interview                                                                                            |
+| `POST /user/v1/candidate_interview/video_upload/complete/`                        | After the last chunk is confirmed                                                                                                     |
+| `GET /user/v1/candidate_interview/video_upload/status/<uploadId>/`                | Poll until the backend has merged the video                                                                                           |
+| `POST /interview/heartbeat`                                                       | Every 30s during the interview — `{ timestamp }`                                                                                      |
+| `POST /interview/violation`                                                       | On every violation (retried) — `{ id, code, category, apps, event, severity, count, isHardBlock, source, timestamp }`; dedupe on `id` |
 
 > **Required for enforcement:** `POST /interview/violation` must be implemented server‑side to record/flag/terminate sessions. Until it exists, violation reports are queued and retried client‑side.
 

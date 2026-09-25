@@ -315,3 +315,28 @@ class NewChecksInScanTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DisplayNameTest(unittest.TestCase):
+    BLANK = "\u2800.exe"
+    PARAKEET = r"C:\Users\a\AppData\Local\Programs\parakeetai-desktop" + "\\" + "\u2800.exe"
+
+    def test_readable_names_are_kept(self):
+        self.assertEqual(agent.display_name("cluely.exe", r"C:\x\cluely.exe"), "cluely.exe")
+        self.assertEqual(agent.display_name("Final Round.exe"), "Final Round.exe")
+
+    def test_invisible_name_falls_back_to_the_install_folder(self):
+        self.assertEqual(agent.display_name(self.BLANK, self.PARAKEET), "parakeetai-desktop")
+        self.assertEqual(agent.display_name("\u3164\u200b.exe", r"C:\apps\Ghost\x.exe"), "Ghost")
+
+    def test_nothing_readable_gives_an_empty_name(self):
+        self.assertEqual(agent.display_name(self.BLANK), "")
+        self.assertEqual(agent.display_name(self.BLANK, "\u2800.exe"), "")
+
+    def test_ai_threat_by_install_path_gets_a_display_name(self):
+        rows = [{"pid": 5004, "name": self.BLANK, "exe": self.PARAKEET, "cmdline": []}]
+        with mock.patch.object(agent, "_processes", lambda attrs: rows):
+            threats = agent.detect_ai_cheating_tools()
+        self.assertEqual(len(threats), 1)
+        self.assertEqual(threats[0]["process"], self.BLANK)
+        self.assertEqual(threats[0]["exe"], self.PARAKEET)

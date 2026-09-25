@@ -9,6 +9,7 @@ const appState = require("./appState");
 const localeManager = require("./localeManager");
 const { createLockdownGuard, releaseLock } = require("./lockdownGuard");
 const { INTERVIEW_BASE_URL, DEVTOOLS_ENABLED } = require("../shared/constants");
+const { CODE } = require("../shared/violationCodes");
 
 /**
  * Text for the native "Exit Interview?" dialog. It is drawn by the main process,
@@ -180,7 +181,7 @@ let isInterviewActive = false;
 /** @type {ReturnType<typeof createLockdownGuard> | null} */
 let lockdownGuard = null;
 
-/** @type {(event: string, severity: string) => void} */
+/** @type {(event: string, severity: string, meta?: {code?: string, category?: string|null, apps?: string[]}) => void} */
 let reportViolation = () => {};
 
 /** @type {string | null} base64 photo from identity verification */
@@ -195,7 +196,7 @@ let loadRetryAttempt = 0;
 
 /**
  * Creates and configures the main application window.
- * @param {(event: string, severity: string) => void} onViolation
+ * @param {(event: string, severity: string, meta?: {code?: string, category?: string|null, apps?: string[]}) => void} onViolation
  * @param {'login'|'dashboard'} [startPage='login'] - Which page to open on launch.
  * @returns {BrowserWindow}
  */
@@ -559,7 +560,7 @@ function _applyWindowProtections(onViolation) {
       app.quit();
     } else {
       logger.warn("[window] user dismissed close dialog during interview");
-      onViolation("Attempt to close interview window", "high");
+      onViolation("Attempt to close interview window", "high", { code: CODE.CLOSE_ATTEMPT });
     }
   });
 }

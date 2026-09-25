@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "50acd5c83b30f6d7"
+    "_sourceHash": "cba7781cd4b8d85c"
   },
   "common": {
     "back": "戻る",
@@ -352,6 +352,30 @@
     "copyDiagnostics": "診断情報をコピー",
     "diagnosticsCopied": "診断情報をコピーしました。サポートへのメッセージに貼り付けてください。",
     "diagnosticsCopyFailed": "自動でコピーできませんでした。下のテキストを選択してコピーしてください。"
+  },
+  "securityGuard": {
+    "titleClose": "続行するには、これらを閉じてください",
+    "descClose": "これらはセキュリティチェックの後に起動されました。閉じると続行できます。",
+    "titleFix": "続行するには、これらを解決してください",
+    "descFix": "これらはセキュリティチェックの後に変更されました。解決すると続行できます。",
+    "titleUnverified": "現在、システムを確認できません",
+    "descUnverified": "セキュリティチェックが完了しませんでした。しばらく待ってから、もう一度確認してください。",
+    "titleClear": "問題ありません",
+    "descClear": "ありがとうございます。このまま続行できます。",
+    "checking": "システムを確認しています…",
+    "checkAgain": "もう一度確認",
+    "leave": "セットアップを終了",
+    "leaveTitle": "セットアップを終了しますか？",
+    "leaveBody": "ダッシュボードに戻ります。そこから再度開始できます。",
+    "stay": "このまま続ける",
+    "more": "{count, plural, other {他 # 件}}",
+    "hintDisplay": "使用する画面が1つだけになるよう、追加のモニターやテレビを取り外してください。",
+    "hintDisplayCount": "{count, plural, other {# 台のディスプレイが接続されています。}}使用する画面が1つだけになるよう、追加のディスプレイを取り外してください。",
+    "hintMirrored": "画面のミラーリングを停止し、追加のディスプレイを取り外してください。",
+    "hintUnverified": "現在、この項目を確認できませんでした。",
+    "hintManual": "ご自身で閉じてから、もう一度確認してください。",
+    "hintSuspicious": "不要なアプリを閉じてから、もう一度確認してください。",
+    "recordAgain": "録音が停止されました。もう一度音声を録音してください。"
   },
   "updater": {
     "available": "アップデートが利用可能です",

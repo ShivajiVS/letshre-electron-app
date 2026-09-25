@@ -3,7 +3,7 @@
 const assert = require("node:assert");
 const fs = require("node:fs");
 const path = require("node:path");
-const { delay, deferred } = require("./util");
+const { delay, deferred, pageT } = require("./util");
 
 const IDS = ["hdmi", "meeting", "screen", "wireless", "browser", "ai", "agent"];
 const LIVE_IDS = IDS.filter((id) => id !== "agent");
@@ -66,10 +66,6 @@ async function untilAllPassed(ctx) {
   assert.strictEqual(await ctx.q("#btn-proceed", "el.disabled"), false);
 }
 
-function pageT(ctx, key, params) {
-  return ctx.eval(`window.t(${JSON.stringify(key)}, ${JSON.stringify(params || {})})`);
-}
-
 function cardTone(ctx, id) {
   return ctx.q(
     `#card-${id}`,
@@ -88,6 +84,22 @@ function markPage(ctx) {
 
 async function assertSamePage(ctx) {
   assert.strictEqual(await ctx.eval("window.__e2eMarker"), 1, "page reloaded");
+}
+
+/** Names preload.js relays with `helper` (safeInvoke / safeSend). */
+function preloadNames(source, helper) {
+  const block = source.slice(source.indexOf('exposeInMainWorld("electronAPI"'));
+  const entries = [...block.matchAll(/^ {2}(\w+):/gm)];
+  return entries
+    .filter((m, i) => block.slice(m.index, entries[i + 1]?.index).includes(`${helper}(`))
+    .map((m) => m[1])
+    .sort();
+}
+
+function fakeNames(source, list) {
+  const start = source.indexOf(`const ${list} = [`);
+  const body = source.slice(start, source.indexOf("];", start));
+  return [...body.matchAll(/"(\w+)"/g)].map((m) => m[1]).sort();
 }
 
 async function openDialogFrom(ctx, selector) {
@@ -604,6 +616,80 @@ const scenarios = [
   },
 
   {
+    name: "Close all on the deep scan closes every threat with a pid in one go",
+    setup(ctx) {
+      ctx.handle("killThreatProcess", (pid, name) => ({
+        processName: name,
+        success: true,
+        outcome: "closed",
+        pid,
+      }));
+      ctx.onScan((token) =>
+        result(
+          token,
+          verdicts({
+            agent: threats([
+              { type: "suspicious_window_title", severity: "HIGH", detail: "title" },
+              {
+                type: "ai_cheating_tool",
+                severity: "HIGH",
+                process: "\u2800.exe",
+                display_name: "parakeetai-desktop",
+                pid: 11,
+              },
+              {
+                type: "ai_cheating_tool",
+                severity: "HIGH",
+                process: "\u2800.exe",
+                display_name: "parakeetai-desktop",
+                pid: 12,
+              },
+              { type: "transparent_overlay", severity: "MEDIUM", process: "ghost.exe", pid: 13 },
+            ]),
+          })
+        )
+      );
+      ctx.onScan(passScan);
+    },
+    async run(ctx) {
+      const all = "#actions-agent .sc-kill-all-btn";
+      await ctx.until(
+        `!!document.querySelector(${JSON.stringify(all)}) && !document.querySelector(${JSON.stringify(all)}).hidden`,
+        "Close all on the agent card"
+      );
+      assert.strictEqual(
+        await ctx.text(all),
+        await pageT(ctx, "preflightResults.closeAll", { count: 3 })
+      );
+
+      assert.strictEqual(
+        await ctx.text("#actions-agent .sc-kill-row[data-pid='11'] .sc-kill-process"),
+        "parakeetai-desktop"
+      );
+
+      await openDialogFrom(ctx, all);
+      assert.deepStrictEqual(
+        await ctx.eval(
+          "[...document.querySelectorAll('#kill-dialog-list li')].map((li) => li.textContent)"
+        ),
+        ["parakeetai-desktop", "ghost.exe"]
+      );
+      await ctx.click("#kill-dialog-confirm");
+      const kills = await ctx.untilCalls("killThreatProcess", 3);
+      assert.deepStrictEqual(
+        kills.map((k) => k.args).sort((a, b) => a[0] - b[0]),
+        [
+          [11, "\u2800.exe"],
+          [12, "\u2800.exe"],
+          [13, "ghost.exe"],
+        ]
+      );
+      assert.strictEqual(ctx.callsTo("killAllProcesses").length, 0);
+      await untilAllPassed(ctx);
+    },
+  },
+
+  {
     name: "Arabic lays the page out right-to-left with translated threat copy",
     locale: "ar",
     setup(ctx) {
@@ -649,6 +735,11 @@ const scenarios = [
       const expected = [...block.matchAll(/^ {2}(\w+):/gm)].map((m) => m[1]).sort();
       const actual = (await ctx.eval("Object.keys(window.electronAPI)")).sort();
       assert.deepStrictEqual(actual, expected);
+
+      // A send where preload invokes would hand the page undefined instead of main's answer.
+      const fake = fs.readFileSync(path.join(__dirname, "fakePreload.js"), "utf8");
+      assert.deepStrictEqual(fakeNames(fake, "INVOKE"), preloadNames(source, "safeInvoke"));
+      assert.deepStrictEqual(fakeNames(fake, "SEND"), preloadNames(source, "safeSend"));
 
       assert.ok(ctx.requests.some((u) => u.endsWith("/assets/preflight.html")));
       assert.ok(ctx.requests.some((u) => u.endsWith("/src/renderer/preflight.js")));

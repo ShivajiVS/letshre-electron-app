@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "50acd5c83b30f6d7"
+    "_sourceHash": "cba7781cd4b8d85c"
   },
   "common": {
     "back": "Terug",
@@ -352,6 +352,30 @@
     "copyDiagnostics": "Diagnostiek kopiëren",
     "diagnosticsCopied": "Diagnostiek gekopieerd. Plak deze in je bericht aan de support.",
     "diagnosticsCopyFailed": "Automatisch kopiëren is mislukt. Selecteer de tekst hieronder en kopieer deze."
+  },
+  "securityGuard": {
+    "titleClose": "Sluit deze apps om door te gaan",
+    "descClose": "Deze zijn gestart na je beveiligingscontrole. Je kunt doorgaan zodra ze gesloten zijn.",
+    "titleFix": "Los deze punten op om door te gaan",
+    "descFix": "Deze punten zijn veranderd na je beveiligingscontrole. Je kunt doorgaan zodra ze opgelost zijn.",
+    "titleUnverified": "We kunnen je systeem nu niet controleren",
+    "descUnverified": "Onze beveiligingscontrole is niet voltooid. Wacht even en controleer het dan opnieuw.",
+    "titleClear": "Alles in orde",
+    "descClear": "Bedankt. Je kunt verdergaan.",
+    "checking": "Je systeem wordt gecontroleerd…",
+    "checkAgain": "Opnieuw controleren",
+    "leave": "Configuratie verlaten",
+    "leaveTitle": "Configuratie verlaten?",
+    "leaveBody": "Je gaat terug naar je dashboard. Daar kun je opnieuw beginnen.",
+    "stay": "Blijven",
+    "more": "{count, plural, one {+# meer} other {+# meer}}",
+    "hintDisplay": "Koppel extra monitoren of tv's los, zodat er maar één scherm in gebruik is.",
+    "hintDisplayCount": "{count, plural, one {# beeldscherm is aangesloten.} other {# beeldschermen zijn aangesloten.}} Koppel de extra schermen los, zodat er maar één scherm in gebruik is.",
+    "hintMirrored": "Stop met het spiegelen van je scherm en koppel het extra beeldscherm los.",
+    "hintUnverified": "We konden dit zojuist niet controleren.",
+    "hintManual": "Sluit de app zelf en controleer daarna opnieuw.",
+    "hintSuspicious": "Sluit alle apps die je niet nodig hebt en controleer daarna opnieuw.",
+    "recordAgain": "Je opname is gestopt. Neem je stem opnieuw op."
   },
   "updater": {
     "available": "Update beschikbaar",

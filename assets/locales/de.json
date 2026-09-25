@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "50acd5c83b30f6d7"
+    "_sourceHash": "cba7781cd4b8d85c"
   },
   "common": {
     "back": "Zurück",
@@ -352,6 +352,30 @@
     "copyDiagnostics": "Diagnose kopieren",
     "diagnosticsCopied": "Diagnose kopiert. Fügen Sie sie in Ihre Nachricht an den Support ein.",
     "diagnosticsCopyFailed": "Automatisches Kopieren nicht möglich. Markieren Sie den Text unten und kopieren Sie ihn."
+  },
+  "securityGuard": {
+    "titleClose": "Schließen Sie diese, um fortzufahren",
+    "descClose": "Diese wurden nach Ihrer Sicherheitsprüfung gestartet. Sie können fortfahren, sobald sie geschlossen sind.",
+    "titleFix": "Beheben Sie diese Punkte, um fortzufahren",
+    "descFix": "Diese Punkte haben sich nach Ihrer Sicherheitsprüfung geändert. Sie können fortfahren, sobald sie behoben sind.",
+    "titleUnverified": "Wir können Ihr System gerade nicht prüfen",
+    "descUnverified": "Unsere Sicherheitsprüfung wurde nicht abgeschlossen. Warten Sie einen Moment und prüfen Sie dann erneut.",
+    "titleClear": "Alles in Ordnung",
+    "descClear": "Danke. Sie können weitermachen.",
+    "checking": "Ihr System wird geprüft…",
+    "checkAgain": "Erneut prüfen",
+    "leave": "Einrichtung verlassen",
+    "leaveTitle": "Einrichtung verlassen?",
+    "leaveBody": "Sie kehren zu Ihrem Dashboard zurück. Von dort aus können Sie erneut beginnen.",
+    "stay": "Bleiben",
+    "more": "{count, plural, one {+# weitere} other {+# weitere}}",
+    "hintDisplay": "Trennen Sie zusätzliche Monitore oder Fernseher, sodass nur ein Bildschirm verwendet wird.",
+    "hintDisplayCount": "{count, plural, one {# Bildschirm ist angeschlossen.} other {# Bildschirme sind angeschlossen.}} Trennen Sie die zusätzlichen Bildschirme, sodass nur ein Bildschirm verwendet wird.",
+    "hintMirrored": "Beenden Sie die Bildschirmspiegelung und trennen Sie den zusätzlichen Bildschirm.",
+    "hintUnverified": "Das konnten wir gerade nicht prüfen.",
+    "hintManual": "Schließen Sie die App selbst und prüfen Sie dann erneut.",
+    "hintSuspicious": "Schließen Sie alle Apps, die Sie nicht benötigen, und prüfen Sie dann erneut.",
+    "recordAgain": "Ihre Aufnahme wurde beendet. Bitte nehmen Sie Ihre Stimme erneut auf."
   },
   "updater": {
     "available": "Update verfügbar",

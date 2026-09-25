@@ -1,5 +1,7 @@
 "use strict";
 
+const { CODE } = require("../shared/violationCodes");
+
 const ALWAYS_ON_TOP_LEVEL = "screen-saver";
 const WATCHDOG_MS = 1000;
 const SETTLE_MS = 300;
@@ -66,7 +68,10 @@ function releaseLock(win) {
  * the window unlocked for the rest of the interview.
  *
  * @param {import("electron").BrowserWindow} win
- * @param {{ onViolation: (event: string, severity: string) => void, log: { warn: Function } }} deps
+ * @param {{
+ *   onViolation: (event: string, severity: string, meta: { code: string }) => void,
+ *   log: { warn: Function },
+ * }} deps
  */
 function createLockdownGuard(win, { onViolation, log, watchdogMs = WATCHDOG_MS }) {
   let watchdog = null;
@@ -103,11 +108,11 @@ function createLockdownGuard(win, { onViolation, log, watchdogMs = WATCHDOG_MS }
       win.restore();
       check();
       win.focus();
-      onViolation("Window minimize attempt", "high");
+      onViolation("Window minimize attempt", "high", { code: CODE.WINDOW_MINIMIZE });
     });
     on("leave-full-screen", () => {
       check();
-      onViolation("Fullscreen exit attempt", "medium");
+      onViolation("Fullscreen exit attempt", "medium", { code: CODE.FULLSCREEN_EXIT });
     });
     // Windows can drop always-on-top a moment after the transition reports done.
     on("enter-full-screen", () => {

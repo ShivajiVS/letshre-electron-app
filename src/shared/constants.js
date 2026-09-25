@@ -163,6 +163,21 @@ const PREFLIGHT_REVERIFY_DEADLINE_MS = 3000;
 /** How often the security-check page re-polls processes and displays. */
 const PRE_PROCEED_INTERVAL_MS = 2000;
 
+/** How often the guard re-checks the machine on permissions, verification and role selection. */
+const GUARD_INTERVAL_MS = 2000;
+
+/** Clean guard ticks in a row before a violation counts as resolved. */
+const GUARD_CLEAR_TICKS = 2;
+
+/** Guard ticks in a row that couldn't answer before the page is blocked as unverified. */
+const GUARD_UNVERIFIED_TICKS = 3;
+
+/** Budget for the fresh check run before each step and on "Check again". */
+const GUARD_DOOR_CHECK_DEADLINE_MS = 2500;
+
+/** Most unacknowledged violations kept for re-sending to the interview site. */
+const MAX_UNACKED_VIOLATIONS = 20;
+
 /** Consecutive failed agent scans before the next scan restarts the agent. */
 const AGENT_RESTART_AFTER_FAILURES = 2;
 
@@ -314,6 +329,11 @@ const IPC = {
   // Payload: { clean, unverified, apps, verdicts }
   PUSH_PRE_PROCEED_STATUS: "push-pre-proceed-status",
 
+  // Security guard on the steps between the security check and the interview.
+  GET_GUARD_STATUS: "get-guard-status",
+  RECHECK_GUARD: "recheck-guard",
+  PUSH_GUARD_STATUS: "push-guard-status",
+
   // Store the captured ID-verification photo, injected into interview SPA
   // sessionStorage before React boots.
   STORE_CANDIDATE_PHOTO: "store-candidate-photo",
@@ -425,6 +445,11 @@ module.exports = {
   PREFLIGHT_RESULT_MAX_AGE_MS,
   PREFLIGHT_REVERIFY_DEADLINE_MS,
   PRE_PROCEED_INTERVAL_MS,
+  GUARD_INTERVAL_MS,
+  GUARD_CLEAR_TICKS,
+  GUARD_UNVERIFIED_TICKS,
+  GUARD_DOOR_CHECK_DEADLINE_MS,
+  MAX_UNACKED_VIOLATIONS,
   AGENT_RESTART_AFTER_FAILURES,
   AGENT_RESPAWN_BASE_MS,
   AGENT_RESPAWN_MAX_MS,

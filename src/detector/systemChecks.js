@@ -15,14 +15,23 @@ const {
   PREFLIGHT_REVERIFY_DEADLINE_MS,
   PRE_PROCEED_INTERVAL_MS,
   AGENT_RESTART_AFTER_FAILURES,
+  MAX_UNACKED_VIOLATIONS,
 } = require("../shared/constants");
+const {
+  CODE,
+  codeForThreat,
+  codeForProcessCategory,
+  isKnownCode,
+} = require("../shared/violationCodes");
 const { getCurrentAccessToken } = require("../main/protocolHandler");
+const crypto = require("crypto");
 const axios = require("axios");
 const { detectHDMIWindows } = require("./hdmiDetector");
 const detectMirroring = require("./mirrorDetector");
 const { checkProcesses, invalidateProcessCache } = require("./mirrorDetector");
 const {
   PASS,
+  FAIL,
   UNVERIFIED,
   mapHdmi,
   mapProcesses,
@@ -30,7 +39,7 @@ const {
   buildVerdicts,
   canProceed,
 } = require("./preflightVerdict");
-const { getDisplayName, filterAgentStatus } = require("../shared/blocklist");
+const { getDisplayName, getThreatDisplayName, filterAgentStatus } = require("../shared/blocklist");
 const { expectedAgentSource } = require("../shared/agentBuild");
 const { fetchAgentStatus, triggerAgentScan } = require("./agentClient");
 const {
@@ -49,9 +58,12 @@ let isSessionActive = false;
 
 let detectionInterval = null;
 let heartbeatInterval = null;
-let redeliveryTimer = null;
-let unackedHardBlock = null;
 let sessionWin = null;
+
+/** Sent violations the site hasn't acknowledged yet, oldest first (id → payload). */
+const unacked = new Map();
+let hardBlockTimer = null;
+let hardBlockId = null;
 
 // Pre-proceed monitor state (see the monitor section below).
 let preProceedInterval = null;
@@ -67,9 +79,12 @@ let _live = null;
 // keeps failing can't vouch for the system, so it escalates to a violation.
 const indeterminateStreak = new Map(); // check key → consecutive indeterminate count
 
+/** Check id reported with each escalation; the process check spans several. */
+const ESCALATION_CATEGORY = { hdmi: "hdmi", mirror: "hdmi", agent: "agent", process: null };
+
 /**
  * @param {Electron.BrowserWindow} win
- * @param {string} key   - stable check identifier, e.g. "hdmi" / "process"
+ * @param {"hdmi"|"process"|"agent"|"mirror"} key
  * @param {string} label - human-readable check name for the violation message
  * @param {string} status - "clear" | "violation" | "indeterminate"
  */
@@ -87,7 +102,11 @@ function trackIndeterminate(win, key, label, status) {
     sendViolation(
       win,
       `${label} could not be verified for ${streak} consecutive scans — possible tampering`,
-      "high"
+      "high",
+      {
+        code: key === "agent" ? CODE.AGENT_UNREACHABLE : CODE.CHECK_UNVERIFIED,
+        category: ESCALATION_CATEGORY[key] ?? null,
+      }
     );
     indeterminateStreak.set(key, 0); // reset so cooldown governs re-fire cadence
   }
@@ -116,10 +135,9 @@ function getAuditLog() {
 
 // ─── Backend violation reporting ──────────────────────────────────────────────
 // Every violation is also POSTed to the backend, not just pushed to the renderer:
-// the renderer push is best-effort UX and is lost if the page reloaded or its
-// listener wasn't attached, so the backend POST is what makes the server the
-// authority that can actually terminate/flag the session. Failed posts queue and
-// retry (bounded, FIFO) so a network blip isn't a silent bypass.
+// the page can be reloading or down when it's pushed, so the backend POST is what
+// makes the server the authority that can actually terminate/flag the session.
+// Failed posts queue and retry (bounded, FIFO) so a network blip isn't a silent bypass.
 const MAX_PENDING_REPORTS = 100;
 const pendingReports = [];
 let isFlushingReports = false;
@@ -251,150 +269,250 @@ async function runDetectionTick(win) {
   }
 
   if (hdmi.detected) {
-    sendViolation(win, hdmi.reason || "External display detected", "high");
+    sendViolation(win, hdmi.reason || "External display detected", "high", {
+      code: CODE.EXTERNAL_DISPLAY,
+      category: "hdmi",
+    });
   } else if (agentReachable && agentStatus.physical_monitors > 1) {
     // One logical display but several physical panels: "Duplicate these displays".
     sendViolation(
       win,
       `Duplicate/mirrored display detected (${agentStatus.physical_monitors} physical monitors)`,
-      "high"
+      "high",
+      { code: CODE.MIRRORED_DISPLAY, category: "hdmi" }
     );
   }
-  if (found.length > 0) {
-    const names = found.map((p) => getDisplayName(p)).join(", ");
-    sendViolation(win, `Blocked application running during interview: ${names}`, "high");
+  for (const { id, blockedApps } of blockedAppsByCategory(found)) {
+    const apps = blockedApps.map((p) => getDisplayName(p));
+    sendViolation(win, `Blocked application running during interview: ${apps.join(", ")}`, "high", {
+      code: codeForProcessCategory(id),
+      category: id,
+      apps,
+    });
   }
   if (agentReachable && !agentStatus.safe_to_proceed && agentStatus.threats?.length > 0) {
-    const threat = agentStatus.threats[0];
-    sendViolation(
-      win,
-      threat.detail || "Behavioral threat detected",
-      threat.severity === "HIGH" ? "high" : "medium"
-    );
+    for (const { code, threat, apps } of threatsByCode(agentStatus.threats)) {
+      sendViolation(
+        win,
+        threat.detail || "Behavioral threat detected",
+        threat.severity === "HIGH" ? "high" : "medium",
+        { code, category: "agent", apps }
+      );
+    }
   }
 }
 
+/** The failing process-check cards, each with its blocked apps. */
+function blockedAppsByCategory(found) {
+  if (found.length === 0) {
+    return [];
+  }
+  return mapProcesses({ status: "violation", details: { processes: found } }).filter(
+    (v) => v.status === FAIL
+  );
+}
+
+/**
+ * One entry per distinct threat code. Its first HIGH threat (else its first)
+ * supplies the event and severity; apps come from every threat with that code.
+ */
+function threatsByCode(threats) {
+  const groups = new Map();
+  for (const threat of threats.filter((t) => t && typeof t === "object")) {
+    const code = codeForThreat(threat);
+    const group = groups.get(code) ?? { code, threat, apps: [] };
+    if (group.threat.severity !== "HIGH" && threat.severity === "HIGH") {
+      group.threat = threat;
+    }
+    if (typeof threat.process === "string" && threat.process) {
+      group.apps.push(getThreatDisplayName(threat));
+    }
+    groups.set(code, group);
+  }
+  return [...groups.values()];
+}
+
+/**
+ * Starts the interview's live detection. The first tick runs right away so the
+ * hand-off from the pre-interview guard leaves no unchecked gap.
+ * @param {Electron.BrowserWindow} win
+ */
 function start(win) {
+  if (detectionInterval && sessionWin === win) {
+    return;
+  }
+  clearInterval(detectionInterval);
+  detachSessionWin();
   isSessionActive = true;
   sessionWin = win;
-  win?.webContents?.on("did-finish-load", redeliverUnackedHardBlock);
+  win?.webContents?.on("did-finish-load", redeliverUnacked);
 
-  detectionInterval = setInterval(() => {
+  const tick = () =>
     runDetectionTick(win).catch((e) =>
       logger.warn("[systemChecks] detection tick error:", e.message)
     );
-  }, DETECTION_INTERVAL_MS);
+  detectionInterval = setInterval(tick, DETECTION_INTERVAL_MS);
+  tick();
 
   startHeartbeat();
 }
 
 /**
+ * @typedef {object} ViolationPayload
+ * @property {string} id - acknowledge with this id
+ * @property {string} code - a CODE from shared/violationCodes
+ * @property {string|null} category - the check that raised it, when there is one
+ * @property {string[]} apps - display names, possibly empty
+ * @property {string} event - human-readable text, kept for older site builds
+ * @property {"high"|"medium"} severity
+ * @property {number} count - times this event has fired this session
+ * @property {boolean} isHardBlock
+ * @property {"electron"} source
+ * @property {string} timestamp
+ * @property {boolean} [redelivered] - a re-send of an unacknowledged violation
+ */
+
+/**
  * Pushes a violation to the interview site, which shows the warning or ends
  * the session (`window.electronAPI.onViolation()`).
  * @param {Electron.BrowserWindow} win
- * @param {{ event: string, severity: string, count: number, isHardBlock: boolean }} payload
+ * @param {ViolationPayload} payload
  */
 function _pushViolationToRenderer(win, payload) {
   if (!win || win.isDestroyed()) {
     return;
   }
   try {
-    win.webContents.send(IPC.PUSH_VIOLATION, {
-      ...payload,
-      source: "electron",
-      timestamp: new Date().toISOString(),
-    });
-    logger.info("[systemChecks] violation pushed to renderer:", payload.event);
+    win.webContents.send(IPC.PUSH_VIOLATION, payload);
+    logger.info("[systemChecks] violation pushed to renderer:", payload.code, payload.event);
   } catch (err) {
     logger.warn("[systemChecks] violation push failed:", err.message);
   }
 }
 
-async function sendViolation(win, event, severity) {
+function _appNames(apps) {
+  return Array.isArray(apps) ? [...new Set(apps.filter((a) => typeof a === "string" && a))] : [];
+}
+
+/**
+ * The single path for every interview violation: pushed to the site, posted to
+ * the backend and held until the site acknowledges it.
+ * Cooldown and escalation are keyed by `event`.
+ * @param {Electron.BrowserWindow} win
+ * @param {string} event
+ * @param {"high"|"medium"} severity
+ * @param {{code?: string, category?: string|null, apps?: string[]}} [meta]
+ */
+function sendViolation(win, event, severity, meta = {}) {
   if (!isSessionActive) {
     logger.info("[systemChecks] sendViolation suppressed — session no longer active");
     return;
   }
 
   const now = Date.now();
-
-  if (violationCache.has(event)) {
-    if (now - violationCache.get(event) < VIOLATION_COOLDOWN_MS) {
-      return;
-    }
+  if (violationCache.has(event) && now - violationCache.get(event) < VIOLATION_COOLDOWN_MS) {
+    return;
   }
   violationCache.set(event, now);
 
-  const prevCount = violationEscalation.get(event) || 0;
-  const count = prevCount + 1;
+  const count = (violationEscalation.get(event) || 0) + 1;
   violationEscalation.set(event, count);
-
   const isHardBlock = severity === "high" || count >= 2;
 
-  appendAuditEvent("violation", { event, severity, count, isHardBlock });
-  logger.warn(
-    "[systemChecks] VIOLATION:",
-    event,
-    `| severity: ${severity} | count: ${count} | hardBlock: ${isHardBlock}`
-  );
-
+  /** @type {ViolationPayload} */
   const payload = {
+    id: crypto.randomUUID(),
+    code: isKnownCode(meta?.code) ? meta.code : CODE.SUSPICIOUS_ACTIVITY,
+    category: typeof meta?.category === "string" ? meta.category : null,
+    apps: _appNames(meta?.apps),
     event,
     severity,
     count,
     isHardBlock,
     source: "electron",
-    timestamp: new Date().toISOString(),
+    timestamp: new Date(now).toISOString(),
   };
 
-  _pushViolationToRenderer(win, { event, severity, count, isHardBlock });
-  reportViolationToBackend(payload);
+  appendAuditEvent("violation", payload);
+  logger.warn(
+    "[systemChecks] VIOLATION:",
+    event,
+    `| code: ${payload.code} | severity: ${severity} | count: ${count} | hardBlock: ${isHardBlock}`
+  );
 
-  if (isHardBlock) {
-    holdUntilAcked(win, { event, severity, count, isHardBlock });
-  }
+  holdUntilAcked(win, payload);
+  _pushViolationToRenderer(win, payload);
+  reportViolationToBackend(payload);
 }
 
 /**
- * The site ends the interview on a hard block, so a hard block it never
- * acknowledges was probably missed (page still loading, reloaded or down).
- * It is sent again after the grace period and on every later page load.
- * The lockdown and detection stay on either way: only the site ending the
+ * An unacknowledged violation was probably missed (page still loading,
+ * reloaded or down), so every one is kept and sent again, same id, on the next
+ * page load. A hard block is also sent again once after the grace period. The
+ * lockdown and detection stay on either way: only the site ending the
  * interview unlocks the window.
  */
 function holdUntilAcked(win, payload) {
-  if (unackedHardBlock) {
+  unacked.set(payload.id, payload);
+  if (unacked.size > MAX_UNACKED_VIOLATIONS) {
+    _forget(unacked.keys().next().value);
+  }
+  if (!payload.isHardBlock || hardBlockTimer) {
     return;
   }
-  unackedHardBlock = { ...payload, redelivered: true };
-  redeliveryTimer = setTimeout(() => {
-    redeliveryTimer = null;
-    if (!isSessionActive || !unackedHardBlock) {
+  hardBlockId = payload.id;
+  hardBlockTimer = setTimeout(() => {
+    const pending = unacked.get(hardBlockId);
+    hardBlockTimer = null;
+    hardBlockId = null;
+    if (!isSessionActive || !pending) {
       return;
     }
     logger.warn(
-      `[systemChecks] hard block not acknowledged, sending again (lockdown stays on): ${payload.event}`
+      `[systemChecks] hard block not acknowledged, sending again (lockdown stays on): ${pending.event}`
     );
-    _pushViolationToRenderer(win, unackedHardBlock);
+    _pushViolationToRenderer(win, { ...pending, redelivered: true });
   }, HARD_BLOCK_GRACE_MS);
 }
 
-function redeliverUnackedHardBlock() {
-  if (!isSessionActive || !unackedHardBlock) {
+function redeliverUnacked() {
+  if (!isSessionActive || unacked.size === 0) {
     return;
   }
-  logger.info("[systemChecks] page loaded with an unacknowledged hard block — sending again");
-  _pushViolationToRenderer(sessionWin, unackedHardBlock);
+  logger.info(
+    `[systemChecks] page loaded with ${unacked.size} unacknowledged violation(s) — sending again`
+  );
+  for (const payload of unacked.values()) {
+    _pushViolationToRenderer(sessionWin, { ...payload, redelivered: true });
+  }
 }
 
-function clearUnackedHardBlock() {
-  clearTimeout(redeliveryTimer);
-  redeliveryTimer = null;
-  unackedHardBlock = null;
+function _forget(id) {
+  unacked.delete(id);
+  if (id === hardBlockId) {
+    clearTimeout(hardBlockTimer);
+    hardBlockTimer = null;
+    hardBlockId = null;
+  }
 }
 
-function acknowledgeViolation() {
-  clearUnackedHardBlock();
+function clearUnacked() {
+  clearTimeout(hardBlockTimer);
+  hardBlockTimer = null;
+  hardBlockId = null;
+  unacked.clear();
+}
+
+/**
+ * @param {string} [id] - without one, everything pending is acknowledged
+ *   (site builds that predate ids)
+ */
+function acknowledgeViolation(id) {
+  if (id) {
+    _forget(id);
+  } else {
+    clearUnacked();
+  }
 }
 
 // ─── Preflight ───────────────────────────────────────────────────────────────
@@ -782,46 +900,39 @@ async function renewStalePass(budgetMs = PREFLIGHT_REVERIFY_DEADLINE_MS) {
 
 function detachSessionWin() {
   if (sessionWin && !sessionWin.isDestroyed?.()) {
-    sessionWin.webContents?.removeListener("did-finish-load", redeliverUnackedHardBlock);
+    sessionWin.webContents?.removeListener("did-finish-load", redeliverUnacked);
   }
   sessionWin = null;
 }
 
-/** Ends the interview's detection. Called when the site reports the interview is over. */
-function stop() {
+function _endSession() {
   isSessionActive = false;
   indeterminateStreak.clear();
-  clearUnackedHardBlock();
+  clearUnacked();
   detachSessionWin();
+  clearInterval(detectionInterval);
+  detectionInterval = null;
+  clearInterval(heartbeatInterval);
+  heartbeatInterval = null;
+}
 
+/** Ends the interview's detection. Called when the site reports the interview is over. */
+function stop() {
+  _endSession();
   // The token is still valid right after the session, so try once more to post
   // anything still queued.
   flushReports().catch(() => {});
-
-  clearInterval(detectionInterval);
-  detectionInterval = null;
-  if (heartbeatInterval) {
-    clearInterval(heartbeatInterval);
-    heartbeatInterval = null;
-  }
-
   logger.info("[systemChecks] detection stopped — session ended");
 }
 
 function resetState() {
-  isSessionActive = false;
+  _endSession();
   _lastPreflight = null;
   _live = null;
   _threatProcesses = new Map();
   violationCache.clear();
   violationEscalation.clear();
-  indeterminateStreak.clear();
   pendingReports.length = 0;
-  clearUnackedHardBlock();
-  detachSessionWin();
-
-  clearInterval(detectionInterval);
-  detectionInterval = null;
 }
 
 // ─── Pre-proceed monitor ─────────────────────────────────────────────────────
@@ -961,6 +1072,8 @@ module.exports = {
   verifyProceedAllowed,
   renewStalePass,
   getThreatProcesses,
+  rememberThreats: _rememberThreats,
+  recordAuditEvent: appendAuditEvent,
   getAuditLog,
   acknowledgeViolation,
   startPreProceedMonitor,

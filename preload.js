@@ -106,6 +106,10 @@ const IPC = {
   // Pre-proceed watcher: main → renderer push — real-time blocked-app status
   PUSH_PRE_PROCEED_STATUS: "push-pre-proceed-status",
 
+  GET_GUARD_STATUS: "get-guard-status",
+  RECHECK_GUARD: "recheck-guard",
+  PUSH_GUARD_STATUS: "push-guard-status",
+
   // Identity verification → main: store captured photo for sessionStorage injection
   STORE_CANDIDATE_PHOTO: "store-candidate-photo",
 
@@ -127,15 +131,12 @@ const IPC = {
 const ALLOWED_SEND_CHANNELS = [
   IPC.QUIT_APP,
   IPC.RECHECK_SYSTEM,
-  IPC.PROCEED_TO_INTERVIEW,
   IPC.INSTALL_UPDATE,
   IPC.MINIMIZE_WINDOW,
   IPC.START_INTERVIEW,
   IPC.INTERVIEW_COMPLETE,
   IPC.ACK_VIOLATION,
   IPC.BACK_TO_PERMISSIONS,
-  IPC.LOAD_IDENTITY_VERIFICATION,
-  IPC.LOAD_ROLE_SELECTION,
   IPC.LOAD_DASHBOARD,
   IPC.VIEW_DASHBOARD,
   IPC.LOAD_SECURITY_CHECK,
@@ -148,6 +149,11 @@ const ALLOWED_SEND_CHANNELS = [
 
 const ALLOWED_INVOKE_CHANNELS = [
   IPC.LOAD_PERMISSIONS_PAGE,
+  IPC.LOAD_IDENTITY_VERIFICATION,
+  IPC.LOAD_ROLE_SELECTION,
+  IPC.PROCEED_TO_INTERVIEW,
+  IPC.GET_GUARD_STATUS,
+  IPC.RECHECK_GUARD,
   IPC.RUN_PREFLIGHT,
   IPC.KILL_BLOCKED_APP,
   IPC.KILL_ALL_BLOCKED_APPS,
@@ -186,6 +192,7 @@ const ALLOWED_RECEIVE_CHANNELS = [
   IPC.PREFLIGHT_PROGRESS,
   IPC.PUSH_VIOLATION,
   IPC.PUSH_PRE_PROCEED_STATUS,
+  IPC.PUSH_GUARD_STATUS,
   IPC.PUSH_PROCTORING_STARTED,
   IPC.PUSH_PROCTORING_ERROR,
   IPC.LOCALE_CHANGED,
@@ -213,6 +220,7 @@ function safeOn(channel, callback) {
 // One tracked listener per channel, so re-subscribing replaces instead of stacking.
 let _preflightProgressHandler = null;
 let _violationHandler = null;
+let _guardStatusHandler = null;
 
 let _updateAvailableHandler = null;
 let _updateDownloadedHandler = null;
@@ -249,11 +257,32 @@ contextBridge.exposeInMainWorld("electronAPI", {
   loadPermissionsPage: () => safeInvoke(IPC.LOAD_PERMISSIONS_PAGE),
   backToPermissions: () => safeSend(IPC.BACK_TO_PERMISSIONS),
 
-  /** Permissions "Start interview": navigate to identity verification. */
-  loadIdentityVerification: () => safeSend(IPC.LOAD_IDENTITY_VERIFICATION),
+  /** Permissions → identity verification. Resolves {ok:false, reason, guard} when main refuses. */
+  loadIdentityVerification: () => safeInvoke(IPC.LOAD_IDENTITY_VERIFICATION),
 
-  /** Identity verification "Begin Interview": navigate to role selection. */
-  loadRoleSelection: () => safeSend(IPC.LOAD_ROLE_SELECTION),
+  /** Identity verification → role selection. Resolves {ok:false, reason, guard} when main refuses. */
+  loadRoleSelection: () => safeInvoke(IPC.LOAD_ROLE_SELECTION),
+
+  /** Current guard state on the steps after the security check. */
+  getSecurityGuardStatus: () => safeInvoke(IPC.GET_GUARD_STATUS),
+
+  /** Runs a fresh guard check now and resolves with the resulting state. */
+  recheckSecurityGuard: () => safeInvoke(IPC.RECHECK_GUARD),
+
+  /** @param {(state: object) => void} callback - every guard state change */
+  onSecurityGuardStatus: (callback) => {
+    if (_guardStatusHandler) {
+      ipcRenderer.removeListener(IPC.PUSH_GUARD_STATUS, _guardStatusHandler);
+    }
+    _guardStatusHandler = (_e, state) => callback(state);
+    safeOn(IPC.PUSH_GUARD_STATUS, _guardStatusHandler);
+  },
+  removeSecurityGuardStatusListener: () => {
+    if (_guardStatusHandler) {
+      ipcRenderer.removeListener(IPC.PUSH_GUARD_STATUS, _guardStatusHandler);
+      _guardStatusHandler = null;
+    }
+  },
 
   /** Open the how-it-works informational page (login and dashboard). */
   loadHowItWorks: () => safeSend(IPC.LOAD_HOW_IT_WORKS),
@@ -340,9 +369,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   runPreflight: (token) => safeInvoke(IPC.RUN_PREFLIGHT, token),
 
   // ── Interview flow
-  /** Activate interview lockdown mode and navigate to the interview URL.
+  /** Start Interview: lock down and load the interview. Resolves {ok:false, reason, guard} when main refuses.
    *  payload: { is_custom_role: boolean, selected_role?: string[], manual_skills?: string[] } */
-  proceedToInterview: (payload) => safeSend(IPC.PROCEED_TO_INTERVIEW, payload),
+  proceedToInterview: (payload) => safeInvoke(IPC.PROCEED_TO_INTERVIEW, payload),
 
   /**
    * Force-terminate a single blocked process.
@@ -541,10 +570,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
 
   /**
-   * Call first thing in the onViolation handler. A hard block that isn't
-   * acknowledged is sent again, since the page probably missed it.
+   * Call first thing in the onViolation handler, with the payload's id.
+   * Unacknowledged violations are sent again, since the page probably missed them.
+   * Without an id, everything pending is acknowledged.
+   * @param {string} [id]
    */
-  acknowledgeViolation: () => safeSend(IPC.ACK_VIOLATION),
+  acknowledgeViolation: (id) =>
+    safeSend(IPC.ACK_VIOLATION, typeof id === "string" ? { id: id.slice(0, 64) } : undefined),
 
   /**
    * Signal to Electron that the interview session has ended.

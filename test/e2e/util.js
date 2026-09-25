@@ -14,4 +14,9 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-module.exports = { delay, deferred };
+/** The page's own window.t, for strings with plural blocks the harness can't expand. */
+function pageT(ctx, key, params) {
+  return ctx.eval(`window.t(${JSON.stringify(key)}, ${JSON.stringify(params || {})})`);
+}
+
+module.exports = { delay, deferred, pageT };

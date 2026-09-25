@@ -1,0 +1,481 @@
+/* Violation modal on the steps after the security check (src/renderer/securityGuard.js).
+   Same single-panel look as the security check: solid surface, divided rows. */
+
+.sg-dialog {
+  width: calc(100% - 2rem);
+  max-width: 32rem;
+  max-height: calc(100dvh - 2rem);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-sans);
+  overflow: hidden;
+  user-select: none;
+}
+.sg-dialog::backdrop {
+  background: rgba(17, 17, 17, 0.45);
+}
+.sg-dialog[open] {
+  animation: fade-up var(--dur-base) var(--ease-out);
+}
+.sg-dialog--confirm {
+  max-width: 28rem;
+}
+
+.sg-panel {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 2rem);
+}
+
+/* ─── Head ───────────────────────────────────────────────────────────── */
+
+.sg-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-5) var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.sg-head__icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--muted);
+}
+.sg-head__icon--fail {
+  background: var(--danger-soft);
+  border-color: var(--danger-border);
+  color: var(--danger);
+}
+.sg-head__icon--unverified {
+  background: var(--surface);
+  border-style: dashed;
+  border-color: var(--faint);
+  color: var(--muted);
+}
+.sg-head__icon--ok {
+  background: var(--ok-soft);
+  border-color: var(--ok-border);
+  color: var(--ok);
+}
+.sg-head__svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.sg-head__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.sg-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+/* Focused only programmatically, so screen readers start on it; it isn't a control. */
+.sg-title:focus {
+  outline: none;
+}
+
+.sg-desc {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+.sg-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-5);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+/* ─── Issues ─────────────────────────────────────────────────────────── */
+
+.sg-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.sg-issues {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sg-issue {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+}
+.sg-issue + .sg-issue {
+  border-top: 1px solid var(--border);
+}
+
+.sg-issue__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.sg-issue__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--danger);
+}
+.sg-issue--unverified .sg-issue__dot {
+  background: var(--faint);
+}
+.sg-issue__title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.sg-issue__hint,
+.sg-apps,
+.sg-more {
+  margin: 0;
+  padding-inline-start: calc(0.5rem + var(--space-3));
+}
+.sg-issue__hint {
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  font-weight: 500;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.sg-apps {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sg-app {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transition:
+    background var(--dur-slow) var(--ease-out),
+    opacity var(--dur-slow) var(--ease-out);
+}
+.sg-app--closed {
+  opacity: 0.55;
+}
+.sg-app--respawned {
+  background: var(--danger-soft);
+  border-color: var(--danger-border);
+}
+.sg-app--blocked {
+  background: var(--surface);
+  border-color: var(--input-border);
+}
+
+.sg-app__info {
+  flex: 1 1 8rem;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+.sg-app__name {
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.sg-app__process {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  font-family: var(--font-mono);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.sg-app__close {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+  min-height: 1.875rem;
+  margin-inline-start: auto;
+  padding: var(--space-1) var(--space-3);
+  font-family: inherit;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--danger);
+  background: var(--surface);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+.sg-app__close:hover:not(:disabled) {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--surface);
+}
+.sg-app__close:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+.sg-app__close--busy {
+  background: var(--bg);
+  border-color: var(--border);
+  color: var(--muted);
+  cursor: wait;
+}
+.sg-app__close--killed {
+  background: var(--ok-soft);
+  border-color: var(--ok-border);
+  color: var(--ok);
+}
+.sg-app__close--busy:disabled,
+.sg-app__close--killed:disabled {
+  opacity: 1;
+}
+.sg-app__close--muted {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--muted);
+}
+.sg-app__close--elevate {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--surface);
+}
+.sg-app__close--elevate:hover:not(:disabled) {
+  background: var(--danger-hover);
+  border-color: var(--danger-hover);
+}
+
+.sg-app__hint {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.sg-app__hint--fail {
+  color: var(--danger);
+}
+.sg-app__hint--pending {
+  color: var(--ink);
+}
+
+.sg-more {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* ─── Actions ────────────────────────────────────────────────────────── */
+
+.sg-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--border);
+}
+.sg-body[hidden] + .sg-actions {
+  border-top: none;
+}
+.sg-actions__main {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.sg-actions__main .btn {
+  flex: 1 1 auto;
+}
+
+.sg-leave {
+  align-self: center;
+  padding: var(--space-1) var(--space-2);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  text-decoration: underline;
+  text-underline-offset: 0.1875rem;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
+}
+.sg-leave:hover:not(:disabled) {
+  color: var(--ink);
+}
+.sg-leave:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sg-app__close:focus-visible,
+.sg-leave:focus-visible {
+  outline: var(--focus-width) solid var(--accent);
+  outline-offset: var(--focus-offset);
+}
+
+/* ─── Confirm step ───────────────────────────────────────────────────── */
+
+.sg-panel--confirm {
+  gap: var(--space-3);
+  padding: var(--space-5);
+  overflow-y: auto;
+}
+.sg-confirm__title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.sg-confirm__body {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: 1.5;
+  color: var(--muted);
+}
+.sg-confirm__list {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  padding-inline-start: var(--space-6);
+  max-height: 12rem;
+  overflow-y: auto;
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1.6;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow-wrap: anywhere;
+}
+.sg-confirm__more {
+  list-style: none;
+  color: var(--muted);
+}
+.sg-confirm__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* ─── Misc ───────────────────────────────────────────────────────────── */
+
+.sg-icon {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+.sg-app__close .sg-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.sg-spin {
+  animation: spin 1s linear infinite;
+}
+
+.sg-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sg-dialog[open],
+  .sg-spin {
+    animation: none;
+  }
+  .sg-app,
+  .sg-app__close {
+    transition: none;
+  }
+}
+
+/* Too short for a list between a fixed head and action bar: scroll the whole panel. */
+@media (max-height: 34rem) {
+  .sg-panel {
+    overflow-y: auto;
+  }
+  .sg-body {
+    flex: none;
+    overflow: visible;
+  }
+}
+
+@media (max-width: 30rem) {
+  .sg-head,
+  .sg-issue,
+  .sg-actions,
+  .sg-panel--confirm {
+    padding-inline: var(--space-4);
+  }
+  .sg-status {
+    padding-inline: var(--space-4);
+  }
+  .sg-actions__main,
+  .sg-confirm__actions {
+    flex-direction: column-reverse;
+  }
+  .sg-actions__main .btn,
+  .sg-confirm__actions .btn {
+    width: 100%;
+  }
+}

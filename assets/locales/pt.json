@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "50acd5c83b30f6d7"
+    "_sourceHash": "cba7781cd4b8d85c"
   },
   "common": {
     "back": "Voltar",
@@ -352,6 +352,30 @@
     "copyDiagnostics": "Copiar diagnóstico",
     "diagnosticsCopied": "Diagnóstico copiado. Cole-o na sua mensagem para o suporte.",
     "diagnosticsCopyFailed": "Não foi possível copiar automaticamente. Selecione o texto abaixo e copie-o."
+  },
+  "securityGuard": {
+    "titleClose": "Feche estes aplicativos para continuar",
+    "descClose": "Eles foram abertos após a sua verificação de segurança. Você poderá continuar assim que forem fechados.",
+    "titleFix": "Corrija estes itens para continuar",
+    "descFix": "Estes itens mudaram após a sua verificação de segurança. Você poderá continuar assim que forem corrigidos.",
+    "titleUnverified": "Não é possível verificar seu sistema agora",
+    "descUnverified": "Nossa verificação de segurança não foi concluída. Aguarde um momento e depois verifique novamente.",
+    "titleClear": "Tudo certo",
+    "descClear": "Obrigado. Você pode prosseguir.",
+    "checking": "Verificando seu sistema…",
+    "checkAgain": "Verificar novamente",
+    "leave": "Sair da configuração",
+    "leaveTitle": "Sair da configuração?",
+    "leaveBody": "Você voltará ao seu painel. De lá, poderá começar de novo.",
+    "stay": "Ficar",
+    "more": "{count, plural, one {+# outro} many {+# outros} other {+# outros}}",
+    "hintDisplay": "Desconecte monitores ou TVs extras para que apenas uma tela fique em uso.",
+    "hintDisplayCount": "{count, plural, one {# tela está conectada.} many {# telas estão conectadas.} other {# telas estão conectadas.}} Desconecte as extras para que apenas uma tela fique em uso.",
+    "hintMirrored": "Pare de espelhar sua tela e desconecte a tela extra.",
+    "hintUnverified": "Não foi possível verificar isso agora.",
+    "hintManual": "Feche-o você mesmo e depois verifique novamente.",
+    "hintSuspicious": "Feche os aplicativos de que você não precisa e depois verifique novamente.",
+    "recordAgain": "Sua gravação foi interrompida. Grave sua voz novamente."
   },
   "updater": {
     "available": "Atualização disponível",

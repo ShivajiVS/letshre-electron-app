@@ -976,18 +976,9 @@ function syncRows(container, items) {
   });
 }
 
-function syncAppRows(container, apps) {
-  const names = uniqueStrings(apps);
-  syncRows(
-    container,
-    names.map((name) => ({
-      key: name,
-      build: () => buildKillRow({ kind: "app", processName: name, killable: true }),
-    }))
-  );
-
+function syncKillAllButton(container, wanted) {
   let all = container.querySelector(":scope > .sc-kill-all-btn");
-  if (names.length > 1) {
+  if (wanted) {
     if (!all) {
       all = document.createElement("button");
       all.type = "button";
@@ -1000,6 +991,18 @@ function syncAppRows(container, apps) {
   } else if (all) {
     all.remove();
   }
+}
+
+function syncAppRows(container, apps) {
+  const names = uniqueStrings(apps);
+  syncRows(
+    container,
+    names.map((name) => ({
+      key: name,
+      build: () => buildKillRow({ kind: "app", processName: name, killable: true }),
+    }))
+  );
+  syncKillAllButton(container, names.length > 1);
 }
 
 function syncThreatRows(container, threats) {
@@ -1023,6 +1026,7 @@ function syncThreatRows(container, threats) {
       };
     })
   );
+  syncKillAllButton(container, canKill && threats.filter(PM.isKillableThreat).length > 1);
 }
 
 /** Process names and threat fields are attacker-influenceable: text nodes only. */
@@ -1033,6 +1037,10 @@ function buildKillRow(info) {
   row.dataset.process = info.processName || "";
   if (info.pid) {
     row.dataset.pid = String(info.pid);
+  }
+  const label = info.kind === "threat" ? PM.processLabel(info.threat.display_name) : "";
+  if (label) {
+    row.dataset.label = label;
   }
   _rowInfo.set(row, info);
 
@@ -1083,7 +1091,7 @@ function buildKillRow(info) {
 }
 
 function rowDisplayName(row) {
-  return getDisplayName(row.dataset.process || "");
+  return row.dataset.label || getDisplayName(row.dataset.process || "");
 }
 
 function paintRowText(row) {
@@ -1319,9 +1327,7 @@ function paintKillAllBtn(btn) {
     return;
   }
   if (state.kind === "idle") {
-    const count = btn.parentElement
-      ? openKillableRows(btn.parentElement).filter((r) => !r.dataset.pid).length
-      : 0;
+    const count = btn.parentElement ? openKillableRows(btn.parentElement).length : 0;
     btn.hidden = count < 2;
     btn.disabled = false;
     btn.className = "sc-kill-all-btn";
@@ -1435,7 +1441,7 @@ async function onKillClick(row) {
   const processName = row.dataset.process;
   const elevated = state.kind === "outcome" && state.view === "elevate";
   if (!elevated && !_killConfirmed.has(processName)) {
-    const ok = await confirmKill([processName], btn);
+    const ok = await confirmKill([rowDisplayName(row)], btn);
     if (!ok || !row.isConnected) {
       return;
     }
@@ -1489,12 +1495,12 @@ async function handleKillAll(btn) {
   if (!container || btn.disabled) {
     return;
   }
-  const rows = openKillableRows(container).filter((r) => !r.dataset.pid);
+  const rows = openKillableRows(container);
   const names = rows.map((r) => r.dataset.process);
   if (names.length === 0) {
     return;
   }
-  const ok = await confirmKill(names, btn);
+  const ok = await confirmKill([...new Set(rows.map(rowDisplayName))], btn);
   if (!ok || !btn.isConnected) {
     return;
   }
@@ -1503,10 +1509,24 @@ async function handleKillAll(btn) {
   setKillAllState(btn, { kind: "killing" });
   rows.forEach((row) => setKillRowState(row, { kind: "closing", elevated: false }));
   beginKill(false);
-  let results;
+  const byPid = rows.filter((r) => r.dataset.pid);
+  const byName = rows.filter((r) => !r.dataset.pid);
+  let results = [];
   let threw = false;
+  const threatResults = new Map();
   try {
-    results = await window.electronAPI.killAllProcesses(names);
+    const [named] = await Promise.all([
+      byName.length > 0
+        ? window.electronAPI.killAllProcesses(byName.map((r) => r.dataset.process))
+        : [],
+      ...byPid.map((row) =>
+        requestKill(row.dataset.process, Number(row.dataset.pid), false).then(
+          (res) => threatResults.set(row, res),
+          () => threatResults.set(row, null)
+        )
+      ),
+    ]);
+    results = named;
   } catch {
     threw = true;
   } finally {
@@ -1517,7 +1537,8 @@ async function handleKillAll(btn) {
   const lookup = PM.indexKillResults(threw ? [] : results);
   const evidence = { respawned: [], accessDenied: [] };
   const categories = rows.map((row) => {
-    const { category, view } = applyKillResult(row, lookup(row.dataset.process));
+    const raw = row.dataset.pid ? threatResults.get(row) : lookup(row.dataset.process);
+    const { category, view } = applyKillResult(row, raw);
     if (view !== "elevate" && category === "respawned") {
       evidence.respawned.push(rowDisplayName(row));
     } else if (view !== "elevate" && category === "access-denied") {

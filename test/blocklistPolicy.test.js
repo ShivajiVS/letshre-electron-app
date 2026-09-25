@@ -271,3 +271,14 @@ test("Start Interview loads the policy; logout and leaving to the dashboard clea
   call(IPC.LOAD_DASHBOARD);
   assert.strictEqual(blocklist.isPolicyApplied(), false);
 });
+
+test("a threat is named by the agent's display_name, else by its image", () => {
+  const { getThreatDisplayName } = blocklist;
+  assert.strictEqual(
+    getThreatDisplayName({ process: "\u2800.exe", display_name: " parakeetai-desktop " }),
+    "parakeetai-desktop"
+  );
+  assert.strictEqual(getThreatDisplayName({ process: "Zoom.exe" }), "Zoom");
+  assert.strictEqual(getThreatDisplayName({ process: "notes.exe", display_name: "" }), "notes.exe");
+  assert.strictEqual(getThreatDisplayName({}), "");
+});

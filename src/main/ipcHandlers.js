@@ -48,6 +48,7 @@ const authManager = require("./authManager");
 const authValidators = require("../shared/authValidators");
 const localeManager = require("./localeManager");
 const startDetection = require("../detector/systemChecks");
+const flowGuard = require("./flowGuard");
 const screenRecorder = require("./screenRecorder");
 const blocklistPolicy = require("./blocklistPolicy");
 const { getLists, getDisplayNames } = require("../shared/blocklist");
@@ -69,6 +70,19 @@ function validateProcessName(value) {
   }
   const safe = value.replace(/[^\w.\- ]/g, "");
   return { valid: safe.length > 0, safe };
+}
+
+/**
+ * A threat is killed by PID and only if the agent reported that PID under this
+ * exact name, so the name is kept as-is (some copilots use invisible characters).
+ * @param {unknown} value
+ * @returns {{ valid: boolean, safe: string }}
+ */
+function validateThreatName(value) {
+  if (typeof value !== "string" || value.length === 0 || value.length > 120) {
+    return { valid: false, safe: "" };
+  }
+  return /\p{Cc}/u.test(value) ? { valid: false, safe: "" } : { valid: true, safe: value };
 }
 
 /** @param {unknown} value @returns {string|null} */
@@ -101,6 +115,7 @@ function _leaveInterviewFlowToDashboard({ alreadyTornDown = false } = {}) {
   if (!alreadyTornDown) {
     _leaveSecurityCheck();
   }
+  flowGuard.stop();
   killAgent();
   blocklistPolicy.reset();
   loadDashboard();
@@ -115,9 +130,67 @@ let _continuing = false;
 
 const BOUNCE_REASONS = { stale: "stale", dirty: "dirty", scanning: "scanning" };
 
+// Also stops the flow guard: it and the security check's own monitor never run together.
 function _leaveSecurityCheck() {
   stopPreProceedMonitor();
+  flowGuard.stop();
   _pageGeneration++;
+}
+
+/** Back to the security check when its pass is missing or failed. */
+function _bounceToSecurityCheck() {
+  _leaveSecurityCheck();
+  loadSecurityCheck();
+}
+
+// One gate per forward step, so a double click can't run it twice.
+const _stepsRunning = new Set();
+
+/**
+ * Gate for the steps after the security check. A step runs only when that
+ * check's pass still holds (its age doesn't matter by now, the later steps
+ * legitimately age it), the guard is at one of `from` (or already at `to`,
+ * e.g. after a reload) and a fresh guard check is clear.
+ * @param {string} step - log label
+ * @param {{from: string[], to?: string}} stages
+ * @param {() => void} proceed
+ * @returns {Promise<{ok: true} | {ok: false, reason: string, guard?: object}>}
+ */
+async function _gatedStep(step, { from, to }, proceed) {
+  if (_stepsRunning.has(step)) {
+    return { ok: false, reason: "busy" };
+  }
+  _stepsRunning.add(step);
+  try {
+    const pass = startDetection.verifyProceedAllowed({ requireFresh: false });
+    if (!pass.ok) {
+      logger.warn(`[ipc] ${step} REFUSED — ${pass.reason}`);
+      _bounceToSecurityCheck();
+      return { ok: false, reason: "failed" };
+    }
+    const inOrder = () => {
+      const stage = flowGuard.getStage();
+      return stage !== null && (from.includes(stage) || stage === to);
+    };
+    if (!inOrder()) {
+      logger.warn(`[ipc] ${step} REFUSED — out of order (guard stage: ${flowGuard.getStage()})`);
+      return { ok: false, reason: "order" };
+    }
+    const guard = await flowGuard.checkNow();
+    // The candidate may have gone back or left while the check ran.
+    if (!inOrder()) {
+      logger.warn(`[ipc] ${step} REFUSED — stage changed during the check`);
+      return { ok: false, reason: "order" };
+    }
+    if (guard.status !== "clear") {
+      logger.warn(`[ipc] ${step} REFUSED — guard ${guard.status}`);
+      return { ok: false, reason: guard.status, guard };
+    }
+    proceed();
+    return { ok: true };
+  } finally {
+    _stepsRunning.delete(step);
+  }
 }
 
 /**
@@ -168,6 +241,7 @@ function registerIpcHandlers() {
 
   registerHandler(IPC.AUTH_LOGOUT, SCOPE.LOCAL, async () => {
     logger.info("[ipc] auth-logout received");
+    flowGuard.stop();
     const result = await authManager.logout();
     blocklistPolicy.reset();
     // Nothing of this candidate may carry over to the next account.
@@ -199,6 +273,7 @@ function registerIpcHandlers() {
     }
     logger.info("[ipc] start-interview — entering security check");
     setInterviewSession(tokens.accessToken, tokens.refreshToken);
+    flowGuard.stop();
     _pageGeneration++;
     blocklistPolicy.loadForInterview(tokens.accessToken);
     // Warm up during language selection rather than on the preflight page.
@@ -234,6 +309,7 @@ function registerIpcHandlers() {
         return { ok: false, reason: BOUNCE_REASONS[gate.code] || "dirty" };
       }
       _leaveSecurityCheck();
+      flowGuard.start(getWindow(), "permissions");
       loadPermissionsPage();
       return { ok: true };
     } catch (err) {
@@ -251,15 +327,25 @@ function registerIpcHandlers() {
     const gate = startDetection.verifyProceedAllowed({ requireFresh: false });
     if (!gate.ok) {
       logger.warn(`[ipc] back-to-permissions REFUSED — ${gate.reason}`);
-      loadSecurityCheck();
+      _bounceToSecurityCheck();
       return;
+    }
+    if (flowGuard.isRunning()) {
+      flowGuard.setStage("permissions");
+    } else {
+      flowGuard.start(getWindow(), "permissions");
     }
     loadPermissionsPage();
   });
 
-  registerSend(IPC.LOAD_IDENTITY_VERIFICATION, SCOPE.LOCAL, () => {
+  registerHandler(IPC.LOAD_IDENTITY_VERIFICATION, SCOPE.LOCAL, () => {
     logger.info("[ipc] load-identity-verification");
-    loadIdentityVerificationPage();
+    // Role selection's Back comes here too.
+    const stages = { from: ["permissions", "role"], to: "identity" };
+    return _gatedStep("load-identity-verification", stages, () => {
+      flowGuard.setStage("identity");
+      loadIdentityVerificationPage();
+    });
   });
 
   // Identity verification — voice sample upload (blob arrives as Uint8Array over IPC).
@@ -311,10 +397,17 @@ function registerIpcHandlers() {
     loadLanguageSelectionPage();
   });
 
-  registerSend(IPC.LOAD_ROLE_SELECTION, SCOPE.LOCAL, () => {
+  registerHandler(IPC.LOAD_ROLE_SELECTION, SCOPE.LOCAL, () => {
     logger.info("[ipc] load-role-selection");
-    loadRoleSelectionPage();
+    return _gatedStep("load-role-selection", { from: ["identity"], to: "role" }, () => {
+      flowGuard.setStage("role");
+      loadRoleSelectionPage();
+    });
   });
+
+  registerHandler(IPC.GET_GUARD_STATUS, SCOPE.LOCAL, () => flowGuard.getState());
+
+  registerHandler(IPC.RECHECK_GUARD, SCOPE.LOCAL, async () => await flowGuard.checkNow());
 
   registerSend(IPC.RETRY_INTERVIEW, SCOPE.LOCAL, () => retryInterview());
 
@@ -443,6 +536,7 @@ function registerIpcHandlers() {
 
     const result = await promise;
     if (_pageGeneration === generation) {
+      flowGuard.stop();
       startPreProceedMonitor(getWindow());
     }
     return result;
@@ -455,32 +549,27 @@ function registerIpcHandlers() {
   });
 
   // Sent by the local role-selection page; this is what navigates to the interview site.
-  registerSend(IPC.PROCEED_TO_INTERVIEW, SCOPE.LOCAL, (_event, payload) => {
+  registerHandler(IPC.PROCEED_TO_INTERVIEW, SCOPE.LOCAL, (_event, payload) => {
     const roleSelection = sanitizeRoleSelection(payload);
     logger.info("[ipc] proceed-to-interview received", {
       is_custom_role: roleSelection.is_custom_role,
     });
 
-    // Freshness isn't required here: the later steps legitimately age the pass.
-    const gate = startDetection.verifyProceedAllowed({ requireFresh: false });
-    if (!gate.ok) {
-      logger.warn(`[ipc] proceed-to-interview REFUSED — ${gate.reason}`);
-      loadSecurityCheck();
-      return;
-    }
+    return _gatedStep("proceed-to-interview", { from: ["role"] }, () => {
+      // The interview's live detection takes over from the guard straight away.
+      flowGuard.stop();
+      stopPreProceedMonitor();
 
-    stopPreProceedMonitor();
+      const tokens = authManager.getTokens();
+      const interviewUrl = getCurrentInterviewUrl();
+      lockdownForInterview(interviewUrl, tokens, roleSelection);
 
-    const tokens = authManager.getTokens();
-    const interviewUrl = getCurrentInterviewUrl();
-    lockdownForInterview(interviewUrl, tokens, roleSelection);
-
-    try {
-      const win = getWindow();
-      startDetection.start(win);
-    } catch (err) {
-      logger.error("[ipc] detection start failed:", err.message);
-    }
+      try {
+        startDetection.start(getWindow());
+      } catch (err) {
+        logger.error("[ipc] detection start failed:", err.message);
+      }
+    });
   });
 
   registerHandler(IPC.KILL_BLOCKED_APP, SCOPE.LOCAL, async (_event, processName) => {
@@ -541,7 +630,7 @@ function registerIpcHandlers() {
   });
 
   registerHandler(IPC.KILL_THREAT_PROCESS, SCOPE.LOCAL, async (_event, pid, processName) => {
-    const { valid, safe } = validateProcessName(processName);
+    const { valid, safe } = validateThreatName(processName);
     const reply = (outcome, error) => ({
       processName: valid ? safe : String(processName).slice(0, 40),
       pid,
@@ -622,10 +711,9 @@ function registerIpcHandlers() {
 
   // Contract channel #2 (README "Web app integration"): the interview site
   // acknowledges every violation so Electron knows the page is alive.
-  registerSend(IPC.ACK_VIOLATION, SCOPE.INTERVIEW, () => {
-    if (startDetection.acknowledgeViolation) {
-      startDetection.acknowledgeViolation();
-    }
+  registerSend(IPC.ACK_VIOLATION, SCOPE.INTERVIEW, (_event, payload) => {
+    const id = typeof payload?.id === "string" ? payload.id.slice(0, 64) : undefined;
+    startDetection.acknowledgeViolation(id);
   });
 
   // Contract channel #3: the interview site signals the session is over.

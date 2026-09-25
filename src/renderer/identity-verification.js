@@ -67,6 +67,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   let beginLoading = false;
   let lastResultMatch = null;
   let lastError = null;
+  // A take cut short by the security guard is thrown away, never uploaded.
+  let discardTake = false;
+  let recordAgainPending = false;
 
   const topBack = document.getElementById("btn-back");
   const errorBanner = document.getElementById("iv-error");
@@ -494,7 +497,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function startRecording() {
+    if (window.securityGuard?.isBlocked()) {
+      window.securityGuard.show();
+      return;
+    }
     hideError();
+    discardTake = false;
+    recordAgainPending = false;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mime = getBestMime();
@@ -513,6 +522,19 @@ document.addEventListener("DOMContentLoaded", async () => {
         stopMeter();
         stopRecTimer();
         stream.getTracks().forEach((t) => t.stop());
+
+        if (discardTake) {
+          discardTake = false;
+          audioChunks = [];
+          audioBlob = null;
+          recordingMeta = null;
+          setVoiceState("idle");
+          recordAgainPending = true;
+          if (!window.securityGuard?.isBlocked()) {
+            showRecordAgain();
+          }
+          return;
+        }
 
         // The recorder's actual MIME, not our guess, so the blob type matches its data.
         const actualMime = mediaRecorder.mimeType || mime || "audio/webm";
@@ -571,6 +593,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     stopRecTimer();
     if (mediaRecorder && mediaRecorder.state !== "inactive") {
       mediaRecorder.stop();
+    }
+  }
+
+  function showRecordAgain() {
+    recordAgainPending = false;
+    showError(
+      "securityGuard.recordAgain",
+      "Your recording was stopped. Please record your voice again."
+    );
+  }
+
+  // The camera preview and finished steps stay as they are; only a take in
+  // progress is lost, since it was recorded while the checks were failing.
+  function onGuardChange(guard) {
+    if (guard.status !== "clear") {
+      if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        discardTake = true;
+        stopRecording();
+      }
+    } else if (recordAgainPending) {
+      showRecordAgain();
     }
   }
 
@@ -805,6 +848,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       showError("identity.startUnavailable", "Unable to continue. Please restart the app.");
       return;
     }
+    // Main still gates the step; this just saves a round trip it would refuse.
+    if (window.securityGuard?.isBlocked()) {
+      window.securityGuard.show();
+      return;
+    }
     beginLoading = true;
     renderBeginButton();
     // Main injects this photo into the interview window's sessionStorage. The
@@ -821,21 +869,38 @@ document.addEventListener("DOMContentLoaded", async () => {
       showError("identity.photoStoreFailed", "We couldn't save your photo. Please try again.");
       return;
     }
-    window.electronAPI.loadRoleSelection();
     // Navigation tears this page down; if we're still here, let the user retry.
-    window.armButtonRestore(btnBegin, "", {
+    const watchdog = window.armButtonRestore(btnBegin, "", {
       onRestore: () => {
         beginLoading = false;
         renderBeginButton();
         showError("identity.startTimedOut", "That took too long. Please try again.");
       },
     });
+    let res;
+    try {
+      res = await window.electronAPI.loadRoleSelection();
+    } catch {
+      res = { ok: false };
+    }
+    // busy: the first click's gate is still running. failed: main is navigating.
+    if (res?.ok !== false || res.reason === "busy" || res.reason === "failed") {
+      return;
+    }
+    clearTimeout(watchdog);
+    beginLoading = false;
+    renderBeginButton();
+    if (!window.securityGuard?.handleRefusal(res)) {
+      showError("identity.startUnavailable", "Unable to continue. Please restart the app.");
+    }
   });
 
   btnRetryPhoto.addEventListener("click", () => {
     capturedDataUrl = null;
     goToStep(2);
   });
+
+  window.securityGuard?.onChange(onGuardChange);
 
   window.addEventListener("beforeunload", () => {
     stopCamera();

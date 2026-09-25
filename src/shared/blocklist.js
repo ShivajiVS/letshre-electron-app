@@ -193,6 +193,22 @@ function getDisplayName(name) {
   return current.displayNames[name] || name;
 }
 
+/**
+ * How to name an agent threat's app. The agent sends display_name when the image
+ * name itself is unreadable (ParakeetAI runs as an invisible U+2800 ".exe").
+ * @param {{process?: string, display_name?: string}} threat
+ * @returns {string}
+ */
+function getThreatDisplayName(threat) {
+  const label = typeof threat?.display_name === "string" ? threat.display_name.trim() : "";
+  if (label) {
+    return label.slice(0, 80);
+  }
+  const image = typeof threat?.process === "string" ? threat.process : "";
+  const name = getDisplayName(image.toLowerCase());
+  return name === image.toLowerCase() ? image : name;
+}
+
 function isPolicyApplied() {
   return current.applied;
 }
@@ -229,6 +245,7 @@ module.exports = {
   isBlocked,
   getDisplayNames,
   getDisplayName,
+  getThreatDisplayName,
   isPolicyApplied,
   filterAgentStatus,
 };

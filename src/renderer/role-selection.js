@@ -301,7 +301,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  btnStartInterview.addEventListener("click", () => {
+  btnStartInterview.addEventListener("click", async () => {
     if (btnStartInterview.disabled) {
       return;
     }
@@ -313,6 +313,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       );
       return;
     }
+    // Main still gates the step; this just saves a round trip it would refuse.
+    if (window.securityGuard?.isBlocked()) {
+      window.securityGuard.show();
+      return;
+    }
     const idleHTML = btnStartInterview.innerHTML; // capture for restore
     btnStartInterview.disabled = true;
     isStartingInterview = true;
@@ -322,16 +327,35 @@ document.addEventListener("DOMContentLoaded", async () => {
     const payload = isCustomRole
       ? { is_custom_role: true, selected_role: [finalRole], manual_skills: finalSkills }
       : { is_custom_role: false };
-    window.electronAPI.proceedToInterview(payload);
     // Watchdog: successful navigation tears down this page. If this fires,
     // navigation never happened — restore the button so the user can retry.
-    window.armButtonRestore(btnStartInterview, idleHTML, {
+    const watchdog = window.armButtonRestore(btnStartInterview, idleHTML, {
       onRestore: () => {
         isStartingInterview = false;
         renderI18n();
         showTranslatedError("role.startTimedOut", "That took too long. Please try again.");
       },
     });
+    let res;
+    try {
+      res = await window.electronAPI.proceedToInterview(payload);
+    } catch {
+      res = { ok: false };
+    }
+    // busy: the first click's gate is still running. failed: main is navigating.
+    if (res?.ok !== false || res.reason === "busy" || res.reason === "failed") {
+      return;
+    }
+    clearTimeout(watchdog);
+    btnStartInterview.disabled = false;
+    isStartingInterview = false;
+    renderI18n();
+    if (!window.securityGuard?.handleRefusal(res)) {
+      showTranslatedError(
+        "role.startUnavailable",
+        "Unable to start the interview. Please restart the app."
+      );
+    }
   });
 
   async function submitRole(role) {

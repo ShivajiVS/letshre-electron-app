@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "50acd5c83b30f6d7"
+    "_sourceHash": "cba7781cd4b8d85c"
   },
   "common": {
     "back": "Retour",
@@ -352,6 +352,30 @@
     "copyDiagnostics": "Copier le diagnostic",
     "diagnosticsCopied": "Diagnostic copié. Collez-le dans votre message au support.",
     "diagnosticsCopyFailed": "Copie automatique impossible. Sélectionnez le texte ci-dessous et copiez-le."
+  },
+  "securityGuard": {
+    "titleClose": "Fermez ces applications pour continuer",
+    "descClose": "Elles ont été lancées après votre vérification de sécurité. Vous pourrez continuer une fois qu'elles seront fermées.",
+    "titleFix": "Corrigez ces éléments pour continuer",
+    "descFix": "Ces éléments ont changé après votre vérification de sécurité. Vous pourrez continuer une fois qu'ils seront corrigés.",
+    "titleUnverified": "Nous ne pouvons pas vérifier votre système pour le moment",
+    "descUnverified": "Notre vérification de sécurité n'a pas abouti. Patientez un instant, puis vérifiez à nouveau.",
+    "titleClear": "Tout est en ordre",
+    "descClear": "Merci. Vous pouvez poursuivre.",
+    "checking": "Vérification de votre système…",
+    "checkAgain": "Vérifier à nouveau",
+    "leave": "Quitter la configuration",
+    "leaveTitle": "Quitter la configuration ?",
+    "leaveBody": "Vous reviendrez à votre tableau de bord. Vous pourrez recommencer à partir de là.",
+    "stay": "Rester",
+    "more": "{count, plural, one {+# autre} many {+# autres} other {+# autres}}",
+    "hintDisplay": "Débranchez les moniteurs ou téléviseurs supplémentaires pour n'utiliser qu'un seul écran.",
+    "hintDisplayCount": "{count, plural, one {# écran est connecté.} many {# écrans sont connectés.} other {# écrans sont connectés.}} Débranchez les écrans supplémentaires pour n'utiliser qu'un seul écran.",
+    "hintMirrored": "Arrêtez la duplication de votre écran et débranchez l'écran supplémentaire.",
+    "hintUnverified": "Nous n'avons pas pu vérifier cet élément pour le moment.",
+    "hintManual": "Fermez-le vous-même, puis vérifiez à nouveau.",
+    "hintSuspicious": "Fermez les applications dont vous n'avez pas besoin, puis vérifiez à nouveau.",
+    "recordAgain": "Votre enregistrement a été interrompu. Veuillez enregistrer à nouveau votre voix."
   },
   "updater": {
     "available": "Mise à jour disponible",

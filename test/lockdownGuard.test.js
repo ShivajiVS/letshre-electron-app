@@ -7,6 +7,7 @@ const path = require("node:path");
 const { EventEmitter } = require("node:events");
 
 const { createLockdownGuard, releaseLock } = require("../src/main/lockdownGuard");
+const { CODE } = require("../src/shared/violationCodes");
 
 class FakeWindow extends EventEmitter {
   constructor() {
@@ -95,7 +96,7 @@ function setup() {
   const violations = [];
   const warnings = [];
   const guard = createLockdownGuard(win, {
-    onViolation: (event, severity) => violations.push({ event, severity }),
+    onViolation: (event, severity, meta) => violations.push({ event, severity, meta }),
     log: { warn: (msg) => warnings.push(msg) },
     watchdogMs: 5,
   });
@@ -121,7 +122,9 @@ test("a minimize is undone and reported", () => {
 
     assert.deepStrictEqual(win.state, LOCKED);
     assert.ok(win.focused > 0);
-    assert.deepStrictEqual(violations, [{ event: "Window minimize attempt", severity: "high" }]);
+    assert.deepStrictEqual(violations, [
+      { event: "Window minimize attempt", severity: "high", meta: { code: CODE.WINDOW_MINIMIZE } },
+    ]);
   } finally {
     guard.stop();
   }
@@ -136,7 +139,13 @@ test("leaving fullscreen is undone and reported", () => {
     win.emit("leave-full-screen");
 
     assert.deepStrictEqual(win.state, LOCKED);
-    assert.strictEqual(violations[0].event, "Fullscreen exit attempt");
+    assert.deepStrictEqual(violations, [
+      {
+        event: "Fullscreen exit attempt",
+        severity: "medium",
+        meta: { code: CODE.FULLSCREEN_EXIT },
+      },
+    ]);
   } finally {
     guard.stop();
   }
@@ -248,6 +257,13 @@ test("only the interview ending or a confirmed exit unlocks the window", () => {
   assert.doesNotMatch(WINDOW_MANAGER, /enforceViolation/);
   const checks = fs.readFileSync(path.join(__dirname, "../src/detector/systemChecks.js"), "utf8");
   assert.doesNotMatch(checks, /windowManager/, "detection must never reach into the window lock");
+});
+
+test("a dismissed exit dialog is reported as a close attempt", () => {
+  assert.match(
+    WINDOW_MANAGER,
+    /onViolation\("Attempt to close interview window", "high", \{ code: CODE\.CLOSE_ATTEMPT \}\)/
+  );
 });
 
 const IPC_HANDLERS = fs.readFileSync(path.join(__dirname, "../src/main/ipcHandlers.js"), "utf8");

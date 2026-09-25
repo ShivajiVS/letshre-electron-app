@@ -13,6 +13,7 @@
 const logger = require("./logger");
 const localeManager = require("./localeManager");
 const { INTERVIEW_BASE_URL } = require("../shared/constants");
+const { CODE } = require("../shared/violationCodes");
 
 let currentInterviewUrl = INTERVIEW_BASE_URL;
 let currentAccessToken = null;
@@ -58,7 +59,7 @@ function buildInterviewUrl(params) {
  * @param {string} url - The full letshyre:// URL
  * @param {Electron.BrowserWindow | null} win - Current window reference
  * @param {boolean} isInterviewActive - Whether an interview session is active
- * @param {(event: string, severity: string) => void} onViolation
+ * @param {(event: string, severity: string, meta?: {code?: string}) => void} onViolation
  */
 function handleIncomingProtocol(url, win, isInterviewActive, onViolation) {
   const params = getParams(url);
@@ -76,7 +77,9 @@ function handleIncomingProtocol(url, win, isInterviewActive, onViolation) {
 
   if (isInterviewActive) {
     // Security: mid-interview protocol swap could be an exploit — treat as violation.
-    onViolation("Attempted protocol swap during active interview", "high");
+    onViolation("Attempted protocol swap during active interview", "high", {
+      code: CODE.SUSPICIOUS_ACTIVITY,
+    });
     win.loadURL(getCurrentInterviewUrl());
   } else {
     // Still in preflight — silently update the target URL.

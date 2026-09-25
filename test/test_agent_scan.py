@@ -65,6 +65,25 @@ class ScanBudgetTest(unittest.TestCase):
         self.assertTrue(result["safe_to_proceed"])
         self.assertEqual(result["contract_version"], 2)
 
+    def test_threats_carry_a_readable_name_and_no_exe_path(self):
+        blank = "\u2800.exe"
+        exe = r"C:\Programs\parakeetai-desktop" + "\\" + blank
+        self.use_checks([
+            ("ai", lambda: [
+                {"type": "ai_cheating_tool", "detail": "a", "process": blank, "pid": 7, "exe": exe},
+                {"type": "ai_cheating_tool", "detail": "b", "process": "cluely.exe", "pid": 8,
+                 "exe": None},
+                {"type": "suspicious_window_title", "detail": "x"},
+            ]),
+        ])
+        result, _ = self.scan()
+        hidden, cluely, title = result["threats"]
+        self.assertEqual(hidden["display_name"], "parakeetai-desktop")
+        self.assertEqual(hidden["process"], blank)
+        self.assertEqual(cluely["display_name"], "cluely.exe")
+        self.assertNotIn("display_name", title)
+        self.assertTrue(all("exe" not in t for t in result["threats"]))
+
     def test_checks_run_in_parallel(self):
         def slowish():
             time.sleep(0.2)

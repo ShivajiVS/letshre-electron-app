@@ -1,10 +1,21 @@
-/** The main window: creation, hardening, interview lockdown and page navigation. */
+/** The app window, the locked interview window, and navigation between pages. */
 
 "use strict";
 
+const os = require("os");
 const path = require("path");
-const { app, BrowserWindow, session, dialog, nativeImage } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  session,
+  dialog,
+  nativeImage,
+  screen,
+  globalShortcut,
+} = require("electron");
 const logger = require("./logger");
+const displayShields = require("./displayShields");
+const osLockdown = require("./osLockdown");
 const appState = require("./appState");
 const localeManager = require("./localeManager");
 const { createLockdownGuard, releaseLock } = require("./lockdownGuard");
@@ -175,6 +186,9 @@ function _exitModalStrings() {
 /** @type {BrowserWindow | null} */
 let win = null;
 
+/** @type {BrowserWindow | null} the locked window the interview runs in, created per interview */
+let interviewWin = null;
+
 /** @type {boolean} */
 let isInterviewActive = false;
 
@@ -188,11 +202,25 @@ let reportViolation = () => {};
 let _candidatePhotoBase64 = null;
 
 const LOAD_RETRY_DELAYS_MS = [3000, 5000, 10000, 20000, 30000];
+// Long enough for the exit animation to finish, so re-entering doesn't race it.
+const HTML_FULLSCREEN_RETRY_MS = 400;
 
 let interviewUrl = null;
 let pendingInjection = null;
 let loadRetryTimer = null;
 let loadRetryAttempt = 0;
+
+const WEB_PREFERENCES = {
+  preload: path.join(__dirname, "../../preload.js"),
+  nodeIntegration: false,
+  contextIsolation: true,
+  sandbox: true,
+  webSecurity: true,
+  allowRunningInsecureContent: false,
+  experimentalFeatures: false,
+  safeDialogs: true,
+  navigateOnDragDrop: false,
+};
 
 /**
  * Creates and configures the main application window.
@@ -212,17 +240,7 @@ function createWindow(onViolation, startPage = "login") {
     width: 1400,
     height: 900,
     autoHideMenuBar: true,
-    webPreferences: {
-      preload: path.join(__dirname, "../../preload.js"),
-      nodeIntegration: false,
-      contextIsolation: true,
-      sandbox: true,
-      webSecurity: true,
-      allowRunningInsecureContent: false,
-      experimentalFeatures: false,
-      safeDialogs: true,
-      navigateOnDragDrop: false,
-    },
+    webPreferences: WEB_PREFERENCES,
   });
 
   win.maximize();
@@ -236,61 +254,123 @@ function createWindow(onViolation, startPage = "login") {
   reportViolation = onViolation;
 
   win.on("closed", () => {
-    lockdownGuard?.stop();
-    lockdownGuard = null;
     win = null;
   });
+  // Hidden while an interview runs; its window owns the exit prompt.
+  win.on("close", (e) => {
+    if (isInterviewActive) {
+      e.preventDefault();
+      return;
+    }
+    appState.setQuitting();
+  });
 
-  if (app.isPackaged) {
-    win.webContents.on("devtools-opened", () => {
-      win.webContents.closeDevTools();
-      logger.warn("[window] DevTools open attempt blocked (packaged build)");
-    });
-  } else if (DEVTOOLS_ENABLED) {
-    win.webContents.openDevTools({ mode: "right" });
-  }
-
-  _applyInputLockdown();
-  _applyNavigationGuardrails();
-  _applyWindowProtections(onViolation);
-  _applyInterviewLoadHandling();
-  _forwardInterviewConsole();
+  _hardenWindow(win);
   _applyCSPHeaders();
 
   return win;
 }
 
-function _releaseLockdown() {
-  isInterviewActive = false;
-  lockdownGuard?.stop();
-  lockdownGuard = null;
-  clearTimeout(loadRetryTimer);
-  loadRetryTimer = null;
-  interviewUrl = null;
-  pendingInjection = null;
-  releaseLock(win);
+function _hardenWindow(target) {
+  if (app.isPackaged) {
+    target.webContents.on("devtools-opened", () => {
+      target.webContents.closeDevTools();
+      logger.warn("[window] DevTools open attempt blocked (packaged build)");
+    });
+  } else if (DEVTOOLS_ENABLED) {
+    target.webContents.openDevTools({ mode: "right" });
+  }
+  _applyInputLockdown(target);
+  _applyNavigationGuardrails(target);
 }
 
 /**
- * Lifts the lockdown once the interview site reports the session is over.
- * @param {string} reason - e.g. "completed", "auto-submitted", "terminated", "expired"
+ * Built locked rather than locked afterwards: switching kiosk and fullscreen on
+ * a framed, maximized window at runtime doesn't always stick (display scaling,
+ * several monitors), and on macOS simple fullscreen keeps it out of its own Space.
  */
-function endInterview(reason) {
-  if (!win) {
-    return;
-  }
-  if (!isInterviewActive) {
-    logger.info("[window] endInterview called but interview was already inactive — skipping");
-    return;
-  }
+function _createInterviewWindow(display) {
+  const target = new BrowserWindow({
+    ...display.bounds,
+    title: "",
+    icon: nativeImage.createEmpty(),
+    show: false,
+    frame: false,
+    kiosk: true,
+    fullscreen: true,
+    simpleFullscreen: process.platform === "darwin",
+    alwaysOnTop: true,
+    minimizable: false,
+    maximizable: false,
+    resizable: false,
+    movable: false,
+    fullscreenable: true,
+    backgroundColor: "#ffffff",
+    autoHideMenuBar: true,
+    webPreferences: WEB_PREFERENCES,
+  });
+  target.setMenuBarVisibility(false);
+  // The site uses this to turn away app versions without this lockdown.
+  target.webContents.setUserAgent(
+    `${target.webContents.getUserAgent()} LetsHyreSecureInterview/${app.getVersion()}`
+  );
 
-  _releaseLockdown();
-  logger.info(`[window] interview ended (reason: ${reason}) — window restrictions lifted`);
+  _hardenWindow(target);
+  _applyInterviewWindowClose(target);
+  _applyInterviewLoadHandling(target);
+  _forwardInterviewConsole(target);
+
+  target.on("closed", () => {
+    if (interviewWin !== target) {
+      return;
+    }
+    interviewWin = null;
+    if (isInterviewActive) {
+      logger.warn("[window] interview window closed while locked — releasing");
+      _releaseLockdown();
+    }
+    if (!appState.isQuitting()) {
+      _showMain();
+      loadDashboard();
+    }
+  });
+  return target;
+}
+
+function _showMain() {
+  if (win && !win.isDestroyed() && !win.isVisible()) {
+    win.show();
+  }
+}
+
+function _closeInterviewWindow() {
+  const target = interviewWin;
+  interviewWin = null;
+  if (target && !target.isDestroyed()) {
+    target.destroy();
+  }
+}
+
+function _onAltF4() {
+  reportViolation("Attempted OS level Alt+F4 kill string", "high", { code: CODE.CLOSE_ATTEMPT });
+  interviewWin?.close();
+}
+
+function _logLockdownState(target) {
+  const displays = screen
+    .getAllDisplays()
+    .map((d) => `${d.size.width}x${d.size.height}@${d.scaleFactor}${d.internal ? " internal" : ""}`)
+    .join(", ");
+  logger.info(
+    `[lockdown] ${process.platform} ${os.release()} displays=[${displays}] ` +
+      `kiosk=${target.isKiosk()} fullscreen=${target.isFullScreen()} topmost=${target.isAlwaysOnTop()}`
+  );
 }
 
 /**
- * Locks the window and loads the interview. Tokens, photo, role and locale are
- * injected into the site's sessionStorage on dom-ready, before its scripts run.
+ * Locks the screen and loads the interview in its own window. Tokens, photo,
+ * role and locale are injected into the site's sessionStorage on dom-ready,
+ * before its scripts run.
  *
  * @param {string} url
  * @param {{ accessToken: string|null, refreshToken: string|null } | null} tokens
@@ -302,12 +382,14 @@ function lockdownForInterview(url, tokens = null, roleSelection = null) {
   }
   isInterviewActive = true;
 
+  const display = screen.getDisplayMatching(win.getBounds());
+  _closeInterviewWindow();
+  interviewWin = _createInterviewWindow(display);
+
   lockdownGuard?.stop();
-  lockdownGuard = createLockdownGuard(win, { onViolation: reportViolation, log: logger });
+  lockdownGuard = createLockdownGuard(interviewWin, { onViolation: reportViolation, log: logger });
   lockdownGuard.start();
 
-  // One tab is reused across interviews, so a finished session left in
-  // sessionStorage would come back as a stale scorecard.
   const statements = [
     "sessionStorage.removeItem('interview_session');",
     "sessionStorage.removeItem('face_registered');",
@@ -337,8 +419,56 @@ function lockdownForInterview(url, tokens = null, roleSelection = null) {
   clearTimeout(loadRetryTimer);
   loadRetryTimer = null;
 
+  interviewWin.show();
+  interviewWin.focus();
+  win.hide();
+  displayShields.start(display.id);
+  osLockdown.start(interviewWin, reportViolation);
+  if (!globalShortcut.isRegistered("Alt+F4")) {
+    globalShortcut.register("Alt+F4", _onAltF4);
+  }
+  _logLockdownState(interviewWin);
+
   logger.info("[window] lockdown activated — navigating to interview");
-  win.loadURL(url).catch(() => {});
+  interviewWin.loadURL(url).catch(() => {});
+}
+
+/**
+ * Lifts every part of the lockdown. The interview window stays open on the
+ * result screen until the candidate leaves it.
+ * @returns {Promise<void>} once the agent has let go of the keyboard and touchpad
+ */
+function _releaseLockdown() {
+  isInterviewActive = false;
+  lockdownGuard?.stop();
+  lockdownGuard = null;
+  clearTimeout(loadRetryTimer);
+  loadRetryTimer = null;
+  interviewUrl = null;
+  pendingInjection = null;
+  displayShields.stop();
+  if (globalShortcut.isRegistered("Alt+F4")) {
+    globalShortcut.unregister("Alt+F4");
+  }
+  if (interviewWin && !interviewWin.isDestroyed()) {
+    releaseLock(interviewWin);
+    interviewWin.setBounds(screen.getDisplayMatching(interviewWin.getBounds()).workArea);
+  }
+  return osLockdown.stop();
+}
+
+/**
+ * Lifts the lockdown once the interview site reports the session is over.
+ * @param {string} reason - e.g. "completed", "auto-submitted", "terminated", "expired"
+ * @returns {Promise<void>}
+ */
+function endInterview(reason) {
+  if (!isInterviewActive) {
+    logger.info("[window] endInterview called but interview was already inactive — skipping");
+    return Promise.resolve();
+  }
+  logger.info(`[window] interview ended (reason: ${reason}) — window restrictions lifted`);
+  return _releaseLockdown();
 }
 
 function _isInterviewPage(url) {
@@ -347,21 +477,21 @@ function _isInterviewPage(url) {
 
 /** Reloads the interview after a failed load. The lockdown stays on throughout. */
 function retryInterview() {
-  if (!win || win.isDestroyed() || !isInterviewActive || !interviewUrl) {
+  if (!interviewWin || interviewWin.isDestroyed() || !isInterviewActive || !interviewUrl) {
     return;
   }
   clearTimeout(loadRetryTimer);
   loadRetryTimer = null;
   logger.info("[window] retrying interview load");
-  win.loadURL(interviewUrl).catch(() => {});
+  interviewWin.loadURL(interviewUrl).catch(() => {});
 }
 
 /**
  * Electron leaves a blank white page when a load fails, so a failed interview
  * load shows a local "can't reach the interview" page and keeps retrying.
  */
-function _applyInterviewLoadHandling() {
-  const wc = win.webContents;
+function _applyInterviewLoadHandling(target) {
+  const wc = target.webContents;
   // Error pages fire dom-ready under the interview URL but never did-navigate,
   // so this is what keeps the injection off them.
   let interviewPageCommitted = false;
@@ -411,6 +541,7 @@ function _applyInterviewLoadHandling() {
   wc.on("did-finish-load", () => {
     if (interviewPageCommitted) {
       loadRetryAttempt = 0;
+      _enterPageFullscreen(target);
     }
   });
 }
@@ -445,9 +576,45 @@ function clearInterviewSessionData() {
     .catch((err) => logger.warn("[window] clearInterviewSessionData failed:", err.message));
 }
 
+const PAGE_FULLSCREEN_SCRIPT =
+  "document.fullscreenElement ? 'already' : document.documentElement.requestFullscreen().then(() => 'ok', (e) => String(e && e.name))";
+
+const KEYBOARD_LOCK_SCRIPT = `(async () => {
+  if (!navigator.keyboard) return "Keyboard API unavailable";
+  try {
+    await navigator.keyboard.lock();
+    return "ok";
+  } catch (e) {
+    return (e && e.name ? e.name : "Error") + ": " + (e && e.message ? e.message : String(e));
+  }
+})()`;
+
+/**
+ * Keyboard lock is what keeps the Windows key and Alt+Tab inside the page, and
+ * it only holds while the page is fullscreen. The site can only ask for that
+ * from a click, so the app does it as soon as the page loads.
+ */
+function _enterPageFullscreen(target) {
+  if (
+    target.isDestroyed() ||
+    !isInterviewActive ||
+    !_isInterviewPage(target.webContents.getURL())
+  ) {
+    return;
+  }
+  target.webContents
+    .executeJavaScript(PAGE_FULLSCREEN_SCRIPT, true)
+    .then((result) => {
+      if (result !== "ok" && result !== "already") {
+        logger.warn(`[window] page fullscreen refused: ${result}`);
+      }
+    })
+    .catch((err) => logger.warn(`[window] page fullscreen failed: ${err?.message || err}`));
+}
+
 /** Blocks DevTools shortcuts, Alt+F4 and F11 during the interview, and locks system keys. */
-function _applyInputLockdown() {
-  win.webContents.on("before-input-event", (event, input) => {
+function _applyInputLockdown(target) {
+  target.webContents.on("before-input-event", (event, input) => {
     const isDevTools =
       input.key === "F12" ||
       (input.control && input.shift && input.key === "I") ||
@@ -460,25 +627,19 @@ function _applyInputLockdown() {
     const isReload =
       (input.key === "F5" || ((input.control || input.meta) && input.key.toLowerCase() === "r")) &&
       !isInterviewActive &&
-      _isInterviewPage(win.webContents.getURL());
+      _isInterviewPage(target.webContents.getURL());
 
     if ((isDevTools && !DEVTOOLS_ENABLED) || isAltF4 || isFullscreenToggle || isReload) {
       event.preventDefault();
     }
   });
 
-  // Keyboard lock only holds while the page itself is fullscreen, so it is
-  // (re)applied each time the interview enters fullscreen.
-  win.webContents.on("enter-html-full-screen", () => {
-    if (!isInterviewActive || !_isInterviewPage(win.webContents.getURL())) {
+  target.webContents.on("enter-html-full-screen", () => {
+    if (!isInterviewActive || !_isInterviewPage(target.webContents.getURL())) {
       return;
     }
-    // Settled in the page: a rejection crossing executeJavaScript loses its message.
-    win.webContents
-      .executeJavaScript(
-        "navigator.keyboard ? navigator.keyboard.lock().then(() => 'ok', (e) => e.name + ': ' + e.message) : 'Keyboard API unavailable'",
-        true
-      )
+    target.webContents
+      .executeJavaScript(KEYBOARD_LOCK_SCRIPT, true)
       .then((result) => {
         if (result === "ok") {
           logger.info("[window] keyboard lock on");
@@ -491,18 +652,27 @@ function _applyInputLockdown() {
       })
       .catch((err) => logger.warn(`[window] keyboard lock failed: ${err?.message || err}`));
   });
+
+  // Holding Esc leaves page fullscreen and with it the keyboard lock.
+  target.webContents.on("leave-html-full-screen", () => {
+    if (!isInterviewActive || !_isInterviewPage(target.webContents.getURL())) {
+      return;
+    }
+    logger.warn("[window] interview left page fullscreen — entering it again");
+    setTimeout(() => _enterPageFullscreen(target), HTML_FULLSCREEN_RETRY_MS);
+  });
 }
 
 const CONSOLE_LOG_LIMIT = 300;
 
 // The interview site's warnings and errors, so a proctoring problem a candidate
 // saw can be traced from the app log. Capped so a noisy session can't flood it.
-function _forwardInterviewConsole() {
+function _forwardInterviewConsole(target) {
   let forwarded = 0;
-  win.webContents.on("did-navigate", () => {
+  target.webContents.on("did-navigate", () => {
     forwarded = 0;
   });
-  win.webContents.on("console-message", ({ level, message, frame }) => {
+  target.webContents.on("console-message", ({ level, message, frame }) => {
     if (level !== "warning" && level !== "error") {
       return;
     }
@@ -520,29 +690,28 @@ function _forwardInterviewConsole() {
 }
 
 /** Only the interview site and local pages may load; window.open is always refused. */
-function _applyNavigationGuardrails() {
-  win.webContents.on("will-navigate", (event, url) => {
+function _applyNavigationGuardrails(target) {
+  target.webContents.on("will-navigate", (event, url) => {
     if (!url.startsWith(INTERVIEW_BASE_URL) && !url.startsWith("file://")) {
       logger.warn("[window] blocked navigation to:", url);
       event.preventDefault();
     }
   });
 
-  win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  target.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
 }
 
 /** Confirms before closing during an interview. Minimize is held by lockdownGuard. */
-function _applyWindowProtections(onViolation) {
-  win.on("close", (e) => {
+function _applyInterviewWindowClose(target) {
+  target.on("close", (e) => {
     if (!isInterviewActive) {
-      appState.setQuitting();
       return;
     }
 
     e.preventDefault();
 
     const modalStrings = _exitModalStrings();
-    const choice = dialog.showMessageBoxSync(win, {
+    const choice = dialog.showMessageBoxSync(target, {
       type: "warning",
       buttons: [modalStrings.exit, modalStrings.cancel],
       defaultId: 1, // default highlight: Cancel (safer)
@@ -555,12 +724,12 @@ function _applyWindowProtections(onViolation) {
 
     if (choice === 0) {
       logger.warn("[window] user confirmed interview exit via close dialog");
+      appState.setQuitting();
       // Released first so a quit-time prompt is not hidden behind the locked window.
-      _releaseLockdown();
-      app.quit();
+      _releaseLockdown().finally(() => app.quit());
     } else {
       logger.warn("[window] user dismissed close dialog during interview");
-      onViolation("Attempt to close interview window", "high", { code: CODE.CLOSE_ATTEMPT });
+      reportViolation("Attempt to close interview window", "high", { code: CODE.CLOSE_ATTEMPT });
     }
   });
 }
@@ -590,8 +759,9 @@ function _applyCSPHeaders() {
   });
 }
 
+/** The window the candidate is looking at: the interview's while it is open. */
 function getWindow() {
-  return win;
+  return interviewWin && !interviewWin.isDestroyed() ? interviewWin : win;
 }
 
 function getIsInterviewActive() {
@@ -605,48 +775,44 @@ function minimizeWindow() {
   }
 }
 
+function _loadMainPage(file, options) {
+  if (win && !win.isDestroyed()) {
+    win.loadFile(path.join(__dirname, "../../assets", file), options);
+  }
+}
+
 /** @param {"stale"|"dirty"|"scanning"} [reason] - why Continue sent the candidate back */
 function loadSecurityCheck(reason) {
-  if (win && !win.isDestroyed()) {
-    const file = path.join(__dirname, "../../assets/preflight.html");
-    win.loadFile(file, reason ? { query: { reason } } : undefined);
-  }
+  _loadMainPage("preflight.html", reason ? { query: { reason } } : undefined);
 }
 
 function loadLanguageSelectionPage() {
-  if (win && !win.isDestroyed()) {
-    win.loadFile(path.join(__dirname, "../../assets/language-selection.html"));
-  }
+  _loadMainPage("language-selection.html");
 }
 
 function loadPermissionsPage() {
-  if (win && !win.isDestroyed()) {
-    win.loadFile(path.join(__dirname, "../../assets/permissions.html"));
-  }
+  _loadMainPage("permissions.html");
 }
 
 function loadIdentityVerificationPage() {
-  if (win && !win.isDestroyed()) {
-    win.loadFile(path.join(__dirname, "../../assets/identity-verification.html"));
-  }
+  _loadMainPage("identity-verification.html");
 }
 
+/** Also where the candidate lands after the interview window closes. */
 function loadDashboard() {
-  if (win && !win.isDestroyed()) {
-    win.loadFile(path.join(__dirname, "../../assets/dashboard.html"));
+  if (!isInterviewActive) {
+    _closeInterviewWindow();
   }
+  _showMain();
+  _loadMainPage("dashboard.html");
 }
 
 function loadRoleSelectionPage() {
-  if (win && !win.isDestroyed()) {
-    win.loadFile(path.join(__dirname, "../../assets/role-selection.html"));
-  }
+  _loadMainPage("role-selection.html");
 }
 
 function loadHowItWorksPage() {
-  if (win && !win.isDestroyed()) {
-    win.loadFile(path.join(__dirname, "../../assets/how-it-works.html"));
-  }
+  _loadMainPage("how-it-works.html");
 }
 
 module.exports = {

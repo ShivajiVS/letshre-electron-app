@@ -1492,8 +1492,383 @@ def start_http_server():
 
 
 # ─────────────────────────────────────────────
+#  INTERVIEW LOCKDOWN (Windows)
+#  Electron can lock its own window but not the OS shell: system keys, the
+#  taskbar, Task View, virtual desktops and touchpad gestures all move focus
+#  away from a kiosk window. This holds them for the length of the interview.
+# ─────────────────────────────────────────────
+LOCKDOWN_WATCH_S = 0.25
+HOOK_REFRESH_MS = 5000
+
+VK_TAB, VK_ESCAPE, VK_LWIN, VK_RWIN, VK_CONTROL = 0x09, 0x1B, 0x5B, 0x5C, 0x11
+LLKHF_ALTDOWN = 0x20
+WH_KEYBOARD_LL = 13
+WM_QUIT, WM_TIMER = 0x0012, 0x0113
+
+TOUCHPAD_KEY = r"Software\Microsoft\Windows\CurrentVersion\PrecisionTouchPad"
+TOUCHPAD_VALUES = (
+    "ThreeFingerSlideEnabled",
+    "FourFingerSlideEnabled",
+    "ThreeFingerTapEnabled",
+    "FourFingerTapEnabled",
+)
+TOUCHPAD_RESTORE_FILE = os.path.join(
+    os.environ.get("LOCALAPPDATA") or tempfile.gettempdir(),
+    "letshyre-secure-interview",
+    "touchpad-restore.json",
+)
+
+
+def should_block_key(vk, alt_down, ctrl_down):
+    """The Windows key alone opens every Win+ shortcut, so blocking it covers them all."""
+    if vk in (VK_LWIN, VK_RWIN):
+        return True
+    if alt_down and vk in (VK_TAB, VK_ESCAPE):
+        return True
+    return ctrl_down and vk == VK_ESCAPE
+
+
+def focus_change(fg_hwnd, fg_pid, own_hwnd, own_pid):
+    """"lost" when another process holds the foreground, None when it's ours or nobody's."""
+    if not fg_hwnd or fg_hwnd == own_hwnd or fg_pid == own_pid:
+        return None
+    return "lost"
+
+
+def _user32():
+    """A private handle, so the argtypes set here don't leak into other checks."""
+    import ctypes
+    from ctypes import wintypes
+
+    u = ctypes.WinDLL("user32", use_last_error=True)
+    u.GetForegroundWindow.restype = wintypes.HWND
+    u.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+    u.GetWindowThreadProcessId.restype = wintypes.DWORD
+    u.SetForegroundWindow.argtypes = [wintypes.HWND]
+    u.BringWindowToTop.argtypes = [wintypes.HWND]
+    u.SwitchToThisWindow.argtypes = [wintypes.HWND, wintypes.BOOL]
+    u.AttachThreadInput.argtypes = [wintypes.DWORD, wintypes.DWORD, wintypes.BOOL]
+    u.CallNextHookEx.argtypes = [wintypes.HHOOK, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM]
+    u.CallNextHookEx.restype = ctypes.c_ssize_t
+    u.UnhookWindowsHookEx.argtypes = [wintypes.HHOOK]
+    u.GetAsyncKeyState.restype = ctypes.c_short
+    u.PostThreadMessageW.argtypes = [wintypes.DWORD, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+    u.SendMessageTimeoutW.argtypes = [
+        wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPCWSTR,
+        wintypes.UINT, wintypes.UINT, ctypes.c_void_p,
+    ]
+    return u
+
+
+class _KeyHook:
+    """A low-level keyboard hook on its own thread with its own message loop."""
+
+    def __init__(self):
+        self._thread = None
+        self._thread_id = None
+        self.blocked = 0
+
+    def start(self):
+        if self._thread and self._thread.is_alive():
+            return
+        ready = threading.Event()
+        self._thread = threading.Thread(target=self._run, args=(ready,), name="lockdown-keys", daemon=True)
+        self._thread.start()
+        ready.wait(2)
+
+    def stop(self):
+        if self._thread_id:
+            _user32().PostThreadMessageW(self._thread_id, WM_QUIT, 0, 0)
+        if self._thread:
+            self._thread.join(2)
+        self._thread = None
+        self._thread_id = None
+
+    def alive(self):
+        return bool(self._thread and self._thread.is_alive())
+
+    def _run(self, ready):
+        import ctypes
+        from ctypes import wintypes
+
+        class KBDLLHOOKSTRUCT(ctypes.Structure):
+            _fields_ = [
+                ("vkCode", wintypes.DWORD),
+                ("scanCode", wintypes.DWORD),
+                ("flags", wintypes.DWORD),
+                ("time", wintypes.DWORD),
+                ("dwExtraInfo", ctypes.c_size_t),
+            ]
+
+        u = _user32()
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.GetModuleHandleW.restype = wintypes.HMODULE
+        HOOKPROC = ctypes.WINFUNCTYPE(ctypes.c_ssize_t, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
+        u.SetWindowsHookExW.argtypes = [ctypes.c_int, HOOKPROC, wintypes.HINSTANCE, wintypes.DWORD]
+        u.SetWindowsHookExW.restype = wintypes.HHOOK
+
+        def on_key(n_code, w_param, l_param):
+            if n_code == 0:
+                kb = ctypes.cast(l_param, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
+                ctrl = bool(u.GetAsyncKeyState(VK_CONTROL) & 0x8000)
+                if should_block_key(kb.vkCode, bool(kb.flags & LLKHF_ALTDOWN), ctrl):
+                    self.blocked += 1
+                    return 1
+            return u.CallNextHookEx(None, n_code, w_param, l_param)
+
+        proc = HOOKPROC(on_key)
+        module = kernel32.GetModuleHandleW(None)
+        hook = u.SetWindowsHookExW(WH_KEYBOARD_LL, proc, module, 0)
+        self._thread_id = kernel32.GetCurrentThreadId()
+        timer = u.SetTimer(None, 0, HOOK_REFRESH_MS, None)
+        ready.set()
+        if not hook:
+            logger.warning(f"[lockdown] keyboard hook failed: {ctypes.get_last_error()}")
+            return
+        msg = wintypes.MSG()
+        while u.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+            if msg.message == WM_TIMER:
+                # Windows silently drops a hook that once answered too slowly.
+                u.UnhookWindowsHookEx(hook)
+                hook = u.SetWindowsHookExW(WH_KEYBOARD_LL, proc, module, 0)
+        u.KillTimer(None, timer)
+        if hook:
+            u.UnhookWindowsHookEx(hook)
+
+
+def _virtual_desktop_check():
+    """Returns f(hwnd) -> True/False/None (unknown), via the documented IVirtualDesktopManager."""
+    import ctypes
+    from ctypes import wintypes
+
+    class GUID(ctypes.Structure):
+        _fields_ = [("a", wintypes.DWORD), ("b", wintypes.WORD), ("c", wintypes.WORD), ("d", ctypes.c_ubyte * 8)]
+
+    def guid(text):
+        g = GUID()
+        ctypes.oledll.ole32.CLSIDFromString(ctypes.c_wchar_p(text), ctypes.byref(g))
+        return g
+
+    ptr = ctypes.c_void_p()
+    ctypes.oledll.ole32.CoInitialize(None)
+    hr = ctypes.windll.ole32.CoCreateInstance(
+        ctypes.byref(guid("{aa509086-5ca9-4c25-8f95-589d3c07b48a}")), None, 1,
+        ctypes.byref(guid("{a5cd92ff-29be-454c-8d04-d82879fb3f1b}")), ctypes.byref(ptr),
+    )
+    if hr != 0 or not ptr.value:
+        return lambda hwnd: None
+    vtable = ctypes.cast(ctypes.cast(ptr, ctypes.POINTER(ctypes.c_void_p))[0], ctypes.POINTER(ctypes.c_void_p))
+    is_on_current = ctypes.WINFUNCTYPE(
+        ctypes.c_long, ctypes.c_void_p, wintypes.HWND, ctypes.POINTER(wintypes.BOOL)
+    )(vtable[3])
+
+    def check(hwnd):
+        result = wintypes.BOOL()
+        if is_on_current(ptr, hwnd, ctypes.byref(result)) != 0:
+            return None
+        return bool(result.value)
+
+    return check
+
+
+def _broadcast_setting_change():
+    try:
+        _user32().SendMessageTimeoutW(0xFFFF, 0x001A, 0, "PrecisionTouchPad", 0x0002, 1000, None)
+    except Exception as e:
+        logger.warning(f"[lockdown] setting broadcast failed: {e}")
+
+
+def touchpad_disable(reg=None):
+    """
+    Switches off three- and four-finger gestures (Task View, show desktop, switch
+    desktop). The old values are written to disk first, so a crash can't leave
+    the candidate's touchpad changed. Returns whether anything was changed.
+    """
+    if reg is None:
+        import winreg as reg
+    if os.path.exists(TOUCHPAD_RESTORE_FILE):
+        touchpad_restore(reg)
+    try:
+        key = reg.OpenKey(reg.HKEY_CURRENT_USER, TOUCHPAD_KEY, 0, reg.KEY_READ | reg.KEY_SET_VALUE)
+    except OSError:
+        return False
+    with key:
+        saved = {}
+        for name in TOUCHPAD_VALUES:
+            try:
+                value, kind = reg.QueryValueEx(key, name)
+            except OSError:
+                continue
+            if kind == reg.REG_DWORD and value != 0:
+                saved[name] = value
+        if not saved:
+            return False
+        os.makedirs(os.path.dirname(TOUCHPAD_RESTORE_FILE), exist_ok=True)
+        with open(TOUCHPAD_RESTORE_FILE, "w", encoding="utf-8") as f:
+            json.dump(saved, f)
+        for name in saved:
+            reg.SetValueEx(key, name, 0, reg.REG_DWORD, 0)
+    _broadcast_setting_change()
+    logger.info(f"[lockdown] touchpad gestures off: {', '.join(sorted(saved))}")
+    return True
+
+
+def touchpad_restore(reg=None):
+    """Puts back whatever touchpad_disable() changed, including after a crash."""
+    try:
+        with open(TOUCHPAD_RESTORE_FILE, encoding="utf-8") as f:
+            saved = json.load(f)
+    except (OSError, ValueError):
+        return False
+    if reg is None:
+        import winreg as reg
+    try:
+        with reg.OpenKey(reg.HKEY_CURRENT_USER, TOUCHPAD_KEY, 0, reg.KEY_SET_VALUE) as key:
+            for name, value in saved.items():
+                if name in TOUCHPAD_VALUES and isinstance(value, int):
+                    reg.SetValueEx(key, name, 0, reg.REG_DWORD, value)
+    except OSError as e:
+        logger.warning(f"[lockdown] touchpad restore failed: {e}")
+        return False
+    try:
+        os.remove(TOUCHPAD_RESTORE_FILE)
+    except OSError:
+        pass
+    _broadcast_setting_change()
+    logger.info("[lockdown] touchpad gestures restored")
+    return True
+
+
+class InterviewLockdown:
+    def __init__(self):
+        self._lock = threading.Lock()
+        self.active = False
+        self.hwnd = 0
+        self.pid = 0
+        self._events = []
+        self._watcher = None
+        self._keys = _KeyHook()
+        self.touchpad = False
+
+    def start(self, hwnd, pid):
+        if OS_NAME != "Windows":
+            return {"active": False, "supported": False}
+        with self._lock:
+            self.hwnd, self.pid = int(hwnd), int(pid)
+            if self.active:
+                return self.poll_locked()
+            self.active = True
+            self._events = []
+        self._keys.start()
+        try:
+            self.touchpad = touchpad_disable()
+        except Exception as e:
+            logger.warning(f"[lockdown] touchpad gestures unchanged: {e}")
+            self.touchpad = False
+        self._watcher = threading.Thread(target=self._watch, name="lockdown-focus", daemon=True)
+        self._watcher.start()
+        logger.info(f"[lockdown] on for window {self.hwnd} (pid {self.pid})")
+        return self.poll()
+
+    def stop(self):
+        with self._lock:
+            was_active = self.active
+            self.active = False
+        self._keys.stop()
+        if self._watcher:
+            self._watcher.join(2)
+            self._watcher = None
+        if OS_NAME == "Windows":
+            touchpad_restore()
+        self.touchpad = False
+        if was_active:
+            logger.info("[lockdown] off")
+        return {"active": False, "supported": OS_NAME == "Windows"}
+
+    def poll(self):
+        with self._lock:
+            return self.poll_locked()
+
+    def poll_locked(self):
+        events, self._events = self._events, []
+        return {
+            "active": self.active,
+            "supported": OS_NAME == "Windows",
+            "keys_hooked": self._keys.alive(),
+            "keys_blocked": self._keys.blocked,
+            "touchpad_locked": self.touchpad,
+            "events": events,
+        }
+
+    def _record(self, event):
+        with self._lock:
+            self._events.append({**event, "at": datetime.now().isoformat()})
+            del self._events[:-20]
+
+    def _bring_back(self, u, fg):
+        import ctypes
+
+        me = ctypes.windll.kernel32.GetCurrentThreadId()
+        fg_thread = u.GetWindowThreadProcessId(fg, None) if fg else 0
+        attached = bool(fg_thread and fg_thread != me and u.AttachThreadInput(me, fg_thread, True))
+        try:
+            u.BringWindowToTop(self.hwnd)
+            if not u.SetForegroundWindow(self.hwnd):
+                u.SwitchToThisWindow(self.hwnd, True)
+        finally:
+            if attached:
+                u.AttachThreadInput(me, fg_thread, False)
+
+    def _watch(self):
+        import ctypes
+        from ctypes import wintypes
+
+        u = _user32()
+        try:
+            on_current_desktop = _virtual_desktop_check()
+        except Exception as e:
+            logger.warning(f"[lockdown] virtual desktop check unavailable: {e}")
+            on_current_desktop = lambda hwnd: None  # noqa: E731
+        lost = False
+        away = False
+        while self.active:
+            try:
+                fg = u.GetForegroundWindow()
+                pid = wintypes.DWORD()
+                if fg:
+                    u.GetWindowThreadProcessId(fg, ctypes.byref(pid))
+                if focus_change(fg, pid.value, self.hwnd, self.pid) == "lost":
+                    if not lost:
+                        name = _process_name(pid.value)
+                        self._record({"type": "focus_lost", "process": name,
+                                      "display_name": display_name(name)})
+                    lost = True
+                    self._bring_back(u, fg)
+                else:
+                    lost = False
+                on_desktop = on_current_desktop(self.hwnd)
+                if on_desktop is False and not away:
+                    self._record({"type": "virtual_desktop"})
+                    self._bring_back(u, fg)
+                away = on_desktop is False
+            except Exception as e:
+                logger.warning(f"[lockdown] focus watch error: {e}")
+            time.sleep(LOCKDOWN_WATCH_S)
+
+
+def _process_name(pid):
+    try:
+        return psutil.Process(pid).name()
+    except Exception:
+        return ""
+
+
+LOCKDOWN = InterviewLockdown()
+
+
+# ─────────────────────────────────────────────
 #  STDIO PIPE PROTOCOL (primary Electron channel)
-#  Newline-delimited JSON. Request:  {"id": <n>, "cmd": "ping"|"status"|"scan"}
+#  Newline-delimited JSON. Request:  {"id": <n>, "cmd": "ping"|"status"|"scan"|"lockdown_*", "args": {...}}
 #  Response: {"id": <n>, ...result}  written to stdout, one object per line.
 # ─────────────────────────────────────────────
 _stdout_lock = threading.Lock()
@@ -1507,7 +1882,7 @@ def _write_response(obj):
     except Exception as e:
         logger.warning(f"stdout write failed: {e}")
 
-def _handle_command(cmd):
+def _handle_command(cmd, args=None):
     """Dispatch a single command to its handler and return the result dict."""
     if cmd == "ping":
         return {
@@ -1525,31 +1900,38 @@ def _handle_command(cmd):
         return run_full_scan()
     if cmd == "log":
         return {"log": event_log}
+    if cmd == "lockdown_start":
+        args = args or {}
+        return LOCKDOWN.start(args.get("hwnd", 0), args.get("pid", 0))
+    if cmd == "lockdown_poll":
+        return LOCKDOWN.poll()
+    if cmd == "lockdown_stop":
+        return LOCKDOWN.stop()
     return {"error": "unknown_cmd", "cmd": cmd}
 
 # Answered inline; anything else runs on a worker so a slow scan can't delay a ping.
-_INLINE_CMDS = ("ping", "status", "log")
+_INLINE_CMDS = ("ping", "status", "log", "lockdown_poll")
 
 # Scans coalesce, so this cap only stops a runaway client spawning threads.
 MAX_WORKER_THREADS = 8
 _worker_count = 0
 _worker_count_lock = threading.Lock()
 
-def _dispatch(req_id, cmd):
+def _dispatch(req_id, cmd, args=None):
     """Run one command and write its response. Responses carry `id`, so the
     parent matches them regardless of arrival order."""
     try:
-        resp = _handle_command(cmd)
+        resp = _handle_command(cmd, args)
     except Exception as e:
         logger.warning(f"command error: {e}")
         resp = {"error": str(e)}
     resp["id"] = req_id
     _write_response(resp)
 
-def _dispatch_worker(req_id, cmd):
+def _dispatch_worker(req_id, cmd, args=None):
     global _worker_count
     try:
-        _dispatch(req_id, cmd)
+        _dispatch(req_id, cmd, args)
     finally:
         with _worker_count_lock:
             _worker_count -= 1
@@ -1576,9 +1958,10 @@ def stdio_protocol_loop():
             continue
         req_id = req.get("id")
         cmd = req.get("cmd")
+        args = req.get("args") if isinstance(req.get("args"), dict) else None
 
         if cmd in _INLINE_CMDS:
-            _dispatch(req_id, cmd)
+            _dispatch(req_id, cmd, args)
             continue
 
         with _worker_count_lock:
@@ -1591,9 +1974,10 @@ def stdio_protocol_loop():
             _write_response({"id": req_id, "error": "busy", "cmd": cmd})
             continue
         threading.Thread(
-            target=_dispatch_worker, args=(req_id, cmd), daemon=True
+            target=_dispatch_worker, args=(req_id, cmd, args), daemon=True
         ).start()
     logger.info("stdin closed — agent shutting down.")
+    LOCKDOWN.stop()
 
 # ─────────────────────────────────────────────
 #  ENTRY POINT
@@ -1612,6 +1996,9 @@ def main():
     except ImportError:
         logger.error("  [MISSING] psutil — run: pip install psutil")
         sys.exit(1)
+
+    if OS_NAME == "Windows":
+        touchpad_restore()
 
     scanner_thread = threading.Thread(target=background_scanner, daemon=True)
     scanner_thread.start()

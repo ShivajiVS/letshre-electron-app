@@ -192,6 +192,41 @@ test("the watchdog repairs drift no event reported", async () => {
   }
 });
 
+test("the watchdog waits out a fullscreen transition instead of restarting it", async () => {
+  const { win, guard } = setup();
+  let requests = 0;
+  const setFullScreen = win.setFullScreen.bind(win);
+  win.setFullScreen = (v) => {
+    requests += 1;
+    setFullScreen(v);
+  };
+  guard.start();
+  try {
+    requests = 0;
+    win.state.fullScreen = false;
+    await new Promise((r) => setTimeout(r, 30));
+    assert.strictEqual(requests, 0, "a transition still inside its window is left alone");
+
+    win.emit("leave-full-screen");
+    assert.strictEqual(requests, 1, "an event means the transition is over");
+  } finally {
+    guard.stop();
+  }
+});
+
+test("macOS simple fullscreen counts as fullscreen", () => {
+  const { win, guard, warnings } = setup();
+  win.isSimpleFullScreen = () => true;
+  guard.start();
+  try {
+    win.state.fullScreen = false;
+    guard.check();
+    assert.ok(!warnings.some((w) => /fullscreen/.test(w)));
+  } finally {
+    guard.stop();
+  }
+});
+
 test("stop detaches every listener and the watchdog", async () => {
   const { win, guard, violations } = setup();
   guard.start();
@@ -252,8 +287,8 @@ test("ending the interview stops the guard", () => {
 
 test("only the interview ending or a confirmed exit unlocks the window", () => {
   const callers = [...WINDOW_MANAGER.matchAll(/_releaseLockdown\(\)/g)].length;
-  // The definition, endInterview() and the confirmed-exit branch of the close dialog.
-  assert.strictEqual(callers, 3);
+  // The definition, endInterview(), a confirmed exit, and the window closing while locked.
+  assert.strictEqual(callers, 4);
   assert.doesNotMatch(WINDOW_MANAGER, /enforceViolation/);
   const checks = fs.readFileSync(path.join(__dirname, "../src/detector/systemChecks.js"), "utf8");
   assert.doesNotMatch(checks, /windowManager/, "detection must never reach into the window lock");
@@ -262,7 +297,7 @@ test("only the interview ending or a confirmed exit unlocks the window", () => {
 test("a dismissed exit dialog is reported as a close attempt", () => {
   assert.match(
     WINDOW_MANAGER,
-    /onViolation\("Attempt to close interview window", "high", \{ code: CODE\.CLOSE_ATTEMPT \}\)/
+    /reportViolation\("Attempt to close interview window", "high", \{ code: CODE\.CLOSE_ATTEMPT \}\)/
   );
 });
 

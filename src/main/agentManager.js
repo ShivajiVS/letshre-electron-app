@@ -154,11 +154,12 @@ function _consumeStdout(chunk) {
 /**
  * Sends one command to the agent over the pipe and resolves with its parsed
  * response, or null on timeout / no agent / write failure. Never rejects.
- * @param {"ping"|"status"|"scan"|"log"} cmd
+ * @param {"ping"|"status"|"scan"|"log"|"lockdown_start"|"lockdown_poll"|"lockdown_stop"} cmd
  * @param {number} [timeoutMs]
+ * @param {object} [args]
  * @returns {Promise<object|null>}
  */
-function sendAgentCommand(cmd, timeoutMs = AGENT_REQUEST_TIMEOUT_MS) {
+function sendAgentCommand(cmd, timeoutMs = AGENT_REQUEST_TIMEOUT_MS, args = undefined) {
   return new Promise((resolve) => {
     if (!agentProcess || !agentProcess.stdin || !agentProcess.stdin.writable) {
       return resolve(null);
@@ -170,7 +171,7 @@ function sendAgentCommand(cmd, timeoutMs = AGENT_REQUEST_TIMEOUT_MS) {
     }, timeoutMs);
     _pending.set(id, { resolve, timer });
     try {
-      agentProcess.stdin.write(`${JSON.stringify({ id, cmd })}\n`);
+      agentProcess.stdin.write(`${JSON.stringify(args ? { id, cmd, args } : { id, cmd })}\n`);
     } catch {
       clearTimeout(timer);
       _pending.delete(id);

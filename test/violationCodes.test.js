@@ -83,12 +83,16 @@ test("the README documents every code for the interview site", () => {
   }
 });
 
-test("only extra displays are strikes the site counts", () => {
+test("only displays and leaving the window are left to the site", () => {
   const { isStrikeCode } = require("../src/shared/violationCodes");
-  assert.ok(isStrikeCode(CODE.EXTERNAL_DISPLAY));
-  assert.ok(isStrikeCode(CODE.MIRRORED_DISPLAY));
-  for (const code of Object.values(CODE).filter((c) => !c.endsWith("_display"))) {
-    assert.ok(!isStrikeCode(code), code);
+  const siteDecides = [
+    CODE.EXTERNAL_DISPLAY,
+    CODE.MIRRORED_DISPLAY,
+    CODE.FOCUS_LOST,
+    CODE.VIRTUAL_DESKTOP,
+  ];
+  for (const code of Object.values(CODE)) {
+    assert.strictEqual(isStrikeCode(code), siteDecides.includes(code), code);
   }
 });
 

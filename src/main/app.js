@@ -8,7 +8,7 @@
 const { app, globalShortcut, desktopCapturer, session, dialog } = require("electron");
 const logger = require("./logger");
 const { killAgent } = require("./agentManager");
-const { createWindow, getWindow, getIsInterviewActive } = require("./windowManager");
+const { createWindow, getWindow } = require("./windowManager");
 const { registerIpcHandlers } = require("./ipcHandlers");
 const { applyArgvDeepLink } = require("./protocolHandler");
 const updater = require("./updater");
@@ -18,7 +18,6 @@ const pendingUploads = require("./pendingUploads");
 const { loadSpillKey } = require("./spillKey");
 const screenRecorder = require("./screenRecorder");
 const { isMediaFrameAllowed, isPermissionAllowed } = require("./ipcScope");
-const { CODE } = require("../shared/violationCodes");
 
 /**
  * @param {string} event
@@ -86,17 +85,7 @@ async function onReady() {
   const startPage = sessionResult.valid ? "dashboard" : "login";
   createWindow(safeViolation, startPage);
 
-  // 5. Register OS-level Alt+F4 global shortcut
-  globalShortcut.register("Alt+F4", () => {
-    if (getIsInterviewActive()) {
-      safeViolation("Attempted OS level Alt+F4 kill string", "high", { code: CODE.CLOSE_ATTEMPT });
-      setTimeout(() => app.quit(), 500);
-    } else {
-      app.quit();
-    }
-  });
-
-  // 6. Configure screen capture to allow interview webcam/screen share.
+  // 5. Configure screen capture to allow interview webcam/screen share.
   // Previously granted sources[0] to ANY requester with no origin check at
   // all — bounded in practice only by the navigation guard, but that guard
   // protects navigation, not getDisplayMedia() calls from whatever page is
@@ -131,11 +120,11 @@ async function onReady() {
     }
   );
 
-  // 7. Auto-updater — initialised LAST so the window exists for early events.
+  // 6. Auto-updater — initialised LAST so the window exists for early events.
   //    Interview-safe: checks/installs are gated on interview state internally.
   updater.init();
 
-  // 8. Finish any recording upload interrupted by a previous quit/crash.
+  // 7. Finish any recording upload interrupted by a previous quit/crash.
   //    Deliberately not awaited: draining a backlog can take minutes and must
   //    not hold up the window. Requires a valid session — the chunk/complete
   //    calls are all authenticated, so an expired login defers this to the

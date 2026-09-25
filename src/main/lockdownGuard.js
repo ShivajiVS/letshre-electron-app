@@ -5,6 +5,11 @@ const { CODE } = require("../shared/violationCodes");
 const ALWAYS_ON_TOP_LEVEL = "screen-saver";
 const WATCHDOG_MS = 1000;
 const SETTLE_MS = 300;
+// A fullscreen transition takes about this long; asking again mid-way restarts it.
+const REAPPLY_MIN_MS = 1500;
+
+// macOS simple fullscreen doesn't report as fullscreen.
+const isFullScreen = (win) => win.isFullScreen() || Boolean(win.isSimpleFullScreen?.());
 
 /** Everything about the window that must hold while an interview is live. */
 function _lostProperties(win) {
@@ -12,7 +17,7 @@ function _lostProperties(win) {
   if (win.isMinimized()) {
     lost.push("minimized");
   }
-  if (!win.isFullScreen()) {
+  if (!isFullScreen(win)) {
     lost.push("fullscreen");
   }
   if (!win.isKiosk()) {
@@ -45,7 +50,7 @@ function applyLock(win) {
   if (!win.isKiosk()) {
     win.setKiosk(true);
   }
-  if (!win.isFullScreen()) {
+  if (!isFullScreen(win)) {
     win.setFullScreen(true);
   }
   win.setAlwaysOnTop(true, ALWAYS_ON_TOP_LEVEL);
@@ -73,10 +78,19 @@ function releaseLock(win) {
  *   log: { warn: Function },
  * }} deps
  */
-function createLockdownGuard(win, { onViolation, log, watchdogMs = WATCHDOG_MS }) {
+function createLockdownGuard(
+  win,
+  { onViolation, log, watchdogMs = WATCHDOG_MS, reapplyMs = REAPPLY_MIN_MS }
+) {
   let watchdog = null;
   let settleTimer = null;
   let lastLost = "";
+  let appliedAt = 0;
+
+  const apply = () => {
+    appliedAt = Date.now();
+    applyLock(win);
+  };
   const listeners = [];
 
   const on = (event, handler) => {
@@ -84,8 +98,11 @@ function createLockdownGuard(win, { onViolation, log, watchdogMs = WATCHDOG_MS }
     listeners.push([event, handler]);
   };
 
-  /** Re-applies the lock if anything drifted. Returns what had been lost. */
-  const check = () => {
+  /**
+   * Re-applies the lock if anything drifted. Returns what had been lost. Only
+   * the watchdog waits out a fullscreen transition; an event means it's over.
+   */
+  const check = (fromEvent = false) => {
     if (win.isDestroyed()) {
       stop();
       return [];
@@ -96,46 +113,54 @@ function createLockdownGuard(win, { onViolation, log, watchdogMs = WATCHDOG_MS }
       if (signature !== lastLost) {
         log.warn(`[lockdown] window lost ${signature} — re-applying`);
       }
-      applyLock(win);
+      const transitioning =
+        !fromEvent &&
+        lost.every((p) => p === "fullscreen" || p === "kiosk") &&
+        Date.now() - appliedAt < reapplyMs;
+      if (!transitioning) {
+        apply();
+      }
     }
     lastLost = signature;
     return lost;
   };
 
   const start = () => {
+    const afterEvent = () => check(true);
     on("minimize", (e) => {
       e.preventDefault();
       win.restore();
-      check();
+      check(true);
       win.focus();
       onViolation("Window minimize attempt", "high", { code: CODE.WINDOW_MINIMIZE });
     });
     on("leave-full-screen", () => {
-      check();
+      check(true);
       onViolation("Fullscreen exit attempt", "medium", { code: CODE.FULLSCREEN_EXIT });
     });
     // Windows can drop always-on-top a moment after the transition reports done.
     on("enter-full-screen", () => {
       win.setAlwaysOnTop(true, ALWAYS_ON_TOP_LEVEL);
-      settleTimer = setTimeout(check, SETTLE_MS);
+      settleTimer = setTimeout(afterEvent, SETTLE_MS);
     });
     on("always-on-top-changed", (_e, isOnTop) => {
       if (!isOnTop) {
-        check();
+        check(true);
       }
     });
-    on("maximize", check);
-    on("unmaximize", check);
-    on("restore", check);
+    on("maximize", afterEvent);
+    on("unmaximize", afterEvent);
+    on("restore", afterEvent);
     on("blur", () => {
+      log.info?.("[lockdown] window lost focus");
       check();
       win.moveTop();
       win.focus();
     });
     on("closed", stop);
 
-    applyLock(win);
-    watchdog = setInterval(check, watchdogMs);
+    apply();
+    watchdog = setInterval(() => check(), watchdogMs);
   };
 
   function stop() {

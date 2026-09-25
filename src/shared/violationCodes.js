@@ -19,12 +19,20 @@ const CODE = Object.freeze({
   WINDOW_MINIMIZE: "window_minimize",
   FULLSCREEN_EXIT: "fullscreen_exit",
   CLOSE_ATTEMPT: "close_attempt",
+  FOCUS_LOST: "focus_lost",
+  VIRTUAL_DESKTOP: "virtual_desktop",
 });
 
 const ALL_CODES = new Set(Object.values(CODE));
 
-// The site counts these as strikes on its own limit, so they never end the interview by themselves.
-const STRIKE_CODES = new Set([CODE.EXTERNAL_DISPLAY, CODE.MIRRORED_DISPLAY]);
+// Never hard blocks: the site decides. Extra displays are strikes on its own limit, and
+// leaving the window is already struck by the site's own focus tracking.
+const STRIKE_CODES = new Set([
+  CODE.EXTERNAL_DISPLAY,
+  CODE.MIRRORED_DISPLAY,
+  CODE.FOCUS_LOST,
+  CODE.VIRTUAL_DESKTOP,
+]);
 
 // What the site and the backend are told about an agent threat. The agent's own
 // detail can hold file paths, window titles and IP addresses, so it stays local.

@@ -195,9 +195,12 @@ launch ─▶ onReady (src/main/app.js)
    permissions.html → identity-verification.html → role-selection.html
             │  Start (main re-verifies a scan passed this session)
             ▼
-   LOCKDOWN (windowManager.lockdownForInterview → lockdownGuard)
-   ├─ kiosk + fullscreen + always-on-top, no minimize/maximize/resize/move
+   LOCKDOWN (windowManager.lockdownForInterview → lockdownGuard, osLockdown, displayShields)
+   ├─ its own window, built kiosk + fullscreen + always-on-top; the app window hides
    ├─ held for the whole session (re-applied on drift, 1s watchdog)
+   ├─ Windows: agent blocks system keys and touchpad gestures, pulls focus back
+   ├─ macOS: on every Space, focus taken back when lost
+   ├─ other displays covered in black
    ├─ navigation guardrails (only interview origin + file://)
    └─ load interview web app (tokens, photo, role, locale via sessionStorage)
             │
@@ -266,15 +269,24 @@ Payload delivered to the renderer / backend (fields and codes: [Web app integrat
 
 ## Interview lockdown
 
-`lockdownGuard.js` applies the lockdown when the interview loads and **holds it for the whole session**. It used to be set once, so a fullscreen transition dropping always‑on‑top, Win+Down or a taskbar click left the window unlocked for the rest of the interview.
+The interview runs in **its own window**, created already locked: frameless, kiosk, fullscreen, always‑on‑top (`screen-saver` level), not minimizable, maximizable, resizable or movable. On macOS it uses simple fullscreen, so it never gets a Space of its own. The app window hides meanwhile and comes back on the dashboard once the interview window closes. Locking a framed, maximized window at runtime didn't always stick (display scaling, several monitors), which is why it is built locked.
 
-- **Locked state:** kiosk + fullscreen + always‑on‑top (`screen-saver` level); not minimizable, maximizable, resizable or movable.
-- **Held:** the lock is re‑applied on minimize, fullscreen exit, always‑on‑top loss, maximize/restore and focus loss, with a 1s watchdog as a backstop.
-- **Reported:** a minimize attempt is a `high` violation, a fullscreen exit a `medium` one. An always‑on‑top drop is repaired silently (Windows causes it on its own).
-- **Keys:** F11 is blocked in‑window. Alt+F4 is blocked in‑window; at OS level it is reported as a `high` violation and the app quits.
-- **Keyboard lock:** each time the interview page enters fullscreen, Electron calls `navigator.keyboard.lock()` so Alt+Tab, the Windows key and Win+Tab go to the page instead of Windows. The interview site gets the `fullscreen` and `keyboardLock` permissions; every other origin is refused. Ctrl+Alt+Del can never be captured.
+A window can only hold its own state, and the escapes that matter are the OS shell's: system keys, the taskbar, Task View, virtual desktops, touchpad gestures, other displays. Each part below covers one of them.
+
+- **Window (`lockdownGuard.js`):** re‑applies the lock on minimize, fullscreen exit, always‑on‑top loss, maximize/restore and focus loss, with a 1s watchdog. The watchdog leaves a fullscreen transition alone for 1.5s rather than restarting it. A minimize attempt is a `high` violation, a fullscreen exit a `medium` one; an always‑on‑top drop is repaired silently.
+- **Page fullscreen and keyboard lock:** keyboard lock is what keeps Alt+Tab and the Windows key inside the page, and it only holds while the page is fullscreen. The site can only ask for that from a click, so Electron puts the page into fullscreen as soon as it loads and again whenever it leaves (holding Esc), then calls `navigator.keyboard.lock()`.
+- **Windows (`osLockdown.js` → agent `lockdown_*` commands):**
+  - a low‑level keyboard hook swallows the Windows key (and with it every Win+ shortcut), Alt+Tab, Alt+Esc and Ctrl+Esc, including Ctrl+Shift+Esc, whether or not the page is fullscreen. It is renewed every 5s because Windows drops a slow hook silently;
+  - every 250ms the agent checks which window is in front. If it isn't ours, it brings the interview back and reports `focus_lost` with the app's name;
+  - leaving the current virtual desktop is reported as `virtual_desktop`;
+  - three‑ and four‑finger touchpad gestures are switched off for the interview. The old values are saved to `%LOCALAPPDATA%\letshyre-secure-interview\touchpad-restore.json` first and put back when the interview ends, when the agent's pipe closes, or the next time the agent starts after a crash.
+- **macOS (`osLockdown.js`):** the window is shown on every Space, so swiping Spaces or Mission Control still shows the interview, and when the app loses focus it takes it back (`app.focus({ steal: true })`) and reports `focus_lost`. Kiosk keeps the Dock, menu bar, Cmd+Tab and Force Quit away.
+- **Other displays (`displayShields.js`):** every display but the interview's gets a black, always‑on‑top window that can't take focus, rebuilt when displays change. The extra display is still reported (`external_display`).
+- **Alt+F4:** registered as a global shortcut only while the interview is locked; it is reported as a `high` violation and opens the exit dialog. F11 is blocked in‑window.
+- **Diagnostics:** lockdown start logs the platform, every display's size and scale, and the window's kiosk, fullscreen and always‑on‑top state; focus loss, page fullscreen exits, keyboard lock results and the agent's lockdown state are logged too.
 - **Page won't load:** if the interview site is unreachable or answers with a 5xx, the window shows `interview-unavailable.html` ("Can't reach your interview", with **Try again**) and retries after 3s, 5s, 10s, 20s, then every 30s. The lockdown stays on throughout, and the session data is injected only into a page that actually loaded.
-- **Released** only by `interviewComplete()` or the candidate confirming the exit dialog. Nothing else unlocks the window, including an unacknowledged violation.
+- **Released** only by `interviewComplete()`, the candidate confirming the exit dialog, or the interview window closing. The keyboard and touchpad are handed back before the agent stops.
+- **Can't be blocked by any app:** Ctrl+Alt+Del, Win+L, UAC prompts and the power button. The focus watchdog reports what they leave behind.
 
 ## Closing blocked apps
 
@@ -414,22 +426,24 @@ window.electronAPI.interviewComplete("terminated"); // "completed" | "auto-submi
 
 **Codes** (`src/shared/violationCodes.js`):
 
-| Code                  | Meaning                                                                                                                                                  | Treat as                  |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| `blocked_app`         | A blocklisted meeting, screen‑share, casting/remote or browser app is running. One violation per category, apps in `apps`                                | Hard                      |
-| `ai_tool`             | An AI assistant is running: on the blocklist (`category: "ai"`) or found by the agent (`"agent"`)                                                        | Hard                      |
-| `overlay`             | Agent: a transparent overlay window is over the screen                                                                                                   | Soft; hard if it persists |
-| `renamed_app`         | Agent: a blocked app is running under another name                                                                                                       | Hard                      |
-| `external_display`    | A second display is connected (HDMI, DisplayPort, USB‑C, wireless). Re‑sent every 15s while it stays connected                                           | Strike (never hard)       |
-| `mirrored_display`    | One display, but more physical monitors behind it ("Duplicate these displays"). Re‑sent every 15s while it stays                                         | Strike (never hard)       |
-| `remote_session`      | Agent: the computer is being used through remote desktop                                                                                                 | Hard                      |
-| `virtual_machine`     | Agent: the computer is a virtual machine                                                                                                                 | Hard                      |
-| `suspicious_activity` | Any other agent finding (window titles, modules, network, automation, virtual audio), or an event without its own code (OS‑level Alt+F4, deep‑link swap) | Follow `isHardBlock`      |
-| `agent_unreachable`   | The security agent didn't answer, or couldn't finish its checks, 3 times in a row: it may have been killed                                               | Hard                      |
-| `check_unverified`    | The display (`hdmi`) or process (`null`) check couldn't answer 3 times in a row                                                                          | Hard                      |
-| `window_minimize`     | The candidate tried to minimize the window (undone)                                                                                                      | Hard                      |
-| `fullscreen_exit`     | The candidate left fullscreen (undone)                                                                                                                   | Soft; hard on repeat      |
-| `close_attempt`       | The candidate opened the exit dialog and cancelled it                                                                                                    | Hard                      |
+| Code                  | Meaning                                                                                                                                                | Treat as                  |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------- |
+| `blocked_app`         | A blocklisted meeting, screen‑share, casting/remote or browser app is running. One violation per category, apps in `apps`                              | Hard                      |
+| `ai_tool`             | An AI assistant is running: on the blocklist (`category: "ai"`) or found by the agent (`"agent"`)                                                      | Hard                      |
+| `overlay`             | Agent: a transparent overlay window is over the screen                                                                                                 | Soft; hard if it persists |
+| `renamed_app`         | Agent: a blocked app is running under another name                                                                                                     | Hard                      |
+| `external_display`    | A second display is connected (HDMI, DisplayPort, USB‑C, wireless). Re‑sent every 15s while it stays connected                                         | Strike (never hard)       |
+| `mirrored_display`    | One display, but more physical monitors behind it ("Duplicate these displays"). Re‑sent every 15s while it stays                                       | Strike (never hard)       |
+| `remote_session`      | Agent: the computer is being used through remote desktop                                                                                               | Hard                      |
+| `virtual_machine`     | Agent: the computer is a virtual machine                                                                                                               | Hard                      |
+| `suspicious_activity` | Any other agent finding (window titles, modules, network, automation, virtual audio), or an event without its own code (deep‑link swap)                | Follow `isHardBlock`      |
+| `agent_unreachable`   | The security agent didn't answer, or couldn't finish its checks, 3 times in a row: it may have been killed                                             | Hard                      |
+| `check_unverified`    | The display (`hdmi`) or process (`null`) check couldn't answer 3 times in a row                                                                        | Hard                      |
+| `window_minimize`     | The candidate tried to minimize the window (undone)                                                                                                    | Hard                      |
+| `fullscreen_exit`     | The candidate left fullscreen (undone)                                                                                                                 | Soft; hard on repeat      |
+| `close_attempt`       | The candidate opened the exit dialog and cancelled it                                                                                                  | Hard                      |
+| `focus_lost`          | Another app came to the front (Windows: its name is in `apps`). Electron brings the interview back; the site's own focus tracking already strikes this | Site decides (never hard) |
+| `virtual_desktop`     | Windows: the interview window is no longer on the current virtual desktop                                                                              | Site decides (never hard) |
 
 Every agent threat code in a scan is sent, not only the first. Threats sharing a code are one violation, with all their apps.
 

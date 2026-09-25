@@ -721,14 +721,13 @@ function registerIpcHandlers() {
     const safeReason = typeof reason === "string" ? reason.slice(0, 40) : "unknown";
     logger.info(`[ipc] interview-complete received — reason: ${safeReason}`);
 
-    if (startDetection.stop) {
-      startDetection.stop();
-    }
+    startDetection.stop();
 
-    killAgent();
-
+    // The agent restores the keyboard and touchpad on the way out, so it goes last.
     // Recording keeps going until PROCTORING_STOP, so the video includes the result screen.
-    endInterview(safeReason);
+    endInterview(safeReason)
+      .catch((err) => logger.warn("[ipc] lockdown release failed:", err.message))
+      .finally(() => killAgent());
 
     updater.onInterviewEnded();
   });

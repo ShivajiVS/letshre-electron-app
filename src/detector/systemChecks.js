@@ -22,6 +22,8 @@ const {
   codeForThreat,
   codeForProcessCategory,
   isKnownCode,
+  isStrikeCode,
+  threatEvent,
 } = require("../shared/violationCodes");
 const { getCurrentAccessToken } = require("../main/protocolHandler");
 const crypto = require("crypto");
@@ -291,13 +293,19 @@ async function runDetectionTick(win) {
     });
   }
   if (agentReachable && !agentStatus.safe_to_proceed && agentStatus.threats?.length > 0) {
+    appendAuditEvent("threats", {
+      threats: agentStatus.threats.map((t) => ({
+        type: t?.type,
+        severity: t?.severity,
+        detail: t?.detail,
+      })),
+    });
     for (const { code, threat, apps } of threatsByCode(agentStatus.threats)) {
-      sendViolation(
-        win,
-        threat.detail || "Behavioral threat detected",
-        threat.severity === "HIGH" ? "high" : "medium",
-        { code, category: "agent", apps }
-      );
+      sendViolation(win, threatEvent(code, apps), threat.severity === "HIGH" ? "high" : "medium", {
+        code,
+        category: "agent",
+        apps,
+      });
     }
   }
 }
@@ -417,12 +425,13 @@ function sendViolation(win, event, severity, meta = {}) {
 
   const count = (violationEscalation.get(event) || 0) + 1;
   violationEscalation.set(event, count);
-  const isHardBlock = severity === "high" || count >= 2;
+  const code = isKnownCode(meta?.code) ? meta.code : CODE.SUSPICIOUS_ACTIVITY;
+  const isHardBlock = !isStrikeCode(code) && (severity === "high" || count >= 2);
 
   /** @type {ViolationPayload} */
   const payload = {
     id: crypto.randomUUID(),
-    code: isKnownCode(meta?.code) ? meta.code : CODE.SUSPICIOUS_ACTIVITY,
+    code,
     category: typeof meta?.category === "string" ? meta.category : null,
     apps: _appNames(meta?.apps),
     event,

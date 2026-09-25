@@ -242,7 +242,7 @@ The blocked‑app lists (meeting, screen‑share, casting, browsers, AI tools) a
 
 - **Tags** it with a UUID `id` and a machine‑readable `code` from `src/shared/violationCodes.js` (`suspicious_activity` when the caller gives none);
 - **De‑duplicates** with a per‑event cooldown (`VIOLATION_COOLDOWN_MS`, 15s);
-- **Escalates** repeat offences (`isHardBlock = severity === "high" || count >= 2`);
+- **Escalates** repeat offences (`isHardBlock = severity === "high" || count >= 2`), except extra displays, which are never hard blocks: the site counts them as strikes;
 - **Pushes** to the web app: `webContents.send("push-violation", payload)`;
 - **Reports** to the backend (`POST /interview/violation`) via a bounded FIFO retry queue;
 - **Holds** every violation until the web app acknowledges its `id`, re‑sending it if not ([see below](#detection-reliability--design-principles)).
@@ -258,7 +258,7 @@ Payload delivered to the renderer / backend (fields and codes: [Web app integrat
   "event": "Blocked application running during interview: Google Chrome",
   "severity": "high", // "high" | "medium"
   "count": 1, // times this event has fired this session
-  "isHardBlock": true, // high severity, or count >= 2
+  "isHardBlock": true, // high severity, or count >= 2; always false for extra displays
   "source": "electron",
   "timestamp": "2026-06-19T13:44:04.849Z",
 }
@@ -348,8 +348,6 @@ const HARD_CODES = new Set([
   "blocked_app",
   "ai_tool",
   "renamed_app",
-  "external_display",
-  "mirrored_display",
   "remote_session",
   "virtual_machine",
   "agent_unreachable",
@@ -401,7 +399,7 @@ window.electronAPI.interviewComplete("terminated"); // "completed" | "auto-submi
   "event": "Blocked application running during interview: Zoom, Microsoft Teams",
   "severity": "high", // "high" | "medium"
   "count": 1, // times this event text has fired this session
-  "isHardBlock": true, // high severity, or count >= 2
+  "isHardBlock": true, // high severity, or count >= 2; always false for extra displays
   "source": "electron",
   "timestamp": "2026-09-25T10:15:04.849Z",
   "redelivered": true, // only on a re-send, which keeps the original id
@@ -409,7 +407,8 @@ window.electronAPI.interviewComplete("terminated"); // "completed" | "auto-submi
 ```
 
 - `category` is a security-check id (`hdmi`, `meeting`, `screen`, `wireless`, `browser`, `ai`, `agent`), or `null` for window events and for the process check as a whole.
-- `event` is the English text older site builds show, kept exactly as before for them. Key new code on `code` and show `apps`: `event` wording isn't a contract and can include PIDs.
+- `event` is plain English for older site builds and logs. Key new code on `code` and show `apps`: `event` wording isn't a contract.
+- For agent threats `event` is built from the code and the app names ("AI tool detected: parakeetai-desktop"). The agent's own detail can hold file paths, window titles and IP addresses, so it only goes to the local audit log.
 - The 15s cooldown and the escalation (`count`, `isHardBlock`) are per `event` text.
 - A site may treat a code as harder than `isHardBlock` says, never softer.
 
@@ -421,8 +420,8 @@ window.electronAPI.interviewComplete("terminated"); // "completed" | "auto-submi
 | `ai_tool`             | An AI assistant is running: on the blocklist (`category: "ai"`) or found by the agent (`"agent"`)                                                        | Hard                      |
 | `overlay`             | Agent: a transparent overlay window is over the screen                                                                                                   | Soft; hard if it persists |
 | `renamed_app`         | Agent: a blocked app is running under another name                                                                                                       | Hard                      |
-| `external_display`    | A second display is connected                                                                                                                            | Hard                      |
-| `mirrored_display`    | One display, but more physical monitors behind it ("Duplicate these displays")                                                                           | Hard                      |
+| `external_display`    | A second display is connected (HDMI, DisplayPort, USB‑C, wireless). Re‑sent every 15s while it stays connected                                           | Strike (never hard)       |
+| `mirrored_display`    | One display, but more physical monitors behind it ("Duplicate these displays"). Re‑sent every 15s while it stays                                         | Strike (never hard)       |
 | `remote_session`      | Agent: the computer is being used through remote desktop                                                                                                 | Hard                      |
 | `virtual_machine`     | Agent: the computer is a virtual machine                                                                                                                 | Hard                      |
 | `suspicious_activity` | Any other agent finding (window titles, modules, network, automation, virtual audio), or an event without its own code (OS‑level Alt+F4, deep‑link swap) | Follow `isHardBlock`      |

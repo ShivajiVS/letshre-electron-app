@@ -23,6 +23,20 @@ const CODE = Object.freeze({
 
 const ALL_CODES = new Set(Object.values(CODE));
 
+// The site counts these as strikes on its own limit, so they never end the interview by themselves.
+const STRIKE_CODES = new Set([CODE.EXTERNAL_DISPLAY, CODE.MIRRORED_DISPLAY]);
+
+// What the site and the backend are told about an agent threat. The agent's own
+// detail can hold file paths, window titles and IP addresses, so it stays local.
+const THREAT_EVENTS = {
+  [CODE.AI_TOOL]: "AI tool detected",
+  [CODE.OVERLAY]: "See-through overlay window detected",
+  [CODE.RENAMED_APP]: "Renamed blocked app detected",
+  [CODE.REMOTE_SESSION]: "Remote desktop session detected",
+  [CODE.VIRTUAL_MACHINE]: "Virtual machine detected",
+  [CODE.SUSPICIOUS_ACTIVITY]: "Suspicious activity detected",
+};
+
 const THREAT_CODES = {
   ai_cheating_tool: CODE.AI_TOOL,
   transparent_overlay: CODE.OVERLAY,
@@ -45,4 +59,26 @@ function isKnownCode(code) {
   return ALL_CODES.has(code);
 }
 
-module.exports = { CODE, codeForThreat, codeForProcessCategory, isKnownCode };
+function isStrikeCode(code) {
+  return STRIKE_CODES.has(code);
+}
+
+/**
+ * @param {string} code - a threat's code
+ * @param {string[]} [apps] - display names
+ * @returns {string} e.g. "AI tool detected: parakeetai-desktop"
+ */
+function threatEvent(code, apps = []) {
+  const base = THREAT_EVENTS[code] || THREAT_EVENTS[CODE.SUSPICIOUS_ACTIVITY];
+  const names = [...new Set(apps.filter(Boolean))];
+  return names.length > 0 ? `${base}: ${names.join(", ")}` : base;
+}
+
+module.exports = {
+  CODE,
+  codeForThreat,
+  codeForProcessCategory,
+  isKnownCode,
+  isStrikeCode,
+  threatEvent,
+};

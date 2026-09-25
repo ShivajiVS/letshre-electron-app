@@ -6,7 +6,12 @@ const { EventEmitter } = require("node:events");
 const axios = require("axios");
 
 const { loadSystemChecks, CLEAN_AGENT } = require("./_preflightHarness");
-const { IPC, DETECTION_INTERVAL_MS, MAX_UNACKED_VIOLATIONS } = require("../src/shared/constants");
+const {
+  IPC,
+  DETECTION_INTERVAL_MS,
+  MAX_UNACKED_VIOLATIONS,
+  VIOLATION_COOLDOWN_MS,
+} = require("../src/shared/constants");
 const { CODE } = require("../src/shared/violationCodes");
 const { getDisplayName } = require("../src/shared/blocklist");
 
@@ -225,30 +230,79 @@ test("every distinct agent threat code is sent, not only the first threat", asyn
         code: CODE.AI_TOOL,
         category: "agent",
         apps: ["Cluely"],
-        event: "AI tool: Cluely",
+        event: "AI tool detected: Cluely",
         severity: "high",
       },
       {
         code: CODE.OVERLAY,
         category: "agent",
         apps: ["ghost.exe"],
-        event: "Overlay: ghost.exe",
+        event: "See-through overlay window detected: ghost.exe",
         severity: "medium",
       },
       {
         code: CODE.SUSPICIOUS_ACTIVITY,
         category: "agent",
         apps: ["a.exe", "b.exe"],
-        event: "b.exe connected out",
+        event: "Suspicious activity detected: a.exe, b.exe",
         severity: "high",
       },
       {
         code: CODE.REMOTE_SESSION,
         category: "agent",
         apps: [],
-        event: "Remote desktop session",
+        event: "Remote desktop session detected",
         severity: "high",
       },
+    ]
+  );
+});
+
+test("an agent threat's own detail never leaves the machine", async () => {
+  h.fake.status = async () =>
+    agentWith({
+      safe_to_proceed: false,
+      threats: [
+        {
+          type: "ai_cheating_tool",
+          severity: "HIGH",
+          detail: "AI cheating tool detected (install path): at 'C:\\Users\\alice\\AppData\\p.exe'",
+          process: "⠀.exe",
+          display_name: "parakeetai-desktop",
+          pid: 9,
+        },
+        { type: "suspicious_window_title", severity: "HIGH", detail: "Window 'alice - notes'" },
+      ],
+    });
+  await startSession();
+
+  const sent = JSON.stringify([...violations(), ...posts]);
+  assert.ok(!sent.includes("alice"), sent);
+  assert.deepStrictEqual(
+    violations().map((v) => v.event),
+    ["AI tool detected: parakeetai-desktop", "Suspicious activity detected"]
+  );
+});
+
+test("an extra display is a strike for the site, never a hard block, even when it stays", async () => {
+  await startSession();
+  let now = Date.now();
+  mock.method(Date, "now", () => now);
+  const display = { code: CODE.EXTERNAL_DISPLAY, category: "hdmi" };
+  h.checks.sendViolation(win, "External display", "high", display);
+  now += VIOLATION_COOLDOWN_MS + 1;
+  h.checks.sendViolation(win, "External display", "high", display);
+  h.checks.sendViolation(win, "Mirrored", "high", {
+    code: CODE.MIRRORED_DISPLAY,
+    category: "hdmi",
+  });
+
+  assert.deepStrictEqual(
+    violations().map(({ code, count, isHardBlock }) => ({ code, count, isHardBlock })),
+    [
+      { code: CODE.EXTERNAL_DISPLAY, count: 1, isHardBlock: false },
+      { code: CODE.EXTERNAL_DISPLAY, count: 2, isHardBlock: false },
+      { code: CODE.MIRRORED_DISPLAY, count: 1, isHardBlock: false },
     ]
   );
 });

@@ -82,3 +82,22 @@ test("the README documents every code for the interview site", () => {
     assert.match(section[0], new RegExp(`\\|\\s*\`${code}\`\\s*\\|`), `${code} is undocumented`);
   }
 });
+
+test("only extra displays are strikes the site counts", () => {
+  const { isStrikeCode } = require("../src/shared/violationCodes");
+  assert.ok(isStrikeCode(CODE.EXTERNAL_DISPLAY));
+  assert.ok(isStrikeCode(CODE.MIRRORED_DISPLAY));
+  for (const code of Object.values(CODE).filter((c) => !c.endsWith("_display"))) {
+    assert.ok(!isStrikeCode(code), code);
+  }
+});
+
+test("threat events name the code and the apps, nothing else", () => {
+  const { threatEvent } = require("../src/shared/violationCodes");
+  assert.strictEqual(
+    threatEvent(CODE.AI_TOOL, ["Cluely", "Cluely", ""]),
+    "AI tool detected: Cluely"
+  );
+  assert.strictEqual(threatEvent(CODE.VIRTUAL_MACHINE), "Virtual machine detected");
+  assert.strictEqual(threatEvent("nope", []), "Suspicious activity detected");
+});

@@ -217,8 +217,8 @@ test("no channel is registered twice with two different scopes", () => {
   }
 });
 
-// The documented web-app contract (README "Web app integration (the
-// contract)" + "Renderer API" tables): everything the interview site is
+// The documented web-app contract (docs/web-contract.md and
+// contract/interview-contract.json): everything the interview site is
 // meant to invoke directly. Everything else registered in ipcHandlers.js
 // must be "local" — this is the actual classification decision under test,
 // not just a syntax check.

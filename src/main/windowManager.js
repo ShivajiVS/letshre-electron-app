@@ -202,6 +202,9 @@ let reportViolation = () => {};
 let _candidatePhotoBase64 = null;
 
 const LOAD_RETRY_DELAYS_MS = [3000, 5000, 10000, 20000, 30000];
+// Failed loads before the "can't reach" page offers a way back to the dashboard.
+const LEAVE_AFTER_FAILED_LOADS = 3;
+const UNAVAILABLE_PAGE = "interview-unavailable.html";
 // Long enough for the exit animation to finish, so re-entering doesn't race it.
 const HTML_FULLSCREEN_RETRY_MS = 400;
 
@@ -209,6 +212,7 @@ let interviewUrl = null;
 let pendingInjection = null;
 let loadRetryTimer = null;
 let loadRetryAttempt = 0;
+let showingUnavailable = false;
 
 const WEB_PREFERENCES = {
   preload: path.join(__dirname, "../../preload.js"),
@@ -416,6 +420,7 @@ function lockdownForInterview(url, tokens = null, roleSelection = null) {
   interviewUrl = url;
   pendingInjection = statements.join("\n");
   loadRetryAttempt = 0;
+  showingUnavailable = false;
   clearTimeout(loadRetryTimer);
   loadRetryTimer = null;
 
@@ -503,12 +508,14 @@ function _applyInterviewLoadHandling(target) {
     logger.warn(
       `[window] interview failed to load (${reason}) — retry ${loadRetryAttempt} in ${delay / 1000}s`
     );
-    wc.loadFile(path.join(__dirname, "../../assets/interview-unavailable.html")).catch(() => {});
+    const query = loadRetryAttempt >= LEAVE_AFTER_FAILED_LOADS ? { query: { leave: "1" } } : {};
+    wc.loadFile(path.join(__dirname, "../../assets", UNAVAILABLE_PAGE), query).catch(() => {});
     clearTimeout(loadRetryTimer);
     loadRetryTimer = setTimeout(retryInterview, delay);
   };
 
   wc.on("did-navigate", (_event, url, httpResponseCode) => {
+    showingUnavailable = String(url).startsWith("file:") && String(url).includes(UNAVAILABLE_PAGE);
     const isInterview = isInterviewActive && _isInterviewPage(url);
     interviewPageCommitted = isInterview && httpResponseCode < 500;
     if (isInterview && httpResponseCode >= 500) {
@@ -798,13 +805,48 @@ function loadIdentityVerificationPage() {
   _loadMainPage("identity-verification.html");
 }
 
-/** Also where the candidate lands after the interview window closes. */
-function loadDashboard() {
+/**
+ * Also where the candidate lands after the interview window closes.
+ * @param {"startFailed"|"exhausted"} [note] - why they're back, shown on the dashboard
+ */
+function loadDashboard(note) {
   if (!isInterviewActive) {
     _closeInterviewWindow();
   }
   _showMain();
-  _loadMainPage("dashboard.html");
+  _loadMainPage("dashboard.html", note ? { query: { note } } : undefined);
+}
+
+function isShowingUnavailablePage() {
+  return isInterviewActive && showingUnavailable;
+}
+
+/** @returns {Promise<boolean>} true when the candidate chose to leave */
+async function confirmLeaveStalledStart() {
+  const target = getWindow();
+  if (!target || target.isDestroyed()) {
+    return false;
+  }
+  const bundle = localeManager.getTranslations(localeManager.getPreferred()) || {};
+  const tr = (key, fallback) =>
+    key.split(".").reduce((node, part) => node?.[part], bundle) || fallback;
+  const { response } = await dialog.showMessageBox(target, {
+    type: "warning",
+    buttons: [
+      tr("startWatchdog.wait", "Keep waiting"),
+      tr("startWatchdog.leave", "Back to dashboard"),
+    ],
+    defaultId: 0,
+    cancelId: 0,
+    title: tr("startWatchdog.title", "Your interview hasn't started"),
+    message: tr("startWatchdog.message", "Your interview is taking longer than expected to start."),
+    detail: tr(
+      "startWatchdog.detail",
+      "You can keep waiting, or go back to the dashboard and try again later."
+    ),
+    noLink: true,
+  });
+  return response === 1;
 }
 
 function loadRoleSelectionPage() {
@@ -833,4 +875,6 @@ module.exports = {
   getWindow,
   minimizeWindow,
   getIsInterviewActive,
+  isShowingUnavailablePage,
+  confirmLeaveStalledStart,
 };

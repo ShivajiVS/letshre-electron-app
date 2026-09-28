@@ -208,6 +208,7 @@ function loadIpcHandlers() {
     loadSecurityCheck: noop,
     loadLanguageSelectionPage: noop,
     getWindow: () => null,
+    getIsInterviewActive: () => false,
   });
   stub("../src/main/protocolHandler", {
     setInterviewSession: noop,
@@ -257,7 +258,7 @@ test("Start Interview loads the policy; logout and leaving to the dashboard clea
   blocklistPolicy._config.path = "/policy";
   blocklistPolicy._config.get = async () => ({ data: { allow: ["zoom.exe"] } });
 
-  call(IPC.START_INTERVIEW);
+  await call(IPC.START_INTERVIEW);
   await blocklistPolicy.whenSettled(1000);
   assert.strictEqual(blocklist.isBlocked("zoom.exe"), false);
 
@@ -265,7 +266,7 @@ test("Start Interview loads the policy; logout and leaving to the dashboard clea
   assert.strictEqual(blocklist.isPolicyApplied(), false);
   assert.strictEqual(blocklist.isBlocked("zoom.exe"), true);
 
-  call(IPC.START_INTERVIEW);
+  await call(IPC.START_INTERVIEW);
   await blocklistPolicy.whenSettled(1000);
   assert.strictEqual(blocklist.isPolicyApplied(), true);
   call(IPC.LOAD_DASHBOARD);

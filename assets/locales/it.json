@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "cba7781cd4b8d85c"
+    "_sourceHash": "c5f80682f7ed5453"
   },
   "common": {
     "back": "Indietro",
@@ -56,6 +56,7 @@
     "securityNote": "Prima dell'inizio del colloquio viene eseguito un controllo di sicurezza.",
     "startUnavailable": "Impossibile avviare — riavvia l'app.",
     "startTimedOut": "L'operazione ha impiegato troppo tempo. Riprova.",
+    "startFailed": "Non è stato possibile avviare il colloquio. Riprova oppure contatta l'assistenza se continua a succedere.",
     "howItWorksLink": "Come funziona il processo? →"
   },
   "hiw": {
@@ -392,7 +393,15 @@
   "interviewUnavailable": {
     "title": "Impossibile raggiungere il colloquio",
     "body": "Controlla la connessione a Internet. Continueremo a tentare di riconnetterci automaticamente.",
-    "retry": "Riprova"
+    "retry": "Riprova",
+    "leave": "Torna alla dashboard"
+  },
+  "startWatchdog": {
+    "title": "Il colloquio non è ancora iniziato",
+    "message": "L'avvio del colloquio sta richiedendo più tempo del previsto.",
+    "detail": "Puoi continuare ad attendere oppure tornare alla dashboard e riprovare più tardi.",
+    "wait": "Continua ad attendere",
+    "leave": "Torna alla dashboard"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

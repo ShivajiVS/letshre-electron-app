@@ -97,6 +97,9 @@ const IPC = {
   // Scorecard "View Dashboard" button: website → main
   VIEW_DASHBOARD: "view-dashboard",
 
+  // The site could not start the interview: website → main
+  ABORT_INTERVIEW: "abort-interview",
+
   // Violation acknowledgement: website → main
   ACK_VIOLATION: "ack-violation",
 
@@ -139,6 +142,7 @@ const ALLOWED_SEND_CHANNELS = [
   IPC.BACK_TO_PERMISSIONS,
   IPC.LOAD_DASHBOARD,
   IPC.VIEW_DASHBOARD,
+  IPC.ABORT_INTERVIEW,
   IPC.LOAD_SECURITY_CHECK,
   IPC.LOAD_LANGUAGE_SELECTION,
   IPC.LOAD_HOW_IT_WORKS,
@@ -292,6 +296,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   loadDashboard: () => safeSend(IPC.LOAD_DASHBOARD),
 
   viewDashboard: () => safeSend(IPC.VIEW_DASHBOARD),
+
+  /**
+   * The interview could not start. Lifts the lockdown and goes back to the
+   * dashboard; refused once the interview is running.
+   * @param {string} reason e.g. "attempts-exhausted", "start-failed"
+   */
+  abortInterview: (reason) => safeSend(IPC.ABORT_INTERVIEW, { reason }),
 
   /** Back: navigate to security check (from permissions page). */
   loadSecurityCheck: () => safeSend(IPC.LOAD_SECURITY_CHECK),

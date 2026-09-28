@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "cba7781cd4b8d85c"
+    "_sourceHash": "c5f80682f7ed5453"
   },
   "common": {
     "back": "Zurück",
@@ -56,6 +56,7 @@
     "securityNote": "Vor Beginn des Interviews wird eine Sicherheitsprüfung durchgeführt.",
     "startUnavailable": "Start nicht möglich — bitte starten Sie die App neu.",
     "startTimedOut": "Das hat zu lange gedauert. Bitte versuchen Sie es erneut.",
+    "startFailed": "Dein Interview konnte nicht gestartet werden. Bitte versuche es erneut oder wende dich an den Support, wenn das weiterhin passiert.",
     "howItWorksLink": "Wie läuft der Prozess ab? →"
   },
   "hiw": {
@@ -392,7 +393,15 @@
   "interviewUnavailable": {
     "title": "Ihr Interview ist nicht erreichbar",
     "body": "Prüfen Sie Ihre Internetverbindung. Wir versuchen automatisch weiter, die Verbindung wiederherzustellen.",
-    "retry": "Erneut versuchen"
+    "retry": "Erneut versuchen",
+    "leave": "Zurück zum Dashboard"
+  },
+  "startWatchdog": {
+    "title": "Dein Interview hat noch nicht begonnen",
+    "message": "Der Start deines Interviews dauert länger als erwartet.",
+    "detail": "Du kannst weiter warten oder zum Dashboard zurückkehren und es später erneut versuchen.",
+    "wait": "Weiter warten",
+    "leave": "Zurück zum Dashboard"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

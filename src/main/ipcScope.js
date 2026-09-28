@@ -166,7 +166,7 @@ function registerSend(channel, scope, handler) {
       );
       return;
     }
-    handler(event, ...args);
+    return handler(event, ...args);
   });
 }
 

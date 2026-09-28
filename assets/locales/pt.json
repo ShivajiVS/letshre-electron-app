@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "cba7781cd4b8d85c"
+    "_sourceHash": "c5f80682f7ed5453"
   },
   "common": {
     "back": "Voltar",
@@ -56,6 +56,7 @@
     "securityNote": "Uma verificação de segurança é executada antes do início da entrevista.",
     "startUnavailable": "Não é possível iniciar — reinicie o aplicativo.",
     "startTimedOut": "Isso demorou demais. Tente novamente.",
+    "startFailed": "Não foi possível iniciar sua entrevista. Tente novamente ou fale com o suporte se continuar acontecendo.",
     "howItWorksLink": "Como funciona o processo? →"
   },
   "hiw": {
@@ -392,7 +393,15 @@
   "interviewUnavailable": {
     "title": "Não foi possível acessar sua entrevista",
     "body": "Verifique sua conexão com a internet. Continuaremos tentando reconectar automaticamente.",
-    "retry": "Tentar novamente"
+    "retry": "Tentar novamente",
+    "leave": "Voltar ao painel"
+  },
+  "startWatchdog": {
+    "title": "Sua entrevista ainda não começou",
+    "message": "Sua entrevista está demorando mais do que o esperado para começar.",
+    "detail": "Você pode continuar aguardando ou voltar ao painel e tentar novamente mais tarde.",
+    "wait": "Continuar aguardando",
+    "leave": "Voltar ao painel"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

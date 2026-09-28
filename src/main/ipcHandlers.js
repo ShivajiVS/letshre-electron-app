@@ -36,7 +36,10 @@ const {
   loadIdentityVerificationPage,
   loadRoleSelectionPage,
   loadHowItWorksPage,
+  isShowingUnavailablePage,
+  confirmLeaveStalledStart,
 } = require("./windowManager");
+const { createStartWatchdog } = require("./startWatchdog");
 const { invalidateProcessCache } = require("../detector/mirrorDetector");
 const {
   getCurrentInterviewUrl,
@@ -56,6 +59,7 @@ const { startPreProceedMonitor, stopPreProceedMonitor } = startDetection;
 
 // Longest a scan waits for the company policy fetched at Start Interview.
 const POLICY_WAIT_MS = 2000;
+const ATTEMPTS_CHECK_MS = 4000;
 
 /**
  * @param {unknown} value - process name from the renderer
@@ -111,14 +115,119 @@ function _languageSelectionIsMeaningful() {
 }
 
 /** Leaves the interview flow for the dashboard and stops the agent. */
-function _leaveInterviewFlowToDashboard({ alreadyTornDown = false } = {}) {
+function _leaveInterviewFlowToDashboard({ alreadyTornDown = false, note } = {}) {
   if (!alreadyTornDown) {
     _leaveSecurityCheck();
   }
   flowGuard.stop();
   killAgent();
   blocklistPolicy.reset();
-  loadDashboard();
+  loadDashboard(note);
+}
+
+/**
+ * Same rule as the dashboard: an explicit remaining count wins, otherwise
+ * it's max minus used.
+ * @returns {number|null} null when there is no profile
+ */
+function remainingAttempts(profile) {
+  if (!profile || typeof profile !== "object") {
+    return null;
+  }
+  const remaining = Number(profile.interview_attempts_remaining);
+  if (Number.isFinite(remaining)) {
+    return remaining;
+  }
+  const max = Number(profile.max_interviews_allowed) || 0;
+  const used = Number(profile.interview_attempts_used) || 0;
+  return Math.max(0, max - used);
+}
+
+/**
+ * A slow or failed profile fetch lets the candidate through; the site refuses a
+ * spent attempt anyway. Kept under the dashboard button's 6s restore.
+ */
+async function _attemptsExhausted() {
+  let timer;
+  try {
+    const res = await Promise.race([
+      authManager.getCandidateProfile(),
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, ATTEMPTS_CHECK_MS, null);
+      }),
+    ]);
+    const remaining = res?.success ? remainingAttempts(res.data) : null;
+    return remaining !== null && remaining <= 0;
+  } catch (err) {
+    logger.warn("[ipc] attempts check failed:", err.message);
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Settles once the agent has given the keyboard and touchpad back, so leaving
+// never kills it halfway through.
+let _lockdownRelease = Promise.resolve();
+let _aborting = false;
+
+const startWatchdog = createStartWatchdog({
+  onStall: async () => {
+    logger.warn("[ipc] interview has not started — asking the candidate");
+    // The dialog waits on the candidate; the interview may have ended meanwhile.
+    if (!(await confirmLeaveStalledStart()) || !getIsInterviewActive()) {
+      return false;
+    }
+    return _abortInterview("start-stalled", { note: "startFailed" });
+  },
+});
+
+function _releaseInterview(reason) {
+  startWatchdog.disarm();
+  startDetection.stop();
+  // A repeated signal must not kill the agent mid-release.
+  if (!getIsInterviewActive()) {
+    return _lockdownRelease;
+  }
+  _lockdownRelease = endInterview(reason)
+    .catch((err) => logger.warn("[ipc] lockdown release failed:", err.message))
+    .finally(() => killAgent());
+  updater.onInterviewEnded();
+  return _lockdownRelease;
+}
+
+/**
+ * Back to the dashboard from an interview that never got going. Refused once
+ * it is running, unless the site can't be reached at all.
+ * @returns {Promise<boolean>} whether the candidate left
+ */
+async function _abortInterview(reason, { force = false, note } = {}) {
+  if (_aborting) {
+    return false;
+  }
+  if (getIsInterviewActive() && startWatchdog.isLive() && !force) {
+    logger.warn(`[ipc] abort refused — the interview is already running (${reason})`);
+    return false;
+  }
+  _aborting = true;
+  try {
+    logger.info(`[ipc] leaving the interview before it started — ${reason}`);
+    if (getIsInterviewActive()) {
+      await _releaseInterview(reason);
+    } else {
+      await _lockdownRelease;
+    }
+    _leaveInterviewFlowToDashboard({ alreadyTornDown: true, note });
+    return true;
+  } finally {
+    _aborting = false;
+  }
+}
+
+/** @param {unknown} value @returns {string} */
+function _safeReason(value) {
+  const safe = typeof value === "string" ? value.replace(/[^\w:-]/g, "").slice(0, 40) : "";
+  return safe || "unknown";
 }
 
 // Bumped every time the security-check page is left or reloaded. A scan from an
@@ -265,10 +374,19 @@ function registerIpcHandlers() {
 
   // Dashboard "Take Interview": set the interview session from the logged-in
   // tokens, then hand off to the language step (or straight past it).
-  registerSend(IPC.START_INTERVIEW, SCOPE.LOCAL, () => {
+  registerSend(IPC.START_INTERVIEW, SCOPE.LOCAL, async () => {
+    if (!authManager.getTokens()) {
+      logger.warn("[ipc] start-interview rejected — not authenticated");
+      return;
+    }
+    if (await _attemptsExhausted()) {
+      logger.warn("[ipc] start-interview rejected — no attempts left");
+      loadDashboard("exhausted");
+      return;
+    }
+    // Read again: the profile fetch may have refreshed them.
     const tokens = authManager.getTokens();
     if (!tokens) {
-      logger.warn("[ipc] start-interview rejected — not authenticated");
       return;
     }
     logger.info("[ipc] start-interview — entering security check");
@@ -366,13 +484,32 @@ function registerIpcHandlers() {
   });
 
   registerSend(IPC.LOAD_DASHBOARD, SCOPE.LOCAL, () => {
+    if (getIsInterviewActive()) {
+      // While locked, only the "can't reach your interview" page offers this.
+      if (isShowingUnavailablePage()) {
+        return _abortInterview("site-unreachable", { force: true, note: "startFailed" });
+      }
+      logger.warn("[ipc] load-dashboard ignored — the interview is locked");
+      return;
+    }
     logger.info("[ipc] load-dashboard (back nav)");
     _leaveInterviewFlowToDashboard();
   });
 
   registerSend(IPC.VIEW_DASHBOARD, SCOPE.INTERVIEW, () => {
+    if (getIsInterviewActive()) {
+      logger.warn("[ipc] view-dashboard ignored — the interview has not ended");
+      return;
+    }
     logger.info("[ipc] view-dashboard (from scorecard)");
-    _leaveInterviewFlowToDashboard({ alreadyTornDown: true });
+    return _lockdownRelease.then(() => _leaveInterviewFlowToDashboard({ alreadyTornDown: true }));
+  });
+
+  // The site couldn't start the interview: no attempts left, or a server error.
+  registerSend(IPC.ABORT_INTERVIEW, SCOPE.INTERVIEW, (_event, { reason } = {}) => {
+    const safeReason = _safeReason(reason);
+    const note = safeReason === "attempts-exhausted" ? "exhausted" : "startFailed";
+    return _abortInterview(safeReason, { note });
   });
 
   registerSend(IPC.LOAD_SECURITY_CHECK, SCOPE.LOCAL, () => {
@@ -563,6 +700,7 @@ function registerIpcHandlers() {
       const tokens = authManager.getTokens();
       const interviewUrl = getCurrentInterviewUrl();
       lockdownForInterview(interviewUrl, tokens, roleSelection);
+      startWatchdog.arm();
 
       try {
         startDetection.start(getWindow());
@@ -718,18 +856,10 @@ function registerIpcHandlers() {
 
   // Contract channel #3: the interview site signals the session is over.
   registerSend(IPC.INTERVIEW_COMPLETE, SCOPE.INTERVIEW, (_event, { reason } = {}) => {
-    const safeReason = typeof reason === "string" ? reason.slice(0, 40) : "unknown";
+    const safeReason = _safeReason(reason);
     logger.info(`[ipc] interview-complete received — reason: ${safeReason}`);
-
-    startDetection.stop();
-
-    // The agent restores the keyboard and touchpad on the way out, so it goes last.
     // Recording keeps going until PROCTORING_STOP, so the video includes the result screen.
-    endInterview(safeReason)
-      .catch((err) => logger.warn("[ipc] lockdown release failed:", err.message))
-      .finally(() => killAgent());
-
-    updater.onInterviewEnded();
+    _releaseInterview(safeReason);
   });
 
   screenRecorder.registerRecorderIpc();
@@ -749,6 +879,7 @@ function registerIpcHandlers() {
       _leaveInterviewFlowToDashboard({ alreadyTornDown: true });
       return { ok: false, error: "Interview is not locked down" };
     }
+    startWatchdog.markLive();
     return await screenRecorder.start({ sessionId: safeSessionId, interviewId: safeInterviewId });
   });
 

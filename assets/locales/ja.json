@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "cba7781cd4b8d85c"
+    "_sourceHash": "c5f80682f7ed5453"
   },
   "common": {
     "back": "戻る",
@@ -56,6 +56,7 @@
     "securityNote": "面接開始前にセキュリティチェックが実行されます。",
     "startUnavailable": "開始できません — アプリを再起動してください。",
     "startTimedOut": "時間がかかりすぎました。もう一度お試しください。",
+    "startFailed": "面接を開始できませんでした。もう一度お試しください。繰り返し発生する場合はサポートにお問い合わせください。",
     "howItWorksLink": "プロセスの流れを見る →"
   },
   "hiw": {
@@ -392,7 +393,15 @@
   "interviewUnavailable": {
     "title": "面接に接続できません",
     "body": "インターネット接続を確認してください。自動的に再接続を試み続けます。",
-    "retry": "再試行"
+    "retry": "再試行",
+    "leave": "ダッシュボードに戻る"
+  },
+  "startWatchdog": {
+    "title": "面接がまだ始まっていません",
+    "message": "面接の開始に予想以上の時間がかかっています。",
+    "detail": "このまま待つか、ダッシュボードに戻って後でもう一度お試しください。",
+    "wait": "待ち続ける",
+    "leave": "ダッシュボードに戻る"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

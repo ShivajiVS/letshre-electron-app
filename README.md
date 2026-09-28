@@ -284,8 +284,9 @@ A window can only hold its own state, and the escapes that matter are the OS she
 - **Other displays (`displayShields.js`):** every display but the interview's gets a black, always‑on‑top window that can't take focus, rebuilt when displays change. The extra display is still reported (`external_display`).
 - **Alt+F4:** registered as a global shortcut only while the interview is locked; it is reported as a `high` violation and opens the exit dialog. F11 is blocked in‑window.
 - **Diagnostics:** lockdown start logs the platform, every display's size and scale, and the window's kiosk, fullscreen and always‑on‑top state; focus loss, page fullscreen exits, keyboard lock results and the agent's lockdown state are logged too.
-- **Page won't load:** if the interview site is unreachable or answers with a 5xx, the window shows `interview-unavailable.html` ("Can't reach your interview", with **Try again**) and retries after 3s, 5s, 10s, 20s, then every 30s. The lockdown stays on throughout, and the session data is injected only into a page that actually loaded.
-- **Released** only by `interviewComplete()`, the candidate confirming the exit dialog, or the interview window closing. The keyboard and touchpad are handed back before the agent stops.
+- **Page won't load:** if the interview site is unreachable or answers with a 5xx, the window shows `interview-unavailable.html` ("Can't reach your interview", with **Try again**) and retries after 3s, 5s, 10s, 20s, then every 30s. After three failed loads it also offers **Back to dashboard**, which releases the lockdown. Until then the lockdown stays on, and the session data is injected only into a page that actually loaded.
+- **Interview never starts:** if the site hasn't called `startProctoring()` 90s after the lockdown, a dialog asks the candidate to keep waiting or go back to the dashboard, and asks again every 60s.
+- **Released** only by `interviewComplete()`, `abortInterview()` before the interview starts, the two ways back above, the candidate confirming the exit dialog, or the interview window closing. `viewDashboard()` is ignored until the lockdown is released. The keyboard and touchpad are handed back before the agent stops.
 - **Can't be blocked by any app:** Ctrl+Alt+Del, Win+L, UAC prompts and the power button. The focus watchdog reports what they leave behind.
 
 ## Closing blocked apps
@@ -400,6 +401,12 @@ When your app decides the session is over (normal finish, or terminate after N v
 window.electronAPI.interviewComplete("terminated"); // "completed" | "auto-submitted" | "terminated" | "expired"
 ```
 
+When the interview can't start (no attempts left, the start request fails), send the candidate back. It is refused once `startProctoring()` has been called:
+
+```js
+window.electronAPI.abortInterview("attempts-exhausted"); // any other reason shows "couldn't start" on the dashboard
+```
+
 **Violation payload.** `onViolation` and `POST /interview/violation` get the same object:
 
 ```jsonc
@@ -502,7 +509,8 @@ Exposed by `preload.js` via `contextBridge` (only whitelisted channels). Safe to
 | `onProctoringError(cb)`                                                                             | Recording failed (no screen source, upload session lost, etc.) — see [Recording failures](#web-app-integration-the-contract) |
 | `acknowledgeViolation(id)`                                                                          | Confirm receipt of that violation so it isn't sent again; without an `id`, acknowledges everything pending                   |
 | `interviewComplete(reason)`                                                                         | End the session; lifts lockdown                                                                                              |
-| `viewDashboard()`                                                                                   | Scorecard "View Dashboard" button; leaves the interview flow for the dashboard                                               |
+| `viewDashboard()`                                                                                   | Scorecard "View Dashboard" button; leaves for the dashboard once the lockdown is released                                    |
+| `abortInterview(reason)`                                                                            | The interview couldn't start; releases the lockdown and goes back to the dashboard (refused once it has started)             |
 | `recheckSystem()` / `minimizeWindow()` / `quitApp()`                                                | Preflight UX controls                                                                                                        |
 | `retryInterview()`                                                                                  | Reload the interview from the "Can't reach your interview" page                                                              |
 | `getAppList()` / `getAuditLog()`                                                                    | Blocked‑app lists; in‑memory audit log                                                                                       |

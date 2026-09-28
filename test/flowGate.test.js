@@ -44,7 +44,11 @@ function load() {
     calls,
     win,
     pass: PASSED,
+    release: Promise.resolve(),
     stage: "permissions",
+    active: false,
+    unavailable: false,
+    profile: { success: false },
     check: async () => guardState("clear", g.stage),
     names: () => calls.map((c) => c[0]),
     call: (channel, ...args) => handlers.get(channel)(LOCAL, ...args),
@@ -76,9 +80,9 @@ function load() {
       on: (channel, fn) => handlers.set(channel, fn),
     },
   });
-  stub(updater, {});
-  stub(screenRecorder, { registerRecorderIpc: noop });
-  stub(agentManager, { whenAgentReady: async () => true, killAgent: noop });
+  stub(updater, { onInterviewEnded: noop });
+  stub(screenRecorder, { registerRecorderIpc: noop, start: async () => ({ ok: true }) });
+  stub(agentManager, { whenAgentReady: async () => true, killAgent: record("killAgent") });
   stub(windowManager, {
     getWindow: () => win,
     loadSecurityCheck: record("loadSecurityCheck"),
@@ -88,6 +92,13 @@ function load() {
     loadLanguageSelectionPage: record("loadLanguageSelectionPage"),
     loadDashboard: record("loadDashboard"),
     lockdownForInterview: record("lockdownForInterview"),
+    getIsInterviewActive: () => g.active,
+    isShowingUnavailablePage: () => g.active && g.unavailable,
+    endInterview: (reason) => {
+      calls.push(["endInterview", reason]);
+      g.active = false;
+      return g.release;
+    },
     clearCandidatePhoto: noop,
     clearInterviewSessionData: async () => {},
   });
@@ -99,6 +110,7 @@ function load() {
   stub(localeManager, { getSupportedLocales: () => ["en"] });
   stub(authManager, {
     getTokens: () => ({ accessToken: "tok", refreshToken: "ref" }),
+    getCandidateProfile: async () => g.profile,
     logout: async () => ({ success: true }),
   });
   stub(logger, { info: noop, warn: noop, error: noop, debug: noop });
@@ -111,6 +123,7 @@ function load() {
     startPreProceedMonitor: noop,
     resetState: noop,
     start: record("startDetection"),
+    stop: record("detection.stop"),
   });
   stub(flowGuard, {
     start: (_win, stage) => {
@@ -375,4 +388,81 @@ test("guard status and a recheck are served by the guard", async () => {
   g.check = async () => blocked;
   assert.deepStrictEqual(await g.call(IPC.RECHECK_GUARD), blocked);
   assert.ok(g.names().includes("guard.checkNow"));
+});
+
+test("Start Interview stays on the dashboard when no attempts are left", async () => {
+  const g = load();
+  g.profile = {
+    success: true,
+    data: { interview_attempts_remaining: 0, max_interviews_allowed: 3 },
+  };
+  await g.call(IPC.START_INTERVIEW);
+  assert.deepStrictEqual(
+    g.calls.find((c) => c[0] === "loadDashboard"),
+    ["loadDashboard", "exhausted"]
+  );
+  assert.ok(!g.names().includes("loadSecurityCheck"));
+
+  for (const profile of [
+    { success: false },
+    { success: true, data: { interview_attempts_remaining: 1 } },
+  ]) {
+    const next = load();
+    next.profile = profile;
+    await next.call(IPC.START_INTERVIEW);
+    assert.ok(next.names().includes("loadSecurityCheck"), JSON.stringify(profile));
+  }
+});
+
+test("the site can back out of an interview that never started, in order", async () => {
+  const g = load();
+  g.active = true;
+  await g.callFromInterview(IPC.ABORT_INTERVIEW, { reason: "attempts-exhausted" });
+  const names = g.names();
+  assert.ok(names.indexOf("detection.stop") < names.indexOf("endInterview"));
+  assert.ok(names.indexOf("endInterview") < names.indexOf("killAgent"));
+  assert.deepStrictEqual(g.calls.at(-1), ["loadDashboard", "exhausted"]);
+});
+
+test("once the interview is running the site can not back out of it", async () => {
+  const g = load();
+  g.stage = "role";
+  await g.call(IPC.PROCEED_TO_INTERVIEW, { is_custom_role: false });
+  g.active = true;
+  await g.callFromInterview(IPC.PROCTORING_START, { sessionId: "s1" });
+  await g.callFromInterview(IPC.ABORT_INTERVIEW, { reason: "start-failed" });
+  assert.ok(!g.names().includes("endInterview"));
+  assert.ok(!g.names().includes("loadDashboard"));
+});
+
+test("the dashboard can not be opened over a locked interview", async () => {
+  const g = load();
+  g.active = true;
+  await g.callFromInterview(IPC.VIEW_DASHBOARD);
+  await g.call(IPC.LOAD_DASHBOARD);
+  assert.ok(!g.names().includes("loadDashboard"));
+  assert.ok(!g.names().includes("killAgent"));
+
+  g.unavailable = true;
+  await g.call(IPC.LOAD_DASHBOARD);
+  assert.deepStrictEqual(g.calls.at(-1), ["loadDashboard", "startFailed"]);
+  assert.ok(g.names().includes("endInterview"));
+});
+
+test("the scorecard leaves only once the lockdown is fully released", async () => {
+  const g = load();
+  g.active = true;
+  let release;
+  g.release = new Promise((resolve) => (release = resolve));
+  g.callFromInterview(IPC.INTERVIEW_COMPLETE, { reason: "completed" });
+  g.callFromInterview(IPC.INTERVIEW_COMPLETE, { reason: "completed" });
+  const leaving = g.callFromInterview(IPC.VIEW_DASHBOARD);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(!g.names().includes("loadDashboard"));
+  assert.ok(!g.names().includes("killAgent"), "a repeated signal waits for the first release");
+  assert.strictEqual(g.names().filter((n) => n === "endInterview").length, 1);
+  release();
+  await leaving;
+  const names = g.names();
+  assert.ok(names.indexOf("killAgent") < names.indexOf("loadDashboard"));
 });

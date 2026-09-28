@@ -322,6 +322,9 @@ const IPC = {
   // flow after interview-complete already lifted lockdown)
   VIEW_DASHBOARD: "view-dashboard",
 
+  // The site could not start the interview: website → main, back to the dashboard.
+  ABORT_INTERVIEW: "abort-interview",
+
   // Violation ack: website → main; an unacknowledged hard block is sent again.
   ACK_VIOLATION: "ack-violation",
 

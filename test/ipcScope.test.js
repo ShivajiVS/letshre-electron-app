@@ -223,6 +223,7 @@ test("no channel is registered twice with two different scopes", () => {
 // must be "local" — this is the actual classification decision under test,
 // not just a syntax check.
 const EXPECTED_INTERVIEW_SCOPE_CHANNELS = [
+  "ABORT_INTERVIEW", // abortInterview(reason) — the interview could not start
   "ACK_VIOLATION", // acknowledgeViolation() — contract step 2
   "INTERVIEW_COMPLETE", // interviewComplete(reason) — contract step 3
   "PROCTORING_START", // interview.letshyre.com → start recording

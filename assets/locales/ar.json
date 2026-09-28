@@ -5,7 +5,7 @@
     "dir": "rtl",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "cba7781cd4b8d85c"
+    "_sourceHash": "c5f80682f7ed5453"
   },
   "common": {
     "back": "رجوع",
@@ -56,6 +56,7 @@
     "securityNote": "يتم إجراء فحص أمني قبل بدء المقابلة.",
     "startUnavailable": "تعذر البدء — يرجى إعادة تشغيل التطبيق.",
     "startTimedOut": "استغرق ذلك وقتًا طويلاً. يرجى المحاولة مرة أخرى.",
+    "startFailed": "تعذّر بدء مقابلتك. يُرجى المحاولة مرة أخرى، أو التواصل مع الدعم إذا تكرر ذلك.",
     "howItWorksLink": "كيف تسير العملية؟ ←"
   },
   "hiw": {
@@ -392,7 +393,15 @@
   "interviewUnavailable": {
     "title": "تعذّر الوصول إلى المقابلة",
     "body": "تحقق من اتصالك بالإنترنت. سنواصل محاولة إعادة الاتصال تلقائيًا.",
-    "retry": "حاول مرة أخرى"
+    "retry": "حاول مرة أخرى",
+    "leave": "العودة إلى لوحة التحكم"
+  },
+  "startWatchdog": {
+    "title": "لم تبدأ مقابلتك بعد",
+    "message": "يستغرق بدء مقابلتك وقتًا أطول من المتوقع.",
+    "detail": "يمكنك مواصلة الانتظار، أو العودة إلى لوحة التحكم والمحاولة لاحقًا.",
+    "wait": "مواصلة الانتظار",
+    "leave": "العودة إلى لوحة التحكم"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

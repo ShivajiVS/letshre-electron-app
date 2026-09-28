@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "cba7781cd4b8d85c"
+    "_sourceHash": "c5f80682f7ed5453"
   },
   "common": {
     "back": "Retour",
@@ -56,6 +56,7 @@
     "securityNote": "Une vérification de sécurité est effectuée avant le début de l'entretien.",
     "startUnavailable": "Impossible de démarrer — veuillez redémarrer l'application.",
     "startTimedOut": "Cela a pris trop de temps. Veuillez réessayer.",
+    "startFailed": "Votre entretien n'a pas pu démarrer. Réessayez, ou contactez le support si le problème persiste.",
     "howItWorksLink": "Comment se déroule le processus ? →"
   },
   "hiw": {
@@ -392,7 +393,15 @@
   "interviewUnavailable": {
     "title": "Impossible d’accéder à votre entretien",
     "body": "Vérifiez votre connexion Internet. Nous continuerons d’essayer de nous reconnecter automatiquement.",
-    "retry": "Réessayer"
+    "retry": "Réessayer",
+    "leave": "Retour au tableau de bord"
+  },
+  "startWatchdog": {
+    "title": "Votre entretien n'a pas commencé",
+    "message": "Le démarrage de votre entretien prend plus de temps que prévu.",
+    "detail": "Vous pouvez continuer à patienter, ou revenir au tableau de bord et réessayer plus tard.",
+    "wait": "Continuer à patienter",
+    "leave": "Retour au tableau de bord"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

@@ -49,7 +49,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   // these must be followed by the matching render*() call, never a direct
   // textContent/innerHTML write, or a locale switch would revert it.
   let firstName = null;
-  let noteState = "default"; // "default" | "exhausted" | "unavailable" | "timedOut"
+  let noteState = "default"; // "default" | "exhausted" | "unavailable" | "timedOut" | "startFailed"
+  const returnNote = new URLSearchParams(window.location.search).get("note");
   let attempts = null; // { remaining, max } once the tracker is visible
   let startState = "idle"; // "idle" | "starting"
   let logoutState = "idle"; // "idle" | "loggingOut"
@@ -72,6 +73,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         dashNote.textContent = tr(
           "dashboard.startUnavailable",
           "Unable to start — please restart the app."
+        );
+        break;
+      case "startFailed":
+        dashNote.textContent = tr(
+          "dashboard.startFailed",
+          "Your interview couldn't start. Please try again, or contact support if it keeps happening."
         );
         break;
       case "timedOut":
@@ -283,6 +290,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     profileRole.textContent = sessionUser.role || "";
     profileMeta.innerHTML = "";
     profileInitials.textContent = initials(displayNameFallback);
+  }
+
+  if (returnNote === "exhausted") {
+    takeBtn.disabled = true;
+    setNoteState("exhausted");
+  } else if (returnNote === "startFailed" && noteState === "default") {
+    setNoteState("startFailed");
   }
 
   // ── Take interview

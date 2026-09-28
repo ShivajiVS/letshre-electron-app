@@ -52,3 +52,7 @@
 html[dir="rtl"] .iu-title {
   letter-spacing: normal;
 }
+
+.iu-leave {
+  margin-top: var(--space-3);
+}

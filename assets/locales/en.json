@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Source-of-truth bundle. Every other locale file must have exactly the same keys (see test/locales.test.js).",
     "_reviewedBy": null,
-    "_sourceHash": "cba7781cd4b8d85c"
+    "_sourceHash": "c5f80682f7ed5453"
   },
   "common": {
     "back": "Back",
@@ -56,6 +56,7 @@
     "securityNote": "A security check runs before the interview begins.",
     "startUnavailable": "Unable to start — please restart the app.",
     "startTimedOut": "That took too long. Please try again.",
+    "startFailed": "Your interview couldn't start. Please try again, or contact support if it keeps happening.",
     "howItWorksLink": "How does the process work? →"
   },
   "hiw": {
@@ -392,7 +393,15 @@
   "interviewUnavailable": {
     "title": "Can't reach your interview",
     "body": "Check your internet connection. We'll keep trying to reconnect automatically.",
-    "retry": "Try again"
+    "retry": "Try again",
+    "leave": "Back to dashboard"
+  },
+  "startWatchdog": {
+    "title": "Your interview hasn't started",
+    "message": "Your interview is taking longer than expected to start.",
+    "detail": "You can keep waiting, or go back to the dashboard and try again later.",
+    "wait": "Keep waiting",
+    "leave": "Back to dashboard"
   },
   "attestation": {
     "_certifiedTranslationRequired": true,

@@ -41,7 +41,22 @@
       >
         <span data-i18n="interviewUnavailable.retry">Try again</span>
       </button>
+      <button
+        class="btn btn--ghost btn--lg iu-leave"
+        id="btn-leave"
+        type="button"
+        hidden
+        onclick="window.electronAPI?.loadDashboard?.()"
+      >
+        <span data-i18n="interviewUnavailable.leave">Back to dashboard</span>
+      </button>
     </main>
+
+    <script>
+      document.getElementById("btn-leave").hidden = !new URLSearchParams(location.search).has(
+        "leave"
+      );
+    </script>
 
     <script src="./js/i18n.js"></script>
   </body>

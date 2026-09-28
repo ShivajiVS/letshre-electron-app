@@ -651,7 +651,7 @@ pnpm start        # plain electron .
   AGENT_PY=1 pnpm start        # spawns `python agent.py` instead of resources/agent.exe
   ```
   (`AGENT_PY_BIN` overrides the interpreter, default `python`/`python3`. Dev only.)
-- **Tests** — `pnpm test` (Node's built‑in runner, `test/*.test.js`).
+- **Tests** — `pnpm test` (Node's built‑in runner, `test/*.test.js`). Agent tests: `pip install -r requirements-dev.txt`, then `python -m pytest test` (`test/test_agent_*.py`; CI runs them on Windows).
 - **Lint / format** — `pnpm run lint` / `pnpm run format`.
 - **DevTools** — `DEVTOOLS=true` in `.env` docks DevTools at launch and allows F12 / Ctrl+Shift+I.
 - **Logs** — the main process and forwarded agent logs are written to

@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "c5f80682f7ed5453"
+    "_sourceHash": "ae54522bc1ac476b"
   },
   "common": {
     "back": "পিছনে",
@@ -331,11 +331,13 @@
     "threatAiTool": "AI সহায়ক অ্যাপ",
     "threatOverlay": "লুকানো স্ক্রিন ওভারলে",
     "threatVirtualAudio": "ভার্চুয়াল অডিও ডিভাইস",
+    "threatVirtualCamera": "ভার্চুয়াল ক্যামেরা",
     "threatRemoteSession": "রিমোট ডেস্কটপ সেশন",
     "threatVirtualMachine": "ভার্চুয়াল মেশিন",
     "threatRenamedApp": "নাম বদলানো ব্লক করা অ্যাপ",
     "threatRemoteSessionHint": "রিমোট সংযোগের মাধ্যমে নয়, সরাসরি এই কম্পিউটারেই ইন্টারভিউ দিন।",
     "threatVirtualMachineHint": "ভার্চুয়াল মেশিনের ভেতরে নয়, আপনার নিজের কম্পিউটারেই ইন্টারভিউ দিন।",
+    "threatVirtualCameraHint": "ভার্চুয়াল ক্যামেরা অ্যাপটি আনইনস্টল করুন বা বন্ধ করুন, যাতে শুধু আপনার আসল ওয়েবক্যামটিই চালু থাকে।",
     "threatGeneric": "সন্দেহজনক কার্যকলাপ",
     "severityCritical": "সংকটজনক",
     "severityHigh": "উচ্চ",

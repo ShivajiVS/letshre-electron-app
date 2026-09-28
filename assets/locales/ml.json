@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "c5f80682f7ed5453"
+    "_sourceHash": "ae54522bc1ac476b"
   },
   "common": {
     "back": "തിരികെ",
@@ -331,11 +331,13 @@
     "threatAiTool": "AI അസിസ്റ്റന്റ് ആപ്പ്",
     "threatOverlay": "മറഞ്ഞിരിക്കുന്ന സ്ക്രീൻ ഓവർലേ",
     "threatVirtualAudio": "വെർച്വൽ ഓഡിയോ ഉപകരണം",
+    "threatVirtualCamera": "വെർച്വൽ ക്യാമറ",
     "threatRemoteSession": "റിമോട്ട് ഡെസ്ക്ടോപ്പ് സെഷൻ",
     "threatVirtualMachine": "വെർച്വൽ മെഷീൻ",
     "threatRenamedApp": "പേര് മാറ്റിയ ബ്ലോക്ക് ചെയ്ത ആപ്പ്",
     "threatRemoteSessionHint": "റിമോട്ട് കണക്ഷൻ വഴിയല്ല, ഈ കമ്പ്യൂട്ടറിൽ നേരിട്ട് ഇന്റർവ്യൂ നടത്തുക.",
     "threatVirtualMachineHint": "വെർച്വൽ മെഷീനിനുള്ളിലല്ല, നിങ്ങളുടെ കമ്പ്യൂട്ടറിൽ തന്നെ ഇന്റർവ്യൂ നടത്തുക.",
+    "threatVirtualCameraHint": "നിങ്ങളുടെ യഥാർത്ഥ വെബ്‌ക്യാം മാത്രം ലഭ്യമാകാൻ വെർച്വൽ ക്യാമറ ആപ്പ് അൺഇൻസ്റ്റാൾ ചെയ്യുകയോ ഓഫാക്കുകയോ ചെയ്യുക.",
     "threatGeneric": "സംശയാസ്പദമായ പ്രവർത്തനം",
     "severityCritical": "ഗുരുതരം",
     "severityHigh": "ഉയർന്നത്",

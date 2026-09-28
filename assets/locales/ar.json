@@ -5,7 +5,7 @@
     "dir": "rtl",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "c5f80682f7ed5453"
+    "_sourceHash": "ae54522bc1ac476b"
   },
   "common": {
     "back": "رجوع",
@@ -331,11 +331,13 @@
     "threatAiTool": "تطبيق مساعد ذكاء اصطناعي",
     "threatOverlay": "طبقة مخفية فوق الشاشة",
     "threatVirtualAudio": "جهاز صوت افتراضي",
+    "threatVirtualCamera": "كاميرا افتراضية",
     "threatRemoteSession": "جلسة سطح مكتب بعيد",
     "threatVirtualMachine": "جهاز افتراضي",
     "threatRenamedApp": "تطبيق محظور تمت إعادة تسميته",
     "threatRemoteSessionHint": "أجرِ المقابلة على هذا الكمبيوتر مباشرةً، وليس عبر اتصال عن بُعد.",
     "threatVirtualMachineHint": "أجرِ المقابلة على جهاز الكمبيوتر نفسه، وليس داخل جهاز افتراضي.",
+    "threatVirtualCameraHint": "ألغِ تثبيت تطبيق الكاميرا الافتراضية أو أوقف تشغيله حتى تبقى كاميرا الويب الحقيقية وحدها متاحة.",
     "threatGeneric": "نشاط مشبوه",
     "severityCritical": "حرجة",
     "severityHigh": "مرتفعة",

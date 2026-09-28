@@ -2,10 +2,10 @@
 Interview security desktop agent.
 
 Behavioural checks the Electron preflight can't do from Node (window titles and
-classes, network peers, loaded modules, overlays, virtual audio, remote
-sessions, virtual machines, renamed blocked apps). Process bans by image name
-and display counting stay on the Node side; the agent only tells Electron the
-moment a process starts so it can check it straight away.
+classes, network peers, loaded modules, overlays, virtual audio and cameras,
+remote sessions, virtual machines, renamed blocked apps). Process bans by image
+name and display counting stay on the Node side; the agent only tells Electron
+the moment a process starts so it can check it straight away.
 
 Electron talks to it over newline-delimited JSON on stdin/stdout; the HTTP
 server on 127.0.0.1:9999 is a fallback. Windows, macOS and Linux.
@@ -178,6 +178,18 @@ VIRTUAL_AUDIO_KEYWORDS = [
     "blackhole", "soundflower", "loopback",
     "virtual audio", "cable input", "cable output",
 ]
+
+# Matched against camera names. Covers apps that feed any video they like to the site.
+VIRTUAL_CAMERA_KEYWORDS = (
+    "obs virtual camera", "obs-camera", "manycam", "snap camera", "xsplit vcam",
+    "e2esoft", "logi capture", "logitech capture", "altercam", "camtwist",
+    "mmhmm", "splitcam", "youcam", "virtual camera", "virtual webcam",
+)
+# NVIDIA Broadcast only filters the real webcam's own picture, so it's not a substitute feed.
+VIRTUAL_CAMERA_ALLOWED = ("nvidia broadcast",)
+VIRTUAL_CAMERA_CACHE_S = 60
+# DirectShow's video input category, where OBS, Snap Camera etc. register.
+DSHOW_VIDEO_INPUT = r"CLSID\{860BB310-5D01-11d0-BD3B-00A0C911CE86}\Instance"
 
 SM_REMOTESESSION = 0x1000
 SM_REMOTECONTROL = 0x2001
@@ -937,6 +949,111 @@ def _query_virtual_audio():
     return threats
 
 # ─────────────────────────────────────────────
+#  BEHAVIORAL DETECTION 8b: VIRTUAL CAMERAS
+# ─────────────────────────────────────────────
+_virtual_camera_cache = None  # (monotonic time, threats) from the last successful query
+
+
+def detect_virtual_cameras():
+    """
+    Flags virtual cameras (OBS Virtual Camera, ManyCam, Snap Camera...) that can
+    stand in for the webcam. Installed ones count even when idle, because the
+    browser offers them as a camera either way. Errors are never cached.
+    """
+    global _virtual_camera_cache
+    if OS_NAME not in ("Windows", "Darwin"):
+        return []
+
+    cached = _virtual_camera_cache
+    if cached is not None and time.monotonic() - cached[0] < VIRTUAL_CAMERA_CACHE_S:
+        return [dict(t) for t in cached[1]]
+
+    try:
+        names = _camera_names_windows() if OS_NAME == "Windows" else _camera_names_mac()
+    except Exception as e:
+        raise CheckError(f"Virtual camera detection error: {e}") from e
+    threats = virtual_camera_threats(names)
+    _virtual_camera_cache = (time.monotonic(), threats)
+    return [dict(t) for t in threats]
+
+
+def is_virtual_camera(name):
+    name = (name or "").lower()
+    if any(ok in name for ok in VIRTUAL_CAMERA_ALLOWED):
+        return False
+    return any(kw in name for kw in VIRTUAL_CAMERA_KEYWORDS)
+
+
+def virtual_camera_threats(names):
+    threats, seen = [], set()
+    for name in names:
+        label = (name or "").strip()
+        if not is_virtual_camera(label) or label.lower() in seen:
+            continue
+        seen.add(label.lower())
+        threats.append({
+            "type": "virtual_camera",
+            "severity": "MEDIUM",
+            "detail": f"Virtual camera detected: {label}",
+        })
+    return threats
+
+
+def _camera_names_windows():
+    names = _dshow_camera_names()
+    result = subprocess.run(
+        ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+         "Get-CimInstance Win32_PnPEntity -Filter \"PNPClass='Camera' OR PNPClass='Image'\" "
+         "| ForEach-Object { $_.Name }"],
+        capture_output=True, text=True, timeout=8
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Win32_PnPEntity query exited {result.returncode}: {result.stderr.strip()[:200]}"
+        )
+    return names + [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def _dshow_camera_names():
+    import winreg
+    roots = [
+        (winreg.HKEY_LOCAL_MACHINE, rf"SOFTWARE\Classes\{DSHOW_VIDEO_INPUT}"),
+        (winreg.HKEY_LOCAL_MACHINE, rf"SOFTWARE\WOW6432Node\Classes\{DSHOW_VIDEO_INPUT}"),
+        (winreg.HKEY_CURRENT_USER, rf"Software\Classes\{DSHOW_VIDEO_INPUT}"),
+    ]
+    names = []
+    for root, path in roots:
+        try:
+            key = winreg.OpenKey(root, path)
+        except FileNotFoundError:
+            continue
+        with key:
+            index = 0
+            while True:
+                try:
+                    sub = winreg.EnumKey(key, index)
+                except OSError:
+                    break
+                index += 1
+                try:
+                    with winreg.OpenKey(key, sub) as filt:
+                        names.append(str(winreg.QueryValueEx(filt, "FriendlyName")[0]))
+                except FileNotFoundError:
+                    continue
+    return names
+
+
+def _camera_names_mac():
+    result = subprocess.run(
+        ["system_profiler", "SPCameraDataType", "-json"],
+        capture_output=True, text=True, timeout=8
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"system_profiler exited {result.returncode}")
+    cameras = json.loads(result.stdout or "{}").get("SPCameraDataType") or []
+    return [str(c.get("_name", "")) for c in cameras if isinstance(c, dict)]
+
+# ─────────────────────────────────────────────
 #  BEHAVIORAL DETECTION 9: REMOTE SESSION
 # ─────────────────────────────────────────────
 def _system_metric(index):
@@ -1242,6 +1359,7 @@ _CHECKS = [
     ("ai_tools", detect_ai_cheating_tools),
     ("overlay_windows", detect_overlay_windows),
     ("virtual_audio", detect_virtual_audio_devices),
+    ("virtual_camera", detect_virtual_cameras),
     ("remote_session", detect_remote_session),
     ("virtual_machine", detect_virtual_machine),
     ("renamed_blocked_app", detect_renamed_blocked_apps),

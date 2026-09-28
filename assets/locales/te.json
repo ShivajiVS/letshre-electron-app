@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "c5f80682f7ed5453"
+    "_sourceHash": "ae54522bc1ac476b"
   },
   "common": {
     "back": "వెనుకకు",
@@ -331,11 +331,13 @@
     "threatAiTool": "AI అసిస్టెంట్ యాప్",
     "threatOverlay": "దాచిన స్క్రీన్ ఓవర్‌లే",
     "threatVirtualAudio": "వర్చువల్ ఆడియో పరికరం",
+    "threatVirtualCamera": "వర్చువల్ కెమెరా",
     "threatRemoteSession": "రిమోట్ డెస్క్‌టాప్ సెషన్",
     "threatVirtualMachine": "వర్చువల్ మెషిన్",
     "threatRenamedApp": "పేరు మార్చిన బ్లాక్ చేసిన యాప్",
     "threatRemoteSessionHint": "రిమోట్ కనెక్షన్ ద్వారా కాకుండా, నేరుగా ఈ కంప్యూటర్‌లోనే ఇంటర్వ్యూ ఇవ్వండి.",
     "threatVirtualMachineHint": "వర్చువల్ మెషిన్ లోపల కాకుండా, మీ కంప్యూటర్‌లోనే ఇంటర్వ్యూ ఇవ్వండి.",
+    "threatVirtualCameraHint": "మీ నిజమైన వెబ్‌క్యామ్ మాత్రమే అందుబాటులో ఉండేలా వర్చువల్ కెమెరా యాప్‌ను అన్‌ఇన్‌స్టాల్ చేయండి లేదా ఆఫ్ చేయండి.",
     "threatGeneric": "అనుమానాస్పద కార్యాచరణ",
     "severityCritical": "క్లిష్టమైన",
     "severityHigh": "అధిక",

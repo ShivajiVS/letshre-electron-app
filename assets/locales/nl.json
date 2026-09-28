@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "c5f80682f7ed5453"
+    "_sourceHash": "ae54522bc1ac476b"
   },
   "common": {
     "back": "Terug",
@@ -331,11 +331,13 @@
     "threatAiTool": "AI-assistent-app",
     "threatOverlay": "Verborgen schermoverlay",
     "threatVirtualAudio": "Virtueel audioapparaat",
+    "threatVirtualCamera": "Virtuele camera",
     "threatRemoteSession": "Extern-bureaubladsessie",
     "threatVirtualMachine": "Virtuele machine",
     "threatRenamedApp": "Hernoemde geblokkeerde app",
     "threatRemoteSessionHint": "Doe het gesprek rechtstreeks op deze computer, niet via een externe verbinding.",
     "threatVirtualMachineHint": "Doe het gesprek op je eigen computer, niet in een virtuele machine.",
+    "threatVirtualCameraHint": "Verwijder de virtuele camera-app of zet hem uit, zodat alleen je echte webcam beschikbaar is.",
     "threatGeneric": "Verdachte activiteit",
     "severityCritical": "Kritiek",
     "severityHigh": "Hoog",

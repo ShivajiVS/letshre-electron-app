@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "c5f80682f7ed5453"
+    "_sourceHash": "ae54522bc1ac476b"
   },
   "common": {
     "back": "Voltar",
@@ -331,11 +331,13 @@
     "threatAiTool": "Aplicativo de assistente de IA",
     "threatOverlay": "Sobreposição de tela oculta",
     "threatVirtualAudio": "Dispositivo de áudio virtual",
+    "threatVirtualCamera": "Câmera virtual",
     "threatRemoteSession": "Sessão de área de trabalho remota",
     "threatVirtualMachine": "Máquina virtual",
     "threatRenamedApp": "App bloqueado renomeado",
     "threatRemoteSessionHint": "Faça a entrevista diretamente neste computador, não por uma conexão remota.",
     "threatVirtualMachineHint": "Faça a entrevista no seu próprio computador, não dentro de uma máquina virtual.",
+    "threatVirtualCameraHint": "Desinstale ou desative o aplicativo de câmera virtual para que apenas sua webcam real fique disponível.",
     "threatGeneric": "Atividade suspeita",
     "severityCritical": "Crítico",
     "severityHigh": "Alto",

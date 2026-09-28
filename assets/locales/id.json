@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "c5f80682f7ed5453"
+    "_sourceHash": "ae54522bc1ac476b"
   },
   "common": {
     "back": "Kembali",
@@ -331,11 +331,13 @@
     "threatAiTool": "Aplikasi asisten AI",
     "threatOverlay": "Lapisan layar tersembunyi",
     "threatVirtualAudio": "Perangkat audio virtual",
+    "threatVirtualCamera": "Kamera virtual",
     "threatRemoteSession": "Sesi desktop jarak jauh",
     "threatVirtualMachine": "Mesin virtual",
     "threatRenamedApp": "Aplikasi terblokir yang diganti namanya",
     "threatRemoteSessionHint": "Ikuti wawancara langsung di komputer ini, bukan melalui koneksi jarak jauh.",
     "threatVirtualMachineHint": "Ikuti wawancara di komputer Anda sendiri, bukan di dalam mesin virtual.",
+    "threatVirtualCameraHint": "Hapus instalasi atau matikan aplikasi kamera virtual agar hanya webcam asli Anda yang tersedia.",
     "threatGeneric": "Aktivitas mencurigakan",
     "severityCritical": "Kritis",
     "severityHigh": "Tinggi",

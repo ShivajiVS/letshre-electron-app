@@ -302,6 +302,7 @@
     ai_cheating_tool: ["preflightResults.threatAiTool", "AI assistant app"],
     transparent_overlay: ["preflightResults.threatOverlay", "Hidden screen overlay"],
     virtual_audio_device: ["preflightResults.threatVirtualAudio", "Virtual audio device"],
+    virtual_camera: ["preflightResults.threatVirtualCamera", "Virtual camera"],
     remote_session: ["preflightResults.threatRemoteSession", "Remote desktop session"],
     virtual_machine: ["preflightResults.threatVirtualMachine", "Virtual machine"],
     renamed_blocked_app: ["preflightResults.threatRenamedApp", "Renamed blocked app"],
@@ -315,6 +316,10 @@
     virtual_machine: [
       "preflightResults.threatVirtualMachineHint",
       "Run the interview on your computer itself, not inside a virtual machine.",
+    ],
+    virtual_camera: [
+      "preflightResults.threatVirtualCameraHint",
+      "Uninstall or turn off the virtual camera app so only your real webcam is available.",
     ],
   };
   const GENERIC_THREAT = ["preflightResults.threatGeneric", "Suspicious activity"];

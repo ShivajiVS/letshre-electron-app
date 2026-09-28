@@ -227,6 +227,7 @@
     renamed_app: ["preflightResults.threatRenamedApp", "Renamed blocked app"],
     remote_session: ["preflightResults.threatRemoteSession", "Remote desktop session"],
     virtual_machine: ["preflightResults.threatVirtualMachine", "Virtual machine"],
+    virtual_camera: ["preflightResults.threatVirtualCamera", "Virtual camera"],
     suspicious_activity: ["preflightResults.threatGeneric", "Suspicious activity"],
   };
 
@@ -260,7 +261,8 @@
           "Stop mirroring your screen and unplug the extra display."
         );
       case "remote_session":
-      case "virtual_machine": {
+      case "virtual_machine":
+      case "virtual_camera": {
         const hint = PM.threatHint(issue.code);
         return tr(hint.key, hint.fallback);
       }

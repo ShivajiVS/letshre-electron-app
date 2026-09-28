@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "c5f80682f7ed5453"
+    "_sourceHash": "ae54522bc1ac476b"
   },
   "common": {
     "back": "वापस",
@@ -331,11 +331,13 @@
     "threatAiTool": "AI सहायक ऐप",
     "threatOverlay": "छिपा हुआ स्क्रीन ओवरले",
     "threatVirtualAudio": "वर्चुअल ऑडियो डिवाइस",
+    "threatVirtualCamera": "वर्चुअल कैमरा",
     "threatRemoteSession": "रिमोट डेस्कटॉप सत्र",
     "threatVirtualMachine": "वर्चुअल मशीन",
     "threatRenamedApp": "नाम बदला हुआ ब्लॉक ऐप",
     "threatRemoteSessionHint": "इंटरव्यू रिमोट कनेक्शन से नहीं, सीधे इसी कंप्यूटर पर दें।",
     "threatVirtualMachineHint": "इंटरव्यू वर्चुअल मशीन के अंदर नहीं, अपने कंप्यूटर पर ही दें।",
+    "threatVirtualCameraHint": "वर्चुअल कैमरा ऐप को अनइंस्टॉल करें या बंद करें, ताकि केवल आपका असली वेबकैम ही उपलब्ध रहे।",
     "threatGeneric": "संदिग्ध गतिविधि",
     "severityCritical": "गंभीर",
     "severityHigh": "उच्च",

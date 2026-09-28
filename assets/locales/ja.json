@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "c5f80682f7ed5453"
+    "_sourceHash": "ae54522bc1ac476b"
   },
   "common": {
     "back": "戻る",
@@ -331,11 +331,13 @@
     "threatAiTool": "AIアシスタントアプリ",
     "threatOverlay": "隠れた画面オーバーレイ",
     "threatVirtualAudio": "仮想オーディオデバイス",
+    "threatVirtualCamera": "仮想カメラ",
     "threatRemoteSession": "リモートデスクトップセッション",
     "threatVirtualMachine": "仮想マシン",
     "threatRenamedApp": "名前を変更したブロック対象アプリ",
     "threatRemoteSessionHint": "リモート接続経由ではなく、このコンピューターで直接面接を受けてください。",
     "threatVirtualMachineHint": "仮想マシン内ではなく、お使いのコンピューター本体で面接を受けてください。",
+    "threatVirtualCameraHint": "仮想カメラアプリをアンインストールするかオフにして、実際のWebカメラだけが使える状態にしてください。",
     "threatGeneric": "不審な活動",
     "severityCritical": "重大",
     "severityHigh": "高",

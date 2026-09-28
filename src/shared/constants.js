@@ -349,6 +349,9 @@ const IPC = {
   PUSH_PROCTORING_STARTED: "push-proctoring-started",
   PUSH_PROCTORING_ERROR: "push-proctoring-error",
 
+  // Dev only (DEVTOOLS): fire a violation code through the real pipeline.
+  DEV_SIMULATE_VIOLATION: "dev-simulate-violation",
+
   // Internal: hidden recorder window ↔ main (NOT exposed to interview site)
   RECORDER_INIT: "recorder:init",
   RECORDER_STOP: "recorder:stop",

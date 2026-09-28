@@ -122,6 +122,8 @@ const IPC = {
   PUSH_PROCTORING_STARTED: "push-proctoring-started",
   PUSH_PROCTORING_ERROR: "push-proctoring-error",
 
+  DEV_SIMULATE_VIOLATION: "dev-simulate-violation",
+
   // Localization
   GET_LOCALE: "get-locale",
   SET_LOCALE: "set-locale",
@@ -179,6 +181,7 @@ const ALLOWED_INVOKE_CHANNELS = [
   IPC.SUBMIT_ROLE,
   IPC.STORE_CANDIDATE_PHOTO,
   IPC.PROCTORING_START,
+  IPC.DEV_SIMULATE_VIOLATION,
   IPC.GET_LOCALE,
   IPC.SET_LOCALE,
   IPC.GET_TRANSLATIONS,
@@ -615,6 +618,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
    * recorder window closes.
    */
   stopProctoring: () => safeSend(IPC.PROCTORING_STOP),
+
+  /**
+   * Dev builds with DEVTOOLS on only: raise a violation as if it had been
+   * detected. Refused everywhere else.
+   * @param {string} code - a violation code, e.g. "blocked_app"
+   * @returns {Promise<{ ok: boolean, error?: string }>}
+   */
+  devSimulateViolation: (code) => safeInvoke(IPC.DEV_SIMULATE_VIOLATION, code),
 
   /**
    * Called when Electron confirms the MediaRecorder has actually started.

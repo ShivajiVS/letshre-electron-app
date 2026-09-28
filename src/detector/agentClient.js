@@ -10,7 +10,7 @@ const {
   AGENT_SCAN_TIMEOUT_MS: SCAN_TIMEOUT_MS,
 } = require("../shared/constants");
 
-const { getAgentSecret, sendAgentCommand } = require("../main/agentManager");
+const { getAgentSecret, sendAgentCommand, onAgentEvent } = require("../main/agentManager");
 
 function agentGet(path, timeoutMs = TIMEOUT_MS) {
   return new Promise((resolve) => {
@@ -68,4 +68,18 @@ async function triggerAgentScan() {
   return await agentGet("/scan", SCAN_TIMEOUT_MS);
 }
 
-module.exports = { pingAgent, fetchAgentStatus, triggerAgentScan };
+/**
+ * Calls `listener` with each process the agent sees start. Pipe only; the
+ * HTTP fallback has no push channel, so the detection tick covers that case.
+ * @param {(proc: {name: string, pid: number}) => void} listener
+ * @returns {() => void} unsubscribe
+ */
+function onProcessStarted(listener) {
+  return onAgentEvent("process_started", (msg) => {
+    if (typeof msg.name === "string" && msg.name && Number.isInteger(msg.pid)) {
+      listener({ name: msg.name, pid: msg.pid });
+    }
+  });
+}
+
+module.exports = { pingAgent, fetchAgentStatus, triggerAgentScan, onProcessStarted };

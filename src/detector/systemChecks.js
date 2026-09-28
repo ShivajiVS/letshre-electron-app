@@ -42,8 +42,9 @@ const {
   canProceed,
 } = require("./preflightVerdict");
 const { getDisplayName, getThreatDisplayName, filterAgentStatus } = require("../shared/blocklist");
+const { isBlocked } = require("../shared/blocklist");
 const { expectedAgentSource } = require("../shared/agentBuild");
-const { fetchAgentStatus, triggerAgentScan } = require("./agentClient");
+const { fetchAgentStatus, triggerAgentScan, onProcessStarted } = require("./agentClient");
 const {
   whenAgentReady,
   isAgentReady,
@@ -60,6 +61,9 @@ let isSessionActive = false;
 
 let detectionInterval = null;
 let heartbeatInterval = null;
+let stopWatchingStarts = null;
+let startedTick = null;
+let startedAgain = false;
 let sessionWin = null;
 
 /** Sent violations the site hasn't acknowledged yet, oldest first (id → payload). */
@@ -362,7 +366,33 @@ function start(win) {
   detectionInterval = setInterval(tick, DETECTION_INTERVAL_MS);
   tick();
 
+  stopWatchingStarts?.();
+  stopWatchingStarts = onProcessStarted(({ name }) => {
+    if (sessionWin === win && (isBlocked(name) || isBlocked(`${name}.app`))) {
+      tickNow(tick);
+    }
+  });
+
   startHeartbeat();
+}
+
+/** A blocked app just started: tick now instead of waiting. Bursts share one extra tick. */
+function tickNow(tick) {
+  if (!isSessionActive) {
+    return;
+  }
+  if (startedTick) {
+    startedAgain = true;
+    return;
+  }
+  invalidateProcessCache();
+  startedTick = tick().finally(() => {
+    startedTick = null;
+    if (startedAgain) {
+      startedAgain = false;
+      tickNow(tick);
+    }
+  });
 }
 
 /**
@@ -921,6 +951,9 @@ function _endSession() {
   detachSessionWin();
   clearInterval(detectionInterval);
   detectionInterval = null;
+  stopWatchingStarts?.();
+  stopWatchingStarts = null;
+  startedAgain = false;
   clearInterval(heartbeatInterval);
   heartbeatInterval = null;
 }

@@ -41,10 +41,14 @@ function stub(id, exports) {
   require.cache[id] = { id, filename: id, loaded: true, exports };
 }
 
-/** @returns {{ checks: object, fake: object, screen: EventEmitter, unload: () => void }} */
+/**
+ * @returns {{ checks: object, fake: object, screen: EventEmitter, agentEvents: EventEmitter,
+ *   unload: () => void }}
+ */
 function loadSystemChecks() {
   const fake = defaults();
   const screen = new EventEmitter();
+  const agentEvents = new EventEmitter();
 
   stub(STUBBED.hdmi, { detectHDMIWindows: () => fake.hdmi() });
 
@@ -69,6 +73,10 @@ function loadSystemChecks() {
     pingAgent: async () => true,
     fetchAgentStatus: () => fake.status(),
     triggerAgentScan: () => fake.scan(),
+    onProcessStarted: (listener) => {
+      agentEvents.on("process_started", listener);
+      return () => agentEvents.off("process_started", listener);
+    },
   });
   stub(STUBBED.agentManager, {
     whenAgentReady: () => fake.agentReady(),
@@ -93,7 +101,7 @@ function loadSystemChecks() {
       delete require.cache[id];
     }
   };
-  return { checks, fake, screen, unload };
+  return { checks, fake, screen, agentEvents, unload };
 }
 
 function fakeWin() {

@@ -4,7 +4,8 @@ Interview security desktop agent.
 Behavioural checks the Electron preflight can't do from Node (window titles and
 classes, network peers, loaded modules, overlays, virtual audio, remote
 sessions, virtual machines, renamed blocked apps). Process bans by image name
-and display counting stay on the Node side.
+and display counting stay on the Node side; the agent only tells Electron the
+moment a process starts so it can check it straight away.
 
 Electron talks to it over newline-delimited JSON on stdin/stdout; the HTTP
 server on 127.0.0.1:9999 is a fallback. Windows, macOS and Linux.
@@ -1413,6 +1414,38 @@ def background_scanner():
         time.sleep(SCAN_INTERVAL)
 
 # ─────────────────────────────────────────────
+#  PROCESS START WATCHER
+# ─────────────────────────────────────────────
+# The scan only sees a new app on its next pass, so new PIDs are pushed to
+# Electron as {"type": "process_started"} for it to check against its blocklist.
+PROCESS_WATCH_S = 0.5
+# A burst past this is left to the next scan.
+PROCESS_EVENTS_PER_POLL = 50
+
+
+def poll_new_processes(known, emit):
+    """Emit process_started for every PID not in `known`; returns the current PID set."""
+    current = set(psutil.pids())
+    for pid in sorted(current - known)[:PROCESS_EVENTS_PER_POLL]:
+        try:
+            name = psutil.Process(pid).name()
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            continue
+        if name:
+            emit({"type": "process_started", "name": name, "pid": pid})
+    return current
+
+
+def process_watcher(emit, stop=None):
+    known = None
+    while stop is None or not stop.is_set():
+        try:
+            known = set(psutil.pids()) if known is None else poll_new_processes(known, emit)
+        except Exception as e:
+            logger.warning(f"process watcher error: {e}")
+        time.sleep(PROCESS_WATCH_S)
+
+# ─────────────────────────────────────────────
 #  HTTP SERVER (fallback channel)
 # ─────────────────────────────────────────────
 AGENT_SECRET = os.environ.get("AGENT_SECRET", "")
@@ -1870,6 +1903,7 @@ LOCKDOWN = InterviewLockdown()
 #  STDIO PIPE PROTOCOL (primary Electron channel)
 #  Newline-delimited JSON. Request:  {"id": <n>, "cmd": "ping"|"status"|"scan"|"lockdown_*", "args": {...}}
 #  Response: {"id": <n>, ...result}  written to stdout, one object per line.
+#  Unsolicited, no id: {"event": "ready", ...} once, then {"type": "process_started", "name", "pid"}.
 # ─────────────────────────────────────────────
 _stdout_lock = threading.Lock()
 
@@ -1948,6 +1982,9 @@ def stdio_protocol_loop():
         "source_sha": SOURCE_SHA,
         "pid": os.getpid(),
     })
+    threading.Thread(
+        target=process_watcher, args=(_write_response,), name="process-watcher", daemon=True
+    ).start()
     for line in sys.stdin:
         line = line.strip()
         if not line:

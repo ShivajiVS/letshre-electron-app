@@ -206,7 +206,7 @@ launch ─▶ onReady (src/main/app.js)
             │
    LIVE MONITOR (systemChecks.start → runDetectionTick every 5s)
    ├─ external display / duplicate-mirror
-   ├─ blocked processes launched mid-interview
+   ├─ blocked processes launched mid-interview (also checked the moment the agent sees one start)
    ├─ agent deep-scan threats
    ├─ agent reachability (anti-tamper)
    └─ heartbeat to backend (every 30s)
@@ -224,6 +224,7 @@ launch ─▶ onReady (src/main/app.js)
 | ---------------------------- | ------------------------------------------------------------- | -------------------------------- |
 | External / extended displays | `screen.getAllDisplays()` (native, instant)                   | `src/detector/hdmiDetector.js`   |
 | Blocked apps running         | `tasklist /FO CSV` (Win) / `ps` (mac), exact image-name match | `src/detector/mirrorDetector.js` |
+| Blocked app just launched    | Agent `process_started` push → immediate detection tick       | `src/detector/systemChecks.js`   |
 
 **Python agent (`agent.py`)** — eight behavioural checks plus a physical‑monitor count:
 
@@ -235,7 +236,8 @@ launch ─▶ onReady (src/main/app.js)
 6. AI interview‑copilot tools (process name / install path / stealth cmdline flags)
 7. Transparent click‑through overlays (`WS_EX_LAYERED|TRANSPARENT|TOPMOST`). Only windows visible for 5s count, so volume/brightness pop‑ups are ignored; laptop pop‑up utilities in `OVERLAY_TRUSTED_LOCATIONS` are trusted only from their install folder. Reported as medium: the first one warns, the next ends the interview.
 8. Virtual audio devices (VB‑Cable, Voicemeeter, …)
-9. **Physical monitor count** (`EnumDisplayDevices`) — catches Windows _“Duplicate”_ mode, which the logical‑display API reports as a single screen.
+9. **Process‑start watcher** — diffs `psutil.pids()` every 500ms and pushes `{"type":"process_started","name","pid"}` over the pipe. During an interview a blocklisted name runs a detection tick straight away instead of waiting up to 5s; the 5s tick stays as the safety net.
+10. **Physical monitor count** (`EnumDisplayDevices`) — catches Windows _“Duplicate”_ mode, which the logical‑display API reports as a single screen.
 
 The blocked‑app lists (meeting, screen‑share, casting, browsers, AI tools) and their friendly names live in one place: `src/shared/appList.js`.
 

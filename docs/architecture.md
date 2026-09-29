@@ -209,7 +209,7 @@ launch ─▶ onReady (src/main/app.js)
    ├─ macOS: on every Space, focus taken back when lost
    ├─ other displays covered in black
    ├─ navigation guardrails (only interview origin + file://)
-   ├─ startWatchdog: asks the candidate after 90s if the site never starts
+   ├─ startWatchdog: asks the candidate after 3 min if the site never starts
    └─ load interview web app (tokens, photo, role, locale via sessionStorage)
             │
    LIVE MONITOR (systemChecks.start → runDetectionTick at once, then every 5s)

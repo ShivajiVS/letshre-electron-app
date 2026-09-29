@@ -2,6 +2,8 @@
  * Structured logger for the main process — dual transport: console + file.
  * Levels: debug < info < warn < error
  * Set LOG_LEVEL env variable to control verbosity (default: "info").
+ * Every line carries this launch's run id and, during an interview, its session
+ * id, e.g. `[run:3f9a1c sess:abc123]`, so one run can be pulled out of the log.
  *
  * File transport:
  *   Call logger.init(logDir) once after app.whenReady() to enable.
@@ -18,12 +20,16 @@
 
 "use strict";
 
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
 const LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
 const activeLevel = LEVELS[process.env.LOG_LEVEL] ?? LEVELS.info;
 const MAX_LOG_BYTES = 5 * 1024 * 1024; // 5 MB — rotate at this size
+const RUN_ID = crypto.randomBytes(3).toString("hex");
+
+let sessionId = null;
 
 /** @type {string | null} */
 let currentLogPath = null;
@@ -95,6 +101,10 @@ function writeLine(line) {
   }
 }
 
+function correlationTag() {
+  return sessionId ? `[run:${RUN_ID} sess:${sessionId}]` : `[run:${RUN_ID}]`;
+}
+
 /**
  * @param {"debug"|"info"|"warn"|"error"} level
  * @param {...any} args
@@ -105,7 +115,7 @@ function log(level, ...args) {
   }
 
   const ts = new Date().toISOString();
-  const prefix = `[${ts}] [${level.toUpperCase()}]`;
+  const prefix = `[${ts}] [${level.toUpperCase()}] ${correlationTag()}`;
 
   // eslint-disable-next-line no-console
   console[level === "debug" || level === "info" ? "log" : level](prefix, ...args);
@@ -120,6 +130,15 @@ const logger = {
    * @type {(logDir: string) => void}
    */
   init: initFileLogger,
+
+  runId: RUN_ID,
+  /** @param {string|null} id - the live interview's session id, null once it ends */
+  setSessionId: (id) => {
+    // The id comes from the interview site, so nothing in it may break the line format.
+    const safe = typeof id === "string" ? id.replace(/[^\w.-]/g, "").slice(0, 64) : "";
+    sessionId = safe || null;
+  },
+  getSessionId: () => sessionId,
 
   debug: (...args) => log("debug", ...args),
   info: (...args) => log("info", ...args),

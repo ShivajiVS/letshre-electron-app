@@ -209,6 +209,7 @@ launch ─▶ onReady (src/main/app.js)
    ├─ blocked processes launched mid-interview
    ├─ agent deep-scan threats
    ├─ agent reachability (anti-tamper)
+   ├─ display added/removed → immediate tick (debounced 300ms)
    └─ heartbeat to backend (every 30s)
    RECORDING (web app calls startProctoring; chunks upload while recording)
             │  web app signals interviewComplete
@@ -247,7 +248,7 @@ The blocked‑app lists (meeting, screen‑share, casting, browsers, AI tools) a
 - **De‑duplicates** with a per‑event cooldown (`VIOLATION_COOLDOWN_MS`, 15s);
 - **Escalates** repeat offences (`isHardBlock = severity === "high" || count >= 2`), except extra displays, which are never hard blocks: the site counts them as strikes;
 - **Pushes** to the web app: `webContents.send("push-violation", payload)`;
-- **Reports** to the backend (`POST /interview/violation`) via a bounded FIFO retry queue;
+- **Reports** to the backend (`POST /interview/violation`) via a bounded FIFO queue: network errors, 5xx, 408, 429 and 401 are retried with backoff (2s doubling to 60s); any other 4xx drops that report with a warning. Unsent reports are kept encrypted in `userData/pending-violations.bin` and sent after the next launch;
 - **Holds** every violation until the web app acknowledges its `id`, re‑sending it if not ([see below](#detection-reliability--design-principles)).
 
 Payload delivered to the renderer / backend (fields and codes: [Web app integration](#web-app-integration-the-contract)):
@@ -264,6 +265,10 @@ Payload delivered to the renderer / backend (fields and codes: [Web app integrat
   "isHardBlock": true, // high severity, or count >= 2; always false for extra displays
   "source": "electron",
   "timestamp": "2026-06-19T13:44:04.849Z",
+  "sessionId": "sess_123", // from startProctoring; null until then, filled in while still queued
+  "interviewId": "int_456",
+  "appVersion": "1.4.4",
+  "recordingOffsetMs": 61250, // position in the screen recording, null when not recording
 }
 ```
 
@@ -421,6 +426,10 @@ window.electronAPI.abortInterview("attempts-exhausted"); // any other reason sho
   "isHardBlock": true, // high severity, or count >= 2; always false for extra displays
   "source": "electron",
   "timestamp": "2026-09-25T10:15:04.849Z",
+  "sessionId": "sess_123", // what startProctoring was given; null before it
+  "interviewId": "int_456",
+  "appVersion": "1.4.4",
+  "recordingOffsetMs": 61250, // position in the screen recording, or null
   "redelivered": true, // only on a re-send, which keeps the original id
 }
 ```
@@ -553,8 +562,8 @@ The client calls these on `API_BASE_URL` (from `.env`, no default) with `Authori
 | `POST /user/v1/candidate_interview/video_upload/chunk/`                           | Each recording chunk, during the interview                                                                                            |
 | `POST /user/v1/candidate_interview/video_upload/complete/`                        | After the last chunk is confirmed                                                                                                     |
 | `GET /user/v1/candidate_interview/video_upload/status/<uploadId>/`                | Poll until the backend has merged the video                                                                                           |
-| `POST /interview/heartbeat`                                                       | Every 30s during the interview — `{ timestamp }`                                                                                      |
-| `POST /interview/violation`                                                       | On every violation (retried) — `{ id, code, category, apps, event, severity, count, isHardBlock, source, timestamp }`; dedupe on `id` |
+| `POST /interview/heartbeat`                                                       | Every 30s during the interview — `{ timestamp, sessionId, interviewId, appVersion }`                                                  |
+| `POST /interview/violation`                                                       | On every violation (retried, also after a restart) — the [violation payload](#violation-model); dedupe on `id`; a 4xx other than 401/408/429 drops it |
 
 > **Required for enforcement:** `POST /interview/violation` must be implemented server‑side to record/flag/terminate sessions. Until it exists, violation reports are queued and retried client‑side.
 
@@ -650,8 +659,13 @@ pnpm start        # plain electron .
 - **Tests** — `pnpm test` (Node's built‑in runner, `test/*.test.js`).
 - **Lint / format** — `pnpm run lint` / `pnpm run format`.
 - **DevTools** — `DEVTOOLS=true` in `.env` docks DevTools at launch and allows F12 / Ctrl+Shift+I.
+- **Simulate a violation** — with `DEVTOOLS` on in an unpackaged run, call
+  `await window.electronAPI.devSimulateViolation("blocked_app")` from the interview page's console to
+  fire any code through the real pipeline (push, backend report, ack). Refused otherwise.
 - **Logs** — the main process and forwarded agent logs are written to
   `…/AppData/Roaming/letshyre-secure-interview/secure-interview.log` (Windows).
+  Each line is tagged `[run:<id>]` for the launch and `sess:<sessionId>` during an interview;
+  audit events carry the same `runId` and `sessionId`.
 
 ## Building & packaging
 

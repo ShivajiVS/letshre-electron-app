@@ -10,7 +10,7 @@ const { app, shell } = require("electron");
 const updater = require("./updater");
 const logger = require("./logger");
 const appState = require("./appState");
-const { IPC, SUPPORT_URL } = require("../shared/constants");
+const { IPC, SUPPORT_URL, DEVTOOLS_ENABLED } = require("../shared/constants");
 const { SCOPE, registerHandler, registerSend } = require("./ipcScope");
 const {
   killSingleProcess,
@@ -55,6 +55,7 @@ const flowGuard = require("./flowGuard");
 const screenRecorder = require("./screenRecorder");
 const blocklistPolicy = require("./blocklistPolicy");
 const { getLists, getDisplayNames } = require("../shared/blocklist");
+const { createViolationSimulator } = require("./devViolations");
 const { startPreProceedMonitor, stopPreProceedMonitor } = startDetection;
 
 // Longest a scan waits for the company policy fetched at Start Interview.
@@ -880,8 +881,20 @@ function registerIpcHandlers() {
       return { ok: false, error: "Interview is not locked down" };
     }
     startWatchdog.markLive();
+    startDetection.setSessionContext({ sessionId: safeSessionId, interviewId: safeInterviewId });
     return await screenRecorder.start({ sessionId: safeSessionId, interviewId: safeInterviewId });
   });
+
+  const simulateViolation = createViolationSimulator({
+    enabled: DEVTOOLS_ENABLED && !app.isPackaged,
+    getWindow,
+    isSessionActive: startDetection.isSessionActive,
+    sendViolation: startDetection.sendViolation,
+    logger,
+  });
+  registerHandler(IPC.DEV_SIMULATE_VIOLATION, SCOPE.INTERVIEW, (_event, code) =>
+    simulateViolation(code)
+  );
 
   registerSend(IPC.PROCTORING_STOP, SCOPE.INTERVIEW, () => {
     logger.info("[ipc] proctoring-stop");

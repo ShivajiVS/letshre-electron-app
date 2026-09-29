@@ -12,6 +12,7 @@ const STUBBED = {
   mirror: require.resolve("../src/detector/mirrorDetector"),
   agentClient: require.resolve("../src/detector/agentClient"),
   agentManager: require.resolve("../src/main/agentManager"),
+  screenRecorder: require.resolve("../src/main/screenRecorder"),
 };
 const ELECTRON = require.resolve("electron");
 
@@ -34,6 +35,7 @@ function defaults() {
     blocked: false,
     restarts: 0,
     invalidations: 0,
+    recordingOffsetMs: null,
   };
 }
 
@@ -79,6 +81,7 @@ function loadSystemChecks() {
       return true;
     },
   });
+  stub(STUBBED.screenRecorder, { getRecordingOffsetMs: () => fake.recordingOffsetMs });
   stub(ELECTRON, { screen });
 
   delete require.cache[SYSTEM_CHECKS];

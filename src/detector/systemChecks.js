@@ -52,6 +52,7 @@ const {
 } = require("../main/agentManager");
 const logger = require("../main/logger");
 const preflightTelemetry = require("../main/preflightTelemetry");
+const reportStore = require("../main/reportStore");
 
 const violationCache = new Map(); // event key → last-fired timestamp
 const violationEscalation = new Map(); // event key → total fire count
@@ -61,6 +62,14 @@ let isSessionActive = false;
 let detectionInterval = null;
 let heartbeatInterval = null;
 let sessionWin = null;
+let sessionTick = null;
+let displayTickTimer = null;
+const DISPLAY_TICK_DEBOUNCE_MS = 300;
+
+/** Ids the interview site passed to PROCTORING_START; null until it does. */
+let sessionContext = { sessionId: null, interviewId: null };
+/** Payloads raised before the site sent its ids, filled in once it does. */
+const awaitingSessionIds = new Set();
 
 /** Sent violations the site hasn't acknowledged yet, oldest first (id → payload). */
 const unacked = new Map();
@@ -124,7 +133,13 @@ const auditLog = [];
  * @param {object} data
  */
 function appendAuditEvent(type, data) {
-  auditLog.push({ timestamp: new Date().toISOString(), type, data });
+  auditLog.push({
+    timestamp: new Date().toISOString(),
+    runId: logger.runId,
+    sessionId: sessionContext.sessionId,
+    type,
+    data,
+  });
   if (auditLog.length > 500) {
     auditLog.shift();
   }
@@ -139,36 +154,106 @@ function getAuditLog() {
 // Every violation is also POSTed to the backend, not just pushed to the renderer:
 // the page can be reloading or down when it's pushed, so the backend POST is what
 // makes the server the authority that can actually terminate/flag the session.
-// Failed posts queue and retry (bounded, FIFO) so a network blip isn't a silent bypass.
+// Unsent reports queue (bounded, FIFO, kept on disk) and retry with backoff, so
+// a network blip or a quit isn't a silent bypass.
 const MAX_PENDING_REPORTS = 100;
+const REPORT_RETRY_BASE_MS = 2000;
+const REPORT_RETRY_MAX_MS = 60000;
 const pendingReports = [];
 let isFlushingReports = false;
+let reportRetryTimer = null;
+let reportRetryDelayMs = REPORT_RETRY_BASE_MS;
+
+let _cachedAppVersion;
+function _appVersion() {
+  if (_cachedAppVersion === undefined) {
+    try {
+      _cachedAppVersion = require("electron").app.getVersion();
+    } catch {
+      _cachedAppVersion = null;
+    }
+  }
+  return _cachedAppVersion;
+}
+
+function _recordingOffsetMs() {
+  try {
+    return require("../main/screenRecorder").getRecordingOffsetMs();
+  } catch {
+    return null;
+  }
+}
+
+// After a relaunch the interview token isn't set until the next interview
+// starts, but the restored login carries the same token.
+function _accessToken() {
+  const token = getCurrentAccessToken();
+  if (token) {
+    return token;
+  }
+  try {
+    return require("../main/authManager").getTokens()?.accessToken ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function _persistReports() {
+  reportStore.save(pendingReports);
+}
 
 /**
  * Attempts a single authenticated POST of one violation to the backend.
- * @returns {Promise<boolean>} true on success, false if it should be retried.
+ * A 401 is kept: the token is refreshed elsewhere and a later attempt uses it.
+ * @returns {Promise<"sent"|"retry"|"drop">}
  */
 async function postViolation(payload) {
-  const token = getCurrentAccessToken();
+  const token = _accessToken();
   if (!token) {
-    return false;
-  } // no session token yet — keep queued for retry
+    return "retry";
+  }
   try {
     await axios.post(`${API_BASE_URL}/interview/violation`, payload, {
       headers: { Authorization: `Bearer ${token}` },
       timeout: 5000,
     });
-    return true;
+    return "sent";
   } catch (err) {
+    const status = err.response?.status;
+    if (status >= 400 && status < 500 && ![401, 408, 429].includes(status)) {
+      logger.warn(
+        `[violation-report] backend refused a ${payload.code} report (${status}), dropping it`
+      );
+      return "drop";
+    }
     logger.warn(`[violation-report] post failed (will retry): ${err.message}`);
-    return false;
+    return "retry";
   }
 }
 
+function _scheduleReportRetry() {
+  if (reportRetryTimer) {
+    return;
+  }
+  const delay = reportRetryDelayMs;
+  reportRetryDelayMs = Math.min(delay * 2, REPORT_RETRY_MAX_MS);
+  reportRetryTimer = setTimeout(() => {
+    reportRetryTimer = null;
+    flushReports().catch((e) => logger.warn(`[violation-report] flush error: ${e.message}`));
+  }, delay);
+  reportRetryTimer.unref?.();
+}
+
+function _clearReportRetry() {
+  clearTimeout(reportRetryTimer);
+  reportRetryTimer = null;
+  reportRetryDelayMs = REPORT_RETRY_BASE_MS;
+}
+
 /**
- * Drains the pending-report queue in FIFO order. Stops on the first failure so
- * ordering is preserved and the remaining items are retried on the next flush
- * (triggered by the next violation or the heartbeat tick). Re-entrancy guarded.
+ * Drains the pending-report queue in FIFO order. A report worth retrying stops
+ * the drain, keeping the order, and schedules a backed-off retry. The next
+ * violation or heartbeat also flushes. Re-entrancy guarded.
  */
 async function flushReports() {
   if (isFlushingReports) {
@@ -177,24 +262,76 @@ async function flushReports() {
   isFlushingReports = true;
   try {
     while (pendingReports.length > 0) {
-      const ok = await postViolation(pendingReports[0]);
-      if (!ok) {
-        break;
+      const report = pendingReports[0];
+      if ((await postViolation(report)) === "retry") {
+        _scheduleReportRetry();
+        return;
       }
-      pendingReports.shift();
+      // The queue can be trimmed while the post is in flight.
+      const index = pendingReports.indexOf(report);
+      if (index !== -1) {
+        pendingReports.splice(index, 1);
+        _persistReports();
+      }
     }
+    _clearReportRetry();
   } finally {
     isFlushingReports = false;
+  }
+}
+
+function _trimReports() {
+  if (pendingReports.length > MAX_PENDING_REPORTS) {
+    pendingReports.splice(0, pendingReports.length - MAX_PENDING_REPORTS);
   }
 }
 
 /** Enqueues a violation for backend delivery and kicks off a flush. */
 function reportViolationToBackend(payload) {
   pendingReports.push(payload);
-  if (pendingReports.length > MAX_PENDING_REPORTS) {
-    pendingReports.shift(); // bound memory — drop the oldest unsent report
-  }
+  _trimReports();
+  _persistReports();
   flushReports().catch((e) => logger.warn(`[violation-report] flush error: ${e.message}`));
+}
+
+/**
+ * Queues the reports a previous run could not send, ahead of anything new, and
+ * starts delivering them. Call once the report store is open.
+ * @returns {number} how many were restored
+ */
+function restorePendingReports() {
+  const saved = reportStore.load();
+  if (saved.length === 0) {
+    return 0;
+  }
+  pendingReports.unshift(...saved);
+  _trimReports();
+  _persistReports();
+  logger.info(`[violation-report] ${saved.length} unsent report(s) from a previous run queued`);
+  flushReports().catch((e) => logger.warn(`[violation-report] flush error: ${e.message}`));
+  return saved.length;
+}
+
+/**
+ * Records the ids the interview site started proctoring with. Violations raised
+ * before it did (between the lockdown and the site loading) get them too.
+ * @param {{sessionId?: string|null, interviewId?: string|null}} ids
+ */
+function setSessionContext({ sessionId = null, interviewId = null } = {}) {
+  sessionContext = { sessionId, interviewId };
+  logger.setSessionId(sessionId);
+  for (const payload of awaitingSessionIds) {
+    payload.sessionId = sessionId;
+    payload.interviewId = interviewId;
+  }
+  awaitingSessionIds.clear();
+  _persistReports();
+}
+
+function _clearSessionContext() {
+  sessionContext = { sessionId: null, interviewId: null };
+  awaitingSessionIds.clear();
+  logger.setSessionId(null);
 }
 
 function startHeartbeat() {
@@ -209,10 +346,14 @@ function startHeartbeat() {
       }
       await axios.post(
         `${API_BASE_URL}/interview/heartbeat`,
-        { timestamp: new Date().toISOString() },
+        {
+          timestamp: new Date().toISOString(),
+          sessionId: sessionContext.sessionId,
+          interviewId: sessionContext.interviewId,
+          appVersion: _appVersion(),
+        },
         { headers: { Authorization: `Bearer ${token}` }, timeout: 5000 }
       );
-      // Opportunistically retry any violations that failed to POST earlier.
       flushReports().catch(() => {});
     } catch (err) {
       logger.warn(`[heartbeat] failed: ${err.message}`);
@@ -359,10 +500,14 @@ function start(win) {
     runDetectionTick(win).catch((e) =>
       logger.warn("[systemChecks] detection tick error:", e.message)
     );
+  sessionTick = tick;
   detectionInterval = setInterval(tick, DETECTION_INTERVAL_MS);
+  _watchDisplays(false, _onSessionDisplayChange);
+  _watchDisplays(true, _onSessionDisplayChange);
   tick();
 
   startHeartbeat();
+  flushReports().catch((e) => logger.warn(`[violation-report] flush error: ${e.message}`));
 }
 
 /**
@@ -377,6 +522,10 @@ function start(win) {
  * @property {boolean} isHardBlock
  * @property {"electron"} source
  * @property {string} timestamp
+ * @property {string|null} sessionId - from PROCTORING_START, filled in later if raised before it
+ * @property {string|null} interviewId
+ * @property {string|null} appVersion
+ * @property {number|null} recordingOffsetMs - position in the screen recording, null when not recording
  * @property {boolean} [redelivered] - a re-send of an unacknowledged violation
  */
 
@@ -440,7 +589,14 @@ function sendViolation(win, event, severity, meta = {}) {
     isHardBlock,
     source: "electron",
     timestamp: new Date(now).toISOString(),
+    sessionId: sessionContext.sessionId,
+    interviewId: sessionContext.interviewId,
+    appVersion: _appVersion(),
+    recordingOffsetMs: _recordingOffsetMs(),
   };
+  if (!sessionContext.sessionId && !sessionContext.interviewId) {
+    awaitingSessionIds.add(payload);
+  }
 
   appendAuditEvent("violation", payload);
   logger.warn(
@@ -923,6 +1079,11 @@ function _endSession() {
   detectionInterval = null;
   clearInterval(heartbeatInterval);
   heartbeatInterval = null;
+  _watchDisplays(false, _onSessionDisplayChange);
+  clearTimeout(displayTickTimer);
+  displayTickTimer = null;
+  sessionTick = null;
+  _clearSessionContext();
 }
 
 /** Ends the interview's detection. Called when the site reports the interview is over. */
@@ -941,7 +1102,8 @@ function resetState() {
   _threatProcesses = new Map();
   violationCache.clear();
   violationEscalation.clear();
-  pendingReports.length = 0;
+  // Unsent reports belong to an earlier interview and are still owed to the backend.
+  _clearReportRetry();
 }
 
 // ─── Pre-proceed monitor ─────────────────────────────────────────────────────
@@ -1006,7 +1168,16 @@ function _onDisplayChange() {
   _monitorTick();
 }
 
-function _watchDisplays(on) {
+// Plugging in a monitor can fire several events; one tick covers them all.
+function _onSessionDisplayChange() {
+  clearTimeout(displayTickTimer);
+  displayTickTimer = setTimeout(() => {
+    displayTickTimer = null;
+    sessionTick?.();
+  }, DISPLAY_TICK_DEBOUNCE_MS);
+}
+
+function _watchDisplays(on, handler) {
   const screen = _screen();
   if (!screen) {
     return;
@@ -1014,9 +1185,9 @@ function _watchDisplays(on) {
   try {
     for (const event of ["display-added", "display-removed"]) {
       if (on) {
-        screen.on(event, _onDisplayChange);
+        screen.on(event, handler);
       } else {
-        screen.removeListener(event, _onDisplayChange);
+        screen.removeListener(event, handler);
       }
     }
   } catch (e) {
@@ -1027,7 +1198,7 @@ function _watchDisplays(on) {
 function _haltMonitor() {
   clearInterval(preProceedInterval);
   preProceedInterval = null;
-  _watchDisplays(false);
+  _watchDisplays(false, _onDisplayChange);
   _monitorEpoch += 1;
 }
 
@@ -1044,7 +1215,7 @@ function startPreProceedMonitor(win) {
   }
   logger.info("[systemChecks] pre-proceed monitor started");
   preProceedInterval = setInterval(_monitorTick, PRE_PROCEED_INTERVAL_MS);
-  _watchDisplays(true);
+  _watchDisplays(true, _onDisplayChange);
 }
 
 /** Stops the monitor for good (page left) and forgets its live state. */
@@ -1074,6 +1245,8 @@ module.exports = {
   start,
   stop,
   sendViolation,
+  setSessionContext,
+  restorePendingReports,
   resetState,
   runChecksOnce,
   /** True while an interview is live; refuses actions that show system UI mid-session. */
@@ -1092,5 +1265,7 @@ module.exports = {
     runDetectionTick,
     monitorTick: _monitorTick,
     agentFailStreak: () => _agentFailStreak,
+    pendingReports: () => [...pendingReports],
+    flushReports,
   },
 };

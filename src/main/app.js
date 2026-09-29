@@ -16,6 +16,7 @@ const startDetection = require("../detector/systemChecks");
 const authManager = require("./authManager");
 const pendingUploads = require("./pendingUploads");
 const { loadSpillKey } = require("./spillKey");
+const reportStore = require("./reportStore");
 const screenRecorder = require("./screenRecorder");
 const { isMediaFrameAllowed, isPermissionAllowed } = require("./ipcScope");
 
@@ -47,10 +48,13 @@ async function onReady() {
   // 0b. Restore persisted auth session (safeStorage is ready after app.whenReady)
   authManager.init();
 
-  // 0c. Open the recording spill store before anything can record into it.
+  // 0c. Open the recording spill store and the unsent-violation store before
+  //     anything can write to them.
   try {
     const userData = app.getPath("userData");
-    const purged = pendingUploads.init(userData, loadSpillKey(userData));
+    const spillKey = loadSpillKey(userData);
+    reportStore.init(userData, spillKey);
+    const purged = pendingUploads.init(userData, spillKey);
     if (purged.length) {
       logger.info(`[app] purged ${purged.length} expired pending upload(s)`);
     }
@@ -124,7 +128,10 @@ async function onReady() {
   //    Interview-safe: checks/installs are gated on interview state internally.
   updater.init();
 
-  // 7. Finish any recording upload interrupted by a previous quit/crash.
+  // 7. Violation reports a previous run could not send; they go out once a token exists.
+  startDetection.restorePendingReports();
+
+  // 8. Finish any recording upload interrupted by a previous quit/crash.
   //    Deliberately not awaited: draining a backlog can take minutes and must
   //    not hold up the window. Requires a valid session — the chunk/complete
   //    calls are all authenticated, so an expired login defers this to the

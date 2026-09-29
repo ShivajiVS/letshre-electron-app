@@ -225,6 +225,7 @@ test("no channel is registered twice with two different scopes", () => {
 const EXPECTED_INTERVIEW_SCOPE_CHANNELS = [
   "ABORT_INTERVIEW", // abortInterview(reason) — the interview could not start
   "ACK_VIOLATION", // acknowledgeViolation() — contract step 2
+  "DEV_SIMULATE_VIOLATION", // devSimulateViolation(code) — refused unless DEVTOOLS is on
   "INTERVIEW_COMPLETE", // interviewComplete(reason) — contract step 3
   "PROCTORING_START", // interview.letshyre.com → start recording
   "PROCTORING_STOP", // interview.letshyre.com → stop recording

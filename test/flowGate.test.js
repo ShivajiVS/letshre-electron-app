@@ -124,6 +124,9 @@ function load() {
     resetState: noop,
     start: record("startDetection"),
     stop: record("detection.stop"),
+    setSessionContext: record("setSessionContext"),
+    isSessionActive: () => g.active,
+    sendViolation: record("sendViolation"),
   });
   stub(flowGuard, {
     start: (_win, stage) => {
@@ -433,6 +436,30 @@ test("once the interview is running the site can not back out of it", async () =
   await g.callFromInterview(IPC.ABORT_INTERVIEW, { reason: "start-failed" });
   assert.ok(!g.names().includes("endInterview"));
   assert.ok(!g.names().includes("loadDashboard"));
+});
+
+test("proctoring start hands the site's ids to detection", async () => {
+  const g = load();
+  g.active = true;
+  await g.callFromInterview(IPC.PROCTORING_START, { sessionId: "s1", interviewId: 42 });
+  assert.deepStrictEqual(
+    g.calls.find((c) => c[0] === "setSessionContext"),
+    ["setSessionContext", { sessionId: "s1", interviewId: null }]
+  );
+});
+
+test("proctoring start refused outside a locked interview stores no ids", async () => {
+  const g = load();
+  await g.callFromInterview(IPC.PROCTORING_START, { sessionId: "s1" });
+  assert.ok(!g.names().includes("setSessionContext"));
+});
+
+test("the violation simulator is refused without DEVTOOLS", async () => {
+  const g = load();
+  g.active = true;
+  const result = await g.callFromInterview(IPC.DEV_SIMULATE_VIOLATION, "blocked_app");
+  assert.strictEqual(result.ok, false);
+  assert.ok(!g.names().includes("sendViolation"));
 });
 
 test("the dashboard can not be opened over a locked interview", async () => {

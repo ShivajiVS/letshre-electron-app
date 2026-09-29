@@ -46,6 +46,7 @@ let isOnline = () => net.isOnline();
 /** @type {BrowserWindow | null} */
 let recorderWin = null;
 let isRecording = false;
+let recordingStartedAt = null;
 
 let uploadId = null;
 let chunkIndex = 0;
@@ -412,6 +413,7 @@ function _notifyProctoringError(message) {
 function _resetState() {
   generation++;
   isRecording = false;
+  recordingStartedAt = null;
   uploadId = null;
   chunkIndex = 0;
   chunkQueue = [];
@@ -561,12 +563,20 @@ function stop() {
   logger.info("[recorder] stop requested");
 }
 
+function _onRecorderReady() {
+  _clearReadyWatchdog();
+  recordingStartedAt = Date.now();
+  logger.info("[recorder] MediaRecorder started — proctoring is live");
+  _pushToInterviewPage(IPC.PUSH_PROCTORING_STARTED, {});
+}
+
+/** Milliseconds into the recording right now, or null when nothing is being recorded. */
+function getRecordingOffsetMs() {
+  return isRecording && recordingStartedAt !== null ? Date.now() - recordingStartedAt : null;
+}
+
 function registerRecorderIpc() {
-  ipcMain.on(IPC.RECORDER_READY, () => {
-    _clearReadyWatchdog();
-    logger.info("[recorder] MediaRecorder started — proctoring is live");
-    _pushToInterviewPage(IPC.PUSH_PROCTORING_STARTED, {});
-  });
+  ipcMain.on(IPC.RECORDER_READY, _onRecorderReady);
 
   ipcMain.on(IPC.RECORDER_CHUNK, (_event, uint8Array) => _onChunk(uint8Array));
 
@@ -713,6 +723,7 @@ module.exports = {
   resumePendingUploads,
   hasPendingUpload,
   getPendingChunkCount,
+  getRecordingOffsetMs,
   whenDrained,
 
   // Drives the live pipeline without an Electron window, and without real backoff.
@@ -726,6 +737,7 @@ module.exports = {
     },
     openSession: _openSession,
     onChunk: _onChunk,
+    onRecorderReady: _onRecorderReady,
     finalize: _finalize,
     reset: _resetState,
   },

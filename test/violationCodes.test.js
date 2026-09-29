@@ -76,10 +76,10 @@ test("only the ai blocklist category is ai_tool; the rest are blocked_app", () =
   }
 });
 
-test("the README documents every code for the interview site", () => {
-  const readme = fs.readFileSync(path.join(__dirname, "../README.md"), "utf8");
-  const section = readme.match(/## Web app integration[\s\S]*?(?=\n## )/);
-  assert.ok(section, "could not locate the Web app integration section");
+test("docs/web-contract.md documents every code for the interview site", () => {
+  const doc = fs.readFileSync(path.join(__dirname, "../docs/web-contract.md"), "utf8");
+  const section = doc.match(/## Codes[\s\S]*?(?=\n## )/);
+  assert.ok(section, "could not locate the Codes section");
   for (const code of ALL) {
     assert.match(section[0], new RegExp(`\\|\\s*\`${code}\`\\s*\\|`), `${code} is undocumented`);
   }

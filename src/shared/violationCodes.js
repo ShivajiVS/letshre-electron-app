@@ -1,6 +1,6 @@
 // Stable machine-readable codes for everything the security checks can flag.
 // The pre-interview guard and the live interview detection both use these, and
-// the interview site keys its copy and handling off them (README "Web app integration").
+// the interview site keys its copy and handling off them (docs/web-contract.md).
 
 "use strict";
 

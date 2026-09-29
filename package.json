@@ -24,6 +24,7 @@
     "lint": "eslint src scripts test assets/js preload.js preload-recorder.js main.js --ext .js",
     "lint:fix": "eslint src scripts test assets/js preload.js preload-recorder.js main.js --ext .js --fix",
     "format": "prettier --write \"{src,scripts,test}/**/*.js\" \"assets/**/*.{html,css,js}\" \"preload.js\" \"preload-recorder.js\" \"main.js\"",
+    "contract:sync": "node scripts/sync-contract.js",
     "format:check": "prettier --check \"{src,scripts,test}/**/*.js\" \"assets/**/*.{html,css,js}\" \"preload.js\" \"preload-recorder.js\" \"main.js\""
   },
   "devDependencies": {

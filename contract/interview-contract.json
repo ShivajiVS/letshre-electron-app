@@ -1,0 +1,233 @@
+{
+  "version": 1,
+  "description": "What the desktop app and the interview site promise each other. Source of truth is the app repo; the site keeps a copy in src/contract/. See docs/web-contract.md.",
+  "violationCodes": [
+    {
+      "code": "blocked_app",
+      "treatAs": "hard",
+      "neverHardBlock": false,
+      "meaning": "A blocklisted meeting, screen-share, casting/remote or browser app is running. One violation per category, apps in `apps`."
+    },
+    {
+      "code": "ai_tool",
+      "treatAs": "hard",
+      "neverHardBlock": false,
+      "meaning": "An AI assistant is running: on the blocklist (category \"ai\") or found by the agent (\"agent\")."
+    },
+    {
+      "code": "overlay",
+      "treatAs": "soft-then-hard",
+      "neverHardBlock": false,
+      "meaning": "Agent: a transparent overlay window is over the screen."
+    },
+    {
+      "code": "renamed_app",
+      "treatAs": "hard",
+      "neverHardBlock": false,
+      "meaning": "Agent: a blocked app is running under another name."
+    },
+    {
+      "code": "external_display",
+      "treatAs": "strike",
+      "neverHardBlock": true,
+      "meaning": "A second display is connected. Re-sent every 15s while it stays connected."
+    },
+    {
+      "code": "mirrored_display",
+      "treatAs": "strike",
+      "neverHardBlock": true,
+      "meaning": "One display, but more physical monitors behind it (Duplicate mode). Re-sent every 15s while it stays."
+    },
+    {
+      "code": "remote_session",
+      "treatAs": "hard",
+      "neverHardBlock": false,
+      "meaning": "Agent: the computer is being used through remote desktop."
+    },
+    {
+      "code": "virtual_machine",
+      "treatAs": "hard",
+      "neverHardBlock": false,
+      "meaning": "Agent: the computer is a virtual machine."
+    },
+    {
+      "code": "suspicious_activity",
+      "treatAs": "follow-isHardBlock",
+      "neverHardBlock": false,
+      "meaning": "Any other agent finding, or an event without its own code (deep-link swap)."
+    },
+    {
+      "code": "agent_unreachable",
+      "treatAs": "hard",
+      "neverHardBlock": false,
+      "meaning": "The security agent didn't answer, or couldn't finish its checks, 3 times in a row."
+    },
+    {
+      "code": "check_unverified",
+      "treatAs": "hard",
+      "neverHardBlock": false,
+      "meaning": "The display (category \"hdmi\") or process (null) check couldn't answer 3 times in a row."
+    },
+    {
+      "code": "window_minimize",
+      "treatAs": "hard",
+      "neverHardBlock": false,
+      "meaning": "The candidate tried to minimize the window (undone)."
+    },
+    {
+      "code": "fullscreen_exit",
+      "treatAs": "soft-then-hard",
+      "neverHardBlock": false,
+      "meaning": "The candidate left fullscreen (undone)."
+    },
+    {
+      "code": "close_attempt",
+      "treatAs": "hard",
+      "neverHardBlock": false,
+      "meaning": "The candidate opened the exit dialog and cancelled it."
+    },
+    {
+      "code": "focus_lost",
+      "treatAs": "site-decides",
+      "neverHardBlock": true,
+      "meaning": "Another app came to the front (Windows: its name is in `apps`). The app brings the interview back."
+    },
+    {
+      "code": "virtual_desktop",
+      "treatAs": "site-decides",
+      "neverHardBlock": true,
+      "meaning": "Windows: the interview window is no longer on the current virtual desktop."
+    }
+  ],
+  "treatAsValues": {
+    "hard": "Ends the interview the first time.",
+    "soft-then-hard": "A strike the first time; the app marks a repeat isHardBlock.",
+    "strike": "A strike on the site's own limit. isHardBlock is always false.",
+    "site-decides": "Never a hard block. The site's own focus tracking already covers it.",
+    "follow-isHardBlock": "Hard when isHardBlock is true, otherwise a strike."
+  },
+  "violationPayload": {
+    "id": "string (UUID); acknowledge with it; kept on redelivery",
+    "code": "one of violationCodes[].code",
+    "category": "hdmi | meeting | screen | wireless | browser | ai | agent | null",
+    "apps": "string[] of display names, may be empty",
+    "event": "plain English, not a contract",
+    "severity": "high | medium",
+    "count": "number of times this event text fired this session",
+    "isHardBlock": "boolean: severity high or count >= 2; always false when neverHardBlock",
+    "source": "electron",
+    "timestamp": "ISO 8601 UTC",
+    "redelivered": "true only on a re-send"
+  },
+  "electronAPI": {
+    "methods": [
+      {
+        "name": "acknowledgeViolation",
+        "args": ["id?"],
+        "channelKey": "ACK_VIOLATION",
+        "channel": "ack-violation",
+        "kind": "send"
+      },
+      {
+        "name": "interviewComplete",
+        "args": ["reason"],
+        "channelKey": "INTERVIEW_COMPLETE",
+        "channel": "interview-complete",
+        "kind": "send"
+      },
+      {
+        "name": "abortInterview",
+        "args": ["reason"],
+        "channelKey": "ABORT_INTERVIEW",
+        "channel": "abort-interview",
+        "kind": "send"
+      },
+      {
+        "name": "viewDashboard",
+        "args": [],
+        "channelKey": "VIEW_DASHBOARD",
+        "channel": "view-dashboard",
+        "kind": "send"
+      },
+      {
+        "name": "startProctoring",
+        "args": ["meta?"],
+        "channelKey": "PROCTORING_START",
+        "channel": "proctoring-start",
+        "kind": "invoke"
+      },
+      {
+        "name": "stopProctoring",
+        "args": [],
+        "channelKey": "PROCTORING_STOP",
+        "channel": "proctoring-stop",
+        "kind": "send"
+      }
+    ],
+    "events": [
+      {
+        "name": "onViolation",
+        "remove": "removeViolationListener",
+        "channelKey": "PUSH_VIOLATION",
+        "channel": "push-violation"
+      },
+      {
+        "name": "onProctoringStarted",
+        "channelKey": "PUSH_PROCTORING_STARTED",
+        "channel": "push-proctoring-started"
+      },
+      {
+        "name": "onProctoringError",
+        "channelKey": "PUSH_PROCTORING_ERROR",
+        "channel": "push-proctoring-error"
+      }
+    ]
+  },
+  "sessionStorage": {
+    "set": [
+      { "key": "ac", "meaning": "Access token, when a session is available" },
+      { "key": "rc", "meaning": "Refresh token, when a session is available" },
+      {
+        "key": "candidate_photo",
+        "meaning": "Base64 data URL of the live photo from identity verification"
+      },
+      {
+        "key": "role_selection",
+        "meaning": "JSON: { is_custom_role, selected_role?, manual_skills? }"
+      },
+      {
+        "key": "locale",
+        "meaning": "Chosen UI language. Prefer the lang query param, which is set before any script runs."
+      }
+    ],
+    "cleared": ["interview_session", "face_registered", "face_registered_for"]
+  },
+  "reasons": {
+    "format": "^[\\w:-]{1,40}$; anything else is stripped by the app, and an empty result becomes \"unknown\"",
+    "interviewComplete": [
+      { "reason": "completed", "meaning": "Last answer submitted" },
+      { "reason": "auto-submitted", "meaning": "Auto-submitted for a non-punitive reason" },
+      {
+        "reason": "terminated",
+        "meaning": "Ended for a violation, face mismatch or security block"
+      },
+      { "reason": "expired", "meaning": "Timer reached 0" },
+      { "reason": "attempts-exhausted", "meaning": "Start failed, no attempts left" },
+      { "reason": "start-rejected", "meaning": "Start request refused by the backend" },
+      { "reason": "update-required", "meaning": "Desktop app older than VITE_MIN_DESKTOP_VERSION" },
+      { "reason": "unauthorized", "meaning": "No valid tokens" }
+    ],
+    "abortInterview": [
+      {
+        "reason": "attempts-exhausted",
+        "meaning": "No attempts left; the dashboard shows the exhausted note"
+      },
+      { "reason": "start-rejected", "meaning": "Start request refused by the backend" },
+      { "reason": "start-network", "meaning": "Start request never reached the backend" },
+      { "reason": "start-server", "meaning": "Start request got a 5xx" },
+      { "reason": "not-found", "meaning": "Back to dashboard from the 404 page" },
+      { "reason": "route-error", "meaning": "Back to dashboard from the error page" }
+    ],
+    "abortInterviewNote": "Refused once startProctoring() has been called. Any reason other than attempts-exhausted shows \"couldn't start\" on the dashboard."
+  }
+}

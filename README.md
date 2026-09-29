@@ -1,6 +1,6 @@
 # LetsHyre Secure Interview
 
-A Windows/macOS **Electron desktop client** that proctors online interviews. It runs a battery of security checks **before** an interview (preflight) and **continuously during** it, then hosts the LetsHyre web interview (`interview.letshyre.com`) inside a locked‑down browser window while recording the screen. If it detects cheating vectors — external monitors, screen mirroring, meeting/recording apps, AI interview copilots (Parakeet, Cluely, Final Round AI, …), transparent overlays, virtual audio cables, browser automation — it raises a **violation** to the web app and reports it to the backend. The web app owns the warning and termination screens; there is no local violation page.
+A Windows/macOS **Electron desktop client** that proctors online interviews. It runs a battery of security checks **before** an interview (preflight) and **continuously during** it, then hosts the LetsHyre web interview (`interview.letshyre.com`) inside a locked‑down browser window while recording the screen. If it detects cheating vectors — external monitors, screen mirroring, meeting/recording apps, AI interview copilots (Parakeet, Cluely, Final Round AI, …), transparent overlays, virtual audio cables, virtual cameras, browser automation — it raises a **violation** to the web app and reports it to the backend. The web app owns the warning and termination screens; there is no local violation page.
 
 > **Status:** active — v1.4.0 (2026‑09‑19).
 
@@ -74,7 +74,7 @@ A Windows/macOS **Electron desktop client** that proctors online interviews. It 
 Two cooperating detection tiers:
 
 - **Node tier** (main process) — displays and running processes, using native OS APIs.
-- **Python agent** (`agent.py`, shipped as `agent.exe`) — _behavioural_ deep checks that Node cannot do cheaply: network fingerprinting, loaded‑DLL signatures, window titles/classes, transparent overlays, virtual audio devices, browser‑automation drivers, and a physical‑monitor count.
+- **Python agent** (`agent.py`, shipped as `agent.exe`) — _behavioural_ deep checks that Node cannot do cheaply: network fingerprinting, loaded‑DLL signatures, window titles/classes, transparent overlays, virtual audio devices, virtual cameras, browser‑automation drivers, and a physical‑monitor count.
 
 ## Tech stack
 
@@ -206,7 +206,7 @@ launch ─▶ onReady (src/main/app.js)
             │
    LIVE MONITOR (systemChecks.start → runDetectionTick every 5s)
    ├─ external display / duplicate-mirror
-   ├─ blocked processes launched mid-interview
+   ├─ blocked processes launched mid-interview (also checked the moment the agent sees one start)
    ├─ agent deep-scan threats
    ├─ agent reachability (anti-tamper)
    ├─ display added/removed → immediate tick (debounced 300ms)
@@ -225,8 +225,9 @@ launch ─▶ onReady (src/main/app.js)
 | ---------------------------- | ------------------------------------------------------------- | -------------------------------- |
 | External / extended displays | `screen.getAllDisplays()` (native, instant)                   | `src/detector/hdmiDetector.js`   |
 | Blocked apps running         | `tasklist /FO CSV` (Win) / `ps` (mac), exact image-name match | `src/detector/mirrorDetector.js` |
+| Blocked app just launched    | Agent `process_started` push → immediate detection tick       | `src/detector/systemChecks.js`   |
 
-**Python agent (`agent.py`)** — eight behavioural checks plus a physical‑monitor count:
+**Python agent (`agent.py`)** — behavioural checks, a process‑start watcher and a physical‑monitor count:
 
 1. Window‑title scan (Win32 / AppleScript / wmctrl)
 2. Suspicious network connections (AI/cheating API domains, via `psutil` + reverse DNS)
@@ -236,7 +237,9 @@ launch ─▶ onReady (src/main/app.js)
 6. AI interview‑copilot tools (process name / install path / stealth cmdline flags)
 7. Transparent click‑through overlays (`WS_EX_LAYERED|TRANSPARENT|TOPMOST`). Only windows visible for 5s count, so volume/brightness pop‑ups are ignored; laptop pop‑up utilities in `OVERLAY_TRUSTED_LOCATIONS` are trusted only from their install folder. Reported as medium: the first one warns, the next ends the interview.
 8. Virtual audio devices (VB‑Cable, Voicemeeter, …)
-9. **Physical monitor count** (`EnumDisplayDevices`) — catches Windows _“Duplicate”_ mode, which the logical‑display API reports as a single screen.
+9. Virtual cameras (OBS Virtual Camera, ManyCam, Snap Camera, XSplit VCam, e2eSoft VCam, Logi Capture, AlterCam, CamTwist, mmhmm, …): DirectShow video inputs in the registry plus `Win32_PnPEntity` Camera/Image devices on Windows, `system_profiler SPCameraDataType` on macOS. An installed one counts even when idle, because the browser offers it as a camera. NVIDIA Broadcast is allowed: it filters the real webcam. Medium, like virtual audio: the first one warns, the next ends the interview.
+10. **Process‑start watcher** — diffs `psutil.pids()` every 500ms and pushes `{"type":"process_started","name","pid"}` over the pipe. During an interview a blocklisted name runs a detection tick straight away instead of waiting up to 5s; the 5s tick stays as the safety net.
+11. **Physical monitor count** (`EnumDisplayDevices`) — catches Windows _“Duplicate”_ mode, which the logical‑display API reports as a single screen.
 
 The blocked‑app lists (meeting, screen‑share, casting, browsers, AI tools) and their friendly names live in one place: `src/shared/appList.js`.
 
@@ -452,6 +455,7 @@ window.electronAPI.abortInterview("attempts-exhausted"); // any other reason sho
 | `mirrored_display`    | One display, but more physical monitors behind it ("Duplicate these displays"). Re‑sent every 15s while it stays                                       | Strike (never hard)       |
 | `remote_session`      | Agent: the computer is being used through remote desktop                                                                                               | Hard                      |
 | `virtual_machine`     | Agent: the computer is a virtual machine                                                                                                               | Hard                      |
+| `virtual_camera`      | Agent: a virtual camera (OBS Virtual Camera, ManyCam, …) is installed or active                                                                        | Soft; hard on repeat      |
 | `suspicious_activity` | Any other agent finding (window titles, modules, network, automation, virtual audio), or an event without its own code (deep‑link swap)                | Follow `isHardBlock`      |
 | `agent_unreachable`   | The security agent didn't answer, or couldn't finish its checks, 3 times in a row: it may have been killed                                             | Hard                      |
 | `check_unverified`    | The display (`hdmi`) or process (`null`) check couldn't answer 3 times in a row                                                                        | Hard                      |
@@ -656,7 +660,7 @@ pnpm start        # plain electron .
   AGENT_PY=1 pnpm start        # spawns `python agent.py` instead of resources/agent.exe
   ```
   (`AGENT_PY_BIN` overrides the interpreter, default `python`/`python3`. Dev only.)
-- **Tests** — `pnpm test` (Node's built‑in runner, `test/*.test.js`).
+- **Tests** — `pnpm test` (Node's built‑in runner, `test/*.test.js`). Agent tests: `pip install -r requirements-dev.txt`, then `python -m pytest test` (`test/test_agent_*.py`; CI runs them on Windows).
 - **Lint / format** — `pnpm run lint` / `pnpm run format`.
 - **DevTools** — `DEVTOOLS=true` in `.env` docks DevTools at launch and allows F12 / Ctrl+Shift+I.
 - **Simulate a violation** — with `DEVTOOLS` on in an unpackaged run, call

@@ -262,6 +262,33 @@ test("every distinct agent threat code is sent, not only the first threat", asyn
   );
 });
 
+test("a virtual camera warns first and hard blocks on repeat, without its device name", async () => {
+  h.fake.status = async () =>
+    agentWith({
+      safe_to_proceed: false,
+      threats: [
+        {
+          type: "virtual_camera",
+          severity: "MEDIUM",
+          detail: "Virtual camera detected: OBS Virtual Camera",
+        },
+      ],
+    });
+  let now = Date.now();
+  mock.method(Date, "now", () => now);
+  await startSession();
+  now += VIOLATION_COOLDOWN_MS + 1;
+  await tickTimes(1);
+
+  const [first, second] = violations();
+  assert.strictEqual(first.code, CODE.VIRTUAL_CAMERA);
+  assert.strictEqual(first.category, "agent");
+  assert.strictEqual(first.event, "Virtual camera detected");
+  assert.strictEqual(first.severity, "medium");
+  assert.strictEqual(first.isHardBlock, false);
+  assert.strictEqual(second.isHardBlock, true);
+});
+
 test("an agent threat's own detail never leaves the machine", async () => {
   h.fake.status = async () =>
     agentWith({

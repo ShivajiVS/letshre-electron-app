@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Source-of-truth bundle. Every other locale file must have exactly the same keys (see test/locales.test.js).",
     "_reviewedBy": null,
-    "_sourceHash": "c5f80682f7ed5453"
+    "_sourceHash": "ae54522bc1ac476b"
   },
   "common": {
     "back": "Back",
@@ -331,11 +331,13 @@
     "threatAiTool": "AI assistant app",
     "threatOverlay": "Hidden screen overlay",
     "threatVirtualAudio": "Virtual audio device",
+    "threatVirtualCamera": "Virtual camera",
     "threatRemoteSession": "Remote desktop session",
     "threatVirtualMachine": "Virtual machine",
     "threatRenamedApp": "Renamed blocked app",
     "threatRemoteSessionHint": "Run the interview directly on this computer, not over a remote connection.",
     "threatVirtualMachineHint": "Run the interview on your computer itself, not inside a virtual machine.",
+    "threatVirtualCameraHint": "Uninstall or turn off the virtual camera app so only your real webcam is available.",
     "threatGeneric": "Suspicious activity",
     "severityCritical": "Critical",
     "severityHigh": "High",

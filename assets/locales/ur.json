@@ -5,7 +5,7 @@
     "dir": "rtl",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "c5f80682f7ed5453"
+    "_sourceHash": "ae54522bc1ac476b"
   },
   "common": {
     "back": "پیچھے",
@@ -331,11 +331,13 @@
     "threatAiTool": "AI اسسٹنٹ ایپ",
     "threatOverlay": "پوشیدہ اسکرین اوورلے",
     "threatVirtualAudio": "ورچوئل آڈیو ڈیوائس",
+    "threatVirtualCamera": "ورچوئل کیمرا",
     "threatRemoteSession": "ریموٹ ڈیسک ٹاپ سیشن",
     "threatVirtualMachine": "ورچوئل مشین",
     "threatRenamedApp": "نام بدلی ہوئی بلاک شدہ ایپ",
     "threatRemoteSessionHint": "انٹرویو ریموٹ کنکشن کے ذریعے نہیں، براہِ راست اسی کمپیوٹر پر دیں۔",
     "threatVirtualMachineHint": "انٹرویو ورچوئل مشین کے اندر نہیں، اپنے کمپیوٹر پر ہی دیں۔",
+    "threatVirtualCameraHint": "ورچوئل کیمرا ایپ کو اَن انسٹال یا بند کریں تاکہ صرف آپ کا اصل ویب کیم دستیاب رہے۔",
     "threatGeneric": "مشکوک سرگرمی",
     "severityCritical": "نازک",
     "severityHigh": "زیادہ",

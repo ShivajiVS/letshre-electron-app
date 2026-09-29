@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "c5f80682f7ed5453"
+    "_sourceHash": "ae54522bc1ac476b"
   },
   "common": {
     "back": "뒤로",
@@ -331,11 +331,13 @@
     "threatAiTool": "AI 어시스턴트 앱",
     "threatOverlay": "숨겨진 화면 오버레이",
     "threatVirtualAudio": "가상 오디오 장치",
+    "threatVirtualCamera": "가상 카메라",
     "threatRemoteSession": "원격 데스크톱 세션",
     "threatVirtualMachine": "가상 머신",
     "threatRenamedApp": "이름이 바뀐 차단 앱",
     "threatRemoteSessionHint": "원격 연결이 아닌 이 컴퓨터에서 직접 면접을 진행하세요.",
     "threatVirtualMachineHint": "가상 머신 안이 아닌 사용 중인 컴퓨터에서 직접 면접을 진행하세요.",
+    "threatVirtualCameraHint": "실제 웹캠만 사용할 수 있도록 가상 카메라 앱을 제거하거나 끄세요.",
     "threatGeneric": "의심스러운 활동",
     "severityCritical": "심각",
     "severityHigh": "높음",

@@ -203,6 +203,7 @@ test("every threat type has its own title, unknown ones get a generic one", () =
     "ai_cheating_tool",
     "transparent_overlay",
     "virtual_audio_device",
+    "virtual_camera",
     "remote_session",
     "virtual_machine",
     "renamed_blocked_app",
@@ -238,6 +239,10 @@ test("only threats with nothing to close carry a hint", () => {
     PM.threatHint("virtual_machine").key,
     "preflightResults.threatVirtualMachineHint"
   );
+  assert.strictEqual(
+    PM.threatHint("virtual_camera").key,
+    "preflightResults.threatVirtualCameraHint"
+  );
   assert.strictEqual(PM.threatHint("renamed_blocked_app"), null);
   assert.strictEqual(PM.threatHint("suspicious_network"), null);
   assert.strictEqual(PM.threatHint("toString"), null);
@@ -245,7 +250,7 @@ test("only threats with nothing to close carry a hint", () => {
   const en = JSON.parse(
     fs.readFileSync(path.join(__dirname, "../assets/locales/en.json"), "utf8")
   ).preflightResults;
-  for (const type of ["remote_session", "virtual_machine"]) {
+  for (const type of ["remote_session", "virtual_machine", "virtual_camera"]) {
     const hint = PM.threatHint(type);
     assert.strictEqual(en[hint.key.split(".")[1]], hint.fallback);
   }

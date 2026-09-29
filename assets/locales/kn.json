@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "c5f80682f7ed5453"
+    "_sourceHash": "ae54522bc1ac476b"
   },
   "common": {
     "back": "ಹಿಂದೆ",
@@ -331,11 +331,13 @@
     "threatAiTool": "AI ಸಹಾಯಕ ಅಪ್ಲಿಕೇಶನ್",
     "threatOverlay": "ಮರೆಮಾಡಿದ ಸ್ಕ್ರೀನ್ ಓವರ್‌ಲೇ",
     "threatVirtualAudio": "ವರ್ಚುವಲ್ ಆಡಿಯೊ ಸಾಧನ",
+    "threatVirtualCamera": "ವರ್ಚುವಲ್ ಕ್ಯಾಮೆರಾ",
     "threatRemoteSession": "ರಿಮೋಟ್ ಡೆಸ್ಕ್‌ಟಾಪ್ ಸೆಷನ್",
     "threatVirtualMachine": "ವರ್ಚುವಲ್ ಮೆಷಿನ್",
     "threatRenamedApp": "ಹೆಸರು ಬದಲಾಯಿಸಿದ ನಿರ್ಬಂಧಿತ ಅಪ್ಲಿಕೇಶನ್",
     "threatRemoteSessionHint": "ರಿಮೋಟ್ ಸಂಪರ್ಕದ ಮೂಲಕ ಅಲ್ಲ, ನೇರವಾಗಿ ಈ ಕಂಪ್ಯೂಟರ್‌ನಲ್ಲೇ ಸಂದರ್ಶನ ನೀಡಿ.",
     "threatVirtualMachineHint": "ವರ್ಚುವಲ್ ಮೆಷಿನ್ ಒಳಗೆ ಅಲ್ಲ, ನಿಮ್ಮ ಕಂಪ್ಯೂಟರ್‌ನಲ್ಲೇ ಸಂದರ್ಶನ ನೀಡಿ.",
+    "threatVirtualCameraHint": "ನಿಮ್ಮ ನಿಜವಾದ ವೆಬ್‌ಕ್ಯಾಮ್ ಮಾತ್ರ ಲಭ್ಯವಿರುವಂತೆ ವರ್ಚುವಲ್ ಕ್ಯಾಮೆರಾ ಆ್ಯಪ್ ಅನ್ನು ಅನ್‌ಇನ್‌ಸ್ಟಾಲ್ ಮಾಡಿ ಅಥವಾ ಆಫ್ ಮಾಡಿ.",
     "threatGeneric": "ಅನುಮಾನಾಸ್ಪದ ಚಟುವಟಿಕೆ",
     "severityCritical": "ನಿರ್ಣಾಯಕ",
     "severityHigh": "ಹೆಚ್ಚು",

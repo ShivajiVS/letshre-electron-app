@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "c5f80682f7ed5453"
+    "_sourceHash": "ae54522bc1ac476b"
   },
   "common": {
     "back": "Zurück",
@@ -331,11 +331,13 @@
     "threatAiTool": "KI-Assistenten-App",
     "threatOverlay": "Verstecktes Bildschirm-Overlay",
     "threatVirtualAudio": "Virtuelles Audiogerät",
+    "threatVirtualCamera": "Virtuelle Kamera",
     "threatRemoteSession": "Remotedesktop-Sitzung",
     "threatVirtualMachine": "Virtuelle Maschine",
     "threatRenamedApp": "Umbenannte gesperrte App",
     "threatRemoteSessionHint": "Führen Sie das Interview direkt an diesem Computer durch, nicht über eine Remoteverbindung.",
     "threatVirtualMachineHint": "Führen Sie das Interview direkt auf Ihrem Computer durch, nicht in einer virtuellen Maschine.",
+    "threatVirtualCameraHint": "Deinstallieren oder deaktivieren Sie die virtuelle Kamera-App, sodass nur Ihre echte Webcam verfügbar ist.",
     "threatGeneric": "Verdächtige Aktivität",
     "severityCritical": "Kritisch",
     "severityHigh": "Hoch",

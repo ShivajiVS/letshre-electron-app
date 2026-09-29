@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "c5f80682f7ed5453"
+    "_sourceHash": "ae54522bc1ac476b"
   },
   "common": {
     "back": "பின்னால்",
@@ -331,11 +331,13 @@
     "threatAiTool": "AI உதவியாளர் ஆப்",
     "threatOverlay": "மறைந்த திரை ஓவர்லே",
     "threatVirtualAudio": "மெய்நிகர் ஆடியோ சாதனம்",
+    "threatVirtualCamera": "மெய்நிகர் கேமரா",
     "threatRemoteSession": "ரிமோட் டெஸ்க்டாப் அமர்வு",
     "threatVirtualMachine": "மெய்நிகர் இயந்திரம்",
     "threatRenamedApp": "பெயர் மாற்றப்பட்ட தடைசெய்யப்பட்ட ஆப்",
     "threatRemoteSessionHint": "ரிமோட் இணைப்பு வழியாக அல்லாமல், இந்தக் கணினியிலேயே நேரடியாக நேர்காணலில் பங்கேற்கவும்.",
     "threatVirtualMachineHint": "மெய்நிகர் இயந்திரத்திற்குள் அல்லாமல், உங்கள் கணினியிலேயே நேர்காணலில் பங்கேற்கவும்.",
+    "threatVirtualCameraHint": "உங்கள் உண்மையான வெப்கேம் மட்டும் கிடைக்கும்படி மெய்நிகர் கேமரா செயலியை நிறுவல் நீக்கவும் அல்லது அணைக்கவும்.",
     "threatGeneric": "சந்தேகத்திற்குரிய செயல்பாடு",
     "severityCritical": "நெருக்கடி",
     "severityHigh": "அதிகம்",

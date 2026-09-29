@@ -39,6 +39,7 @@ test("agent threat types map to their codes, anything else to suspicious_activit
     renamed_blocked_app: CODE.RENAMED_APP,
     remote_session: CODE.REMOTE_SESSION,
     virtual_machine: CODE.VIRTUAL_MACHINE,
+    virtual_camera: CODE.VIRTUAL_CAMERA,
     suspicious_dll: CODE.SUSPICIOUS_ACTIVITY,
     browser_automation: CODE.SUSPICIOUS_ACTIVITY,
     made_up: CODE.SUSPICIOUS_ACTIVITY,
@@ -59,6 +60,7 @@ test("every threat type given its own code is one the agent actually reports", (
     "renamed_blocked_app",
     "remote_session",
     "virtual_machine",
+    "virtual_camera",
   ]) {
     assert.ok(reported.has(type), `agent.py no longer reports "${type}"`);
   }

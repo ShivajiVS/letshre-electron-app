@@ -13,6 +13,7 @@ const CODE = Object.freeze({
   MIRRORED_DISPLAY: "mirrored_display",
   REMOTE_SESSION: "remote_session",
   VIRTUAL_MACHINE: "virtual_machine",
+  VIRTUAL_CAMERA: "virtual_camera",
   SUSPICIOUS_ACTIVITY: "suspicious_activity",
   AGENT_UNREACHABLE: "agent_unreachable",
   CHECK_UNVERIFIED: "check_unverified",
@@ -42,6 +43,7 @@ const THREAT_EVENTS = {
   [CODE.RENAMED_APP]: "Renamed blocked app detected",
   [CODE.REMOTE_SESSION]: "Remote desktop session detected",
   [CODE.VIRTUAL_MACHINE]: "Virtual machine detected",
+  [CODE.VIRTUAL_CAMERA]: "Virtual camera detected",
   [CODE.SUSPICIOUS_ACTIVITY]: "Suspicious activity detected",
 };
 
@@ -51,6 +53,7 @@ const THREAT_CODES = {
   renamed_blocked_app: CODE.RENAMED_APP,
   remote_session: CODE.REMOTE_SESSION,
   virtual_machine: CODE.VIRTUAL_MACHINE,
+  virtual_camera: CODE.VIRTUAL_CAMERA,
 };
 
 /** @param {{type?: string}|null|undefined} threat - one agent threat row */

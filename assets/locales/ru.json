@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "c5f80682f7ed5453"
+    "_sourceHash": "ae54522bc1ac476b"
   },
   "common": {
     "back": "Назад",
@@ -331,11 +331,13 @@
     "threatAiTool": "Приложение с ИИ-ассистентом",
     "threatOverlay": "Скрытый оверлей на экране",
     "threatVirtualAudio": "Виртуальное аудиоустройство",
+    "threatVirtualCamera": "Виртуальная камера",
     "threatRemoteSession": "Сеанс удалённого рабочего стола",
     "threatVirtualMachine": "Виртуальная машина",
     "threatRenamedApp": "Переименованное запрещённое приложение",
     "threatRemoteSessionHint": "Проходите собеседование непосредственно на этом компьютере, а не через удалённое подключение.",
     "threatVirtualMachineHint": "Проходите собеседование на самом компьютере, а не внутри виртуальной машины.",
+    "threatVirtualCameraHint": "Удалите или отключите приложение виртуальной камеры, чтобы была доступна только ваша настоящая веб-камера.",
     "threatGeneric": "Подозрительная активность",
     "severityCritical": "Критический",
     "severityHigh": "Высокий",

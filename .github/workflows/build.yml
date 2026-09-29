@@ -56,12 +56,34 @@ jobs:
         run: pnpm run format:check
 
   # ──────────────────────────────────────────────────────────────
+  # 0b. Python agent tests (Windows, where the agent ships)
+  # ──────────────────────────────────────────────────────────────
+  agent-tests:
+    name: Agent Tests (pytest)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run agent tests
+        run: python -m pytest test -p no:cacheprovider
+
+  # ──────────────────────────────────────────────────────────────
   # 1. Build agent.exe on Windows
   # ──────────────────────────────────────────────────────────────
   build-agent-windows:
     name: Build agent.exe (Windows)
     runs-on: windows-latest
-    needs: lint
+    needs: [lint, agent-tests]
     # Only package/publish for a release. On a PR or a push to main the `lint`
     # job above is the whole point — building here would publish from a branch.
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'

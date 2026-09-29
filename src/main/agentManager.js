@@ -4,6 +4,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { EventEmitter } = require("events");
 const { app } = require("electron");
 const { spawn } = require("child_process");
 const logger = require("./logger");
@@ -44,6 +45,8 @@ const BLOCKING_SPAWN_ERRORS = new Set(["ENOENT", "EACCES", "EPERM"]);
 let _cmdId = 0;
 const _pending = new Map(); // id → { resolve, timer }
 let _stdoutBuf = "";
+// Unsolicited agent messages ({type, ...} with no id), keyed by type.
+const _agentEvents = new EventEmitter();
 
 // whenAgentReady() is the single owner of "is the agent up?".
 let _isReady = false;
@@ -108,8 +111,8 @@ function getAgentSpawn() {
 }
 
 /**
- * Parses any complete JSON lines buffered from the agent's stdout and resolves
- * the matching pending command promises.
+ * Parses any complete JSON lines buffered from the agent's stdout, resolves
+ * the matching pending command promises and emits unsolicited messages.
  * @param {string} chunk
  */
 function _consumeStdout(chunk) {
@@ -142,6 +145,10 @@ function _consumeStdout(chunk) {
       );
       continue;
     }
+    if (msg.id === undefined && typeof msg.type === "string") {
+      _agentEvents.emit(msg.type, msg);
+      continue;
+    }
     const entry = _pending.get(msg.id);
     if (entry) {
       clearTimeout(entry.timer);
@@ -149,6 +156,17 @@ function _consumeStdout(chunk) {
       entry.resolve(msg);
     }
   }
+}
+
+/**
+ * Subscribes to one type of unsolicited agent message.
+ * @param {string} type - e.g. "process_started"
+ * @param {(msg: object) => void} listener
+ * @returns {() => void} unsubscribe
+ */
+function onAgentEvent(type, listener) {
+  _agentEvents.on(type, listener);
+  return () => _agentEvents.off(type, listener);
 }
 
 /**
@@ -487,9 +505,11 @@ module.exports = {
   getAgentPath,
   getAgentSecret,
   sendAgentCommand,
+  onAgentEvent,
   restartAgent,
   isAgentBlocked,
   _internal: {
+    consumeStdout: _consumeStdout,
     nextRespawnDelay,
     inStartupGrace,
     resetBackoff: () => {

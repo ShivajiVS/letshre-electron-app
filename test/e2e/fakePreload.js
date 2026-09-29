@@ -32,6 +32,7 @@ const INVOKE = [
   "getUpdateState",
   "getAppVersion",
   "getAuditLog",
+  "devSimulateViolation",
   "getAppList",
   "startProctoring",
   "getLocale",

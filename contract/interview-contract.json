@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "description": "What the desktop app and the interview site promise each other. Source of truth is the app repo; the site keeps a copy in src/contract/. See docs/web-contract.md.",
   "violationCodes": [
     {
@@ -49,6 +49,12 @@
       "treatAs": "hard",
       "neverHardBlock": false,
       "meaning": "Agent: the computer is a virtual machine."
+    },
+    {
+      "code": "virtual_camera",
+      "treatAs": "soft-then-hard",
+      "neverHardBlock": false,
+      "meaning": "Agent: a virtual camera (OBS Virtual Camera, ManyCam, …) is installed or active."
     },
     {
       "code": "suspicious_activity",
@@ -123,21 +129,27 @@
     "methods": [
       {
         "name": "acknowledgeViolation",
-        "args": ["id?"],
+        "args": [
+          "id?"
+        ],
         "channelKey": "ACK_VIOLATION",
         "channel": "ack-violation",
         "kind": "send"
       },
       {
         "name": "interviewComplete",
-        "args": ["reason"],
+        "args": [
+          "reason"
+        ],
         "channelKey": "INTERVIEW_COMPLETE",
         "channel": "interview-complete",
         "kind": "send"
       },
       {
         "name": "abortInterview",
-        "args": ["reason"],
+        "args": [
+          "reason"
+        ],
         "channelKey": "ABORT_INTERVIEW",
         "channel": "abort-interview",
         "kind": "send"
@@ -151,7 +163,9 @@
       },
       {
         "name": "startProctoring",
-        "args": ["meta?"],
+        "args": [
+          "meta?"
+        ],
         "channelKey": "PROCTORING_START",
         "channel": "proctoring-start",
         "kind": "invoke"
@@ -162,6 +176,22 @@
         "channelKey": "PROCTORING_STOP",
         "channel": "proctoring-stop",
         "kind": "send"
+      },
+      {
+        "name": "getSupportContact",
+        "args": [],
+        "channelKey": "GET_SUPPORT_CONTACT",
+        "channel": "get-support-contact",
+        "kind": "invoke"
+      },
+      {
+        "name": "devSimulateViolation",
+        "args": [
+          "code"
+        ],
+        "channelKey": "DEV_SIMULATE_VIOLATION",
+        "channel": "dev-simulate-violation",
+        "kind": "invoke"
       }
     ],
     "events": [
@@ -185,8 +215,14 @@
   },
   "sessionStorage": {
     "set": [
-      { "key": "ac", "meaning": "Access token, when a session is available" },
-      { "key": "rc", "meaning": "Refresh token, when a session is available" },
+      {
+        "key": "ac",
+        "meaning": "Access token, when a session is available"
+      },
+      {
+        "key": "rc",
+        "meaning": "Refresh token, when a session is available"
+      },
       {
         "key": "candidate_photo",
         "meaning": "Base64 data URL of the live photo from identity verification"
@@ -200,33 +236,73 @@
         "meaning": "Chosen UI language. Prefer the lang query param, which is set before any script runs."
       }
     ],
-    "cleared": ["interview_session", "face_registered", "face_registered_for"]
+    "cleared": [
+      "interview_session",
+      "face_registered",
+      "face_registered_for"
+    ]
   },
   "reasons": {
     "format": "^[\\w:-]{1,40}$; anything else is stripped by the app, and an empty result becomes \"unknown\"",
     "interviewComplete": [
-      { "reason": "completed", "meaning": "Last answer submitted" },
-      { "reason": "auto-submitted", "meaning": "Auto-submitted for a non-punitive reason" },
+      {
+        "reason": "completed",
+        "meaning": "Last answer submitted"
+      },
+      {
+        "reason": "auto-submitted",
+        "meaning": "Auto-submitted for a non-punitive reason"
+      },
       {
         "reason": "terminated",
         "meaning": "Ended for a violation, face mismatch or security block"
       },
-      { "reason": "expired", "meaning": "Timer reached 0" },
-      { "reason": "attempts-exhausted", "meaning": "Start failed, no attempts left" },
-      { "reason": "start-rejected", "meaning": "Start request refused by the backend" },
-      { "reason": "update-required", "meaning": "Desktop app older than VITE_MIN_DESKTOP_VERSION" },
-      { "reason": "unauthorized", "meaning": "No valid tokens" }
+      {
+        "reason": "expired",
+        "meaning": "Timer reached 0"
+      },
+      {
+        "reason": "attempts-exhausted",
+        "meaning": "Start failed, no attempts left"
+      },
+      {
+        "reason": "start-rejected",
+        "meaning": "Start request refused by the backend"
+      },
+      {
+        "reason": "update-required",
+        "meaning": "Desktop app older than VITE_MIN_DESKTOP_VERSION"
+      },
+      {
+        "reason": "unauthorized",
+        "meaning": "No valid tokens"
+      }
     ],
     "abortInterview": [
       {
         "reason": "attempts-exhausted",
         "meaning": "No attempts left; the dashboard shows the exhausted note"
       },
-      { "reason": "start-rejected", "meaning": "Start request refused by the backend" },
-      { "reason": "start-network", "meaning": "Start request never reached the backend" },
-      { "reason": "start-server", "meaning": "Start request got a 5xx" },
-      { "reason": "not-found", "meaning": "Back to dashboard from the 404 page" },
-      { "reason": "route-error", "meaning": "Back to dashboard from the error page" }
+      {
+        "reason": "start-rejected",
+        "meaning": "Start request refused by the backend"
+      },
+      {
+        "reason": "start-network",
+        "meaning": "Start request never reached the backend"
+      },
+      {
+        "reason": "start-server",
+        "meaning": "Start request got a 5xx"
+      },
+      {
+        "reason": "not-found",
+        "meaning": "Back to dashboard from the 404 page"
+      },
+      {
+        "reason": "route-error",
+        "meaning": "Back to dashboard from the error page"
+      }
     ],
     "abortInterviewNote": "Refused once startProctoring() has been called. Any reason other than attempts-exhausted shows \"couldn't start\" on the dashboard."
   }

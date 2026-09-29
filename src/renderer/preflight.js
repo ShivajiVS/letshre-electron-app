@@ -436,7 +436,11 @@ function syncActions(id) {
   const v = _cards[id].verdict;
   const failing = !!v && PM.toneOf(v.status) === "fail";
   if (id === "agent") {
-    syncThreatRows(actions, failing && Array.isArray(v.threats) ? v.threats : []);
+    if (failing) {
+      syncThreatRows(actions, Array.isArray(v.threats) ? v.threats : []);
+    } else {
+      syncNoticeRows(actions, v && Array.isArray(v.notices) ? v.notices : []);
+    }
   } else {
     syncAppRows(actions, failing && Array.isArray(v.blockedApps) ? v.blockedApps : []);
   }
@@ -1105,6 +1109,42 @@ function syncThreatRows(container, threats) {
   syncKillAllButton(container, canKill && threats.filter(PM.isKillableThreat).length > 1);
 }
 
+function syncNoticeRows(container, notices) {
+  const known = notices.filter((n) => PM.noticeCopy(n?.type));
+  syncRows(
+    container,
+    known.map((n, i) => {
+      const key = `notice|${i}|${n.type}|${PM.processLabel(n.camera)}`;
+      return { key, build: () => buildNoticeRow(key, n) };
+    })
+  );
+  syncKillAllButton(container, false);
+}
+
+function buildNoticeRow(key, notice) {
+  const row = document.createElement("div");
+  row.className = "sc-kill-row sc-kill-row--notice";
+  row.dataset.key = key;
+  _rowInfo.set(row, { kind: "notice", notice });
+
+  const dot = document.createElement("span");
+  dot.className = "sc-kill-dot";
+  dot.setAttribute("aria-hidden", "true");
+  const text = document.createElement("div");
+  text.className = "sc-kill-info";
+  const name = document.createElement("span");
+  name.className = "sc-kill-name";
+  const sub = document.createElement("span");
+  sub.className = "sc-kill-process";
+  text.append(name, sub);
+  const guide = document.createElement("p");
+  guide.className = "sc-threat-hint";
+  row.append(dot, text, guide);
+
+  paintRowText(row);
+  return row;
+}
+
 /** Process names and threat fields are attacker-influenceable: text nodes only. */
 function buildKillRow(info) {
   const row = document.createElement("div");
@@ -1177,7 +1217,12 @@ function paintRowText(row) {
   }
   const name = row.querySelector(".sc-kill-name");
   const sub = row.querySelector(".sc-kill-process");
-  if (info.kind === "threat") {
+  if (info.kind === "notice") {
+    const copy = PM.noticeCopy(info.notice.type);
+    name.textContent = tr(copy.title.key, copy.title.fallback);
+    sub.textContent = PM.processLabel(info.notice.camera);
+    row.querySelector(".sc-threat-hint").textContent = tr(copy.hint.key, copy.hint.fallback);
+  } else if (info.kind === "threat") {
     const title = PM.threatTitle(info.threat.type);
     name.textContent = tr(title.key, title.fallback);
     sub.textContent = info.processName ? rowDisplayName(row) : "";

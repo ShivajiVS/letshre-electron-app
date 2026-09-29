@@ -24,6 +24,7 @@ const PROCESS_CHECK_IDS = ["meeting", "screen", "wireless", "browser", "ai"];
  * @property {object} [reasonParams]- interpolation params for reasonKey
  * @property {string[]} [blockedApps] - process names to render kill buttons for
  * @property {object[]} [threats]   - agent threat rows
+ * @property {object[]} [notices]   - agent findings shown on a passing card, never blocking
  */
 
 function verdict(id, status, reasonKey, extra = {}) {
@@ -144,7 +145,10 @@ function mapAgent(agent) {
     return verdict("agent", UNVERIFIED, "preflightResults.agentUnverified");
   }
 
-  return verdict("agent", PASS, "preflightResults.agentClear");
+  const notices = Array.isArray(status.notices)
+    ? status.notices.filter((n) => n && typeof n === "object")
+    : [];
+  return verdict("agent", PASS, "preflightResults.agentClear", notices.length ? { notices } : {});
 }
 
 /**

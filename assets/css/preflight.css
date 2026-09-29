@@ -466,6 +466,13 @@ html:has(> .sc-body) {
 .sc-kill-row--closed .sc-kill-dot {
   background: var(--faint);
 }
+.sc-kill-row--notice {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+.sc-kill-row--notice .sc-kill-dot {
+  background: var(--accent);
+}
 
 .sc-kill-info {
   flex: 1 1 10rem;

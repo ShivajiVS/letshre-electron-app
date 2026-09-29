@@ -616,6 +616,57 @@ const scenarios = [
   },
 
   {
+    name: "an installed but idle virtual camera is a note on a passing card, not a block",
+    setup(ctx) {
+      ctx.onScan((token) =>
+        result(
+          token,
+          verdicts({
+            agent: {
+              ...pass("agent"),
+              notices: [
+                {
+                  type: "virtual_camera_installed",
+                  severity: "LOW",
+                  detail: "idle",
+                  camera: "OBS Virtual Camera",
+                },
+                { type: "from_a_newer_agent", detail: "unknown" },
+              ],
+            },
+          })
+        )
+      );
+    },
+    async run(ctx) {
+      await ctx.until("document.querySelectorAll('#actions-agent .sc-kill-row').length === 1");
+      const row = await ctx.eval(`(() => {
+        const r = document.querySelector('#actions-agent .sc-kill-row');
+        return {
+          notice: r.classList.contains('sc-kill-row--notice'),
+          name: r.querySelector('.sc-kill-name').textContent,
+          sub: r.querySelector('.sc-kill-process').textContent,
+          hint: r.querySelector('.sc-threat-hint').textContent,
+          close: !!r.querySelector('.sc-kill-btn'),
+        };
+      })()`);
+      const t = (k) => ctx.t(`preflightResults.${k}`);
+      assert.deepStrictEqual(row, {
+        notice: true,
+        name: t("noticeVirtualCamera"),
+        sub: "OBS Virtual Camera",
+        hint: t("noticeVirtualCameraHint"),
+        close: false,
+      });
+      assert.strictEqual(
+        await ctx.q("#card-agent", "el.classList.contains('sc-card--pass')"),
+        true
+      );
+      await ctx.until("!document.querySelector('#btn-proceed').disabled");
+    },
+  },
+
+  {
     name: "Close all on the deep scan closes every threat with a pid in one go",
     setup(ctx) {
       ctx.handle("killThreatProcess", (pid, name) => ({

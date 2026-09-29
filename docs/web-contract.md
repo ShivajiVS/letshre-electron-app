@@ -119,7 +119,7 @@ From `src/shared/violationCodes.js`. "Never hard" codes are `STRIKE_CODES` there
 | `mirrored_display`    | One display, but more physical monitors behind it ("Duplicate these displays"). Re‑sent every 15s while it stays                                       | Strike (never hard)       |
 | `remote_session`      | Agent: the computer is being used through remote desktop                                                                                               | Hard                      |
 | `virtual_machine`     | Agent: the computer is a virtual machine                                                                                                               | Hard                      |
-| `virtual_camera`      | Agent: a virtual camera (OBS Virtual Camera, ManyCam, …) is installed or active                                                                        | Soft; hard on repeat      |
+| `virtual_camera`      | Agent: a virtual camera (OBS Virtual Camera, ManyCam, …) is feeding video; installed alone doesn't count                                               | Soft; hard on repeat      |
 | `suspicious_activity` | Any other agent finding (window titles, modules, network, automation, virtual audio), or an event without its own code (deep‑link swap)                | Follow `isHardBlock`      |
 | `agent_unreachable`   | The security agent didn't answer, or couldn't finish its checks, 3 times in a row: it may have been killed                                             | Hard                      |
 | `check_unverified`    | The display (`hdmi`) or process (`null`) check couldn't answer 3 times in a row                                                                        | Hard                      |

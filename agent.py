@@ -188,6 +188,23 @@ VIRTUAL_CAMERA_KEYWORDS = (
 # NVIDIA Broadcast only filters the real webcam's own picture, so it's not a substitute feed.
 VIRTUAL_CAMERA_ALLOWED = ("nvidia broadcast",)
 VIRTUAL_CAMERA_CACHE_S = 60
+# Which running program feeds each camera, matched on its image name without ".exe".
+# A camera whose feeder isn't running is installed but idle, so it only gets a notice.
+VIRTUAL_CAMERA_FEEDERS = (
+    ("obs", ("obs64", "obs32", "obs")),
+    ("manycam", ("manycam",)),
+    ("snap camera", ("snap camera",)),
+    ("xsplit", ("xsplit.vcam", "xsplitvcam")),
+    ("e2esoft", ("vcam",)),
+    ("logi", ("logicapture", "logi capture")),
+    ("altercam", ("altercam",)),
+    ("camtwist", ("camtwist",)),
+    ("mmhmm", ("mmhmm",)),
+    ("splitcam", ("splitcam",)),
+    ("youcam", ("youcam",)),
+)
+# OBS on Windows keeps this shared memory open only while its virtual camera is on.
+OBS_VIRTUALCAM_MAPPING = "OBSVirtualCamVideo"
 # DirectShow's video input category, where OBS, Snap Camera etc. register.
 DSHOW_VIDEO_INPUT = r"CLSID\{860BB310-5D01-11d0-BD3B-00A0C911CE86}\Instance"
 
@@ -251,6 +268,7 @@ scan_results = {
     "timestamp": "",
     "os": OS_NAME,
     "threats": [],
+    "notices": [],
     "safe_to_proceed": False,
     "scan_count": 0,
     "agent_version": AGENT_VERSION,
@@ -951,14 +969,15 @@ def _query_virtual_audio():
 # ─────────────────────────────────────────────
 #  BEHAVIORAL DETECTION 8b: VIRTUAL CAMERAS
 # ─────────────────────────────────────────────
-_virtual_camera_cache = None  # (monotonic time, threats) from the last successful query
+_virtual_camera_cache = None  # (monotonic time, names) from the last successful query
 
 
 def detect_virtual_cameras():
     """
-    Flags virtual cameras (OBS Virtual Camera, ManyCam, Snap Camera...) that can
-    stand in for the webcam. Installed ones count even when idle, because the
-    browser offers them as a camera either way. Errors are never cached.
+    Flags virtual cameras (OBS Virtual Camera, ManyCam, Snap Camera...) that are
+    feeding video right now. One that is only installed comes back as an advisory
+    notice, which never blocks: OBS registers its camera on install, used or not.
+    The device list is cached; whether each one is live is checked every scan.
     """
     global _virtual_camera_cache
     if OS_NAME not in ("Windows", "Darwin"):
@@ -966,15 +985,19 @@ def detect_virtual_cameras():
 
     cached = _virtual_camera_cache
     if cached is not None and time.monotonic() - cached[0] < VIRTUAL_CAMERA_CACHE_S:
-        return [dict(t) for t in cached[1]]
+        names = cached[1]
+    else:
+        try:
+            names = _camera_names_windows() if OS_NAME == "Windows" else _camera_names_mac()
+        except Exception as e:
+            raise CheckError(f"Virtual camera detection error: {e}") from e
+        _virtual_camera_cache = (time.monotonic(), list(names))
 
     try:
-        names = _camera_names_windows() if OS_NAME == "Windows" else _camera_names_mac()
+        procs = _processes(["pid", "name", "exe"])
     except Exception as e:
         raise CheckError(f"Virtual camera detection error: {e}") from e
-    threats = virtual_camera_threats(names)
-    _virtual_camera_cache = (time.monotonic(), threats)
-    return [dict(t) for t in threats]
+    return virtual_camera_threats(names, procs)
 
 
 def is_virtual_camera(name):
@@ -984,19 +1007,71 @@ def is_virtual_camera(name):
     return any(kw in name for kw in VIRTUAL_CAMERA_KEYWORDS)
 
 
-def virtual_camera_threats(names):
-    threats, seen = [], set()
+def _camera_feeders(camera):
+    camera = camera.lower()
+    for vendor, images in VIRTUAL_CAMERA_FEEDERS:
+        if vendor in camera:
+            return vendor, images
+    return None, ()
+
+
+def _obs_virtualcam_on():
+    import ctypes
+    kernel32 = ctypes.windll.kernel32
+    kernel32.OpenFileMappingW.restype = ctypes.c_void_p
+    handle = kernel32.OpenFileMappingW(0x0004, False, OBS_VIRTUALCAM_MAPPING)  # FILE_MAP_READ
+    if handle:
+        kernel32.CloseHandle(ctypes.c_void_p(handle))
+    return bool(handle)
+
+
+def _feeder_process(images, procs):
+    for p in procs:
+        name = p.get("name") or ""
+        if os.path.splitext(name)[0].lower() in images:
+            return p
+    return None
+
+
+def virtual_camera_threats(names, procs=()):
+    """
+    One entry per distinct virtual camera: a MEDIUM threat when it is live (with
+    the feeding app's PID, so the check page can offer Close), else an advisory.
+    """
+    found, seen = [], set()
     for name in names:
         label = (name or "").strip()
         if not is_virtual_camera(label) or label.lower() in seen:
             continue
         seen.add(label.lower())
-        threats.append({
+
+        vendor, images = _camera_feeders(label)
+        feeder = _feeder_process(images, procs)
+        if vendor == "obs" and OS_NAME == "Windows":
+            live = _obs_virtualcam_on()
+        else:
+            # An unknown make can't be checked; the site keeps it off the interview.
+            live = feeder is not None
+
+        if not live:
+            found.append({
+                "type": "virtual_camera_installed",
+                "severity": "LOW",
+                "detail": f"Virtual camera installed, not in use: {label}",
+                "camera": label,
+                "advisory": True,
+            })
+            continue
+        threat = {
             "type": "virtual_camera",
             "severity": "MEDIUM",
-            "detail": f"Virtual camera detected: {label}",
-        })
-    return threats
+            "detail": f"Virtual camera in use: {label}",
+            "camera": label,
+        }
+        if feeder is not None:
+            threat.update(process=feeder["name"], pid=feeder["pid"], exe=feeder.get("exe"))
+        found.append(threat)
+    return found
 
 
 def _camera_names_windows():
@@ -1445,6 +1520,10 @@ def _execute_full_scan():
                 checks[name] = outcome.get(name, "error")
                 threats.extend(found)
 
+        notices, kept = [], []
+        for t in threats:
+            (notices if t.pop("advisory", False) else kept).append(t)
+        threats = kept
         for t in threats:
             exe = t.pop("exe", None)
             if isinstance(t.get("process"), str):
@@ -1468,6 +1547,8 @@ def _execute_full_scan():
         "timestamp": timestamp,
         "os": OS_NAME,
         "threats": threats,
+        # Worth telling the candidate about, never a reason to block.
+        "notices": notices,
         "safe_to_proceed": safe,
         "scan_count": scan_results.get("scan_count", 0) + 1,
         "agent_version": AGENT_VERSION,

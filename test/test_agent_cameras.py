@@ -26,18 +26,79 @@ class VirtualCameraMatchTest(unittest.TestCase):
                      "Camera (NVIDIA Broadcast)", "", None):
             self.assertFalse(agent.is_virtual_camera(name), name)
 
-    def test_one_threat_per_distinct_device(self):
-        threats = agent.virtual_camera_threats(
+    def test_one_entry_per_distinct_device(self):
+        found = agent.virtual_camera_threats(
             ["OBS Virtual Camera", "obs virtual camera ", "Integrated Camera", "ManyCam"]
         )
-        self.assertEqual([t["type"] for t in threats], ["virtual_camera", "virtual_camera"])
-        self.assertEqual({t["severity"] for t in threats}, {"MEDIUM"})
+        self.assertEqual([t["camera"] for t in found], ["OBS Virtual Camera", "ManyCam"])
+
+
+def proc(name, pid=4242):
+    return {"name": name, "pid": pid, "exe": f"C:\Apps\{name}"}
+
+
+class VirtualCameraLiveTest(unittest.TestCase):
+    def on(self, os_name):
+        patcher = mock.patch.object(agent, "OS_NAME", os_name)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def obs_mapping(self, on):
+        patcher = mock.patch.object(agent, "_obs_virtualcam_on", return_value=on)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_installed_obs_with_its_camera_off_is_only_a_notice(self):
+        self.on("Windows")
+        self.obs_mapping(False)
+        found = agent.virtual_camera_threats(["OBS Virtual Camera"], [proc("obs64.exe")])
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0]["type"], "virtual_camera_installed")
+        self.assertTrue(found[0]["advisory"])
+        self.assertNotIn("pid", found[0])
+
+    def test_obs_with_its_camera_on_is_a_threat_with_a_closable_pid(self):
+        self.on("Windows")
+        self.obs_mapping(True)
+        found = agent.virtual_camera_threats(["OBS Virtual Camera"], [proc("obs64.exe", 77)])
+        self.assertEqual(found[0]["type"], "virtual_camera")
+        self.assertEqual(found[0]["severity"], "MEDIUM")
+        self.assertEqual((found[0]["process"], found[0]["pid"]), ("obs64.exe", 77))
+        self.assertNotIn("advisory", found[0])
+
+    def test_obs_camera_on_without_a_known_process_still_counts(self):
+        self.on("Windows")
+        self.obs_mapping(True)
+        found = agent.virtual_camera_threats(["OBS Virtual Camera"], [])
+        self.assertEqual(found[0]["type"], "virtual_camera")
+        self.assertNotIn("pid", found[0])
+
+    def test_other_makes_are_live_while_their_app_runs(self):
+        self.on("Windows")
+        idle = agent.virtual_camera_threats(["ManyCam Virtual Webcam"], [proc("chrome.exe")])
+        live = agent.virtual_camera_threats(["ManyCam Virtual Webcam"], [proc("ManyCam.exe", 9)])
+        self.assertEqual(idle[0]["type"], "virtual_camera_installed")
+        self.assertEqual((live[0]["type"], live[0]["pid"]), ("virtual_camera", 9))
+
+    def test_mac_obs_is_live_while_obs_runs(self):
+        self.on("Darwin")
+        live = agent.virtual_camera_threats(["OBS Virtual Camera"], [proc("OBS")])
+        self.assertEqual(live[0]["type"], "virtual_camera")
+
+    def test_an_unknown_make_is_a_notice(self):
+        self.on("Windows")
+        found = agent.virtual_camera_threats(["Acme Virtual Camera"], [proc("acme.exe")])
+        self.assertEqual(found[0]["type"], "virtual_camera_installed")
 
 
 class VirtualCameraDetectTest(unittest.TestCase):
     def setUp(self):
         agent._virtual_camera_cache = None
         self.addCleanup(setattr, agent, "_virtual_camera_cache", None)
+        for name, value in (("_processes", []), ("_obs_virtualcam_on", False)):
+            patcher = mock.patch.object(agent, name, return_value=value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
     def on(self, os_name):
         patcher = mock.patch.object(agent, "OS_NAME", os_name)
@@ -54,6 +115,14 @@ class VirtualCameraDetectTest(unittest.TestCase):
         with dshow, run:
             found = agent.detect_virtual_cameras()
         self.assertEqual(len(found), 2)
+
+    def test_the_device_list_is_cached_but_live_state_is_rechecked(self):
+        dshow, run = self.windows(["ManyCam"], {"return_value": completed(0, "")})
+        with dshow, run as ran:
+            self.assertEqual(agent.detect_virtual_cameras()[0]["type"], "virtual_camera_installed")
+            with mock.patch.object(agent, "_processes", return_value=[proc("ManyCam.exe")]):
+                self.assertEqual(agent.detect_virtual_cameras()[0]["type"], "virtual_camera")
+        self.assertEqual(ran.call_count, 1)
 
     def test_a_clean_machine_is_clear_and_cached(self):
         dshow, run = self.windows([], {"return_value": completed(0, "Integrated Camera\n")})
@@ -82,7 +151,7 @@ class VirtualCameraDetectTest(unittest.TestCase):
         out = json.dumps({"SPCameraDataType": [{"_name": "FaceTime HD Camera"}, {"_name": "CamTwist"}]})
         with mock.patch.object(agent.subprocess, "run", return_value=completed(0, out)):
             found = agent.detect_virtual_cameras()
-        self.assertEqual([t["detail"] for t in found], ["Virtual camera detected: CamTwist"])
+        self.assertEqual([t["camera"] for t in found], ["CamTwist"])
 
     def test_mac_bad_output_is_an_error(self):
         self.on("Darwin")
@@ -96,6 +165,16 @@ class VirtualCameraDetectTest(unittest.TestCase):
 
     def test_registered_as_a_scan_check(self):
         self.assertIn(("virtual_camera", agent.detect_virtual_cameras), agent._CHECKS)
+
+
+class ContractParityTest(unittest.TestCase):
+    def test_keywords_match_the_interview_contract(self):
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            "contract", "interview-contract.json")
+        with open(path, encoding="utf-8") as f:
+            cams = json.load(f)["virtualCameras"]
+        self.assertEqual(cams["nameKeywords"], list(agent.VIRTUAL_CAMERA_KEYWORDS))
+        self.assertEqual(cams["allowed"], list(agent.VIRTUAL_CAMERA_ALLOWED))
 
 
 @unittest.skipUnless(sys.platform == "win32", "reads the real registry")

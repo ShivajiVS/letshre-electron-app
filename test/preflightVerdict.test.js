@@ -141,6 +141,35 @@ test("mapAgent: a clean scan passes", () => {
   assert.strictEqual(v.status, PASS);
 });
 
+test("mapAgent: notices ride along on a pass and never block", () => {
+  const notice = {
+    type: "virtual_camera_installed",
+    severity: "LOW",
+    camera: "OBS Virtual Camera",
+  };
+  const v = mapAgent({
+    alive: true,
+    status: {
+      threats: [],
+      notices: [notice, null],
+      safe_to_proceed: true,
+      contract_version: 2,
+      source_sha: SOURCE_SHA,
+    },
+  });
+  assert.strictEqual(v.status, PASS);
+  assert.deepStrictEqual(v.notices, [notice]);
+  assert.ok(
+    !(
+      "notices" in
+      mapAgent({
+        alive: true,
+        status: { threats: [], safe_to_proceed: true, contract_version: 2, source_sha: SOURCE_SHA },
+      })
+    )
+  );
+});
+
 test("mapAgent: a dead agent fails", () => {
   assert.strictEqual(mapAgent({ alive: false, status: null }).status, FAIL);
   assert.strictEqual(mapAgent(null).status, FAIL);

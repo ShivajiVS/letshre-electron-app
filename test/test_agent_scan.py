@@ -13,7 +13,7 @@ import agent  # noqa: E402
 
 BUDGET = 0.3
 RESPONSE_KEYS = {
-    "status", "timestamp", "os", "threats", "safe_to_proceed", "scan_count",
+    "status", "timestamp", "os", "threats", "notices", "safe_to_proceed", "scan_count",
     "agent_version", "physical_monitors", "contract_version", "source_sha",
     "checks", "degraded",
 }
@@ -64,6 +64,15 @@ class ScanBudgetTest(unittest.TestCase):
         self.assertFalse(result["degraded"])
         self.assertTrue(result["safe_to_proceed"])
         self.assertEqual(result["contract_version"], 2)
+
+    def test_advisories_are_notices_and_never_block(self):
+        notice = {"type": "virtual_camera_installed", "detail": "n", "advisory": True}
+        self.use_checks([("cam", lambda: [dict(notice)])])
+        result, _ = self.scan()
+        self.assertEqual(result["threats"], [])
+        self.assertEqual(result["notices"], [{"type": "virtual_camera_installed", "detail": "n"}])
+        self.assertEqual(result["status"], "CLEAR")
+        self.assertTrue(result["safe_to_proceed"])
 
     def test_threats_carry_a_readable_name_and_no_exe_path(self):
         blank = "\u2800.exe"

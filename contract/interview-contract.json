@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "description": "What the desktop app and the interview site promise each other. Source of truth is the app repo; the site keeps a copy in src/contract/. See docs/web-contract.md.",
   "violationCodes": [
     {
@@ -54,7 +54,7 @@
       "code": "virtual_camera",
       "treatAs": "soft-then-hard",
       "neverHardBlock": false,
-      "meaning": "Agent: a virtual camera (OBS Virtual Camera, ManyCam, …) is installed or active."
+      "meaning": "Agent: a virtual camera (OBS Virtual Camera, ManyCam, …) is feeding video. One that is only installed is not a violation."
     },
     {
       "code": "suspicious_activity",
@@ -111,6 +111,29 @@
     "strike": "A strike on the site's own limit. isHardBlock is always false.",
     "site-decides": "Never a hard block. The site's own focus tracking already covers it.",
     "follow-isHardBlock": "Hard when isHardBlock is true, otherwise a strike."
+  },
+  "virtualCameras": {
+    "nameKeywords": [
+      "obs virtual camera",
+      "obs-camera",
+      "manycam",
+      "snap camera",
+      "xsplit vcam",
+      "e2esoft",
+      "logi capture",
+      "logitech capture",
+      "altercam",
+      "camtwist",
+      "mmhmm",
+      "splitcam",
+      "youcam",
+      "virtual camera",
+      "virtual webcam"
+    ],
+    "allowed": [
+      "nvidia broadcast"
+    ],
+    "meaning": "Lowercase substrings of a camera's name. A camera matching a keyword and no allowed entry is virtual: the site never picks it, and the agent flags it while it feeds video. agent.py must hold the same lists."
   },
   "violationPayload": {
     "id": "string (UUID); acknowledge with it; kept on redelivery",

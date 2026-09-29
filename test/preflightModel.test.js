@@ -256,6 +256,24 @@ test("only threats with nothing to close carry a hint", () => {
   }
 });
 
+test("notices have copy in en.json, unknown types have none", () => {
+  const copy = PM.noticeCopy("virtual_camera_installed");
+  const en = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "../assets/locales/en.json"), "utf8")
+  ).preflightResults;
+  for (const part of [copy.title, copy.hint]) {
+    assert.strictEqual(en[part.key.split(".")[1]], part.fallback);
+  }
+  assert.strictEqual(PM.noticeCopy("something_new"), null);
+  assert.strictEqual(PM.noticeCopy("__proto__"), null);
+});
+
+test("sameVerdict sees a notice change", () => {
+  const v = { id: "agent", status: "pass", reasonKey: "k", notices: [{ type: "a" }] };
+  assert.ok(PM.sameVerdict(v, { ...v, notices: [{ type: "a" }] }));
+  assert.ok(!PM.sameVerdict(v, { ...v, notices: [] }));
+});
+
 test("a renamed blocked app with a pid can be closed", () => {
   assert.ok(
     PM.isKillableThreat({

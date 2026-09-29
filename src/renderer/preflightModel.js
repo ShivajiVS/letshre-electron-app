@@ -75,7 +75,8 @@
       a.reasonKey === b.reasonKey &&
       JSON.stringify(a.reasonParams || {}) === JSON.stringify(b.reasonParams || {}) &&
       apps(a) === apps(b) &&
-      JSON.stringify(a.threats || []) === JSON.stringify(b.threats || [])
+      JSON.stringify(a.threats || []) === JSON.stringify(b.threats || []) &&
+      JSON.stringify(a.notices || []) === JSON.stringify(b.notices || [])
     );
   }
 
@@ -319,8 +320,18 @@
     ],
     virtual_camera: [
       "preflightResults.threatVirtualCameraHint",
-      "Uninstall or turn off the virtual camera app so only your real webcam is available.",
+      "Turn the virtual camera off in its app (in OBS, click Stop Virtual Camera) or quit that app.",
     ],
+  };
+  // Shown on a passing deep scan: nothing to fix now, only what not to do.
+  const NOTICES = {
+    virtual_camera_installed: {
+      title: ["preflightResults.noticeVirtualCamera", "Virtual camera installed"],
+      hint: [
+        "preflightResults.noticeVirtualCameraHint",
+        "It isn't in use, so you can continue. Don't turn it on during the interview.",
+      ],
+    },
   };
   const GENERIC_THREAT = ["preflightResults.threatGeneric", "Suspicious activity"];
 
@@ -337,6 +348,18 @@
     }
     const [key, fallback] = THREAT_HINTS[type];
     return { key, fallback };
+  }
+
+  /** Title and hint for a notice, or null for a type this build doesn't know. */
+  function noticeCopy(type) {
+    if (!Object.prototype.hasOwnProperty.call(NOTICES, type)) {
+      return null;
+    }
+    const { title, hint } = NOTICES[type];
+    return {
+      title: { key: title[0], fallback: title[1] },
+      hint: { key: hint[0], fallback: hint[1] },
+    };
   }
 
   /** Image name only — agent paths and details can carry the user's name. */
@@ -408,6 +431,7 @@
     severityInfo,
     threatTitle,
     threatHint,
+    noticeCopy,
     processLabel,
     isKillableThreat,
     bounceReason,

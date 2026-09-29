@@ -68,6 +68,20 @@ test("SUPPORT_URL is optional but must be a public https link when set", () => {
   assert.match(checkEnv(`${PROD}SUPPORT_URL=help`).join(), /SUPPORT_URL is not a valid URL/);
 });
 
+test("SUPPORT_EMAIL is optional but must be an email address when set", () => {
+  assert.deepStrictEqual(
+    checkEnv(`${PROD}SUPPORT_EMAIL=
+`),
+    []
+  );
+  assert.deepStrictEqual(
+    checkEnv(`${PROD}SUPPORT_EMAIL=help@letshyre.com
+`),
+    []
+  );
+  assert.match(checkEnv(`${PROD}SUPPORT_EMAIL=help`).join(), /SUPPORT_EMAIL is not an email/);
+});
+
 test("the preflight endpoint paths are optional but must start with / when set", () => {
   assert.deepStrictEqual(
     checkEnv(`${PROD}PREFLIGHT_POLICY_PATH=\nPREFLIGHT_TELEMETRY_PATH=\n`),

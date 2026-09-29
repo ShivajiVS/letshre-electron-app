@@ -10,7 +10,7 @@ const { app, shell } = require("electron");
 const updater = require("./updater");
 const logger = require("./logger");
 const appState = require("./appState");
-const { IPC, SUPPORT_URL } = require("../shared/constants");
+const { IPC, SUPPORT_URL, SUPPORT_EMAIL } = require("../shared/constants");
 const { SCOPE, registerHandler, registerSend } = require("./ipcScope");
 const {
   killSingleProcess,
@@ -31,6 +31,7 @@ const {
   minimizeWindow,
   loadDashboard,
   loadSecurityCheck,
+  loadPracticeCheck,
   loadLanguageSelectionPage,
   loadPermissionsPage,
   loadIdentityVerificationPage,
@@ -52,6 +53,8 @@ const authValidators = require("../shared/authValidators");
 const localeManager = require("./localeManager");
 const startDetection = require("../detector/systemChecks");
 const flowGuard = require("./flowGuard");
+const supportReference = require("./supportReference");
+const { languageStepShown } = require("../shared/flowSteps");
 const screenRecorder = require("./screenRecorder");
 const blocklistPolicy = require("./blocklistPolicy");
 const { getLists, getDisplayNames } = require("../shared/blocklist");
@@ -104,14 +107,26 @@ function supportUrl() {
   }
 }
 
+/** @returns {string|null} the support address, only when it looks like one */
+function supportEmail() {
+  return authValidators.validateEmail(SUPPORT_EMAIL).valid ? SUPPORT_EMAIL.trim() : null;
+}
+
 /** Starts the agent early so it is warm by the time the scan needs it. */
 function prewarmAgent() {
   whenAgentReady().catch((err) => logger.warn("[ipc] agent pre-warm failed:", err.message));
 }
 
-/** Packaged builds may offer English alone, and a one-option page is a dead end. */
 function _languageSelectionIsMeaningful() {
-  return localeManager.getSupportedLocales().length > 1;
+  return languageStepShown(localeManager.getSupportedLocales());
+}
+
+// The pass a practice run earned must not open the steps of a real attempt.
+function _endPractice() {
+  if (flowGuard.isPractice()) {
+    flowGuard.leavePractice();
+    startDetection.resetState();
+  }
 }
 
 /** Leaves the interview flow for the dashboard and stops the agent. */
@@ -120,6 +135,7 @@ function _leaveInterviewFlowToDashboard({ alreadyTornDown = false, note } = {}) 
     _leaveSecurityCheck();
   }
   flowGuard.stop();
+  _endPractice();
   killAgent();
   blocklistPolicy.reset();
   loadDashboard(note);
@@ -351,6 +367,7 @@ function registerIpcHandlers() {
   registerHandler(IPC.AUTH_LOGOUT, SCOPE.LOCAL, async () => {
     logger.info("[ipc] auth-logout received");
     flowGuard.stop();
+    _endPractice();
     const result = await authManager.logout();
     blocklistPolicy.reset();
     // Nothing of this candidate may carry over to the next account.
@@ -392,6 +409,8 @@ function registerIpcHandlers() {
     logger.info("[ipc] start-interview — entering security check");
     setInterviewSession(tokens.accessToken, tokens.refreshToken);
     flowGuard.stop();
+    _endPractice();
+    supportReference.startRun();
     _pageGeneration++;
     blocklistPolicy.loadForInterview(tokens.accessToken);
     // Warm up during language selection rather than on the preflight page.
@@ -403,11 +422,31 @@ function registerIpcHandlers() {
     }
   });
 
+  // Dashboard "Check my computer": the security check on its own. No interview
+  // session and no attempts check, and the steps after it stay closed.
+  registerSend(IPC.START_PRACTICE_CHECK, SCOPE.LOCAL, () => {
+    const tokens = authManager.getTokens();
+    if (!tokens || getIsInterviewActive()) {
+      logger.warn("[ipc] start-practice-check rejected — not signed in or interview active");
+      return;
+    }
+    logger.info("[ipc] start-practice-check");
+    _leaveSecurityCheck();
+    flowGuard.enterPractice();
+    blocklistPolicy.loadForInterview(tokens.accessToken);
+    prewarmAgent();
+    loadPracticeCheck();
+  });
+
   // Continue on the security check. Not locked down yet: the OS still has to
   // show its mic/camera/screen prompts on the permissions page.
   // Refusals go back to the page, which confirms in place instead of reloading.
   registerHandler(IPC.LOAD_PERMISSIONS_PAGE, SCOPE.LOCAL, async () => {
     logger.info("[ipc] load-permissions-page");
+    if (flowGuard.isPractice()) {
+      logger.warn("[ipc] load-permissions-page REFUSED — practice run");
+      return { ok: false, reason: "practice" };
+    }
     if (_continuing) {
       return { ok: false, reason: "scanning" };
     }
@@ -442,6 +481,10 @@ function registerIpcHandlers() {
   // already passed this session and Start Interview re-gates on that same basis,
   // so time spent on the voice step must not bounce the candidate to preflight.
   registerSend(IPC.BACK_TO_PERMISSIONS, SCOPE.LOCAL, () => {
+    if (flowGuard.isPractice()) {
+      logger.warn("[ipc] back-to-permissions REFUSED — practice run");
+      return;
+    }
     const gate = startDetection.verifyProceedAllowed({ requireFresh: false });
     if (!gate.ok) {
       logger.warn(`[ipc] back-to-permissions REFUSED — ${gate.reason}`);
@@ -524,8 +567,8 @@ function registerIpcHandlers() {
   // falling through to the dashboard is what "back" actually means there.
   registerSend(IPC.LOAD_LANGUAGE_SELECTION, SCOPE.LOCAL, () => {
     _leaveSecurityCheck();
-    if (!_languageSelectionIsMeaningful()) {
-      logger.info("[ipc] load-language-selection — single locale, going to dashboard");
+    if (!_languageSelectionIsMeaningful() || flowGuard.isPractice()) {
+      logger.info("[ipc] load-language-selection — nothing to choose here, going to dashboard");
       _leaveInterviewFlowToDashboard({ alreadyTornDown: true });
       return;
     }
@@ -837,7 +880,17 @@ function registerIpcHandlers() {
     return startDetection.getAuditLog ? startDetection.getAuditLog() : [];
   });
 
-  registerHandler(IPC.GET_SUPPORT_INFO, SCOPE.LOCAL, () => ({ available: supportUrl() !== null }));
+  registerHandler(IPC.GET_SUPPORT_INFO, SCOPE.LOCAL, () => ({
+    available: supportUrl() !== null,
+    referenceCode: supportReference.currentCode(),
+  }));
+
+  // Read-only: nothing here is secret, and the site shows it on its help screens.
+  registerHandler(IPC.GET_SUPPORT_CONTACT, SCOPE.INTERVIEW, () => ({
+    url: supportUrl(),
+    email: supportEmail(),
+    referenceCode: supportReference.currentCode(),
+  }));
 
   registerSend(IPC.OPEN_SUPPORT, SCOPE.LOCAL, () => {
     const url = supportUrl();
@@ -880,6 +933,7 @@ function registerIpcHandlers() {
       return { ok: false, error: "Interview is not locked down" };
     }
     startWatchdog.markLive();
+    supportReference.rememberSession(safeSessionId);
     return await screenRecorder.start({ sessionId: safeSessionId, interviewId: safeInterviewId });
   });
 

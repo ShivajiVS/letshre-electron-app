@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "c5f80682f7ed5453"
+    "_sourceHash": "e0bd82b9446cfbcb"
   },
   "common": {
     "back": "వెనుకకు",
@@ -57,7 +57,8 @@
     "startUnavailable": "ప్రారంభించడం సాధ్యం కాదు — దయచేసి యాప్‌ను పునఃప్రారంభించండి.",
     "startTimedOut": "ఇది చాలా సమయం తీసుకుంది. దయచేసి మళ్లీ ప్రయత్నించండి.",
     "startFailed": "మీ ఇంటర్వ్యూ ప్రారంభం కాలేదు. దయచేసి మళ్లీ ప్రయత్నించండి, ఇలాగే జరుగుతుంటే సపోర్ట్‌ను సంప్రదించండి.",
-    "howItWorksLink": "ఈ ప్రక్రియ ఎలా పనిచేస్తుంది? →"
+    "howItWorksLink": "ఈ ప్రక్రియ ఎలా పనిచేస్తుంది? →",
+    "checkComputer": "Check my computer"
   },
   "hiw": {
     "pageTitle": "How It Works — LetsHyre",
@@ -416,5 +417,30 @@
     "titleAccent": "ఎంపిక",
     "sub": "మీ ఇంటర్వ్యూ కోసం మీరు ఉపయోగించాలనుకుంటున్న భాషను ఎంచుకోండి.",
     "continue": "కొనసాగించండి"
+  },
+  "flowSteps": {
+    "progress": "Step {number} of {total} · {name}",
+    "language": "Language",
+    "preflight": "Security check",
+    "permissions": "Permissions",
+    "identity": "Identity check",
+    "role": "Role"
+  },
+  "practice": {
+    "title": "Check my computer",
+    "sub": "A practice run of the security check, so you can fix anything before your interview.",
+    "allPassed": "All checks passed. Your computer is ready.",
+    "checkingTitle": "Checking your computer…",
+    "checkingBody": "This is a practice run. It doesn't start your interview or use an attempt.",
+    "readyTitle": "Your computer is ready",
+    "readyBody": "Everything passed. The same check runs again when you start your interview.",
+    "attentionTitle": "Some things need attention",
+    "attentionBody": "Close the apps marked below and check again, so the real check goes smoothly.",
+    "incompleteTitle": "Some checks couldn't finish",
+    "incompleteBody": "Check again in a moment. If it keeps happening, contact support.",
+    "backToDashboard": "Back to dashboard"
+  },
+  "support": {
+    "referenceCode": "Reference code: {code}"
   }
 }

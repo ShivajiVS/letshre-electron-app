@@ -100,6 +100,27 @@ const NEW_KEY_PLACEHOLDER_ALLOWLIST = [
   "identity.altCaptured",
   "identity.altRegistered",
   "identity.altLiveCapture",
+  // Step indicator, "Check my computer" practice run and support reference code.
+  "dashboard.checkComputer",
+  "flowSteps.progress",
+  "flowSteps.language",
+  "flowSteps.preflight",
+  "flowSteps.permissions",
+  "flowSteps.identity",
+  "flowSteps.role",
+  "practice.title",
+  "practice.sub",
+  "practice.allPassed",
+  "practice.checkingTitle",
+  "practice.checkingBody",
+  "practice.readyTitle",
+  "practice.readyBody",
+  "practice.attentionTitle",
+  "practice.attentionBody",
+  "practice.incompleteTitle",
+  "practice.incompleteBody",
+  "practice.backToDashboard",
+  "support.referenceCode",
 ];
 
 const COGNATE_ALLOWLIST = {

@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "c5f80682f7ed5453"
+    "_sourceHash": "e0bd82b9446cfbcb"
   },
   "common": {
     "back": "ಹಿಂದೆ",
@@ -57,7 +57,8 @@
     "startUnavailable": "ಪ್ರಾರಂಭಿಸಲು ಸಾಧ್ಯವಿಲ್ಲ — ದಯವಿಟ್ಟು ಅಪ್ಲಿಕೇಶನ್ ಅನ್ನು ಮರುಪ್ರಾರಂಭಿಸಿ.",
     "startTimedOut": "ಇದು ಹೆಚ್ಚು ಸಮಯ ತೆಗೆದುಕೊಂಡಿತು. ದಯವಿಟ್ಟು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
     "startFailed": "ನಿಮ್ಮ ಸಂದರ್ಶನವನ್ನು ಪ್ರಾರಂಭಿಸಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ, ಮುಂದುವರಿದರೆ ಸಹಾಯವನ್ನು ಸಂಪರ್ಕಿಸಿ.",
-    "howItWorksLink": "ಈ ಪ್ರಕ್ರಿಯೆ ಹೇಗೆ ಕಾರ್ಯನಿರ್ವಹಿಸುತ್ತದೆ? →"
+    "howItWorksLink": "ಈ ಪ್ರಕ್ರಿಯೆ ಹೇಗೆ ಕಾರ್ಯನಿರ್ವಹಿಸುತ್ತದೆ? →",
+    "checkComputer": "Check my computer"
   },
   "hiw": {
     "pageTitle": "How It Works — LetsHyre",
@@ -416,5 +417,30 @@
     "titleAccent": "ಆಯ್ಕೆ",
     "sub": "ನಿಮ್ಮ ಸಂದರ್ಶನಕ್ಕಾಗಿ ನೀವು ಬಳಸಲು ಬಯಸುವ ಭಾಷೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ.",
     "continue": "ಮುಂದುವರಿಸಿ"
+  },
+  "flowSteps": {
+    "progress": "Step {number} of {total} · {name}",
+    "language": "Language",
+    "preflight": "Security check",
+    "permissions": "Permissions",
+    "identity": "Identity check",
+    "role": "Role"
+  },
+  "practice": {
+    "title": "Check my computer",
+    "sub": "A practice run of the security check, so you can fix anything before your interview.",
+    "allPassed": "All checks passed. Your computer is ready.",
+    "checkingTitle": "Checking your computer…",
+    "checkingBody": "This is a practice run. It doesn't start your interview or use an attempt.",
+    "readyTitle": "Your computer is ready",
+    "readyBody": "Everything passed. The same check runs again when you start your interview.",
+    "attentionTitle": "Some things need attention",
+    "attentionBody": "Close the apps marked below and check again, so the real check goes smoothly.",
+    "incompleteTitle": "Some checks couldn't finish",
+    "incompleteBody": "Check again in a moment. If it keeps happening, contact support.",
+    "backToDashboard": "Back to dashboard"
+  },
+  "support": {
+    "referenceCode": "Reference code: {code}"
   }
 }

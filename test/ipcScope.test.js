@@ -225,6 +225,7 @@ test("no channel is registered twice with two different scopes", () => {
 const EXPECTED_INTERVIEW_SCOPE_CHANNELS = [
   "ABORT_INTERVIEW", // abortInterview(reason) — the interview could not start
   "ACK_VIOLATION", // acknowledgeViolation() — contract step 2
+  "GET_SUPPORT_CONTACT", // getSupportContact() — read-only support link, email and reference code
   "INTERVIEW_COMPLETE", // interviewComplete(reason) — contract step 3
   "PROCTORING_START", // interview.letshyre.com → start recording
   "PROCTORING_STOP", // interview.letshyre.com → stop recording
@@ -237,6 +238,14 @@ test('exactly the documented contract channels are scoped "interview" — everyt
     .map((r) => r.channelKey)
     .sort();
   assert.deepStrictEqual(interviewScoped, [...EXPECTED_INTERVIEW_SCOPE_CHANNELS].sort());
+});
+
+test("the site reads support details on its own channel; the local ones stay local", () => {
+  const scopeOf = (key) => registrations.find((r) => r.channelKey === key)?.scope;
+  assert.strictEqual(scopeOf("GET_SUPPORT_CONTACT"), "INTERVIEW");
+  assert.strictEqual(scopeOf("GET_SUPPORT_INFO"), "LOCAL");
+  assert.strictEqual(scopeOf("OPEN_SUPPORT"), "LOCAL");
+  assert.strictEqual(scopeOf("START_PRACTICE_CHECK"), "LOCAL");
 });
 
 test("every channel actually exposed to the renderer via preload.js's ALLOWED_* lists is registered with some scope", () => {

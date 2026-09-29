@@ -724,6 +724,81 @@ const scenarios = [
   },
 
   {
+    name: "the step indicator counts the steps actually shown",
+    setup(ctx) {
+      ctx.onScan(passScan);
+    },
+    async run(ctx) {
+      await ctx.until("!document.getElementById('step-indicator').hidden", "step indicator");
+      const locales = await ctx.eval("window.electronAPI.getSupportedLocales()");
+      const total = locales.length > 1 ? 5 : 4;
+      const number = total - 3;
+      const name = ctx.t("flowSteps.preflight");
+      assert.strictEqual(
+        await ctx.text("#step-indicator .step-indicator__label"),
+        ctx.t("flowSteps.progress", { number, total, name })
+      );
+      assert.strictEqual(
+        await ctx.eval("document.querySelectorAll('.step-indicator__dot').length"),
+        total
+      );
+      assert.strictEqual(
+        await ctx.eval(
+          "[...document.querySelectorAll('.step-indicator__dot')].findIndex((d) => d.classList.contains('step-indicator__dot--current'))"
+        ),
+        number - 1
+      );
+    },
+  },
+
+  {
+    name: "a practice run ends on its result and Back to dashboard, never Continue",
+    query: { mode: "practice" },
+    setup(ctx) {
+      ctx.onScan(passScan);
+    },
+    async run(ctx) {
+      await ctx.until(
+        "document.getElementById('practice-result').dataset.outcome === 'ready'",
+        "practice result"
+      );
+      assert.strictEqual(await ctx.text("#practice-result-title"), ctx.t("practice.readyTitle"));
+      assert.strictEqual(await ctx.text("#final-status"), ctx.t("practice.allPassed"));
+      assert.strictEqual(await ctx.q("#btn-proceed", "el.offsetParent === null"), true);
+      assert.strictEqual(await ctx.q("#btn-practice-done", "el.offsetParent !== null"), true);
+      assert.strictEqual(await ctx.q("#step-indicator", "el.hidden"), true);
+      assert.strictEqual(
+        await ctx.q("h1[data-i18n='practice.title']", "el.offsetParent !== null"),
+        true
+      );
+
+      await ctx.click("#btn-practice-done");
+      await ctx.untilCalls("loadDashboard", 1);
+      await ctx.click("#btn-back-dashboard");
+      await ctx.untilCalls("loadDashboard", 2);
+      assert.strictEqual(ctx.callsTo("loadPermissionsPage").length, 0);
+      assert.strictEqual(ctx.callsTo("loadLanguageSelection").length, 0);
+    },
+  },
+
+  {
+    name: "a practice run with an app to close says what needs attention",
+    query: { mode: "practice" },
+    setup(ctx) {
+      ctx.onScan((token) => result(token, verdicts({ meeting: blocked("meeting", ["zoom.exe"]) })));
+    },
+    async run(ctx) {
+      await ctx.until(
+        "document.getElementById('practice-result').dataset.outcome === 'attention'",
+        "practice result"
+      );
+      assert.strictEqual(await ctx.hasClass("#practice-result", "banner--danger"), true);
+      assert.strictEqual(await ctx.text("#practice-result-body"), ctx.t("practice.attentionBody"));
+      assert.ok(await ctx.q("#actions-meeting .sc-kill-row", "true"));
+    },
+  },
+
+  {
     name: "the fake bridge matches preload.js and the page stays offline",
     setup(ctx) {
       ctx.onScan(passScan);

@@ -9,6 +9,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { validateEmail } = require("../src/shared/authValidators");
 
 const REQUIRED = ["INTERVIEW_FRONTEND_BASE_URL", "API_BASE_URL"];
 // Checked only when set.
@@ -51,6 +52,9 @@ function checkEnv(text) {
     } else if (url.protocol !== "https:") {
       problems.push(`${key} must use https: ${value}`);
     }
+  }
+  if (values.SUPPORT_EMAIL && !validateEmail(values.SUPPORT_EMAIL).valid) {
+    problems.push(`SUPPORT_EMAIL is not an email address: ${values.SUPPORT_EMAIL}`);
   }
   for (const key of OPTIONAL_PATHS) {
     const value = values[key];

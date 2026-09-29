@@ -28,6 +28,7 @@ const INVOKE = [
   "killProcessElevated",
   "killThreatProcess",
   "getSupportInfo",
+  "getSupportContact",
   "getUpdateState",
   "getAppVersion",
   "getAuditLog",
@@ -42,6 +43,8 @@ const INVOKE = [
 
 const SEND = [
   "startInterview",
+  "startPracticeCheck",
+  "abortInterview",
   "backToPermissions",
   "loadHowItWorks",
   "retryInterview",

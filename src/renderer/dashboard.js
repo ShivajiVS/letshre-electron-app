@@ -34,6 +34,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   const takeBtn = document.getElementById("take-interview-btn");
   const logoutBtn = document.getElementById("logout-btn");
   const dashNote = document.getElementById("dash-note");
+  const dashRef = document.getElementById("dash-ref");
+  const practiceBtn = document.getElementById("practice-check-btn");
 
   const profileAvatar = document.getElementById("profile-avatar");
   const profileInitials = document.getElementById("profile-initials");
@@ -51,6 +53,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   let firstName = null;
   let noteState = "default"; // "default" | "exhausted" | "unavailable" | "timedOut" | "startFailed"
   const returnNote = new URLSearchParams(window.location.search).get("note");
+  let referenceCode = null;
   let attempts = null; // { remaining, max } once the tracker is visible
   let startState = "idle"; // "idle" | "starting"
   let logoutState = "idle"; // "idle" | "loggingOut"
@@ -94,6 +97,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         );
     }
     dashNote.classList.toggle("exhausted-note", noteState !== "default");
+    renderReference();
+  }
+
+  // Only after a start that failed: that's when a candidate ends up quoting it to support.
+  function renderReference() {
+    const show = noteState === "startFailed" && Boolean(referenceCode);
+    dashRef.hidden = !show;
+    dashRef.textContent = show
+      ? tr("support.referenceCode", `Reference code: ${referenceCode}`, { code: referenceCode })
+      : "";
   }
 
   function setNoteState(next) {
@@ -297,6 +310,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     setNoteState("exhausted");
   } else if (returnNote === "startFailed" && noteState === "default") {
     setNoteState("startFailed");
+    window.electronAPI
+      ?.getSupportInfo?.()
+      .then((info) => {
+        referenceCode = typeof info?.referenceCode === "string" ? info.referenceCode : null;
+        renderReference();
+      })
+      .catch(() => {});
   }
 
   // ── Take interview
@@ -324,6 +344,19 @@ document.addEventListener("DOMContentLoaded", async () => {
         // the locale changed since then so the button isn't left stale.
         renderTakeButton();
       },
+    });
+  });
+
+  // ── Check my computer
+  practiceBtn.addEventListener("click", () => {
+    if (typeof window.electronAPI?.startPracticeCheck !== "function") {
+      setNoteState("unavailable");
+      return;
+    }
+    practiceBtn.disabled = true;
+    window.electronAPI.startPracticeCheck();
+    window.armButtonRestore(practiceBtn, practiceBtn.innerHTML, {
+      onRestore: () => setNoteState("timedOut"),
     });
   });
 

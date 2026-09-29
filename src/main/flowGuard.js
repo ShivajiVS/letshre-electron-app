@@ -26,8 +26,7 @@ const { CODE, codeForThreat, codeForProcessCategory } = require("../shared/viola
 const agentManager = require("./agentManager");
 const startDetection = require("../detector/systemChecks");
 const logger = require("./logger");
-
-const STAGES = ["permissions", "identity", "role"];
+const { GUARDED_STEP_IDS: STAGES } = require("../shared/flowSteps");
 
 // Backoff between attempts to bring back an agent that stopped answering.
 const RECOVERY_BASE_MS = 5000;
@@ -195,6 +194,8 @@ let _blockedSince = null;
 let _flashing = false;
 let _agentDown = false;
 let _recovery = { attempts: 0, nextAt: 0, pending: null };
+// A practice run from the dashboard ends at the security check. Survives stop().
+let _practice = false;
 
 let _public = { status: "clear", stage: null, seq: 0, checking: false, issues: [] };
 
@@ -462,6 +463,10 @@ function start(win, stage) {
     logger.warn(`[guard] not started — no usable window or unknown stage "${stage}"`);
     return;
   }
+  if (_practice) {
+    logger.warn(`[guard] not started on ${stage} — this is a practice run`);
+    return;
+  }
   if (_running && _win === win) {
     setStage(stage);
     return;
@@ -565,6 +570,26 @@ function isRunning() {
   return _running;
 }
 
+/** Starts a practice run: the steps after the security check stay closed until it ends. */
+function enterPractice() {
+  stop();
+  if (!_practice) {
+    logger.info("[guard] practice run started");
+  }
+  _practice = true;
+}
+
+function leavePractice() {
+  if (_practice) {
+    logger.info("[guard] practice run ended");
+  }
+  _practice = false;
+}
+
+function isPractice() {
+  return _practice;
+}
+
 module.exports = {
   start,
   setStage,
@@ -574,6 +599,10 @@ module.exports = {
   checkNow,
   isClear,
   isRunning,
+  enterPractice,
+  leavePractice,
+  isPractice,
+  STAGES,
   _internal: {
     classifyTick,
     nextState,

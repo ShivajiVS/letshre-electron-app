@@ -44,6 +44,7 @@ const IPC = {
 
   // Dashboard → security check
   START_INTERVIEW: "start-interview",
+  START_PRACTICE_CHECK: "start-practice-check",
 
   // Preflight
   RUN_PREFLIGHT: "run-preflight-scans",
@@ -61,6 +62,7 @@ const IPC = {
   // Support link
   GET_SUPPORT_INFO: "get-support-info",
   OPEN_SUPPORT: "open-support",
+  GET_SUPPORT_CONTACT: "get-support-contact",
 
   // Auto-updater — push events (main → renderer)
   PUSH_UPDATE_AVAILABLE: "push-update-available",
@@ -137,6 +139,7 @@ const ALLOWED_SEND_CHANNELS = [
   IPC.INSTALL_UPDATE,
   IPC.MINIMIZE_WINDOW,
   IPC.START_INTERVIEW,
+  IPC.START_PRACTICE_CHECK,
   IPC.INTERVIEW_COMPLETE,
   IPC.ACK_VIOLATION,
   IPC.BACK_TO_PERMISSIONS,
@@ -165,6 +168,7 @@ const ALLOWED_INVOKE_CHANNELS = [
   IPC.KILL_THREAT_PROCESS,
   IPC.CAN_ELEVATE,
   IPC.GET_SUPPORT_INFO,
+  IPC.GET_SUPPORT_CONTACT,
   IPC.GET_AUDIT_LOG,
   IPC.GET_APP_LIST,
   IPC.GET_APP_VERSION,
@@ -256,6 +260,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   /** Dashboard "Take Interview": hand the session to the security check. */
   startInterview: () => safeSend(IPC.START_INTERVIEW),
+
+  /** Dashboard "Check my computer": the security check alone, ending back on the dashboard. */
+  startPracticeCheck: () => safeSend(IPC.START_PRACTICE_CHECK),
 
   /** Security check Continue. Resolves {ok:false, reason} when main refuses. */
   loadPermissionsPage: () => safeInvoke(IPC.LOAD_PERMISSIONS_PAGE),
@@ -414,8 +421,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
    */
   killThreatProcess: (pid, processName) => safeInvoke(IPC.KILL_THREAT_PROCESS, pid, processName),
 
-  /** @returns {Promise<{ available: boolean }>} whether a support link is configured */
+  /**
+   * Local pages: whether a support link is configured, and the code to quote to support.
+   * @returns {Promise<{ available: boolean, referenceCode: string }>}
+   */
   getSupportInfo: () => safeInvoke(IPC.GET_SUPPORT_INFO),
+
+  /**
+   * Interview site: where to send the candidate for help, and the code to quote.
+   * url and email are null when not configured.
+   * @returns {Promise<{ url: string|null, email: string|null, referenceCode: string }>}
+   */
+  getSupportContact: () => safeInvoke(IPC.GET_SUPPORT_CONTACT),
 
   /** Opens the configured support link in the default browser. */
   openSupport: () => safeSend(IPC.OPEN_SUPPORT),

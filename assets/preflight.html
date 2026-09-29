@@ -36,6 +36,7 @@
         </svg>
         <span data-i18n="common.back">Back</span>
       </button>
+      <div id="step-indicator" class="step-indicator" data-flow-step="preflight" hidden></div>
       <div id="lang-switcher"></div>
     </header>
 
@@ -53,10 +54,18 @@
             </svg>
           </span>
           <div class="sc-intro__text">
-            <h1 class="sc-intro__title" data-i18n="preflight.title">Security Checks</h1>
-            <p class="sc-intro__sub" data-i18n="preflight.sub">
+            <h1 class="sc-intro__title" data-i18n="preflight.title" data-practice-hide>
+              Security Checks
+            </h1>
+            <h1 class="sc-intro__title" data-i18n="practice.title" data-practice-only>
+              Check my computer
+            </h1>
+            <p class="sc-intro__sub" data-i18n="preflight.sub" data-practice-hide>
               We check that nothing else on this computer can see, share or help with your
               interview. Close anything we find, then continue.
+            </p>
+            <p class="sc-intro__sub" data-i18n="practice.sub" data-practice-only>
+              A practice run of the security check, so you can fix anything before your interview.
             </p>
           </div>
           <div class="sc-help">
@@ -150,6 +159,13 @@
               >
             </li>
           </ul>
+        </div>
+      </div>
+
+      <div id="practice-result" class="banner sc-practice" role="status" data-practice-only>
+        <div class="sc-practice__text">
+          <p id="practice-result-title" class="sc-practice__title"></p>
+          <p id="practice-result-body" class="sc-practice__body"></p>
         </div>
       </div>
 
@@ -399,8 +415,17 @@
             type="button"
             disabled
             class="sc-btn-proceed sc-btn-proceed--disabled"
+            data-practice-hide
           >
             <span>Continue</span>
+          </button>
+          <button
+            id="btn-practice-done"
+            type="button"
+            class="sc-btn-proceed sc-btn-proceed--enabled"
+            data-practice-only
+          >
+            <span data-i18n="practice.backToDashboard">Back to dashboard</span>
           </button>
         </div>
       </div>
@@ -438,6 +463,8 @@
     <script src="../src/renderer/updateCard.js"></script>
     <script src="../src/renderer/languageSwitcher.js"></script>
     <script src="../src/renderer/rendererUtils.js"></script>
+    <script src="../src/shared/flowSteps.js"></script>
+    <script src="../src/renderer/stepIndicator.js"></script>
     <script src="../src/renderer/preflightModel.js"></script>
     <script src="../src/renderer/preflight.js"></script>
   </body>

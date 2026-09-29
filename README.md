@@ -109,6 +109,7 @@ Two cooperating detection tiers:
 │   │   ├── lockdownGuard.js    # applies and holds the interview lockdown for the whole session
 │   │   ├── ipcHandlers.js      # the only file that registers ipcMain channels
 │   │   ├── ipcScope.js         # which caller (local pages vs interview site) each channel trusts
+│   │   ├── supportReference.js # LH-XXXX-XXXX code a candidate quotes to support
 │   │   ├── agentManager.js     # spawn agent, stdin/stdout pipe, ensureAgent()
 │   │   ├── authManager.js      # login against the LetsHyre API; tokens live main-process-only
 │   │   ├── protocolHandler.js  # letshyre:// parsing → interview URL + token
@@ -141,10 +142,12 @@ Two cooperating detection tiers:
 │   │   ├── recorder.js         # runs inside the hidden recorder window
 │   │   ├── updateCard.js       # auto-update card, loaded by every local page
 │   │   ├── rendererUtils.js    # small helpers shared by the page controllers
+│   │   ├── stepIndicator.js    # "Step N of M" in the setup pages' top bar
 │   │   └── languageSwitcher.js # keyboard-accessible language dropdown widget
 │   │
 │   └── shared/
 │       ├── constants.js        # single source of truth: ports, URLs, IPC names, timings
+│       ├── flowSteps.js        # setup step order, shared by the flow guard and the step indicator
 │       └── appList.js          # blocked app lists + friendly display names
 │
 ├── assets/                     # static UI (HTML/CSS/icons/locales) loaded as file://
@@ -180,6 +183,7 @@ launch ─▶ onReady (src/main/app.js)
    ├─ createWindow() → dashboard.html (valid session) | login.html
    ├─ updater.init()                      # check GitHub releases, then every 6h
    └─ resumePendingUploads()              # finish a recording a previous quit/crash interrupted
+            │  dashboard: Check my computer → preflight.html?mode=practice (result + Back to dashboard only)
             │  dashboard: Take interview
             ▼
    prewarmAgent()                         # agent boots while the candidate picks a language
@@ -193,6 +197,7 @@ launch ─▶ onReady (src/main/app.js)
             │  Proceed (main re-verifies the scan passed and is fresh)
             ▼
    permissions.html → identity-verification.html → role-selection.html
+            │  (each setup page shows "Step N of M", order from src/shared/flowSteps.js)
             │  Start (main re-verifies a scan passed this session)
             ▼
    LOCKDOWN (windowManager.lockdownForInterview → lockdownGuard, osLockdown, displayShields)
@@ -464,6 +469,8 @@ Every agent threat code in a scan is sent, not only the first. Threats sharing a
 
 > ⚠️ If the web app doesn't call `acknowledgeViolation()`, every violation is sent again on each page load, and each hard block once more after 8s. The lockdown is unaffected either way.
 
+**Support details.** `getSupportContact()` resolves `{ url, email, referenceCode }` for a help screen. `url` and `email` come from `SUPPORT_URL` / `SUPPORT_EMAIL` and are `null` when unset. `referenceCode` (`LH-XXXX-XXXX`) is what the candidate quotes to support; the app logs it, and shows the same code on its "Can't reach your interview" page and on the dashboard after a failed start. After `startProctoring({ sessionId })` it is the first 40 bits of `sha256(sessionId)` in RFC 4648 base32, so the backend can derive it too; before that it comes from a random id for the attempt.
+
 When the scorecard's "View Dashboard" button is pressed (still on the interview origin — `interviewComplete` lifted lockdown but did not navigate away):
 
 ```js
@@ -494,7 +501,7 @@ The `lang` query param on the interview URL (see [Deep link protocol](#deep-link
 
 ## Renderer API (`window.electronAPI`)
 
-Exposed by `preload.js` via `contextBridge` (only whitelisted channels). Safe to call in a plain browser — methods no‑op if `electronAPI` is absent. The same API is exposed to the local pages and the interview site, but main enforces who may call what (`ipcScope.js`): the interview site can only use the violation, completion, dashboard and proctoring channels.
+Exposed by `preload.js` via `contextBridge` (only whitelisted channels). Safe to call in a plain browser — methods no‑op if `electronAPI` is absent. The same API is exposed to the local pages and the interview site, but main enforces who may call what (`ipcScope.js`): the interview site can only use the violation, completion, dashboard, proctoring and support-contact channels.
 
 | Method                                                                                              | Purpose                                                                                                                      |
 | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
@@ -513,6 +520,9 @@ Exposed by `preload.js` via `contextBridge` (only whitelisted channels). Safe to
 | `abortInterview(reason)`                                                                            | The interview couldn't start; releases the lockdown and goes back to the dashboard (refused once it has started)             |
 | `recheckSystem()` / `minimizeWindow()` / `quitApp()`                                                | Preflight UX controls                                                                                                        |
 | `retryInterview()`                                                                                  | Reload the interview from the "Can't reach your interview" page                                                              |
+| `getSupportContact()`                                                                               | Interview site: `{ url, email, referenceCode }` for its help screens (read-only)                                             |
+| `getSupportInfo()` / `openSupport()`                                                                | Local pages: whether a support link is set, the reference code; open the link                                                |
+| `startPracticeCheck()`                                                                              | Dashboard "Check my computer": the security check alone; Continue is refused and nothing is locked down                      |
 | `getAppList()` / `getAuditLog()`                                                                    | Blocked‑app lists; in‑memory audit log                                                                                       |
 | `onUpdateAvailable` / `onUpdateProgress` / `onUpdateDownloaded` / `onUpdateError` / `onUpdateState` | Auto‑updater events (used by `updateCard.js`)                                                                                |
 | `getUpdateState()` / `installUpdate()` / `getAppVersion()`                                          | Current updater snapshot; quit and install; running version                                                                  |
@@ -699,7 +709,7 @@ Most knobs live in `src/shared/constants.js`:
 | `UPDATE_CHECK_INTERVAL_MS`               | 6 h                                         | Auto‑update re‑check cadence                     |
 | `UPDATE_RETRY_MS` / `UPDATE_MAX_RETRIES` | 5 min / 3                                   | Sooner retries after a failed update check       |
 
-Environment variables: `INTERVIEW_FRONTEND_BASE_URL` / `API_BASE_URL` (required), `DEVTOOLS`, `SUPPORT_URL`, `PREFLIGHT_POLICY_PATH` / `PREFLIGHT_TELEMETRY_PATH` (optional, see [Optional security-check endpoints](#optional-security-check-endpoints)), `AGENT_PY` / `AGENT_PY_BIN` (dev agent), `AGENT_LOG_DIR` / `APP_VERSION` / `AGENT_SECRET` (set automatically for the spawned agent), `LOG_LEVEL` (main-process log verbosity, default `info`; see `src/main/logger.js`).
+Environment variables: `INTERVIEW_FRONTEND_BASE_URL` / `API_BASE_URL` (required), `DEVTOOLS`, `SUPPORT_URL` / `SUPPORT_EMAIL` (optional help link and address), `PREFLIGHT_POLICY_PATH` / `PREFLIGHT_TELEMETRY_PATH` (optional, see [Optional security-check endpoints](#optional-security-check-endpoints)), `AGENT_PY` / `AGENT_PY_BIN` (dev agent), `AGENT_LOG_DIR` / `APP_VERSION` / `AGENT_SECRET` (set automatically for the spawned agent), `LOG_LEVEL` (main-process log verbosity, default `info`; see `src/main/logger.js`).
 
 ## Security hardening
 

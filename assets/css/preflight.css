@@ -216,6 +216,35 @@ html:has(> .sc-body) {
 
 /* ─── Checks panel ───────────────────────────────────────────────────── */
 
+/* ─── Practice run ("Check my computer") */
+
+.sc-body:not(.sc-body--practice) [data-practice-only],
+.sc-body--practice [data-practice-hide] {
+  display: none;
+}
+
+.sc-practice__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.sc-practice__title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.sc-practice__body {
+  margin: 0;
+  color: var(--muted);
+}
+
+.sc-practice.banner--ok .sc-practice__body,
+.sc-practice.banner--danger .sc-practice__body {
+  color: inherit;
+}
+
 .sc-panel {
   background: var(--surface);
   border: 1px solid var(--border);

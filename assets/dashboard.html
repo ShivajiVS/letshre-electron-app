@@ -83,22 +83,28 @@
           <span class="attempt-tracker__count" id="attempt-count"></span>
         </div>
 
-        <!-- Label owned by dashboard.js: it rebuilds the whole button body for
-             the "Starting…" state, which would strip a data-i18n span. -->
-        <button class="btn btn--primary btn--lg" id="take-interview-btn" type="button">
-          <span>Take interview</span>
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-          >
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
+        <div class="dash-actions">
+          <!-- Label owned by dashboard.js: it rebuilds the whole button body for
+               the "Starting…" state, which would strip a data-i18n span. -->
+          <button class="btn btn--primary btn--lg" id="take-interview-btn" type="button">
+            <span>Take interview</span>
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+          <button class="btn btn--secondary btn--lg" id="practice-check-btn" type="button">
+            <span data-i18n="dashboard.checkComputer">Check my computer</span>
+          </button>
+        </div>
         <p class="dash-note" id="dash-note">A security check runs before the interview begins.</p>
+        <p class="dash-note dash-ref" id="dash-ref" hidden></p>
         <p class="dash-note" style="margin-top: 8px">
           <button
             type="button"

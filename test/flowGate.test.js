@@ -48,6 +48,7 @@ function load() {
     stage: "permissions",
     active: false,
     unavailable: false,
+    practice: false,
     profile: { success: false },
     check: async () => guardState("clear", g.stage),
     names: () => calls.map((c) => c[0]),
@@ -86,6 +87,7 @@ function load() {
   stub(windowManager, {
     getWindow: () => win,
     loadSecurityCheck: record("loadSecurityCheck"),
+    loadPracticeCheck: record("loadPracticeCheck"),
     loadPermissionsPage: record("loadPermissionsPage"),
     loadIdentityVerificationPage: record("loadIdentityVerificationPage"),
     loadRoleSelectionPage: record("loadRoleSelectionPage"),
@@ -103,14 +105,17 @@ function load() {
     clearInterviewSessionData: async () => {},
   });
   stub(protocolHandler, {
-    setInterviewSession: noop,
+    setInterviewSession: record("setInterviewSession"),
     resetInterviewSession: noop,
     getCurrentInterviewUrl: () => INTERVIEW_URL,
   });
   stub(localeManager, { getSupportedLocales: () => ["en"] });
   stub(authManager, {
     getTokens: () => ({ accessToken: "tok", refreshToken: "ref" }),
-    getCandidateProfile: async () => g.profile,
+    getCandidateProfile: async () => {
+      calls.push(["getCandidateProfile"]);
+      return g.profile;
+    },
     logout: async () => ({ success: true }),
   });
   stub(logger, { info: noop, warn: noop, error: noop, debug: noop });
@@ -121,7 +126,7 @@ function load() {
     },
     stopPreProceedMonitor: record("stopPreProceedMonitor"),
     startPreProceedMonitor: noop,
-    resetState: noop,
+    resetState: record("resetState"),
     start: record("startDetection"),
     stop: record("detection.stop"),
     setSessionContext: record("setSessionContext"),
@@ -131,8 +136,20 @@ function load() {
   stub(flowGuard, {
     start: (_win, stage) => {
       calls.push(["guard.start", stage]);
-      g.stage = stage;
+      if (!g.practice) {
+        g.stage = stage;
+      }
     },
+    enterPractice: () => {
+      calls.push(["guard.enterPractice"]);
+      g.stage = null;
+      g.practice = true;
+    },
+    leavePractice: () => {
+      calls.push(["guard.leavePractice"]);
+      g.practice = false;
+    },
+    isPractice: () => g.practice,
     stop: () => {
       calls.push(["guard.stop"]);
       g.stage = null;
@@ -492,4 +509,123 @@ test("the scorecard leaves only once the lockdown is fully released", async () =
   await leaving;
   const names = g.names();
   assert.ok(names.indexOf("killAgent") < names.indexOf("loadDashboard"));
+});
+
+// ─── Practice run ("Check my computer")
+
+test("a practice run opens the security check without a session, attempts check or lockdown", async () => {
+  const g = load();
+  await g.call(IPC.START_PRACTICE_CHECK);
+  const names = g.names();
+  assert.ok(names.indexOf("guard.enterPractice") < names.indexOf("loadPracticeCheck"));
+  for (const name of [
+    "setInterviewSession",
+    "getCandidateProfile",
+    "loadSecurityCheck",
+    "loadLanguageSelectionPage",
+    "lockdownForInterview",
+    "startDetection",
+  ]) {
+    assert.ok(!names.includes(name), name);
+  }
+});
+
+test("a practice run is refused while an interview is locked down", async () => {
+  const g = load();
+  g.active = true;
+  await g.call(IPC.START_PRACTICE_CHECK);
+  assert.deepStrictEqual(g.names(), []);
+});
+
+test("a practice run never gets past the security check, even with a passing scan", async () => {
+  const g = load();
+  await g.call(IPC.START_PRACTICE_CHECK);
+  g.calls.length = 0;
+
+  assert.deepStrictEqual(await g.call(IPC.LOAD_PERMISSIONS_PAGE), {
+    ok: false,
+    reason: "practice",
+  });
+  g.call(IPC.BACK_TO_PERMISSIONS);
+  assert.deepStrictEqual(await g.call(IPC.LOAD_IDENTITY_VERIFICATION), {
+    ok: false,
+    reason: "order",
+  });
+  assert.deepStrictEqual(await g.call(IPC.LOAD_ROLE_SELECTION), { ok: false, reason: "order" });
+  assert.deepStrictEqual(await g.call(IPC.PROCEED_TO_INTERVIEW, {}), {
+    ok: false,
+    reason: "order",
+  });
+
+  const names = g.names();
+  for (const name of [
+    "guard.start",
+    "loadPermissionsPage",
+    "loadIdentityVerificationPage",
+    "loadRoleSelectionPage",
+    "lockdownForInterview",
+    "startDetection",
+  ]) {
+    assert.ok(!names.includes(name), name);
+  }
+});
+
+test("Back from a practice run goes to the dashboard and forgets its pass", async () => {
+  for (const channel of [IPC.LOAD_DASHBOARD, IPC.LOAD_LANGUAGE_SELECTION]) {
+    const g = load();
+    await g.call(IPC.START_PRACTICE_CHECK);
+    await g.call(channel);
+    const names = g.names();
+    assert.strictEqual(g.practice, false, channel);
+    assert.ok(names.indexOf("guard.leavePractice") < names.indexOf("resetState"), channel);
+    assert.ok(names.indexOf("resetState") < names.indexOf("loadDashboard"), channel);
+    assert.ok(!names.includes("loadLanguageSelectionPage"), channel);
+  }
+});
+
+test("Take interview after a practice run starts a normal attempt", async () => {
+  const g = load();
+  await g.call(IPC.START_PRACTICE_CHECK);
+  await g.call(IPC.START_INTERVIEW);
+  assert.strictEqual(g.practice, false);
+  const names = g.names();
+  assert.ok(names.indexOf("guard.leavePractice") < names.indexOf("loadSecurityCheck"));
+  assert.ok(names.includes("setInterviewSession"));
+});
+
+test("leaving without a practice run doesn't reset the security check", async () => {
+  const g = load();
+  await g.call(IPC.LOAD_DASHBOARD);
+  assert.ok(!g.names().includes("resetState"));
+  assert.ok(!g.names().includes("guard.leavePractice"));
+});
+
+// ─── Support details
+
+test("the site reads the support contact and the same reference code the local pages show", async () => {
+  const { CODE_PATTERN } = require("../src/main/supportReference");
+  const g = load();
+  const contact = await g.callFromInterview(IPC.GET_SUPPORT_CONTACT);
+  assert.deepStrictEqual(Object.keys(contact).sort(), ["email", "referenceCode", "url"]);
+  assert.match(contact.referenceCode, CODE_PATTERN);
+  const info = await g.call(IPC.GET_SUPPORT_INFO);
+  assert.strictEqual(info.referenceCode, contact.referenceCode);
+  assert.throws(() => g.call(IPC.GET_SUPPORT_CONTACT), /not permitted/);
+});
+
+test("the reference code follows the session once proctoring starts, and a new attempt", async () => {
+  const { referenceCodeFor } = require("../src/main/supportReference");
+  const g = load();
+  await g.call(IPC.START_INTERVIEW);
+  const beforeSession = (await g.call(IPC.GET_SUPPORT_INFO)).referenceCode;
+
+  g.active = true;
+  await g.callFromInterview(IPC.PROCTORING_START, { sessionId: "session-42" });
+  const withSession = (await g.call(IPC.GET_SUPPORT_INFO)).referenceCode;
+  assert.strictEqual(withSession, referenceCodeFor("session-42"));
+  assert.notStrictEqual(withSession, beforeSession);
+
+  g.active = false;
+  await g.call(IPC.START_INTERVIEW);
+  assert.notStrictEqual((await g.call(IPC.GET_SUPPORT_INFO)).referenceCode, withSession);
 });

@@ -25,6 +25,10 @@ const STATUS_PASS = "sc-status sc-status--pass";
 const STATUS_FAIL = "sc-status sc-status--fail";
 const STATUS_WARN = "sc-status sc-status--warn";
 
+// "Check my computer" from the dashboard: the same check, ending on a result
+// instead of Continue. Main refuses Continue for it either way.
+const PRACTICE = new URLSearchParams(window.location.search).get("mode") === "practice";
+
 const PREVIEW_CARD_TEXT = "Check passed (preview mode).";
 const PREVIEW_STATUS_TEXT = "Preview mode — all checks simulated as passed.";
 
@@ -234,6 +238,24 @@ function renderI18n() {
 function setStatus(key, fallback, params, className) {
   _statusState = { key, fallback, params: params || null, className };
   paintStatus();
+}
+
+function setPassedStatus() {
+  if (PRACTICE) {
+    setStatus(
+      "practice.allPassed",
+      "All checks passed. Your computer is ready.",
+      null,
+      STATUS_PASS
+    );
+  } else {
+    setStatus(
+      "preflightResults.allPassed",
+      "All checks passed. You can continue.",
+      null,
+      STATUS_PASS
+    );
+  }
 }
 
 function statusText() {
@@ -466,6 +488,70 @@ function paintSummary() {
   if (hint) {
     hint.hidden = !(_scanToken && _scansStarted === 1);
   }
+  paintPracticeResult(s);
+}
+
+// ─── Practice result
+
+const PRACTICE_RESULT_COPY = {
+  checking: {
+    tone: "",
+    title: ["practice.checkingTitle", "Checking your computer…"],
+    body: [
+      "practice.checkingBody",
+      "This is a practice run. It doesn't start your interview or use an attempt.",
+    ],
+  },
+  ready: {
+    tone: "banner--ok",
+    title: ["practice.readyTitle", "Your computer is ready"],
+    body: [
+      "practice.readyBody",
+      "Everything passed. The same check runs again when you start your interview.",
+    ],
+  },
+  attention: {
+    tone: "banner--danger",
+    title: ["practice.attentionTitle", "Some things need attention"],
+    body: [
+      "practice.attentionBody",
+      "Close the apps marked below and check again, so the real check goes smoothly.",
+    ],
+  },
+  incomplete: {
+    tone: "banner--danger",
+    title: ["practice.incompleteTitle", "Some checks couldn't finish"],
+    body: [
+      "practice.incompleteBody",
+      "Check again in a moment. If it keeps happening, contact support.",
+    ],
+  },
+};
+
+function practiceOutcome(summary) {
+  if ((_scanToken && !_quietScan) || _pageState === "scanning") {
+    return "checking";
+  }
+  if (proceedAllowed()) {
+    return "ready";
+  }
+  if (summary.failed > 0 || _liveState === "dirty") {
+    return "attention";
+  }
+  return summary.unverified > 0 || _pageState === "error" ? "incomplete" : "checking";
+}
+
+function paintPracticeResult(summary) {
+  const box = document.getElementById("practice-result");
+  if (!PRACTICE || !box) {
+    return;
+  }
+  const outcome = practiceOutcome(summary);
+  const copy = PRACTICE_RESULT_COPY[outcome];
+  box.className = `banner sc-practice ${copy.tone}`.trim();
+  box.dataset.outcome = outcome;
+  document.getElementById("practice-result-title").textContent = tr(...copy.title);
+  document.getElementById("practice-result-body").textContent = tr(...copy.body);
 }
 
 function summaryLine() {
@@ -714,12 +800,7 @@ function finishScan(results, { quiet = false } = {}) {
   if (_passValid) {
     _autoRescanCount = 0;
     _pageState = "pass";
-    setStatus(
-      "preflightResults.allPassed",
-      "All checks passed. You can continue.",
-      null,
-      STATUS_PASS
-    );
+    setPassedStatus();
   } else {
     _pageState = "fail";
     // "Close something" and "we couldn't check" call for different actions.
@@ -905,12 +986,7 @@ function onLiveStatus(payload) {
 
 function paintLiveStatus(live) {
   if (live.state === "clean") {
-    setStatus(
-      "preflightResults.allPassed",
-      "All checks passed. You can continue.",
-      null,
-      STATUS_PASS
-    );
+    setPassedStatus();
     return;
   }
   if (live.state === "unverified") {
@@ -2042,7 +2118,20 @@ function onProceedRefused(reason) {
   runScans({ auto: true });
 }
 
+function leavePractice() {
+  cancelScheduledRescan();
+  window.electronAPI?.loadDashboard?.();
+}
+
 function wireControls() {
+  if (PRACTICE) {
+    document.body.classList.add("sc-body--practice");
+    const back = document.getElementById("btn-back-dashboard");
+    if (back) {
+      back.onclick = leavePractice;
+    }
+    document.getElementById("btn-practice-done")?.addEventListener("click", leavePractice);
+  }
   document.getElementById("btn-rescan")?.addEventListener("click", () => runScans());
   document.getElementById("btn-proceed")?.addEventListener("click", onProceedClick);
   document.getElementById("btn-what-we-check")?.addEventListener("click", toggleExplainer);

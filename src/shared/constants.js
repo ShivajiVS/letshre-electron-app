@@ -75,6 +75,9 @@ const DEVTOOLS_ENABLED = /^(1|true)$/i.test(process.env.DEVTOOLS);
 // Optional help link on the security check; only an https URL is ever opened.
 const SUPPORT_URL = process.env.SUPPORT_URL || "";
 
+// Optional support address the interview site can show next to the link.
+const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "";
+
 // Optional preflight endpoints, relative to API_BASE_URL; off unless a "/" path.
 const _apiPath = (value) => (/^\/\S*$/.test(value || "") ? value : "");
 const PREFLIGHT_POLICY_PATH = _apiPath(process.env.PREFLIGHT_POLICY_PATH);
@@ -236,6 +239,8 @@ const IPC = {
 
   // Dashboard → start the security check for the logged-in session
   START_INTERVIEW: "start-interview",
+  // Dashboard → the security check alone, as a practice run
+  START_PRACTICE_CHECK: "start-practice-check",
 
   // Candidate profile (authenticated GET, returns attempts + display fields)
   GET_CANDIDATE_PROFILE: "get-candidate-profile",
@@ -280,6 +285,8 @@ const IPC = {
   // Support link on the security check
   GET_SUPPORT_INFO: "get-support-info",
   OPEN_SUPPORT: "open-support",
+  /** Support link, address and reference code for the interview site. */
+  GET_SUPPORT_CONTACT: "get-support-contact",
 
   // Auto-updater (main → renderer push)
   PUSH_UPDATE_AVAILABLE: "push-update-available",
@@ -424,6 +431,7 @@ module.exports = {
   API_BASE_URL,
   DEVTOOLS_ENABLED,
   SUPPORT_URL,
+  SUPPORT_EMAIL,
   PREFLIGHT_POLICY_PATH,
   PREFLIGHT_TELEMETRY_PATH,
   AUTH_LOGIN_PATH,

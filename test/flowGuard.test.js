@@ -625,3 +625,38 @@ test("no agent recovery when it's another check that can't answer", async () => 
   assert.strictEqual(h.fake.readyCalls, 0);
   assert.strictEqual(h.fake.restarts, 0);
 });
+
+// ─── Practice run
+
+test("its stages are the setup steps after the security check, in flow order", () => {
+  h = load();
+  const { GUARDED_STEP_IDS, STEP_IDS } = require("../src/shared/flowSteps");
+  assert.deepStrictEqual(h.guard.STAGES, GUARDED_STEP_IDS);
+  assert.deepStrictEqual(h.guard.STAGES, STEP_IDS.slice(STEP_IDS.indexOf("preflight") + 1));
+});
+
+test("a practice run stops the guard and keeps it from starting on any stage", async () => {
+  const win = await started();
+  h.guard.enterPractice();
+  assert.strictEqual(h.guard.isPractice(), true);
+  assert.strictEqual(h.guard.isRunning(), false);
+  for (const stage of h.guard.STAGES) {
+    h.guard.start(win, stage);
+    assert.strictEqual(h.guard.getStage(), null, stage);
+  }
+  h.guard.setStage("role");
+  assert.strictEqual(h.guard.getStage(), null);
+  assert.strictEqual(h.guard.isClear(), false);
+});
+
+test("a practice run survives stop() and ends only when left", async () => {
+  h = load();
+  h.guard.enterPractice();
+  h.guard.stop();
+  assert.strictEqual(h.guard.isPractice(), true);
+  h.guard.leavePractice();
+  assert.strictEqual(h.guard.isPractice(), false);
+  h.guard.start(fakeWin(), "permissions");
+  await h.guard._internal.settle();
+  assert.strictEqual(h.guard.getStage(), "permissions");
+});

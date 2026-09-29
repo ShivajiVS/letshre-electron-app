@@ -793,6 +793,11 @@ function loadSecurityCheck(reason) {
   _loadMainPage("preflight.html", reason ? { query: { reason } } : undefined);
 }
 
+/** The security check as a practice run from the dashboard. */
+function loadPracticeCheck() {
+  _loadMainPage("preflight.html", { query: { mode: "practice" } });
+}
+
 function loadLanguageSelectionPage() {
   _loadMainPage("language-selection.html");
 }
@@ -867,6 +872,7 @@ module.exports = {
   endInterview,
   loadDashboard,
   loadSecurityCheck,
+  loadPracticeCheck,
   loadLanguageSelectionPage,
   loadPermissionsPage,
   loadIdentityVerificationPage,

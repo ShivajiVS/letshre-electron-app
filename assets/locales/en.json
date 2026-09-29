@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Source-of-truth bundle. Every other locale file must have exactly the same keys (see test/locales.test.js).",
     "_reviewedBy": null,
-    "_sourceHash": "ae54522bc1ac476b"
+    "_sourceHash": "24e9e11af776e6ea"
   },
   "common": {
     "back": "Back",
@@ -57,7 +57,8 @@
     "startUnavailable": "Unable to start — please restart the app.",
     "startTimedOut": "That took too long. Please try again.",
     "startFailed": "Your interview couldn't start. Please try again, or contact support if it keeps happening.",
-    "howItWorksLink": "How does the process work? →"
+    "howItWorksLink": "How does the process work? →",
+    "checkComputer": "Check my computer"
   },
   "hiw": {
     "pageTitle": "How It Works — LetsHyre",
@@ -418,5 +419,30 @@
     "titleAccent": "Selection",
     "sub": "Choose the language you'd like to use for your interview.",
     "continue": "Continue"
+  },
+  "flowSteps": {
+    "progress": "Step {number} of {total} · {name}",
+    "language": "Language",
+    "preflight": "Security check",
+    "permissions": "Permissions",
+    "identity": "Identity check",
+    "role": "Role"
+  },
+  "practice": {
+    "title": "Check my computer",
+    "sub": "A practice run of the security check, so you can fix anything before your interview.",
+    "allPassed": "All checks passed. Your computer is ready.",
+    "checkingTitle": "Checking your computer…",
+    "checkingBody": "This is a practice run. It doesn't start your interview or use an attempt.",
+    "readyTitle": "Your computer is ready",
+    "readyBody": "Everything passed. The same check runs again when you start your interview.",
+    "attentionTitle": "Some things need attention",
+    "attentionBody": "Close the apps marked below and check again, so the real check goes smoothly.",
+    "incompleteTitle": "Some checks couldn't finish",
+    "incompleteBody": "Check again in a moment. If it keeps happening, contact support.",
+    "backToDashboard": "Back to dashboard"
+  },
+  "support": {
+    "referenceCode": "Reference code: {code}"
   }
 }

@@ -5,7 +5,7 @@
     "dir": "ltr",
     "note": "Certified-review pending — see attestation.statement before release.",
     "_reviewedBy": null,
-    "_sourceHash": "ae54522bc1ac476b"
+    "_sourceHash": "24e9e11af776e6ea"
   },
   "common": {
     "back": "Atrás",
@@ -57,7 +57,8 @@
     "startUnavailable": "No se puede iniciar — reinicia la aplicación.",
     "startTimedOut": "Esto tardó demasiado. Inténtalo de nuevo.",
     "startFailed": "No se pudo iniciar tu entrevista. Inténtalo de nuevo o contacta con soporte si sigue ocurriendo.",
-    "howItWorksLink": "¿Cómo funciona el proceso? →"
+    "howItWorksLink": "¿Cómo funciona el proceso? →",
+    "checkComputer": "Check my computer"
   },
   "hiw": {
     "pageTitle": "How It Works — LetsHyre",
@@ -418,5 +419,30 @@
     "titleAccent": "Selección",
     "sub": "Elige el idioma que quieres usar para tu entrevista.",
     "continue": "Continuar"
+  },
+  "flowSteps": {
+    "progress": "Step {number} of {total} · {name}",
+    "language": "Language",
+    "preflight": "Security check",
+    "permissions": "Permissions",
+    "identity": "Identity check",
+    "role": "Role"
+  },
+  "practice": {
+    "title": "Check my computer",
+    "sub": "A practice run of the security check, so you can fix anything before your interview.",
+    "allPassed": "All checks passed. Your computer is ready.",
+    "checkingTitle": "Checking your computer…",
+    "checkingBody": "This is a practice run. It doesn't start your interview or use an attempt.",
+    "readyTitle": "Your computer is ready",
+    "readyBody": "Everything passed. The same check runs again when you start your interview.",
+    "attentionTitle": "Some things need attention",
+    "attentionBody": "Close the apps marked below and check again, so the real check goes smoothly.",
+    "incompleteTitle": "Some checks couldn't finish",
+    "incompleteBody": "Check again in a moment. If it keeps happening, contact support.",
+    "backToDashboard": "Back to dashboard"
+  },
+  "support": {
+    "referenceCode": "Reference code: {code}"
   }
 }

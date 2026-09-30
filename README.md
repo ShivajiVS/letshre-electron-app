@@ -4,6 +4,42 @@ A Windows/macOS Electron app that proctors LetsHyre interviews. It checks the ma
 
 The version is in `package.json`.
 
+## Architecture
+
+```
+┌─────────────── Electron main process (src/main, src/detector) ───────────────┐
+│ windows + lockdown · IPC (scoped per caller) · detection engine · recording   │
+│ auth (tokens never leave main) · locale · auto-update                         │
+└──────┬──────────────────────────────┬──────────────────────────────┬─────────┘
+       │ preload.js (contextBridge)   │ stdin/stdout pipe            │ HTTPS
+       ▼                              ▼                              ▼
+ Renderer windows               Python agent (agent.py)        LetsHyre API
+ · setup pages (assets/*.html,  · deep scans: overlays, DLLs,  · login, profile,
+   src/renderer/*.js)             virtual cameras/audio, VMs     identity, role
+ · interview window (locked,    · Windows keyboard/touchpad    · violations,
+   loads the interview site)      and focus lockdown             heartbeat, video
+ · hidden recorder window
+```
+
+**Candidate path:** login → dashboard → language (only when more than one is offered) → security check → permissions → identity (photo + voice) → role → interview rules → **Start Interview**. From the security check on, a flow guard re-checks the machine every 2s and blocks each step until it is clear. Start locks the window, loads the interview site and starts detection every 5s. Findings go to the site as violations; the site decides the cost and tells the app when the interview ends, which lifts the lockdown.
+
+**The app and the site** talk only through `window.electronAPI` (`preload.js`). Each channel is scoped to local pages or the interview origin (`src/main/ipcScope.js`). The session hands over tokens, photo, role, language (`?lang=`) and the rules acknowledgement. Both sides are pinned by [`contract/interview-contract.json`](contract/interview-contract.json).
+
+```
+main.js · preload.js · preload-recorder.js   entry and bridges
+agent.py                                     deep-scan agent → resources/agent.exe
+src/main/          lifecycle, windows, lockdown, IPC, flow guard, recording, auth, updater
+src/detector/      detection engine, display and process scans, agent client
+src/renderer/      one controller per setup page, step indicator, language dropdown
+src/shared/        constants, flow step order, violation codes, blocked app lists
+assets/            HTML pages, CSS design system, fonts, 19 locale bundles
+contract/          what the app and the interview site promise each other
+scripts/           agent build, release checks, contract sync, fonts, locales
+test/              node:test unit suites, e2e/ (Electron), agent unittests
+```
+
+Full detail, including the lifecycle and the violation journey: [docs/architecture.md](docs/architecture.md).
+
 ## Run
 
 Needs Node 20+, pnpm 10+, and Python 3.12 with `psutil` and `pyinstaller` for the agent.

@@ -237,11 +237,7 @@ flowchart TD
         N1["hdmiDetector · mirrorDetector"] --> T
         A2 --> T["runDetectionTick<br/>src/detector/systemChecks.js"]
         L1["lockdownGuard · osLockdown<br/>(minimize, fullscreen exit, focus)"] --> S
-        T --> S["sendViolation(win, event, severity, {code, category, apps  "sessionId": "sess_123", // from startProctoring; null until then, filled in while still queued
-  "interviewId": "int_456",
-  "appVersion": "1.4.4",
-  "recordingOffsetMs": 61250, // position in the screen recording, null when not recording
-})"]
+        T --> S["sendViolation(win, event, severity, {code, category, apps})"]
         S --> H["holdUntilAcked<br/>re-sent on page load, hard block after 8s"]
         S --> B["POST /interview/violation<br/>retry queue"]
         S --> P["webContents.send('push-violation')"]
@@ -278,18 +274,18 @@ Recording failures never block the interview; they are reported to the web app v
 
 The client calls these on `API_BASE_URL` (from `.env`, no default) with `Authorization: Bearer <accessToken>` (except login/refresh):
 
-| Endpoint                                                                          | When                                                                                                                                  |
-| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /user/v1/login/` · `POST /user/v1/login_refresh/` · `POST /user/v1/logout/` | Sign‑in, token refresh, sign‑out                                                                                                      |
-| `GET /user/v1/candidate_profile/`                                                 | Dashboard; also verifies the saved session at launch                                                                                  |
-| `POST /user/v1/candidate/interview/face_verification/`                            | Identity verification photo                                                                                                           |
-| `POST /user/v1/candidate/interview/voice_sample/`                                 | Identity verification voice sample                                                                                                    |
-| `POST /user/v1/candidate_resume_ai/skills_for_role/`                              | Role selection                                                                                                                        |
-| `POST /user/v1/candidate_interview/video_upload/start/`                           | Register a recording upload                                                                                                           |
-| `POST /user/v1/candidate_interview/video_upload/chunk/`                           | Each recording chunk, during the interview                                                                                            |
-| `POST /user/v1/candidate_interview/video_upload/complete/`                        | After the last chunk is confirmed                                                                                                     |
-| `GET /user/v1/candidate_interview/video_upload/status/<uploadId>/`                | Poll until the backend has merged the video                                                                                           |
-| `POST /interview/heartbeat`                                                       | Every 30s during the interview — `{ timestamp, sessionId, interviewId, appVersion }`                                                  |
+| Endpoint                                                                          | When                                                                                                                                                  |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /user/v1/login/` · `POST /user/v1/login_refresh/` · `POST /user/v1/logout/` | Sign‑in, token refresh, sign‑out                                                                                                                      |
+| `GET /user/v1/candidate_profile/`                                                 | Dashboard; also verifies the saved session at launch                                                                                                  |
+| `POST /user/v1/candidate/interview/face_verification/`                            | Identity verification photo                                                                                                                           |
+| `POST /user/v1/candidate/interview/voice_sample/`                                 | Identity verification voice sample                                                                                                                    |
+| `POST /user/v1/candidate_resume_ai/skills_for_role/`                              | Role selection                                                                                                                                        |
+| `POST /user/v1/candidate_interview/video_upload/start/`                           | Register a recording upload                                                                                                                           |
+| `POST /user/v1/candidate_interview/video_upload/chunk/`                           | Each recording chunk, during the interview                                                                                                            |
+| `POST /user/v1/candidate_interview/video_upload/complete/`                        | After the last chunk is confirmed                                                                                                                     |
+| `GET /user/v1/candidate_interview/video_upload/status/<uploadId>/`                | Poll until the backend has merged the video                                                                                                           |
+| `POST /interview/heartbeat`                                                       | Every 30s during the interview — `{ timestamp, sessionId, interviewId, appVersion }`                                                                  |
 | `POST /interview/violation`                                                       | On every violation (retried, also after a restart) — the [violation payload](#violation-model); dedupe on `id`; a 4xx other than 401/408/429 drops it |
 
 > **Required for enforcement:** `POST /interview/violation` must be implemented server‑side to record/flag/terminate sessions. Until it exists, violation reports are queued and retried client‑side.

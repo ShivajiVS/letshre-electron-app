@@ -35,11 +35,6 @@
   color: var(--muted);
   cursor: not-allowed;
 }
-.iv-topbar .lang-switcher__select {
-  font-size: 0.75rem;
-  padding: 0.375rem 0.625rem;
-  border-radius: 0.375rem;
-}
 
 .iv-main {
   flex: 1;

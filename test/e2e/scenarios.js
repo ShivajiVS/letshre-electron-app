@@ -850,6 +850,52 @@ const scenarios = [
   },
 
   {
+    name: "the language dropdown shows English names and picks with the keyboard",
+    setup(ctx) {
+      ctx.onScan(passScan);
+    },
+    async run(ctx) {
+      await ctx.until("document.querySelector('.lang-switcher__trigger')", "language dropdown");
+      const locales = await ctx.eval("window.electronAPI.getSupportedLocales()");
+      if (locales.length <= 1) {
+        return;
+      }
+      assert.strictEqual(await ctx.text(".lang-switcher__value"), "English");
+      assert.strictEqual(await ctx.text("#lang-opt-hi .lang-switcher__english"), "Hindi");
+      assert.strictEqual(
+        await ctx.eval("document.querySelector('#lang-opt-en .lang-switcher__english')"),
+        null
+      );
+
+      await ctx.eval("document.querySelector('.lang-switcher__trigger').focus()");
+      await ctx.press("Down");
+      assert.strictEqual(
+        await ctx.eval("document.querySelector('.lang-switcher__menu').hidden"),
+        false
+      );
+      await ctx.press("Down");
+      await ctx.press("Return");
+      assert.deepStrictEqual(ctx.callsTo("setLocale").at(-1).args, [locales[1].code]);
+      assert.strictEqual(
+        await ctx.eval("document.querySelector('.lang-switcher__menu').hidden"),
+        true
+      );
+      assert.strictEqual(
+        await ctx.eval("document.activeElement.className"),
+        "lang-switcher__trigger"
+      );
+
+      await ctx.press("Down");
+      await ctx.press("Escape");
+      assert.strictEqual(
+        await ctx.eval("document.querySelector('.lang-switcher__menu').hidden"),
+        true
+      );
+      assert.strictEqual(ctx.callsTo("setLocale").length, 1);
+    },
+  },
+
+  {
     name: "the fake bridge matches preload.js and the page stays offline",
     setup(ctx) {
       ctx.onScan(passScan);

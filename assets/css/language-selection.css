@@ -155,10 +155,8 @@
 }
 
 .ls-option__code {
-  font-size: var(--text-xs);
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: var(--text-sm);
+  font-weight: 400;
   color: var(--faint);
 }
 
@@ -187,8 +185,7 @@
   }
 }
 
-html[dir="rtl"] .ls-card__title,
-html[dir="rtl"] .ls-option__code {
+html[dir="rtl"] .ls-card__title {
   letter-spacing: normal;
   text-transform: none;
 }

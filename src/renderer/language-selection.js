@@ -9,8 +9,8 @@
 /* eslint-env browser */
 "use strict";
 
-// No tr() helper here: every string on this page is static and carries
-// data-i18n, and the locale names are endonyms that are never translated.
+// Locale names are shown as endonyms with the English name beside them, so
+// neither is translated.
 
 document.addEventListener("DOMContentLoaded", async () => {
   const optionsEl = document.getElementById("ls-options");
@@ -75,7 +75,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       <div class="ls-option__radio"></div>
       <div class="ls-option__text">
         <span class="ls-option__label">${window.escHtml(locale.name)}</span>
-        <span class="ls-option__code">${window.escHtml(locale.code)}</span>
+        ${locale.english && locale.english !== locale.name ? `<span class="ls-option__code" lang="en">${window.escHtml(locale.english)}</span>` : ""}
       </div>`;
 
     card.addEventListener("click", () => choose(locale.code));

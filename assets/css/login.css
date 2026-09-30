@@ -1,7 +1,7 @@
 /* Sized in rem off the fluid root (html.fluid-scale in base.css) so the page
    scales as one unit. Hairline borders stay in px. */
 
-.lang-switcher--corner {
+#lang-switcher.lang-switcher--corner {
   position: absolute;
   top: var(--space-4);
   inset-inline-end: var(--space-4);

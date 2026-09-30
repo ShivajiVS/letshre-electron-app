@@ -167,7 +167,6 @@
     "eyebrowReady": "Bereit zum Start",
     "skillsTitle": "Skills for {role}",
     "skillsSub": "Hier sind die wichtigsten Bereiche, die wir in Ihrem Interview behandeln werden. Überprüfen Sie sie und beginnen Sie, wenn Sie bereit sind.",
-    "startInterview": "Interview starten",
     "sidebarInputTitle": "Geben Sie Ihre Rolle ein",
     "sidebarInputDesc": "Geben Sie die Rolle ein, für die Sie sich bewerben. Unsere KI passt die Interviewfragen an Ihre spezifische Position an.",
     "sidebarClarifyTitle": "Genauer eingrenzen",
@@ -177,9 +176,7 @@
     "loading": "Wird geladen…",
     "checkingRole": "Rolle wird geprüft…",
     "confirming": "Wird bestätigt…",
-    "starting": "Wird gestartet…",
     "confirmWithRole": "Bestätigen — {role}",
-    "startUnavailable": "Das Interview konnte nicht gestartet werden. Bitte starten Sie die App neu.",
     "actionUnavailable": "Diese Aktion ist nicht verfügbar. Bitte starten Sie die App neu.",
     "roleProcessFailed": "Diese Rolle konnte nicht verarbeitet werden. Bitte versuchen Sie es erneut.",
     "networkError": "Netzwerkfehler. Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
@@ -187,6 +184,37 @@
     "noSkillsListed": "Keine spezifischen Fähigkeiten aufgeführt — das Interview passt sich in Echtzeit an.",
     "roleRequired": "Bitte geben Sie eine Rolle ein.",
     "sessionExpired": "Ihre Sitzung ist abgelaufen. Bitte starten Sie die App neu und melden Sie sich erneut an."
+  },
+  "rules": {
+    "title": "Bevor Sie beginnen",
+    "intro": "Dieses Interview wird über Ihre Kamera und Ihren Bildschirm beaufsichtigt. Darauf achtet die Aufsicht.",
+    "strikesTitle": "Das zählt als Verstoß",
+    "strikes": {
+      "window": "Das Interviewfenster verlassen, Tabs wechseln oder den Vollbildmodus beenden",
+      "people": "Eine andere Person im Bild oder niemand im Bild",
+      "devices": "Ein Handy oder ein anderes verbotenes Gerät im Bild",
+      "apps": "Apps, Bildschirmfreigabe oder zusätzliche Bildschirme, die die Desktop-App blockiert"
+    },
+    "warningsTitle": "Dafür gibt es nur eine Warnung",
+    "warnings": {
+      "faceFrame": "Ihr Gesicht verlässt kurz das Bild",
+      "lighting": "Schlechte Beleuchtung oder Ihr Gesicht ist schlecht zu sehen",
+      "cameraPause": "Ihre Kamera setzt kurz aus"
+    },
+    "limitsTitle": "Die Grenzen",
+    "limits": {
+      "strikes": "Nach {max} Verstößen endet das Interview und Ihre Antworten werden abgegeben.",
+      "held": "Ein Gerät, das im Bild bleibt, oder eine ausgeschaltete Kamera kostet alle {seconds} Sekunden einen weiteren Verstoß.",
+      "face": "Wenn Ihr Gesicht {inARow}-mal hintereinander oder insgesamt {total}-mal nicht zu Ihrem Foto passt, endet das Interview.",
+      "network": "Wenn Ihre Internetverbindung {max}-mal abbricht, wird das Interview abgegeben. Abbrüche sind keine Verstöße."
+    },
+    "limitsLater": "Die genauen Grenzen werden angezeigt, wenn das Interview geöffnet wird.",
+    "loading": "Grenzen werden geladen…",
+    "agree": "Ich habe diese Regeln gelesen und verstanden",
+    "timerNote": "Ihr Interview-Timer startet, sobald sich das Interview öffnet.",
+    "start": "Interview starten",
+    "starting": "Wird gestartet…",
+    "startUnavailable": "Das Interview konnte nicht gestartet werden. Bitte starten Sie die App neu."
   },
   "identity": {
     "titleMain": "Identitäts-",
@@ -428,7 +456,8 @@
     "preflight": "Security check",
     "permissions": "Permissions",
     "identity": "Identity check",
-    "role": "Role"
+    "role": "Role",
+    "rules": "Interviewregeln"
   },
   "practice": {
     "title": "Check my computer",
@@ -443,8 +472,5 @@
     "incompleteTitle": "Some checks couldn't finish",
     "incompleteBody": "Check again in a moment. If it keeps happening, contact support.",
     "backToDashboard": "Back to dashboard"
-  },
-  "support": {
-    "referenceCode": "Reference code: {code}"
   }
 }

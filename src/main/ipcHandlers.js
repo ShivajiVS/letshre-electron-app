@@ -36,6 +36,7 @@ const {
   loadPermissionsPage,
   loadIdentityVerificationPage,
   loadRoleSelectionPage,
+  loadInterviewRulesPage,
   loadHowItWorksPage,
   isShowingUnavailablePage,
   confirmLeaveStalledStart,
@@ -53,10 +54,10 @@ const authValidators = require("../shared/authValidators");
 const localeManager = require("./localeManager");
 const startDetection = require("../detector/systemChecks");
 const flowGuard = require("./flowGuard");
-const supportReference = require("./supportReference");
 const { languageStepShown } = require("../shared/flowSteps");
 const screenRecorder = require("./screenRecorder");
 const blocklistPolicy = require("./blocklistPolicy");
+const interviewRules = require("./interviewRules");
 const { getLists, getDisplayNames } = require("../shared/blocklist");
 const { createViolationSimulator } = require("./devViolations");
 const { startPreProceedMonitor, stopPreProceedMonitor } = startDetection;
@@ -139,6 +140,8 @@ function _leaveInterviewFlowToDashboard({ alreadyTornDown = false, note } = {}) 
   _endPractice();
   killAgent();
   blocklistPolicy.reset();
+  interviewRules.reset();
+  _pendingRoleSelection = null;
   loadDashboard(note);
 }
 
@@ -271,6 +274,9 @@ function _bounceToSecurityCheck() {
 
 // One gate per forward step, so a double click can't run it twice.
 const _stepsRunning = new Set();
+
+// Chosen on the role page, handed to the site when Start Interview is clicked on the rules page.
+let _pendingRoleSelection = null;
 
 /**
  * Gate for the steps after the security check. A step runs only when that
@@ -411,7 +417,6 @@ function registerIpcHandlers() {
     setInterviewSession(tokens.accessToken, tokens.refreshToken);
     flowGuard.stop();
     _endPractice();
-    supportReference.startRun();
     _pageGeneration++;
     blocklistPolicy.loadForInterview(tokens.accessToken);
     // Warm up during language selection rather than on the preflight page.
@@ -580,11 +585,25 @@ function registerIpcHandlers() {
 
   registerHandler(IPC.LOAD_ROLE_SELECTION, SCOPE.LOCAL, () => {
     logger.info("[ipc] load-role-selection");
-    return _gatedStep("load-role-selection", { from: ["identity"], to: "role" }, () => {
+    return _gatedStep("load-role-selection", { from: ["identity", "rules"], to: "role" }, () => {
       flowGuard.setStage("role");
       loadRoleSelectionPage();
     });
   });
+
+  registerHandler(IPC.LOAD_INTERVIEW_RULES, SCOPE.LOCAL, (_event, payload) => {
+    logger.info("[ipc] load-interview-rules");
+    const roleSelection = sanitizeRoleSelection(payload);
+    return _gatedStep("load-interview-rules", { from: ["role"], to: "rules" }, () => {
+      _pendingRoleSelection = roleSelection;
+      flowGuard.setStage("rules");
+      loadInterviewRulesPage();
+    });
+  });
+
+  registerHandler(IPC.GET_INTERVIEW_RULES, SCOPE.LOCAL, () =>
+    interviewRules.fetchRules(getCurrentInterviewUrl())
+  );
 
   registerHandler(IPC.GET_GUARD_STATUS, SCOPE.LOCAL, () => flowGuard.getState());
 
@@ -729,21 +748,27 @@ function registerIpcHandlers() {
     return storeCandidatePhoto(dataUrl);
   });
 
-  // Sent by the local role-selection page; this is what navigates to the interview site.
+  // Sent by the local rules page; this is what navigates to the interview site.
   registerHandler(IPC.PROCEED_TO_INTERVIEW, SCOPE.LOCAL, (_event, payload) => {
-    const roleSelection = sanitizeRoleSelection(payload);
+    const roleSelection = _pendingRoleSelection;
+    if (!roleSelection) {
+      logger.warn("[ipc] proceed-to-interview REFUSED — no role chosen");
+      return { ok: false, reason: "order" };
+    }
+    const rulesAck = interviewRules.acknowledgementFor(payload?.rulesAccepted === true);
     logger.info("[ipc] proceed-to-interview received", {
       is_custom_role: roleSelection.is_custom_role,
+      rules_version: rulesAck?.version ?? null,
     });
 
-    return _gatedStep("proceed-to-interview", { from: ["role"] }, () => {
+    return _gatedStep("proceed-to-interview", { from: ["rules"] }, () => {
       // The interview's live detection takes over from the guard straight away.
       flowGuard.stop();
       stopPreProceedMonitor();
 
       const tokens = authManager.getTokens();
       const interviewUrl = getCurrentInterviewUrl();
-      lockdownForInterview(interviewUrl, tokens, roleSelection);
+      lockdownForInterview(interviewUrl, tokens, roleSelection, rulesAck);
       startWatchdog.arm();
 
       try {
@@ -883,14 +908,12 @@ function registerIpcHandlers() {
 
   registerHandler(IPC.GET_SUPPORT_INFO, SCOPE.LOCAL, () => ({
     available: supportUrl() !== null,
-    referenceCode: supportReference.currentCode(),
   }));
 
   // Read-only: nothing here is secret, and the site shows it on its help screens.
   registerHandler(IPC.GET_SUPPORT_CONTACT, SCOPE.INTERVIEW, () => ({
     url: supportUrl(),
     email: supportEmail(),
-    referenceCode: supportReference.currentCode(),
   }));
 
   registerSend(IPC.OPEN_SUPPORT, SCOPE.LOCAL, () => {
@@ -935,7 +958,6 @@ function registerIpcHandlers() {
     }
     startWatchdog.markLive();
     startDetection.setSessionContext({ sessionId: safeSessionId, interviewId: safeInterviewId });
-    supportReference.rememberSession(safeSessionId);
     return await screenRecorder.start({ sessionId: safeSessionId, interviewId: safeInterviewId });
   });
 

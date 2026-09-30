@@ -51,7 +51,7 @@ The built-in blocked‑app lists (meeting, screen‑share, casting, browsers, AI
 
 ## Between the security check and the interview
 
-`src/main/flowGuard.js` keeps checking the machine on permissions, identity verification and role selection. Main is the authority; the page's modal (`src/renderer/securityGuard.js`) only shows the state.
+`src/main/flowGuard.js` keeps checking the machine on permissions, identity verification, role selection and the rules step. Main is the authority; the page's modal (`src/renderer/securityGuard.js`) only shows the state.
 
 - Every 2s (`GUARD_INTERVAL_MS`) it checks processes, displays and the agent.
 - States: `clear`, `blocked` (something found), `unverified` (a check didn't answer 3 ticks in a row, `GUARD_UNVERIFIED_TICKS`). A block clears after 2 clean ticks (`GUARD_CLEAR_TICKS`).

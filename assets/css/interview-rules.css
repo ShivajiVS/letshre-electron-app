@@ -1,0 +1,93 @@
+/* Layout, buttons and errors come from role-selection.css. */
+
+.ir-card {
+  max-width: min(92vw, 52rem);
+}
+
+.ir-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.5rem 2rem 2rem;
+}
+
+.ir-intro {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.ir-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1.25rem 2rem;
+}
+
+.ir-list__title {
+  margin: 0 0 0.5rem;
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--ink);
+}
+.ir-list--strike .ir-list__title {
+  color: var(--danger);
+}
+
+.ir-list ul,
+.ir-limits ul {
+  margin: 0;
+  padding-inline-start: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  font-size: var(--text-base);
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.ir-limits {
+  padding: 1rem 1.25rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.ir-limits__note {
+  margin: 0;
+  font-size: var(--text-base);
+  color: var(--muted);
+}
+
+.ir-timer {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.ir-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.ir-agree {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-size: var(--text-md);
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+}
+.ir-agree input {
+  width: 1.125rem;
+  height: 1.125rem;
+  accent-color: var(--accent);
+  cursor: pointer;
+}

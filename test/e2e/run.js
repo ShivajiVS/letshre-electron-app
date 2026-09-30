@@ -18,11 +18,13 @@ const PAGES = {
   permissions: "assets/permissions.html",
   "identity-verification": "assets/identity-verification.html",
   "role-selection": "assets/role-selection.html",
+  "interview-rules": "assets/interview-rules.html",
 };
 const GUARD_STAGES = {
   permissions: "permissions",
   "identity-verification": "identity",
   "role-selection": "role",
+  "interview-rules": "rules",
 };
 const PRELOAD = path.join(__dirname, "fakePreload.js");
 const ROOT_URL = pathToFileURL(ROOT).href;
@@ -105,6 +107,18 @@ class ScenarioContext {
     this.handle("recheckSecurityGuard", () => this.guardState);
     this.handle("loadIdentityVerification", () => ({ ok: true }));
     this.handle("loadRoleSelection", () => ({ ok: true }));
+    this.handle("loadInterviewRules", () => ({ ok: true }));
+    this.handle("getInterviewRules", () => ({
+      ok: true,
+      rules: {
+        version: 1,
+        strikes: 3,
+        faceInARow: 2,
+        faceTotal: 3,
+        disconnects: 3,
+        heldSeconds: 30,
+      },
+    }));
     this.handle("proceedToInterview", () => ({ ok: true }));
     this.handle("submitVoiceSample", () => ({ ok: true }));
     this.handle("submitFaceVerification", () => ({ ok: true, data: { match: true } }));

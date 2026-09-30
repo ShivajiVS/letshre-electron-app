@@ -33,7 +33,7 @@ A window can only hold its own state, and the escapes that matter are the OS she
 ## When things go wrong
 
 - **Page won't load:** if the interview site is unreachable or answers with a 5xx, the window shows `interview-unavailable.html` ("Can't reach your interview", with **Try again**) and retries after 3s, 5s, 10s, 20s, then every 30s. After three failed loads it also offers **Back to dashboard**, which releases the lockdown. Until then the lockdown stays on, and the session data is injected only into a page that actually loaded.
-- **Interview never starts:** if the site hasn't called `startProctoring()` 3 minutes after the lockdown, a dialog asks the candidate to keep waiting or go back to the dashboard, and asks again every 60s (`startWatchdog.js`).
+- **Interview never starts:** if the site hasn't called `startProctoring()` 2 minutes after the lockdown, a dialog asks the candidate to keep waiting or go back to the dashboard, and asks again every 60s (`startWatchdog.js`).
 - **Start fails on the site:** the site calls `abortInterview(reason)`. It is refused once `startProctoring()` has been called. See [decisions/abort-refused-once-proctoring-starts.md](decisions/abort-refused-once-proctoring-starts.md).
 
 ## Release

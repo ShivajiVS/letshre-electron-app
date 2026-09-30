@@ -56,11 +56,3 @@ html[dir="rtl"] .iu-title {
 .iu-leave {
   margin-top: var(--space-3);
 }
-
-.iu-ref {
-  margin: var(--space-5) 0 0;
-  font-size: var(--text-sm);
-  font-family: var(--font-mono);
-  color: var(--muted);
-  user-select: text;
-}

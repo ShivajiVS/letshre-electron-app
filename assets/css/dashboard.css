@@ -174,12 +174,6 @@
   color: var(--danger);
   font-weight: 500;
 }
-.dash-ref {
-  margin-top: var(--space-1);
-  color: var(--muted);
-  font-family: var(--font-mono);
-  user-select: text;
-}
 
 [dir="rtl"] #take-interview-btn svg {
   transform: scaleX(-1);

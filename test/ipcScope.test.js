@@ -226,7 +226,7 @@ const EXPECTED_INTERVIEW_SCOPE_CHANNELS = [
   "ABORT_INTERVIEW", // abortInterview(reason) — the interview could not start
   "ACK_VIOLATION", // acknowledgeViolation() — contract step 2
   "DEV_SIMULATE_VIOLATION", // devSimulateViolation(code) — refused unless DEVTOOLS is on
-  "GET_SUPPORT_CONTACT", // getSupportContact() — read-only support link, email and reference code
+  "GET_SUPPORT_CONTACT", // getSupportContact() — read-only support link and email
   "INTERVIEW_COMPLETE", // interviewComplete(reason) — contract step 3
   "PROCTORING_START", // interview.letshyre.com → start recording
   "PROCTORING_STOP", // interview.letshyre.com → stop recording

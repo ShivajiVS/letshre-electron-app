@@ -167,7 +167,6 @@
     "eyebrowReady": "Prêt à commencer",
     "skillsTitle": "Skills for {role}",
     "skillsSub": "Voici les principaux domaines que nous aborderons lors de votre entretien. Passez-les en revue et commencez lorsque vous êtes prêt.",
-    "startInterview": "Commencer l'entretien",
     "sidebarInputTitle": "Indiquez votre poste",
     "sidebarInputDesc": "Saisissez le poste pour lequel vous passez l'entretien. Notre IA adaptera les questions à votre poste spécifique.",
     "sidebarClarifyTitle": "Préciser davantage",
@@ -177,9 +176,7 @@
     "loading": "Chargement…",
     "checkingRole": "Vérification du poste…",
     "confirming": "Confirmation…",
-    "starting": "Démarrage…",
     "confirmWithRole": "Confirmer — {role}",
-    "startUnavailable": "Impossible de démarrer l'entretien. Veuillez redémarrer l'application.",
     "actionUnavailable": "Cette action n'est pas disponible. Veuillez redémarrer l'application.",
     "roleProcessFailed": "Impossible de traiter ce poste. Veuillez réessayer.",
     "networkError": "Erreur réseau. Vérifiez votre connexion et réessayez.",
@@ -187,6 +184,37 @@
     "noSkillsListed": "Aucune compétence spécifique répertoriée — l'entretien s'adaptera en temps réel.",
     "roleRequired": "Veuillez saisir un poste.",
     "sessionExpired": "Votre session a expiré. Veuillez redémarrer l'application et vous reconnecter."
+  },
+  "rules": {
+    "title": "Avant de commencer",
+    "intro": "Cet entretien est surveillé par votre caméra et votre écran. Voici ce que la surveillance vérifie.",
+    "strikesTitle": "Ceci compte comme une infraction",
+    "strikes": {
+      "window": "Quitter la fenêtre de l'entretien, changer d'onglet ou quitter le plein écran",
+      "people": "Une autre personne visible, ou personne de visible",
+      "devices": "Un téléphone ou un autre appareil interdit visible",
+      "apps": "Les applications, le partage d'écran ou les écrans supplémentaires que l'application de bureau bloque"
+    },
+    "warningsTitle": "Ceci donne seulement un avertissement",
+    "warnings": {
+      "faceFrame": "Votre visage sort brièvement du cadre",
+      "lighting": "Un mauvais éclairage ou un visage peu visible",
+      "cameraPause": "Votre caméra qui s'interrompt un instant"
+    },
+    "limitsTitle": "Les limites",
+    "limits": {
+      "strikes": "Après {max} infractions, l'entretien se termine et vos réponses sont envoyées.",
+      "held": "Un appareil laissé visible, ou une caméra laissée éteinte, coûte une infraction de plus toutes les {seconds} secondes.",
+      "face": "Si votre visage ne correspond pas à votre photo {inARow} fois de suite, ou {total} fois au total, l'entretien se termine.",
+      "network": "Si votre connexion internet coupe {max} fois, l'entretien est envoyé. Les coupures ne sont pas des infractions."
+    },
+    "limitsLater": "Les limites exactes s'afficheront à l'ouverture de l'entretien.",
+    "loading": "Chargement des limites…",
+    "agree": "J'ai lu et je comprends ces règles",
+    "timerNote": "Le minuteur de votre entretien démarre dès l'ouverture de l'entretien.",
+    "start": "Commencer l'entretien",
+    "starting": "Démarrage…",
+    "startUnavailable": "Impossible de démarrer l'entretien. Veuillez redémarrer l'application."
   },
   "identity": {
     "titleMain": "Vérification",
@@ -428,7 +456,8 @@
     "preflight": "Security check",
     "permissions": "Permissions",
     "identity": "Identity check",
-    "role": "Role"
+    "role": "Role",
+    "rules": "Règles de l'entretien"
   },
   "practice": {
     "title": "Check my computer",
@@ -443,8 +472,5 @@
     "incompleteTitle": "Some checks couldn't finish",
     "incompleteBody": "Check again in a moment. If it keeps happening, contact support.",
     "backToDashboard": "Back to dashboard"
-  },
-  "support": {
-    "referenceCode": "Reference code: {code}"
   }
 }

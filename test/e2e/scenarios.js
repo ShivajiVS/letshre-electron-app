@@ -782,8 +782,8 @@ const scenarios = [
     async run(ctx) {
       await ctx.until("!document.getElementById('step-indicator').hidden", "step indicator");
       const locales = await ctx.eval("window.electronAPI.getSupportedLocales()");
-      const total = locales.length > 1 ? 5 : 4;
-      const number = total - 3;
+      const total = locales.length > 1 ? 6 : 5;
+      const number = total - 4;
       const name = ctx.t("flowSteps.preflight");
       assert.strictEqual(
         await ctx.text("#step-indicator .step-indicator__label"),

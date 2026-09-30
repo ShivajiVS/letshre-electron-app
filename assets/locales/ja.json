@@ -167,7 +167,6 @@
     "eyebrowReady": "開始準備完了",
     "skillsTitle": "Skills for {role}",
     "skillsSub": "面接でカバーする主な分野は以下の通りです。確認して、準備ができたら開始してください。",
-    "startInterview": "面接を開始",
     "sidebarInputTitle": "希望職種を入力",
     "sidebarInputDesc": "応募する職種を入力してください。AIがあなたの職種に合わせて面接の質問を調整します。",
     "sidebarClarifyTitle": "絞り込み",
@@ -177,9 +176,7 @@
     "loading": "読み込み中…",
     "checkingRole": "職種を確認中…",
     "confirming": "確認中…",
-    "starting": "開始しています…",
     "confirmWithRole": "確認 — {role}",
-    "startUnavailable": "面接を開始できませんでした。アプリを再起動してください。",
     "actionUnavailable": "この操作は利用できません。アプリを再起動してください。",
     "roleProcessFailed": "その職種を処理できませんでした。もう一度お試しください。",
     "networkError": "ネットワークエラーです。接続を確認してもう一度お試しください。",
@@ -187,6 +184,37 @@
     "noSkillsListed": "特定のスキルは記載されていません — 面接はリアルタイムで調整されます。",
     "roleRequired": "役職を入力してください。",
     "sessionExpired": "セッションの有効期限が切れました。アプリを再起動して再度サインインしてください。"
+  },
+  "rules": {
+    "title": "始める前に",
+    "intro": "この面接はカメラと画面を通じて監督されます。監督で確認する内容は次のとおりです。",
+    "strikesTitle": "違反としてカウントされるもの",
+    "strikes": {
+      "window": "面接ウィンドウを離れる、タブを切り替える、全画面表示を終了する",
+      "people": "ほかの人が映っている、または誰も映っていない",
+      "devices": "スマートフォンやその他の禁止された機器が映っている",
+      "apps": "デスクトップアプリがブロックするアプリ、画面共有、追加のディスプレイ"
+    },
+    "warningsTitle": "警告だけで済むもの",
+    "warnings": {
+      "faceFrame": "顔が一瞬フレームから外れる",
+      "lighting": "照明が暗い、または顔がはっきり見えない",
+      "cameraPause": "カメラが一瞬止まる"
+    },
+    "limitsTitle": "上限",
+    "limits": {
+      "strikes": "違反が {max} 回になると面接は終了し、回答が提出されます。",
+      "held": "機器を映したままにする、またはカメラをオフのままにすると、{seconds} 秒ごとに違反が1回加算されます。",
+      "face": "顔が写真と {inARow} 回続けて、または合計 {total} 回一致しないと、面接は終了します。",
+      "network": "インターネットが {max} 回切断されると、面接は提出されます。切断は違反ではありません。"
+    },
+    "limitsLater": "正確な上限は面接が開いたときに表示されます。",
+    "loading": "上限を読み込んでいます…",
+    "agree": "これらのルールを読み、理解しました",
+    "timerNote": "面接が開くとすぐにタイマーが始まります。",
+    "start": "面接を開始",
+    "starting": "開始しています…",
+    "startUnavailable": "面接を開始できませんでした。アプリを再起動してください。"
   },
   "identity": {
     "titleMain": "本人",
@@ -428,7 +456,8 @@
     "preflight": "Security check",
     "permissions": "Permissions",
     "identity": "Identity check",
-    "role": "Role"
+    "role": "Role",
+    "rules": "面接のルール"
   },
   "practice": {
     "title": "Check my computer",
@@ -443,8 +472,5 @@
     "incompleteTitle": "Some checks couldn't finish",
     "incompleteBody": "Check again in a moment. If it keeps happening, contact support.",
     "backToDashboard": "Back to dashboard"
-  },
-  "support": {
-    "referenceCode": "Reference code: {code}"
   }
 }

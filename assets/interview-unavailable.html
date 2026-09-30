@@ -50,7 +50,6 @@
       >
         <span data-i18n="interviewUnavailable.leave">Back to dashboard</span>
       </button>
-      <p class="iu-ref" id="iu-ref" hidden></p>
     </main>
 
     <script>
@@ -60,27 +59,5 @@
     </script>
 
     <script src="./js/i18n.js"></script>
-    <script>
-      // The code to quote to support, so they can find this attempt's logs.
-      (function () {
-        const el = document.getElementById("iu-ref");
-        let code = null;
-        function render() {
-          el.hidden = !code;
-          if (code) {
-            el.textContent = window.t
-              ? window.t("support.referenceCode", { code })
-              : `Reference code: ${code}`;
-          }
-        }
-        window.i18n?.registerRenderer?.(render);
-        Promise.all([window.electronAPI?.getSupportInfo?.(), window.i18n?.ready])
-          .then(([info]) => {
-            code = typeof info?.referenceCode === "string" ? info.referenceCode : null;
-            render();
-          })
-          .catch(() => {});
-      })();
-    </script>
   </body>
 </html>

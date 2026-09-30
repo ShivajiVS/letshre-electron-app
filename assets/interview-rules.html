@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en" class="i18n-pending fluid-scale">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="./css/fonts.css" />
+    <link rel="stylesheet" href="./css/base.css" />
+    <link rel="stylesheet" href="./css/components.css" />
+    <link rel="stylesheet" href="./css/role-selection.css" />
+    <link rel="stylesheet" href="./css/interview-rules.css" />
+    <link rel="stylesheet" href="./css/i18n.css" />
+    <link rel="stylesheet" href="./css/update-card.css" />
+    <link rel="stylesheet" href="./css/security-guard.css" />
+  </head>
+  <body class="rs-body">
+    <header class="rs-topbar">
+      <button
+        class="btn-back-nav"
+        id="btn-back"
+        type="button"
+        onclick="window.electronAPI?.loadRoleSelection?.()"
+      >
+        <svg
+          class="back-icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M19 12H5" />
+          <path d="M12 19l-7-7 7-7" />
+        </svg>
+        <span data-i18n="common.back">Back</span>
+      </button>
+      <div id="step-indicator" class="step-indicator" data-flow-step="rules" hidden></div>
+      <div id="lang-switcher"></div>
+    </header>
+
+    <main class="rs-main">
+      <div class="rs-card ir-card">
+        <div class="rs-card__header">
+          <h1 class="rs-card__title" data-i18n="rules.title">Before you begin</h1>
+        </div>
+
+        <div class="ir-body">
+          <p class="ir-intro" data-i18n="rules.intro">
+            This interview is proctored through your camera and screen. Here is what the proctoring
+            looks for.
+          </p>
+
+          <div class="ir-columns">
+            <section class="ir-list ir-list--strike">
+              <h2 class="ir-list__title" data-i18n="rules.strikesTitle">These count as a strike</h2>
+              <ul>
+                <li data-i18n="rules.strikes.window">
+                  Leaving the interview window, switching tabs or exiting fullscreen
+                </li>
+                <li data-i18n="rules.strikes.people">Someone else in view, or nobody in view</li>
+                <li data-i18n="rules.strikes.devices">
+                  A phone or another prohibited device in view
+                </li>
+                <li data-i18n="rules.strikes.apps">
+                  Apps, screen sharing or extra displays the desktop app blocks
+                </li>
+              </ul>
+            </section>
+            <section class="ir-list ir-list--warning">
+              <h2 class="ir-list__title" data-i18n="rules.warningsTitle">
+                These only give you a warning
+              </h2>
+              <ul>
+                <li data-i18n="rules.warnings.faceFrame">Your face briefly leaving the frame</li>
+                <li data-i18n="rules.warnings.lighting">
+                  Poor lighting or an unclear view of your face
+                </li>
+                <li data-i18n="rules.warnings.cameraPause">Your camera pausing for a moment</li>
+              </ul>
+            </section>
+          </div>
+
+          <section class="ir-limits" aria-live="polite">
+            <h2 class="ir-list__title" data-i18n="rules.limitsTitle">The limits</h2>
+            <ul id="ir-limits-list"></ul>
+            <p id="ir-limits-note" class="ir-limits__note"></p>
+          </section>
+
+          <p class="ir-timer" data-i18n="rules.timerNote">
+            Your interview timer starts as soon as the interview opens.
+          </p>
+
+          <div class="rs-error" id="rs-error" role="alert" hidden>
+            <span id="rs-error-text"></span>
+          </div>
+
+          <div class="ir-footer">
+            <label class="ir-agree">
+              <input type="checkbox" id="ir-agree" />
+              <span data-i18n="rules.agree">I have read and understand these rules</span>
+            </label>
+            <button class="rs-btn rs-btn--primary" id="btn-start-interview" type="button" disabled>
+              <span data-i18n="rules.start">Start Interview</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script src="./js/i18n.js"></script>
+    <script src="../src/renderer/updateCard.js"></script>
+    <script src="../src/renderer/languageSwitcher.js"></script>
+    <script src="../src/renderer/rendererUtils.js"></script>
+    <script src="../src/shared/flowSteps.js"></script>
+    <script src="../src/renderer/stepIndicator.js"></script>
+    <script src="../src/renderer/preflightModel.js"></script>
+    <script src="../src/renderer/securityGuard.js"></script>
+    <script src="../src/renderer/interview-rules.js"></script>
+  </body>
+</html>

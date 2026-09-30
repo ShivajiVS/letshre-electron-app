@@ -167,7 +167,6 @@
     "eyebrowReady": "Listo para comenzar",
     "skillsTitle": "Skills for {role}",
     "skillsSub": "Estas son las áreas clave que cubriremos en tu entrevista. Revísalas y comienza cuando estés listo.",
-    "startInterview": "Comenzar entrevista",
     "sidebarInputTitle": "Ingresa tu puesto",
     "sidebarInputDesc": "Escribe el puesto para el que estás entrevistando. Nuestra IA adaptará las preguntas de la entrevista a tu posición específica.",
     "sidebarClarifyTitle": "Concretar más",
@@ -177,9 +176,7 @@
     "loading": "Cargando…",
     "checkingRole": "Comprobando puesto…",
     "confirming": "Confirmando…",
-    "starting": "Iniciando…",
     "confirmWithRole": "Confirmar — {role}",
-    "startUnavailable": "No se pudo iniciar la entrevista. Reinicia la aplicación.",
     "actionUnavailable": "Esta acción no está disponible. Reinicia la aplicación.",
     "roleProcessFailed": "No se pudo procesar ese puesto. Inténtalo de nuevo.",
     "networkError": "Error de red. Comprueba tu conexión e inténtalo de nuevo.",
@@ -187,6 +184,37 @@
     "noSkillsListed": "No se enumeran habilidades específicas — la entrevista se adaptará en tiempo real.",
     "roleRequired": "Por favor, introduce un puesto.",
     "sessionExpired": "Tu sesión ha caducado. Reinicia la aplicación e inicia sesión de nuevo."
+  },
+  "rules": {
+    "title": "Antes de empezar",
+    "intro": "Esta entrevista se supervisa a través de tu cámara y tu pantalla. Esto es lo que revisa la supervisión.",
+    "strikesTitle": "Esto cuenta como una falta",
+    "strikes": {
+      "window": "Salir de la ventana de la entrevista, cambiar de pestaña o salir de la pantalla completa",
+      "people": "Otra persona a la vista, o nadie a la vista",
+      "devices": "Un teléfono u otro dispositivo prohibido a la vista",
+      "apps": "Aplicaciones, pantalla compartida o pantallas adicionales que bloquea la aplicación de escritorio"
+    },
+    "warningsTitle": "Esto solo da un aviso",
+    "warnings": {
+      "faceFrame": "Tu cara sale un momento del encuadre",
+      "lighting": "Poca luz o una vista poco clara de tu cara",
+      "cameraPause": "Tu cámara se detiene un momento"
+    },
+    "limitsTitle": "Los límites",
+    "limits": {
+      "strikes": "Tras {max} faltas, la entrevista termina y se envían tus respuestas.",
+      "held": "Un dispositivo que sigue a la vista, o una cámara apagada, cuesta otra falta cada {seconds} segundos.",
+      "face": "Si tu cara no coincide con tu foto {inARow} veces seguidas, o {total} veces en total, la entrevista termina.",
+      "network": "Si tu internet se corta {max} veces, la entrevista se envía. Los cortes no son faltas."
+    },
+    "limitsLater": "Los límites exactos se mostrarán cuando se abra la entrevista.",
+    "loading": "Cargando los límites…",
+    "agree": "He leído y entiendo estas reglas",
+    "timerNote": "El temporizador de tu entrevista empieza en cuanto se abre la entrevista.",
+    "start": "Comenzar entrevista",
+    "starting": "Iniciando…",
+    "startUnavailable": "No se pudo iniciar la entrevista. Reinicia la aplicación."
   },
   "identity": {
     "titleMain": "Verificación",
@@ -428,7 +456,8 @@
     "preflight": "Security check",
     "permissions": "Permissions",
     "identity": "Identity check",
-    "role": "Role"
+    "role": "Role",
+    "rules": "Reglas de la entrevista"
   },
   "practice": {
     "title": "Check my computer",
@@ -443,8 +472,5 @@
     "incompleteTitle": "Some checks couldn't finish",
     "incompleteBody": "Check again in a moment. If it keeps happening, contact support.",
     "backToDashboard": "Back to dashboard"
-  },
-  "support": {
-    "referenceCode": "Reference code: {code}"
   }
 }

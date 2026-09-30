@@ -1,7 +1,7 @@
 "use strict";
 
 // The violation modal (src/renderer/securityGuard.js) on the setup pages after
-// the security check: permissions, identity verification and role selection.
+// the security check: permissions, identity verification, role selection and the rules.
 
 const assert = require("node:assert");
 const { delay, deferred, pageT } = require("./util");
@@ -150,7 +150,12 @@ async function toSkills(ctx) {
   await ctx.until("!document.getElementById('panel-skills').hidden", "the skills step");
 }
 
-const bootScenarios = ["permissions", "identity-verification", "role-selection"].map((page) => ({
+const bootScenarios = [
+  "permissions",
+  "identity-verification",
+  "role-selection",
+  "interview-rules",
+].map((page) => ({
   name: `guard: ${page} boots clear with no modal`,
   page,
   async run(ctx) {
@@ -635,16 +640,44 @@ const scenarios = [
   },
 
   {
-    name: "guard: Start Interview goes ahead without the modal when main allows it",
+    name: "guard: Continue on the skills step takes the role decision to the rules",
     page: "role-selection",
     async run(ctx) {
       await toSkills(ctx);
-      await ctx.click("#btn-start-interview");
-      const [call] = await ctx.untilCalls("proceedToInterview", 1);
+      assert.strictEqual(await ctx.text("#btn-to-rules"), ctx.t("common.continue"));
+      await ctx.click("#btn-to-rules");
+      const [call] = await ctx.untilCalls("loadInterviewRules", 1);
       assert.deepStrictEqual(call.args, [{ is_custom_role: false }]);
       await delay(300);
       assert.strictEqual(await isOpen(ctx), false);
-      assert.strictEqual(await ctx.isHidden("#rs-error"), true);
+      assert.strictEqual(await ctx.q("#btn-to-rules", "el.disabled"), true, "waits for main");
+      assert.strictEqual(ctx.callsTo("proceedToInterview").length, 0);
+    },
+  },
+
+  {
+    name: "rules: the site's limits are shown and Start waits for the box to be ticked",
+    page: "interview-rules",
+    async run(ctx) {
+      await ctx.untilCalls("getInterviewRules", 1);
+      await ctx.until("document.querySelectorAll('#ir-limits-list li').length === 4");
+      const lines = await ctx.eval(
+        "[...document.querySelectorAll('#ir-limits-list li')].map((li) => li.textContent)"
+      );
+      assert.deepStrictEqual(lines, [
+        ctx.t("rules.limits.strikes", { max: 3 }),
+        ctx.t("rules.limits.held", { seconds: 30 }),
+        ctx.t("rules.limits.face", { inARow: 2, total: 3 }),
+        ctx.t("rules.limits.network", { max: 3 }),
+      ]);
+      assert.strictEqual(await ctx.isHidden("#ir-limits-note"), true);
+      assert.strictEqual(await ctx.q("#btn-start-interview", "el.disabled"), true);
+
+      await ctx.click("#ir-agree");
+      assert.strictEqual(await ctx.q("#btn-start-interview", "el.disabled"), false);
+      await ctx.click("#btn-start-interview");
+      const [call] = await ctx.untilCalls("proceedToInterview", 1);
+      assert.deepStrictEqual(call.args, [{ rulesAccepted: true }]);
       assert.strictEqual(
         await ctx.q("#btn-start-interview", "el.disabled"),
         true,
@@ -654,8 +687,26 @@ const scenarios = [
   },
 
   {
+    name: "rules: without the site's limits the page says when they'll be shown and still starts",
+    page: "interview-rules",
+    setup(ctx) {
+      ctx.handle("getInterviewRules", () => ({ ok: false }));
+    },
+    async run(ctx) {
+      await ctx.untilText("#ir-limits-note", ctx.t("rules.limitsLater"));
+      assert.strictEqual(
+        await ctx.eval("document.querySelectorAll('#ir-limits-list li').length"),
+        0
+      );
+      await ctx.click("#ir-agree");
+      await ctx.click("#btn-start-interview");
+      await ctx.untilCalls("proceedToInterview", 1);
+    },
+  },
+
+  {
     name: "guard: a Start Interview refused as unverified opens the unverified modal",
-    page: "role-selection",
+    page: "interview-rules",
     setup(ctx) {
       ctx.handle("proceedToInterview", () =>
         ctx.callsTo("proceedToInterview").length === 1
@@ -672,7 +723,8 @@ const scenarios = [
       ctx.handle("recheckSecurityGuard", () => ctx.setGuard({ status: "clear" }));
     },
     async run(ctx) {
-      await toSkills(ctx);
+      await ctx.untilCalls("getInterviewRules", 1);
+      await ctx.click("#ir-agree");
       await ctx.q("#btn-start-interview", "(el.focus(), true)");
       await ctx.click("#btn-start-interview");
       await ctx.untilCalls("proceedToInterview", 1);
@@ -680,7 +732,7 @@ const scenarios = [
       await assertHead(ctx, "unverified");
       assert.strictEqual(await ctx.text("#sg-recheck"), ctx.t("securityGuard.checkAgain"));
       assert.strictEqual(await ctx.q("#btn-start-interview", "el.disabled"), false);
-      assert.strictEqual(await ctx.text("#btn-start-interview"), ctx.t("role.startInterview"));
+      assert.strictEqual(await ctx.text("#btn-start-interview"), ctx.t("rules.start"));
       assert.strictEqual(await ctx.isHidden("#rs-error"), true);
 
       await ctx.click("#sg-recheck");

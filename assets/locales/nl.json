@@ -167,7 +167,6 @@
     "eyebrowReady": "Klaar om te beginnen",
     "skillsTitle": "Skills for {role}",
     "skillsSub": "Hier zijn de belangrijkste onderwerpen die we in je gesprek behandelen. Bekijk ze en begin wanneer je er klaar voor bent.",
-    "startInterview": "Gesprek starten",
     "sidebarInputTitle": "Voer je functie in",
     "sidebarInputDesc": "Typ de functie waarvoor je solliciteert. Onze AI past de interviewvragen aan op je specifieke functie.",
     "sidebarClarifyTitle": "Verder specificeren",
@@ -177,9 +176,7 @@
     "loading": "Laden…",
     "checkingRole": "Functie controleren…",
     "confirming": "Bevestigen…",
-    "starting": "Starten…",
     "confirmWithRole": "Bevestigen — {role}",
-    "startUnavailable": "Het interview kon niet worden gestart. Start de app opnieuw.",
     "actionUnavailable": "Deze actie is niet beschikbaar. Start de app opnieuw.",
     "roleProcessFailed": "Die functie kon niet worden verwerkt. Probeer het opnieuw.",
     "networkError": "Netwerkfout. Controleer je verbinding en probeer het opnieuw.",
@@ -187,6 +184,37 @@
     "noSkillsListed": "Geen specifieke vaardigheden vermeld — het interview past zich in realtime aan.",
     "roleRequired": "Voer een functie in.",
     "sessionExpired": "Je sessie is verlopen. Start de app opnieuw en log opnieuw in."
+  },
+  "rules": {
+    "title": "Voordat je begint",
+    "intro": "Dit gesprek wordt via je camera en scherm gecontroleerd. Hierop let de controle.",
+    "strikesTitle": "Dit telt als een overtreding",
+    "strikes": {
+      "window": "Het gespreksvenster verlaten, van tabblad wisselen of het volledige scherm verlaten",
+      "people": "Iemand anders in beeld, of niemand in beeld",
+      "devices": "Een telefoon of een ander verboden apparaat in beeld",
+      "apps": "Apps, scherm delen of extra beeldschermen die de desktop-app blokkeert"
+    },
+    "warningsTitle": "Hiervoor krijg je alleen een waarschuwing",
+    "warnings": {
+      "faceFrame": "Je gezicht gaat even uit beeld",
+      "lighting": "Slechte verlichting of je gezicht is slecht te zien",
+      "cameraPause": "Je camera hapert even"
+    },
+    "limitsTitle": "De limieten",
+    "limits": {
+      "strikes": "Na {max} overtredingen stopt het gesprek en worden je antwoorden ingediend.",
+      "held": "Een apparaat dat in beeld blijft, of een camera die uit blijft, kost elke {seconds} seconden een extra overtreding.",
+      "face": "Als je gezicht {inARow} keer achter elkaar, of {total} keer in totaal, niet overeenkomt met je foto, stopt het gesprek.",
+      "network": "Als je internet {max} keer wegvalt, wordt het gesprek ingediend. Uitval is geen overtreding."
+    },
+    "limitsLater": "De exacte limieten zie je zodra het gesprek opent.",
+    "loading": "Limieten laden…",
+    "agree": "Ik heb deze regels gelezen en begrijp ze",
+    "timerNote": "Je timer start zodra het gesprek opent.",
+    "start": "Gesprek starten",
+    "starting": "Starten…",
+    "startUnavailable": "Het interview kon niet worden gestart. Start de app opnieuw."
   },
   "identity": {
     "titleMain": "Identiteits-",
@@ -428,7 +456,8 @@
     "preflight": "Security check",
     "permissions": "Permissions",
     "identity": "Identity check",
-    "role": "Role"
+    "role": "Role",
+    "rules": "Gespreksregels"
   },
   "practice": {
     "title": "Check my computer",
@@ -443,8 +472,5 @@
     "incompleteTitle": "Some checks couldn't finish",
     "incompleteBody": "Check again in a moment. If it keeps happening, contact support.",
     "backToDashboard": "Back to dashboard"
-  },
-  "support": {
-    "referenceCode": "Reference code: {code}"
   }
 }

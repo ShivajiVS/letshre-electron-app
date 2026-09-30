@@ -261,6 +261,10 @@ const IPC = {
   LOAD_ROLE_SELECTION: "load-role-selection",
   SUBMIT_ROLE: "submit-role",
 
+  // Interview rules page
+  LOAD_INTERVIEW_RULES: "load-interview-rules",
+  GET_INTERVIEW_RULES: "get-interview-rules",
+
   // Back navigation
   LOAD_DASHBOARD: "load-dashboard",
   LOAD_SECURITY_CHECK: "load-security-check",
@@ -285,7 +289,7 @@ const IPC = {
   // Support link on the security check
   GET_SUPPORT_INFO: "get-support-info",
   OPEN_SUPPORT: "open-support",
-  /** Support link, address and reference code for the interview site. */
+  /** Support link and address for the interview site. */
   GET_SUPPORT_CONTACT: "get-support-contact",
 
   // Auto-updater (main → renderer push)

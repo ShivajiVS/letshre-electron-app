@@ -1,6 +1,6 @@
 /**
  * 4-step role selection state machine:
- *   confirm → (No) input → (needs_clarification) clarify → skills → lockdown
+ *   confirm → (No) input → (needs_clarification) clarify → skills → interview rules
  * All API calls go through main via IPC — tokens never touch this renderer.
  */
 
@@ -77,7 +77,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const skillsTitle = document.getElementById("skills-title");
   const skillsGrid = document.getElementById("skills-grid");
-  const btnStartInterview = document.getElementById("btn-start-interview");
+  const btnContinue = document.getElementById("btn-to-rules");
 
   const rsError = document.getElementById("rs-error");
   const rsErrorText = document.getElementById("rs-error-text");
@@ -117,7 +117,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // logic below so a locale switch mid-flow can redraw without reverting it.
   let currentStepIdx = 0;
   let isBusy = false; // btnYes / btnSubmitRole / btnConfirmClarify request in flight
-  let isStartingInterview = false; // btnStartInterview post-click, own lifecycle
+  let isContinuing = false; // btnContinue post-click, own lifecycle
   let selectedClarifyRole = "";
   let skillsEmpty = false;
   let errorState = null; // { key, fallback } | null
@@ -173,9 +173,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       btnConfirmClarify.innerHTML = confirmClarifyLabel(selectedClarifyRole);
     }
 
-    btnStartInterview.innerHTML = isStartingInterview
-      ? `${SPINNER} ${tr("role.starting", "Starting…")}`
-      : tr("role.startInterview", "Start Interview");
+    btnContinue.innerHTML = isContinuing
+      ? `${SPINNER} ${tr("role.loading", "Loading…")}`
+      : tr("common.continue", "Continue");
 
     if (skillsEmpty) {
       skillsGrid.innerHTML = `<p class="rs-skills-empty">${tr("role.noSkillsListed", "No specific skills listed — the interview will adapt in real-time.")}</p>`;
@@ -209,7 +209,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     showTranslatedError(key, fallback);
   }
 
-  // Role-decision state, handed to the interview site at Start Interview.
+  // Role-decision state, handed to main on Continue and to the site at Start Interview.
   //   Yes (keep assigned role) → is_custom_role: false; backend uses the profile role.
   //   No  (chose a new role)   → is_custom_role: true + selected_role + manual_skills.
   let isCustomRole = false; // false = confirmed profile role, true = custom
@@ -301,15 +301,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  btnStartInterview.addEventListener("click", async () => {
-    if (btnStartInterview.disabled) {
+  btnContinue.addEventListener("click", async () => {
+    if (btnContinue.disabled) {
       return;
     }
-    // Fail loud if the bridge method is missing — never spin forever silently.
-    if (typeof window.electronAPI?.proceedToInterview !== "function") {
+    if (typeof window.electronAPI?.loadInterviewRules !== "function") {
       showTranslatedError(
-        "role.startUnavailable",
-        "Unable to start the interview. Please restart the app."
+        "role.actionUnavailable",
+        "This action is unavailable. Please restart the app."
       );
       return;
     }
@@ -318,27 +317,25 @@ document.addEventListener("DOMContentLoaded", async () => {
       window.securityGuard.show();
       return;
     }
-    const idleHTML = btnStartInterview.innerHTML; // capture for restore
-    btnStartInterview.disabled = true;
-    isStartingInterview = true;
+    const idleHTML = btnContinue.innerHTML;
+    btnContinue.disabled = true;
+    isContinuing = true;
     renderI18n();
-    // Hand the role decision to the interview site. Yes → is_custom_role:false
-    // only; No → is_custom_role:true with the chosen role + detected skills.
+    // Yes → is_custom_role:false only; No → is_custom_role:true with the chosen role + skills.
     const payload = isCustomRole
       ? { is_custom_role: true, selected_role: [finalRole], manual_skills: finalSkills }
       : { is_custom_role: false };
-    // Watchdog: successful navigation tears down this page. If this fires,
-    // navigation never happened — restore the button so the user can retry.
-    const watchdog = window.armButtonRestore(btnStartInterview, idleHTML, {
+    // A successful step tears this page down; if it doesn't, give the button back.
+    const watchdog = window.armButtonRestore(btnContinue, idleHTML, {
       onRestore: () => {
-        isStartingInterview = false;
+        isContinuing = false;
         renderI18n();
         showTranslatedError("role.startTimedOut", "That took too long. Please try again.");
       },
     });
     let res;
     try {
-      res = await window.electronAPI.proceedToInterview(payload);
+      res = await window.electronAPI.loadInterviewRules(payload);
     } catch {
       res = { ok: false };
     }
@@ -347,13 +344,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
     clearTimeout(watchdog);
-    btnStartInterview.disabled = false;
-    isStartingInterview = false;
+    btnContinue.disabled = false;
+    isContinuing = false;
     renderI18n();
     if (!window.securityGuard?.handleRefusal(res)) {
       showTranslatedError(
-        "role.startUnavailable",
-        "Unable to start the interview. Please restart the app."
+        "role.actionUnavailable",
+        "This action is unavailable. Please restart the app."
       );
     }
   });

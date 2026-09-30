@@ -32,6 +32,10 @@ const IPC = {
   LOAD_ROLE_SELECTION: "load-role-selection",
   SUBMIT_ROLE: "submit-role",
 
+  // Interview rules page
+  LOAD_INTERVIEW_RULES: "load-interview-rules",
+  GET_INTERVIEW_RULES: "get-interview-rules",
+
   // Back navigation
   LOAD_DASHBOARD: "load-dashboard",
   LOAD_SECURITY_CHECK: "load-security-check",
@@ -160,6 +164,8 @@ const ALLOWED_INVOKE_CHANNELS = [
   IPC.LOAD_PERMISSIONS_PAGE,
   IPC.LOAD_IDENTITY_VERIFICATION,
   IPC.LOAD_ROLE_SELECTION,
+  IPC.LOAD_INTERVIEW_RULES,
+  IPC.GET_INTERVIEW_RULES,
   IPC.PROCEED_TO_INTERVIEW,
   IPC.GET_GUARD_STATUS,
   IPC.RECHECK_GUARD,
@@ -277,6 +283,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   /** Identity verification → role selection. Resolves {ok:false, reason, guard} when main refuses. */
   loadRoleSelection: () => safeInvoke(IPC.LOAD_ROLE_SELECTION),
 
+  /** Role selection → interview rules, carrying the role decision. Resolves {ok:false, reason, guard} when main refuses. */
+  loadInterviewRules: (roleSelection) => safeInvoke(IPC.LOAD_INTERVIEW_RULES, roleSelection),
+
+  /** The limits the interview site publishes: {ok:true, rules} or {ok:false}. */
+  getInterviewRules: () => safeInvoke(IPC.GET_INTERVIEW_RULES),
+
   /** Current guard state on the steps after the security check. */
   getSecurityGuardStatus: () => safeInvoke(IPC.GET_GUARD_STATUS),
 
@@ -390,8 +402,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   runPreflight: (token) => safeInvoke(IPC.RUN_PREFLIGHT, token),
 
   // ── Interview flow
-  /** Start Interview: lock down and load the interview. Resolves {ok:false, reason, guard} when main refuses.
-   *  payload: { is_custom_role: boolean, selected_role?: string[], manual_skills?: string[] } */
+  /** Start Interview on the rules page: lock down and load the interview. Resolves {ok:false, reason, guard} when main refuses.
+   *  payload: { rulesAccepted: boolean } */
   proceedToInterview: (payload) => safeInvoke(IPC.PROCEED_TO_INTERVIEW, payload),
 
   /**
@@ -425,15 +437,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
   killThreatProcess: (pid, processName) => safeInvoke(IPC.KILL_THREAT_PROCESS, pid, processName),
 
   /**
-   * Local pages: whether a support link is configured, and the code to quote to support.
-   * @returns {Promise<{ available: boolean, referenceCode: string }>}
+   * Local pages: whether a support link is configured.
+   * @returns {Promise<{ available: boolean }>}
    */
   getSupportInfo: () => safeInvoke(IPC.GET_SUPPORT_INFO),
 
   /**
-   * Interview site: where to send the candidate for help, and the code to quote.
-   * url and email are null when not configured.
-   * @returns {Promise<{ url: string|null, email: string|null, referenceCode: string }>}
+   * Interview site: where to send the candidate for help. url and email are null when not configured.
+   * @returns {Promise<{ url: string|null, email: string|null }>}
    */
   getSupportContact: () => safeInvoke(IPC.GET_SUPPORT_CONTACT),
 

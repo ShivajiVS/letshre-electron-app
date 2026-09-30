@@ -167,7 +167,6 @@
     "eyebrowReady": "Pronto per iniziare",
     "skillsTitle": "Skills for {role}",
     "skillsSub": "Ecco le aree principali che tratteremo nel tuo colloquio. Rivedile e inizia quando sei pronto.",
-    "startInterview": "Inizia colloquio",
     "sidebarInputTitle": "Inserisci il tuo ruolo",
     "sidebarInputDesc": "Digita il ruolo per cui ti stai candidando. La nostra IA adatterà le domande del colloquio alla tua posizione specifica.",
     "sidebarClarifyTitle": "Restringi la scelta",
@@ -177,9 +176,7 @@
     "loading": "Caricamento…",
     "checkingRole": "Verifica del ruolo…",
     "confirming": "Conferma in corso…",
-    "starting": "Avvio…",
     "confirmWithRole": "Conferma — {role}",
-    "startUnavailable": "Impossibile avviare il colloquio. Riavvia l'app.",
     "actionUnavailable": "Questa azione non è disponibile. Riavvia l'app.",
     "roleProcessFailed": "Impossibile elaborare quel ruolo. Riprova.",
     "networkError": "Errore di rete. Controlla la connessione e riprova.",
@@ -187,6 +184,37 @@
     "noSkillsListed": "Nessuna competenza specifica elencata — il colloquio si adatterà in tempo reale.",
     "roleRequired": "Inserisci un ruolo.",
     "sessionExpired": "La sessione è scaduta. Riavvia l'app ed effettua di nuovo l'accesso."
+  },
+  "rules": {
+    "title": "Prima di iniziare",
+    "intro": "Questo colloquio è sorvegliato tramite la tua videocamera e il tuo schermo. Ecco cosa controlla la sorveglianza.",
+    "strikesTitle": "Questi contano come infrazione",
+    "strikes": {
+      "window": "Lasciare la finestra del colloquio, cambiare scheda o uscire dallo schermo intero",
+      "people": "Un'altra persona inquadrata, o nessuno inquadrato",
+      "devices": "Un telefono o un altro dispositivo vietato inquadrato",
+      "apps": "App, condivisione dello schermo o schermi aggiuntivi bloccati dall'app desktop"
+    },
+    "warningsTitle": "Questi danno solo un avviso",
+    "warnings": {
+      "faceFrame": "Il tuo viso esce per un attimo dall'inquadratura",
+      "lighting": "Luce scarsa o viso poco visibile",
+      "cameraPause": "La videocamera che si ferma per un momento"
+    },
+    "limitsTitle": "I limiti",
+    "limits": {
+      "strikes": "Dopo {max} infrazioni il colloquio termina e le tue risposte vengono inviate.",
+      "held": "Un dispositivo lasciato inquadrato, o una videocamera lasciata spenta, costa un'altra infrazione ogni {seconds} secondi.",
+      "face": "Se il tuo viso non corrisponde alla tua foto {inARow} volte di fila, o {total} volte in tutto, il colloquio termina.",
+      "network": "Se la connessione internet cade {max} volte, il colloquio viene inviato. Le cadute non sono infrazioni."
+    },
+    "limitsLater": "I limiti esatti verranno mostrati all'apertura del colloquio.",
+    "loading": "Caricamento dei limiti…",
+    "agree": "Ho letto e compreso queste regole",
+    "timerNote": "Il timer del colloquio parte appena il colloquio si apre.",
+    "start": "Inizia colloquio",
+    "starting": "Avvio…",
+    "startUnavailable": "Impossibile avviare il colloquio. Riavvia l'app."
   },
   "identity": {
     "titleMain": "Verifica",
@@ -428,7 +456,8 @@
     "preflight": "Security check",
     "permissions": "Permissions",
     "identity": "Identity check",
-    "role": "Role"
+    "role": "Role",
+    "rules": "Regole del colloquio"
   },
   "practice": {
     "title": "Check my computer",
@@ -443,8 +472,5 @@
     "incompleteTitle": "Some checks couldn't finish",
     "incompleteBody": "Check again in a moment. If it keeps happening, contact support.",
     "backToDashboard": "Back to dashboard"
-  },
-  "support": {
-    "referenceCode": "Reference code: {code}"
   }
 }

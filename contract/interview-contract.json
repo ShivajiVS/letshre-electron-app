@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "description": "What the desktop app and the interview site promise each other. Source of truth is the app repo; the site keeps a copy in src/contract/. See docs/web-contract.md.",
   "violationCodes": [
     {
@@ -135,6 +135,18 @@
     ],
     "meaning": "Lowercase substrings of a camera's name. A camera matching a keyword and no allowed entry is virtual: the site never picks it, and the agent flags it while it feeds video. agent.py must hold the same lists."
   },
+  "interviewRules": {
+    "path": "/interview-rules.json",
+    "fields": {
+      "version": "integer; bumped when the rules text changes",
+      "strikes": "integer",
+      "faceInARow": "integer",
+      "faceTotal": "integer",
+      "disconnects": "integer",
+      "heldSeconds": "integer"
+    },
+    "meaning": "Published by the site at build time from the same env it enforces. The app shows these numbers on its rules step and hands them back in sessionStorage rules_acknowledged."
+  },
   "violationPayload": {
     "id": "string (UUID); acknowledge with it; kept on redelivery",
     "code": "one of violationCodes[].code",
@@ -257,6 +269,10 @@
       {
         "key": "locale",
         "meaning": "Chosen UI language. Prefer the lang query param, which is set before any script runs."
+      },
+      {
+        "key": "rules_acknowledged",
+        "meaning": "JSON: the interview-rules.json the candidate accepted on the app's rules step, plus `at` (ISO time). Missing when the app couldn't read the site's rules. When version and every limit match the site's own, the site starts without its rules and camera screens."
       }
     ],
     "cleared": [

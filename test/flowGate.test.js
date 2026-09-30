@@ -19,12 +19,22 @@ const STUBBED = [
   "../src/main/logger",
   "../src/detector/systemChecks",
   "../src/main/flowGuard",
+  "../src/main/interviewRules",
 ].map((rel) => require.resolve(rel));
 
 const LOCAL = { senderFrame: { origin: "file://", top: null } };
 const INTERVIEW = { senderFrame: { origin: new URL(INTERVIEW_BASE_URL).origin, top: null } };
 const PASSED = { ok: true, code: "none", reason: "" };
 const INTERVIEW_URL = "https://interview.letshyre.com/session";
+const RULES = {
+  version: 1,
+  strikes: 3,
+  faceInARow: 2,
+  faceTotal: 3,
+  disconnects: 3,
+  heldSeconds: 30,
+};
+const RULES_AT = "2026-09-30T10:00:00.000Z";
 
 function guardState(status, stage, issues = []) {
   return { status, stage, seq: 4, checking: false, issues };
@@ -71,6 +81,7 @@ function load() {
     logger,
     systemChecks,
     flowGuard,
+    interviewRules,
   ] = STUBBED;
 
   stub(electron, {
@@ -91,6 +102,7 @@ function load() {
     loadPermissionsPage: record("loadPermissionsPage"),
     loadIdentityVerificationPage: record("loadIdentityVerificationPage"),
     loadRoleSelectionPage: record("loadRoleSelectionPage"),
+    loadInterviewRulesPage: record("loadInterviewRulesPage"),
     loadLanguageSelectionPage: record("loadLanguageSelectionPage"),
     loadDashboard: record("loadDashboard"),
     lockdownForInterview: record("lockdownForInterview"),
@@ -167,10 +179,23 @@ function load() {
     },
   });
 
+  stub(interviewRules, {
+    fetchRules: async () => ({ ok: true, rules: RULES }),
+    acknowledgementFor: (accepted) => (accepted ? { ...RULES, at: RULES_AT } : null),
+    reset: record("rules.reset"),
+  });
+
   delete require.cache[IPC_SCOPE];
   delete require.cache[IPC_HANDLERS];
   require(IPC_HANDLERS).registerIpcHandlers();
   return g;
+}
+
+/** Walks role → rules with a role decision, then forgets the calls it took. */
+async function toRules(g, roleSelection = { is_custom_role: false }) {
+  g.stage = "role";
+  assert.deepStrictEqual(await g.call(IPC.LOAD_INTERVIEW_RULES, roleSelection), { ok: true });
+  g.calls.length = 0;
 }
 
 afterEach(() => {
@@ -187,6 +212,7 @@ const STEPS = [
     page: "loadIdentityVerificationPage",
   },
   { channel: IPC.LOAD_ROLE_SELECTION, from: "identity", to: "role", page: "loadRoleSelectionPage" },
+  { channel: IPC.LOAD_INTERVIEW_RULES, from: "role", to: "rules", page: "loadInterviewRulesPage" },
 ];
 
 test("each step goes forward from its previous stage and moves the guard first", async () => {
@@ -222,15 +248,37 @@ test("Back from role selection returns to identity verification", async () => {
   assert.ok(g.names().includes("loadIdentityVerificationPage"));
 });
 
+test("Back from the rules returns to role selection", async () => {
+  const g = load();
+  g.stage = "rules";
+  assert.deepStrictEqual(await g.call(IPC.LOAD_ROLE_SELECTION), { ok: true });
+  assert.strictEqual(g.stage, "role");
+  assert.ok(g.names().includes("loadRoleSelectionPage"));
+});
+
+test("Start Interview needs a role chosen on the way to the rules", async () => {
+  const g = load();
+  g.stage = "rules";
+  assert.deepStrictEqual(await g.call(IPC.PROCEED_TO_INTERVIEW, { rulesAccepted: true }), {
+    ok: false,
+    reason: "order",
+  });
+  assert.ok(!g.names().includes("lockdownForInterview"));
+});
+
 test("a step out of order is refused before any check or navigation", async () => {
   const cases = [
     [IPC.LOAD_IDENTITY_VERIFICATION, null],
     [IPC.LOAD_ROLE_SELECTION, "permissions"],
-    [IPC.PROCEED_TO_INTERVIEW, "identity"],
+    [IPC.LOAD_INTERVIEW_RULES, "identity"],
+    [IPC.PROCEED_TO_INTERVIEW, "role"],
     [IPC.PROCEED_TO_INTERVIEW, null],
   ];
   for (const [channel, stage] of cases) {
     const g = load();
+    if (channel === IPC.PROCEED_TO_INTERVIEW) {
+      await toRules(g);
+    }
     g.stage = stage;
     assert.deepStrictEqual(await g.call(channel, {}), { ok: false, reason: "order" });
     assert.deepStrictEqual(
@@ -261,9 +309,13 @@ test("a missing or failed security-check pass sends the candidate back to it", a
   for (const [channel, stage] of [
     [IPC.LOAD_IDENTITY_VERIFICATION, "permissions"],
     [IPC.LOAD_ROLE_SELECTION, "identity"],
-    [IPC.PROCEED_TO_INTERVIEW, "role"],
+    [IPC.LOAD_INTERVIEW_RULES, "role"],
+    [IPC.PROCEED_TO_INTERVIEW, "rules"],
   ]) {
     const g = load();
+    if (channel === IPC.PROCEED_TO_INTERVIEW) {
+      await toRules(g);
+    }
     g.stage = stage;
     g.pass = { ok: false, code: "failed", reason: "last preflight did not pass" };
     assert.deepStrictEqual(await g.call(channel, {}), { ok: false, reason: "failed" });
@@ -287,9 +339,13 @@ test("a guard that isn't clear refuses the step and hands back its state", async
     for (const [channel, stage, page] of [
       [IPC.LOAD_IDENTITY_VERIFICATION, "permissions", "loadIdentityVerificationPage"],
       [IPC.LOAD_ROLE_SELECTION, "identity", "loadRoleSelectionPage"],
-      [IPC.PROCEED_TO_INTERVIEW, "role", "lockdownForInterview"],
+      [IPC.LOAD_INTERVIEW_RULES, "role", "loadInterviewRulesPage"],
+      [IPC.PROCEED_TO_INTERVIEW, "rules", "lockdownForInterview"],
     ]) {
       const g = load();
+      if (channel === IPC.PROCEED_TO_INTERVIEW) {
+        await toRules(g);
+      }
       g.stage = stage;
       const guard = guardState(status, stage, issues);
       g.check = async () => guard;
@@ -316,12 +372,12 @@ test("going back while the check runs refuses the step", async () => {
 
 test("Start Interview stops the guard, then locks down, then starts detection", async () => {
   const g = load();
-  g.stage = "role";
-  const result = await g.call(IPC.PROCEED_TO_INTERVIEW, {
+  await toRules(g, {
     is_custom_role: true,
     selected_role: ["  Backend Engineer  ", 42],
     extra: "dropped",
   });
+  const result = await g.call(IPC.PROCEED_TO_INTERVIEW, { rulesAccepted: true });
   assert.deepStrictEqual(result, { ok: true });
 
   const names = g.names();
@@ -336,6 +392,7 @@ test("Start Interview stops the guard, then locks down, then starts detection", 
       INTERVIEW_URL,
       { accessToken: "tok", refreshToken: "ref" },
       { is_custom_role: true, selected_role: ["Backend Engineer"] },
+      { ...RULES, at: RULES_AT },
     ]
   );
   assert.deepStrictEqual(
@@ -343,6 +400,19 @@ test("Start Interview stops the guard, then locks down, then starts detection", 
     ["startDetection", g.win]
   );
   assert.strictEqual(g.stage, null);
+});
+
+test("Start Interview without ticking the rules hands the site no acknowledgement", async () => {
+  const g = load();
+  await toRules(g);
+  assert.deepStrictEqual(await g.call(IPC.PROCEED_TO_INTERVIEW, {}), { ok: true });
+  const lockdown = g.calls.find((c) => c[0] === "lockdownForInterview");
+  assert.deepStrictEqual(lockdown.slice(3), [{ is_custom_role: false }, null]);
+});
+
+test("the rules page reads the site's limits through main", async () => {
+  const g = load();
+  assert.deepStrictEqual(await g.call(IPC.GET_INTERVIEW_RULES), { ok: true, rules: RULES });
 });
 
 test("leaving the security check starts the guard on permissions before its page loads", async () => {
@@ -602,30 +672,10 @@ test("leaving without a practice run doesn't reset the security check", async ()
 
 // ─── Support details
 
-test("the site reads the support contact and the same reference code the local pages show", async () => {
-  const { CODE_PATTERN } = require("../src/main/supportReference");
+test("the site reads only the support contact, and the local pages only whether there is one", async () => {
   const g = load();
   const contact = await g.callFromInterview(IPC.GET_SUPPORT_CONTACT);
-  assert.deepStrictEqual(Object.keys(contact).sort(), ["email", "referenceCode", "url"]);
-  assert.match(contact.referenceCode, CODE_PATTERN);
-  const info = await g.call(IPC.GET_SUPPORT_INFO);
-  assert.strictEqual(info.referenceCode, contact.referenceCode);
+  assert.deepStrictEqual(Object.keys(contact).sort(), ["email", "url"]);
+  assert.deepStrictEqual(Object.keys(await g.call(IPC.GET_SUPPORT_INFO)), ["available"]);
   assert.throws(() => g.call(IPC.GET_SUPPORT_CONTACT), /not permitted/);
-});
-
-test("the reference code follows the session once proctoring starts, and a new attempt", async () => {
-  const { referenceCodeFor } = require("../src/main/supportReference");
-  const g = load();
-  await g.call(IPC.START_INTERVIEW);
-  const beforeSession = (await g.call(IPC.GET_SUPPORT_INFO)).referenceCode;
-
-  g.active = true;
-  await g.callFromInterview(IPC.PROCTORING_START, { sessionId: "session-42" });
-  const withSession = (await g.call(IPC.GET_SUPPORT_INFO)).referenceCode;
-  assert.strictEqual(withSession, referenceCodeFor("session-42"));
-  assert.notStrictEqual(withSession, beforeSession);
-
-  g.active = false;
-  await g.call(IPC.START_INTERVIEW);
-  assert.notStrictEqual((await g.call(IPC.GET_SUPPORT_INFO)).referenceCode, withSession);
 });

@@ -16,10 +16,10 @@ How the desktop app is put together: the processes, the files, the candidate's p
 ## What it does
 
 1. The candidate **signs in** with email and password (`login.html`), or the app opens straight to the **dashboard** when a saved session is still valid. A `letshyre://` [deep link](web-contract.md#deep-link-protocol) carrying tokens is also supported.
-2. From the dashboard, **Take interview** starts the flow: **language selection** (only shown when more than one language is available) → **security check** (`preflight.html`) → **permissions** (camera/mic/screen) → **identity verification** (photo + voice sample) → **role selection**.
+2. From the dashboard, **Take interview** starts the flow: **language selection** (only shown when more than one language is available) → **security check** (`preflight.html`) → **permissions** (camera/mic/screen) → **identity verification** (photo + voice sample) → **role selection** → **interview rules** (the proctoring rules, with the limits the interview site publishes, and Start Interview).
 3. The security check blocks the candidate until every check is green: no external displays, no meeting/recording/casting apps, no AI copilot tools, and the deep‑scan agent is running. Blocked apps can be closed from the page itself.
 4. On the pages after the security check, the [flow guard](detection.md#between-the-security-check-and-the-interview) keeps checking the machine and refuses every forward step until it is clear.
-5. After role selection, the window enters **[lockdown](lockdown.md)** and loads the interview web app, which starts the **[screen recording](#screen-recording)**.
+5. After Start Interview on the rules page, the window enters **[lockdown](lockdown.md)** and loads the interview web app, which starts the **[screen recording](#screen-recording)**.
 6. During the interview, detection runs on a fixed cadence. Any finding is pushed to the web app as a **violation** and reported to the backend.
 7. When the interview ends, the web app signals completion, the lockdown is lifted and the recording finishes uploading.
 
@@ -106,7 +106,6 @@ Two cooperating detection tiers:
 │   │   ├── flowGuard.js        # keeps checking the machine between the security check and the interview
 │   │   ├── ipcHandlers.js      # the only file that registers ipcMain channels
 │   │   ├── ipcScope.js         # which caller (local pages vs interview site) each channel trusts
-│   │   ├── supportReference.js # LH-XXXX-XXXX code a candidate quotes to support
 │   │   ├── agentManager.js     # spawn agent, stdin/stdout pipe, ensureAgent()
 │   │   ├── authManager.js      # login against the LetsHyre API; tokens live main-process-only
 │   │   ├── protocolHandler.js  # letshyre:// parsing → interview URL + token
@@ -137,6 +136,7 @@ Two cooperating detection tiers:
 │   │   ├── login.js            # login screen controller
 │   │   ├── dashboard.js        # candidate dashboard controller
 │   │   ├── role-selection.js   # role-selection step state machine
+│   │   ├── interview-rules.js  # the rules step and Start Interview
 │   │   ├── identity-verification.js  # identity-verification screen controller
 │   │   ├── permissions.js      # OS permissions screen controller
 │   │   ├── language-selection.js # pick the interview language before the security check
@@ -158,7 +158,7 @@ Two cooperating detection tiers:
 ├── assets/                     # static UI (HTML/CSS/icons/locales) loaded as file://
 │   ├── login.html · dashboard.html · language-selection.html · how-it-works.html
 │   ├── preflight.html          # security check (loads src/renderer/preflight.js)
-│   ├── permissions.html · identity-verification.html · role-selection.html
+│   ├── permissions.html · identity-verification.html · role-selection.html · interview-rules.html
 │   ├── interview-unavailable.html # shown, still locked, while the interview site can't be reached
 │   ├── recorder.html           # hidden recorder window
 │   ├── css/                    # base.css + components.css (shared design system), per-page sheets
@@ -197,7 +197,7 @@ launch ─▶ onReady (src/main/app.js)
    └─ pre-proceed monitor (every 2s)      # keeps the Continue button state live
             │  Continue (main re-verifies the scan passed and is fresh)
             ▼
-   permissions.html → identity-verification.html → role-selection.html
+   permissions.html → identity-verification.html → role-selection.html → interview-rules.html
    └─ flowGuard (every 2s)                # each forward step gated on a fresh check
             │  (each setup page shows "Step N of M", order from src/shared/flowSteps.js)
             │  Start (main re-verifies a scan passed this session)

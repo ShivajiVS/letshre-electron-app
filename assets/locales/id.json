@@ -167,7 +167,6 @@
     "eyebrowReady": "Siap Memulai",
     "skillsTitle": "Skills for {role}",
     "skillsSub": "Berikut adalah bidang utama yang akan kami bahas dalam wawancara Anda. Tinjau dan mulai saat Anda siap.",
-    "startInterview": "Mulai Wawancara",
     "sidebarInputTitle": "Masukkan Peran Anda",
     "sidebarInputDesc": "Ketik peran yang Anda wawancarai. AI kami akan menyesuaikan pertanyaan wawancara dengan posisi spesifik Anda.",
     "sidebarClarifyTitle": "Persempit Pilihan",
@@ -177,9 +176,7 @@
     "loading": "Memuat…",
     "checkingRole": "Memeriksa peran…",
     "confirming": "Mengonfirmasi…",
-    "starting": "Memulai…",
     "confirmWithRole": "Konfirmasi — {role}",
-    "startUnavailable": "Tidak dapat memulai wawancara. Silakan mulai ulang aplikasi.",
     "actionUnavailable": "Tindakan ini tidak tersedia. Silakan mulai ulang aplikasi.",
     "roleProcessFailed": "Tidak dapat memproses peran tersebut. Silakan coba lagi.",
     "networkError": "Kesalahan jaringan. Periksa koneksi Anda dan coba lagi.",
@@ -187,6 +184,37 @@
     "noSkillsListed": "Tidak ada keahlian khusus yang tercantum — wawancara akan menyesuaikan secara real-time.",
     "roleRequired": "Silakan masukkan peran.",
     "sessionExpired": "Sesi Anda telah berakhir. Silakan mulai ulang aplikasi dan masuk kembali."
+  },
+  "rules": {
+    "title": "Sebelum Anda mulai",
+    "intro": "Wawancara ini diawasi melalui kamera dan layar Anda. Inilah yang diperhatikan oleh pengawasan.",
+    "strikesTitle": "Ini dihitung sebagai pelanggaran",
+    "strikes": {
+      "window": "Meninggalkan jendela wawancara, berpindah tab, atau keluar dari layar penuh",
+      "people": "Ada orang lain yang terlihat, atau tidak ada siapa pun yang terlihat",
+      "devices": "Ponsel atau perangkat terlarang lain terlihat",
+      "apps": "Aplikasi, berbagi layar, atau layar tambahan yang diblokir aplikasi desktop"
+    },
+    "warningsTitle": "Ini hanya memberi peringatan",
+    "warnings": {
+      "faceFrame": "Wajah Anda sebentar keluar dari bingkai",
+      "lighting": "Pencahayaan buruk atau wajah Anda kurang jelas",
+      "cameraPause": "Kamera Anda berhenti sejenak"
+    },
+    "limitsTitle": "Batasnya",
+    "limits": {
+      "strikes": "Setelah {max} pelanggaran, wawancara berakhir dan jawaban Anda dikirim.",
+      "held": "Perangkat yang dibiarkan terlihat, atau kamera yang dibiarkan mati, dihitung satu pelanggaran lagi setiap {seconds} detik.",
+      "face": "Jika wajah Anda tidak cocok dengan foto Anda {inARow} kali berturut-turut, atau {total} kali secara keseluruhan, wawancara berakhir.",
+      "network": "Jika internet Anda terputus {max} kali, wawancara dikirim. Putusnya koneksi bukan pelanggaran."
+    },
+    "limitsLater": "Batas pastinya akan ditampilkan saat wawancara dibuka.",
+    "loading": "Memuat batas…",
+    "agree": "Saya telah membaca dan memahami aturan ini",
+    "timerNote": "Pengatur waktu wawancara Anda dimulai begitu wawancara terbuka.",
+    "start": "Mulai Wawancara",
+    "starting": "Memulai…",
+    "startUnavailable": "Tidak dapat memulai wawancara. Silakan mulai ulang aplikasi."
   },
   "identity": {
     "titleMain": "Verifikasi",
@@ -428,7 +456,8 @@
     "preflight": "Security check",
     "permissions": "Permissions",
     "identity": "Identity check",
-    "role": "Role"
+    "role": "Role",
+    "rules": "Aturan wawancara"
   },
   "practice": {
     "title": "Check my computer",
@@ -443,8 +472,5 @@
     "incompleteTitle": "Some checks couldn't finish",
     "incompleteBody": "Check again in a moment. If it keeps happening, contact support.",
     "backToDashboard": "Back to dashboard"
-  },
-  "support": {
-    "referenceCode": "Reference code: {code}"
   }
 }

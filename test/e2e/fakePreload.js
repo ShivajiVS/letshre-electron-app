@@ -19,6 +19,8 @@ const INVOKE = [
   "loadPermissionsPage",
   "loadIdentityVerification",
   "loadRoleSelection",
+  "loadInterviewRules",
+  "getInterviewRules",
   "proceedToInterview",
   "getSecurityGuardStatus",
   "recheckSecurityGuard",

@@ -25,11 +25,19 @@ const SETUP_PAGES = {
   "permissions.html": "permissions",
   "identity-verification.html": "identity",
   "role-selection.html": "role",
+  "interview-rules.html": "rules",
 };
 
-test("the setup steps run language, security check, permissions, identity, role", () => {
-  assert.deepStrictEqual(STEP_IDS, ["language", "preflight", "permissions", "identity", "role"]);
-  assert.deepStrictEqual(GUARDED_STEP_IDS, ["permissions", "identity", "role"]);
+test("the setup steps run language, security check, permissions, identity, role, rules", () => {
+  assert.deepStrictEqual(STEP_IDS, [
+    "language",
+    "preflight",
+    "permissions",
+    "identity",
+    "role",
+    "rules",
+  ]);
+  assert.deepStrictEqual(GUARDED_STEP_IDS, ["permissions", "identity", "role", "rules"]);
 });
 
 test("the language step counts only when there is more than one language", () => {
@@ -48,11 +56,11 @@ test("positions are numbered from the steps actually shown", () => {
     const p = stepPosition(id, { languageShown });
     return p && `${p.number}/${p.total}`;
   };
-  assert.strictEqual(pos("language", true), "1/5");
-  assert.strictEqual(pos("identity", true), "4/5");
-  assert.strictEqual(pos("preflight", false), "1/4");
-  assert.strictEqual(pos("identity", false), "3/4");
-  assert.strictEqual(pos("role", false), "4/4");
+  assert.strictEqual(pos("language", true), "1/6");
+  assert.strictEqual(pos("identity", true), "4/6");
+  assert.strictEqual(pos("preflight", false), "1/5");
+  assert.strictEqual(pos("identity", false), "3/5");
+  assert.strictEqual(pos("rules", false), "5/5");
   assert.strictEqual(pos("language", false), null);
   assert.strictEqual(pos("dashboard", true), null);
 });

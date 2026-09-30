@@ -18,6 +18,7 @@
       { id: "permissions", labelKey: "flowSteps.permissions", fallback: "Permissions" },
       { id: "identity", labelKey: "flowSteps.identity", fallback: "Identity check" },
       { id: "role", labelKey: "flowSteps.role", fallback: "Role" },
+      { id: "rules", labelKey: "flowSteps.rules", fallback: "Interview rules" },
     ].map(Object.freeze)
   );
 

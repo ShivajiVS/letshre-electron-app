@@ -2,8 +2,8 @@
 
 // Nothing but the candidate's word gets them out of a locked window, so if the
 // site never starts the interview they're asked whether to keep waiting.
-// The site shows its rules and a camera check before it starts, so allow time to read.
-const STALL_AFTER_MS = 180_000;
+// The rules are read in the app now; the site only shows them when the app's copy was out of date.
+const STALL_AFTER_MS = 120_000;
 const ASK_AGAIN_MS = 60_000;
 
 /**

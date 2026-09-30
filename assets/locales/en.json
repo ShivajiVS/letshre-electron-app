@@ -167,7 +167,6 @@
     "eyebrowReady": "Ready to Begin",
     "skillsTitle": "Skills for {role}",
     "skillsSub": "Here are the key areas we'll cover in your interview. Review them and start when you're ready.",
-    "startInterview": "Start Interview",
     "sidebarInputTitle": "Enter Your Role",
     "sidebarInputDesc": "Type the role you're interviewing for. Our AI will tailor the interview questions to match your specific position.",
     "sidebarClarifyTitle": "Narrow It Down",
@@ -177,9 +176,7 @@
     "loading": "Loading…",
     "checkingRole": "Checking role…",
     "confirming": "Confirming…",
-    "starting": "Starting…",
     "confirmWithRole": "Confirm — {role}",
-    "startUnavailable": "Unable to start the interview. Please restart the app.",
     "actionUnavailable": "This action is unavailable. Please restart the app.",
     "roleProcessFailed": "Couldn't process that role. Please try again.",
     "networkError": "Network error. Check your connection and try again.",
@@ -187,6 +184,37 @@
     "noSkillsListed": "No specific skills listed — the interview will adapt in real-time.",
     "roleRequired": "Please enter a role.",
     "sessionExpired": "Your session has expired. Please restart the app and sign in again."
+  },
+  "rules": {
+    "title": "Before you begin",
+    "intro": "This interview is proctored through your camera and screen. Here is what the proctoring looks for.",
+    "strikesTitle": "These count as a strike",
+    "strikes": {
+      "window": "Leaving the interview window, switching tabs or exiting fullscreen",
+      "people": "Someone else in view, or nobody in view",
+      "devices": "A phone or another prohibited device in view",
+      "apps": "Apps, screen sharing or extra displays the desktop app blocks"
+    },
+    "warningsTitle": "These only give you a warning",
+    "warnings": {
+      "faceFrame": "Your face briefly leaving the frame",
+      "lighting": "Poor lighting or an unclear view of your face",
+      "cameraPause": "Your camera pausing for a moment"
+    },
+    "limitsTitle": "The limits",
+    "limits": {
+      "strikes": "After {max} strikes the interview ends and your answers are submitted.",
+      "held": "A device left in view, or a camera left off, costs another strike every {seconds} seconds.",
+      "face": "If your face doesn't match your photo {inARow} times in a row, or {total} times in all, the interview ends.",
+      "network": "If your internet drops {max} times, the interview is submitted. Drops are not strikes."
+    },
+    "limitsLater": "The exact limits will be shown when the interview opens.",
+    "loading": "Loading the limits…",
+    "agree": "I have read and understand these rules",
+    "timerNote": "Your interview timer starts as soon as the interview opens.",
+    "start": "Start Interview",
+    "starting": "Starting…",
+    "startUnavailable": "Unable to start the interview. Please restart the app."
   },
   "identity": {
     "titleMain": "Identity",
@@ -428,7 +456,8 @@
     "preflight": "Security check",
     "permissions": "Permissions",
     "identity": "Identity check",
-    "role": "Role"
+    "role": "Role",
+    "rules": "Interview rules"
   },
   "practice": {
     "title": "Check my computer",
@@ -443,8 +472,5 @@
     "incompleteTitle": "Some checks couldn't finish",
     "incompleteBody": "Check again in a moment. If it keeps happening, contact support.",
     "backToDashboard": "Back to dashboard"
-  },
-  "support": {
-    "referenceCode": "Reference code: {code}"
   }
 }

@@ -373,14 +373,15 @@ function _logLockdownState(target) {
 
 /**
  * Locks the screen and loads the interview in its own window. Tokens, photo,
- * role and locale are injected into the site's sessionStorage on dom-ready,
+ * role, accepted rules and locale are injected into the site's sessionStorage on dom-ready,
  * before its scripts run.
  *
  * @param {string} url
  * @param {{ accessToken: string|null, refreshToken: string|null } | null} tokens
  * @param {{ is_custom_role: boolean, selected_role?: string[], manual_skills?: string[] } | null} roleSelection
+ * @param {object|null} rulesAck - the rules the candidate accepted, with their numbers
  */
-function lockdownForInterview(url, tokens = null, roleSelection = null) {
+function lockdownForInterview(url, tokens = null, roleSelection = null, rulesAck = null) {
   if (!win) {
     return;
   }
@@ -414,6 +415,11 @@ function lockdownForInterview(url, tokens = null, roleSelection = null) {
   if (roleSelection) {
     statements.push(
       `sessionStorage.setItem('role_selection', ${JSON.stringify(JSON.stringify(roleSelection))});`
+    );
+  }
+  if (rulesAck) {
+    statements.push(
+      `sessionStorage.setItem('rules_acknowledged', ${JSON.stringify(JSON.stringify(rulesAck))});`
     );
   }
 
@@ -858,6 +864,10 @@ function loadRoleSelectionPage() {
   _loadMainPage("role-selection.html");
 }
 
+function loadInterviewRulesPage() {
+  _loadMainPage("interview-rules.html");
+}
+
 function loadHowItWorksPage() {
   _loadMainPage("how-it-works.html");
 }
@@ -877,6 +887,7 @@ module.exports = {
   loadPermissionsPage,
   loadIdentityVerificationPage,
   loadRoleSelectionPage,
+  loadInterviewRulesPage,
   loadHowItWorksPage,
   getWindow,
   minimizeWindow,

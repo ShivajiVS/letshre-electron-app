@@ -183,14 +183,19 @@ If the web app never registers this listener, a candidate can complete an entire
 
 Before the interview SPA's first render, Electron injects these keys into its `sessionStorage` on `dom-ready` (`windowManager.js#lockdownForInterview`). It also removes `interview_session`, `face_registered` and `face_registered_for` left over from an earlier interview in the same window.
 
-| Key               | Meaning                                                                                                  |
-| ----------------- | -------------------------------------------------------------------------------------------------------- |
-| `ac` / `rc`       | Access / refresh token, when a session is available                                                      |
-| `candidate_photo` | Base64 data URL of the live photo captured during identity verification                                  |
-| `role_selection`  | JSON-encoded `{ is_custom_role, selected_role?, manual_skills? }`                                        |
-| `locale`          | The candidate's chosen UI language (e.g. `"hi"`). Secondary channel: prefer the `lang` query param below |
+| Key                  | Meaning                                                                                                                                  |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `ac` / `rc`          | Access / refresh token, when a session is available                                                                                      |
+| `candidate_photo`    | Base64 data URL of the live photo captured during identity verification                                                                  |
+| `role_selection`     | JSON-encoded `{ is_custom_role, selected_role?, manual_skills? }`                                                                        |
+| `rules_acknowledged` | JSON: the `interview-rules.json` the candidate accepted on the rules step, plus `at`. Absent when the app couldn't read the site's rules |
+| `locale`             | The candidate's chosen UI language (e.g. `"hi"`). Secondary channel: prefer the `lang` query param below                                 |
 
 The `lang` query param on the interview URL carries the same value and is available before the SPA's first script runs, so prefer it over `sessionStorage.locale` at boot: `dom-ready` can fire after a module-script SPA has already started.
+
+### The rules step
+
+The site publishes `/interview-rules.json` at build time (`version`, `strikes`, `faceInARow`, `faceTotal`, `disconnects`, `heldSeconds`), from the same env it enforces. The app's rules step reads it through main (`src/main/interviewRules.js`) and shows those numbers. On Start Interview, main hands back what it fetched as `rules_acknowledged`, never numbers from the page. When `version` and every limit match its own, the site starts straight away; otherwise it shows its own rules first. The site's camera check only runs outside the app, since the identity step already covered it.
 
 The interview window's user agent ends in `LetsHyreSecureInterview/<version>`. The site uses it to refuse app versions older than `VITE_MIN_DESKTOP_VERSION`.
 
@@ -214,7 +219,7 @@ Packaged builds only ever emit a certified (`reviewed: true`) locale, so `lang` 
 
 ## Support details
 
-`getSupportContact()` resolves `{ url, email, referenceCode }` for a help screen. `url` and `email` come from `SUPPORT_URL` / `SUPPORT_EMAIL` and are `null` when unset. `referenceCode` (`LH-XXXX-XXXX`) is what the candidate quotes to support; the app logs it, and shows the same code on its "Can't reach your interview" page and on the dashboard after a failed start. After `startProctoring({ sessionId })` it is the first 40 bits of `sha256(sessionId)` in RFC 4648 base32, so the backend can derive it too; before that it comes from a random id for the attempt.
+`getSupportContact()` resolves `{ url, email }` for a help screen. Both come from `SUPPORT_URL` / `SUPPORT_EMAIL` and are `null` when unset.
 
 ## Renderer API (`window.electronAPI`)
 
@@ -232,13 +237,14 @@ Exposed by `preload.js` via `contextBridge` (only whitelisted channels). Safe to
 | `runPreflight()`                                                                                    | Run all preflight scans; resolves with `{ hdmi, mirror, agent }`                                                 | no            |
 | `onPreflightProgress(cb)` / `removePreflightProgressListener()`                                     | Per‑step streaming progress                                                                                      | no            |
 | `onPreProceedStatus(cb)` / `removePreProceedStatusListener()`                                       | Live blocked‑app status on the success screen                                                                    | no            |
-| `proceedToInterview()`                                                                              | Enter lockdown and load the interview                                                                            | no            |
+| `loadInterviewRules(roleSelection)` / `getInterviewRules()`                                         | Role selection → the rules step; the site's published limits                                                     | no            |
+| `proceedToInterview({ rulesAccepted })`                                                             | From the rules step: enter lockdown and load the interview                                                       | no            |
 | `killProcess(name)` / `killAllProcesses(names)`                                                     | Force‑close a blocked app (whitelisted); see [detection.md](detection.md#closing-blocked-apps)                   | no            |
 | `canElevate()` / `killProcessElevated(name)`                                                        | Whether the user is an admin; one‑shot elevated retry (refused during an interview)                              | no            |
 | `recheckSystem()` / `minimizeWindow()` / `quitApp()`                                                | Preflight UX controls                                                                                            | no            |
-| `getSupportContact()`                                                                               | Interview site: `{ url, email, referenceCode }` for its help screens (read-only)                                             |
-| `getSupportInfo()` / `openSupport()`                                                                | Local pages: whether a support link is set, the reference code; open the link                                                |
-| `startPracticeCheck()`                                                                              | Dashboard "Check my computer": the security check alone; Continue is refused and nothing is locked down                      |
+| `getSupportContact()`                                                                               | Interview site: `{ url, email }` for its help screens (read-only)                                                |
+| `getSupportInfo()` / `openSupport()`                                                                | Local pages: whether a support link is set; open the link                                                        |
+| `startPracticeCheck()`                                                                              | Dashboard "Check my computer": the security check alone; Continue is refused and nothing is locked down          |
 | `retryInterview()`                                                                                  | Reload the interview from the "Can't reach your interview" page                                                  | no            |
 | `getAppList()` / `getAuditLog()`                                                                    | Blocked‑app lists; in‑memory audit log                                                                           | no            |
 | `onUpdateAvailable` / `onUpdateProgress` / `onUpdateDownloaded` / `onUpdateError` / `onUpdateState` | Auto‑updater events (used by `updateCard.js`)                                                                    | no            |

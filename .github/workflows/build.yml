@@ -10,9 +10,7 @@ on:
   workflow_dispatch: # allow manual trigger from GitHub UI
 
 jobs:
-  # ──────────────────────────────────────────────────────────────
   # 0. Lint & Format check (fast gate — runs before any builds)
-  # ──────────────────────────────────────────────────────────────
   lint:
     name: Lint & Format Check
     runs-on: ubuntu-latest
@@ -26,7 +24,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Cache node_modules
         uses: actions/cache@v4
@@ -55,9 +53,7 @@ jobs:
       - name: Check Prettier formatting
         run: pnpm run format:check
 
-  # ──────────────────────────────────────────────────────────────
-  # 0b. Python agent tests (Windows, where the agent ships)
-  # ──────────────────────────────────────────────────────────────
+  #  Python agent tests (Windows, where the agent ships)
   agent-tests:
     name: Agent Tests (pytest)
     runs-on: windows-latest
@@ -77,9 +73,7 @@ jobs:
       - name: Run agent tests
         run: python -m pytest test -p no:cacheprovider
 
-  # ──────────────────────────────────────────────────────────────
   # 1. Build agent.exe on Windows
-  # ──────────────────────────────────────────────────────────────
   build-agent-windows:
     name: Build agent.exe (Windows)
     runs-on: windows-latest
@@ -118,9 +112,7 @@ jobs:
             resources/agent.exe
             src/shared/agentBuild.json
 
-  # ──────────────────────────────────────────────────────────────
   # 2. Build agent (Unix binary) on macOS
-  # ──────────────────────────────────────────────────────────────
   build-agent-macos:
     name: Build agent (macOS)
     runs-on: macos-latest
@@ -158,9 +150,7 @@ jobs:
             resources/agent
             src/shared/agentBuild.json
 
-  # ──────────────────────────────────────────────────────────────
   # 3. Package Electron app for Windows (needs agent.exe)
-  # ──────────────────────────────────────────────────────────────
   build-electron-windows:
     name: Package Electron (Windows)
     runs-on: windows-latest
@@ -176,7 +166,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Cache node_modules
         uses: actions/cache@v4
@@ -241,6 +231,7 @@ jobs:
         env:
           INTERVIEW_FRONTEND_BASE_URL: ${{ vars.INTERVIEW_FRONTEND_BASE_URL }}
           API_BASE_URL: ${{ vars.API_BASE_URL }}
+          DEVTOOLS: ${{ vars.DEVTOOLS }}
         run: |
           if (-not $env:INTERVIEW_FRONTEND_BASE_URL -or -not $env:API_BASE_URL) {
             Write-Host "::error::Repository variables INTERVIEW_FRONTEND_BASE_URL and API_BASE_URL must both be set — the packaged app has no host fallback."
@@ -299,10 +290,7 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/verifyRelease.js ${{ github.ref_name }} --publish
 
-  # ──────────────────────────────────────────────────────────────
   # 4. Package Electron app for macOS (needs agent binary)
-  # ──────────────────────────────────────────────────────────────
-  
   build-electron-macos:
     name: Package Electron (macOS)
     runs-on: macos-latest
@@ -318,7 +306,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Cache node_modules
         uses: actions/cache@v4
@@ -343,6 +331,7 @@ jobs:
         env:
           INTERVIEW_FRONTEND_BASE_URL: ${{ vars.INTERVIEW_FRONTEND_BASE_URL }}
           API_BASE_URL: ${{ vars.API_BASE_URL }}
+          DEVTOOLS: ${{ vars.DEVTOOLS }}
         run: |
           if [ -z "$INTERVIEW_FRONTEND_BASE_URL" ] || [ -z "$API_BASE_URL" ]; then
             echo "::error::Repository variables INTERVIEW_FRONTEND_BASE_URL and API_BASE_URL must both be set — the packaged app has no host fallback."

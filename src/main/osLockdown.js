@@ -10,6 +10,7 @@ const { app } = require("electron");
 const { sendAgentCommand } = require("./agentManager");
 const { CODE } = require("../shared/violationCodes");
 const { getThreatDisplayName } = require("../shared/blocklist");
+const { ALWAYS_ON_TOP_LEVEL } = require("./lockdownGuard");
 const logger = require("./logger");
 
 const POLL_MS = 500;
@@ -24,8 +25,25 @@ function nativeHandle(win) {
   return Number(buf.length >= 8 ? buf.readBigUInt64LE(0) : buf.readUInt32LE(0));
 }
 
+// Not a violation: the candidate didn't cause it. Logged and audited so it can
+// be counted, and the window is raised back over the taskbar.
+function taskbarAbove(state) {
+  logger.warn("[lockdown] taskbar over the interview window — raising the window");
+  if (!state.win.isDestroyed()) {
+    state.win.setAlwaysOnTop(true, ALWAYS_ON_TOP_LEVEL);
+    state.win.moveTop();
+  }
+  try {
+    require("../detector/systemChecks").recordAuditEvent("lockdown", { event: "taskbar_above" });
+  } catch (err) {
+    logger.warn("[lockdown] taskbar audit failed:", err.message);
+  }
+}
+
 function report(state, event) {
-  if (event?.type === "focus_lost") {
+  if (event?.type === "taskbar_above") {
+    taskbarAbove(state);
+  } else if (event?.type === "focus_lost") {
     const name = event.process ? getThreatDisplayName(event) : "";
     state.onViolation(`Left the interview window${name ? `: ${name}` : ""}`, "high", {
       code: CODE.FOCUS_LOST,

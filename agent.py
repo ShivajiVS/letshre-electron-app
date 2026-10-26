@@ -1756,6 +1756,7 @@ TOUCHPAD_RESTORE_FILE = os.path.join(
 TASKBAR_CLASSES = ("Shell_TrayWnd", "Shell_SecondaryTrayWnd")
 TASKBAR_RESTORE_FILE = os.path.join(os.path.dirname(TOUCHPAD_RESTORE_FILE), "taskbar-restore.json")
 SW_HIDE, SW_SHOWNA = 0, 8
+GW_HWNDPREV = 3
 
 
 def should_block_key(vk, alt_down, ctrl_down):
@@ -1964,7 +1965,12 @@ class _TaskbarWindows:
         u.FindWindowExW.restype = wintypes.HWND
         u.IsWindowVisible.argtypes = [wintypes.HWND]
         u.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+        u.GetWindow.argtypes = [wintypes.HWND, wintypes.UINT]
+        u.GetWindow.restype = wintypes.HWND
+        u.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
         self._u = u
+        self._wintypes = wintypes
+        self._ctypes = ctypes
 
     def find_all(self):
         found = []
@@ -1984,6 +1990,21 @@ class _TaskbarWindows:
     def show(self, hwnd):
         self._u.ShowWindow(hwnd, SW_SHOWNA)
 
+    def windows_above(self, hwnd, limit=1000):
+        """Every top-level window stacked above `hwnd`, nearest first."""
+        above = []
+        current = self._u.GetWindow(hwnd, GW_HWNDPREV)
+        while current and len(above) < limit:
+            above.append(current)
+            current = self._u.GetWindow(current, GW_HWNDPREV)
+        return above
+
+    def rect(self, hwnd):
+        r = self._wintypes.RECT()
+        if not self._u.GetWindowRect(hwnd, self._ctypes.byref(r)):
+            return None
+        return (r.left, r.top, r.right, r.bottom)
+
 
 def taskbar_hide(api=None):
     """
@@ -2002,6 +2023,23 @@ def taskbar_hide(api=None):
     for hwnd in visible:
         api.hide(hwnd)
     return len(visible)
+
+
+def _overlaps(a, b):
+    return bool(a and b and a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3])
+
+
+def taskbar_above(own_hwnd, api):
+    """
+    Whether a visible taskbar is stacked above the interview window where they
+    overlap: what the candidate sees when hiding it didn't hold.
+    """
+    visible = [hwnd for hwnd in api.find_all() if api.is_visible(hwnd)]
+    if not visible or not own_hwnd:
+        return False
+    above = set(api.windows_above(own_hwnd))
+    own_rect = api.rect(own_hwnd)
+    return any(hwnd in above and _overlaps(api.rect(hwnd), own_rect) for hwnd in visible)
 
 
 def taskbar_restore(api=None):
@@ -2157,6 +2195,7 @@ class InterviewLockdown:
             on_current_desktop = lambda hwnd: None  # noqa: E731
         lost = False
         away = False
+        covered = False
         while self.active:
             try:
                 fg = u.GetForegroundWindow()
@@ -2175,6 +2214,11 @@ class InterviewLockdown:
                 # Explorer restarting, or the shell itself, can bring one back.
                 if taskbars and self.active and taskbar_hide(taskbars):
                     logger.warning("[lockdown] a taskbar came back — hidden again")
+                over = bool(taskbars) and taskbar_above(self.hwnd, taskbars)
+                if over and not covered:
+                    self._record({"type": "taskbar_above"})
+                    logger.warning("[lockdown] a taskbar is above the interview window")
+                covered = over
                 on_desktop = on_current_desktop(self.hwnd)
                 if on_desktop is False and not away:
                     self._record({"type": "virtual_desktop"})

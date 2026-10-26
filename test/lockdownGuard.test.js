@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { EventEmitter } = require("node:events");
 
-const { createLockdownGuard, releaseLock } = require("../src/main/lockdownGuard");
+const { coversDisplay, createLockdownGuard, releaseLock } = require("../src/main/lockdownGuard");
 const { CODE } = require("../src/shared/violationCodes");
 
 class FakeWindow extends EventEmitter {
@@ -26,6 +26,13 @@ class FakeWindow extends EventEmitter {
     this.focused = 0;
     this.raised = 0;
     this.hasFocus = true;
+    this.bounds = { x: 0, y: 0, width: 1920, height: 1080 };
+  }
+  getBounds() {
+    return { ...this.bounds };
+  }
+  setBounds(b) {
+    this.bounds = { ...b };
   }
   isFocused() {
     return this.hasFocus;
@@ -211,6 +218,40 @@ test("the watchdog keeps raising a window that isn't in front, and leaves a focu
     win.hasFocus = false;
     await new Promise((r) => setTimeout(r, 30));
     assert.ok(win.raised > 1);
+  } finally {
+    guard.stop();
+  }
+});
+
+const DISPLAY = { x: 0, y: 0, width: 1920, height: 1080 };
+
+test("covering the display allows a pixel of rounding, and more is fine", () => {
+  assert.strictEqual(coversDisplay(DISPLAY, DISPLAY), true);
+  assert.strictEqual(coversDisplay({ x: 0, y: 0, width: 1919, height: 1079 }, DISPLAY), true);
+  assert.strictEqual(coversDisplay({ x: 0, y: 0, width: 1941, height: 1092 }, DISPLAY), true);
+  assert.strictEqual(coversDisplay({ x: 0, y: 0, width: 1920, height: 1032 }, DISPLAY), false);
+  assert.strictEqual(coversDisplay({ x: 8, y: 0, width: 1920, height: 1080 }, DISPLAY), false);
+  assert.strictEqual(coversDisplay(DISPLAY, null), true, "no display known, nothing to check");
+});
+
+test("a window that stops covering its display is logged and resized to it", async () => {
+  const win = new FakeWindow();
+  const warnings = [];
+  const guard = createLockdownGuard(win, {
+    onViolation: () => {},
+    log: { warn: (msg) => warnings.push(msg) },
+    getDisplayBounds: () => DISPLAY,
+    watchdogMs: 5,
+    reapplyMs: 0,
+  });
+  guard.start();
+  try {
+    win.bounds = { x: 0, y: 0, width: 1920, height: 1032 }; // the taskbar's height short
+    await new Promise((r) => setTimeout(r, 30));
+
+    assert.deepStrictEqual(win.bounds, DISPLAY);
+    assert.strictEqual(warnings.length, 1);
+    assert.match(warnings[0], /covers-display/);
   } finally {
     guard.stop();
   }

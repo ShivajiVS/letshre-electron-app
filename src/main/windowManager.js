@@ -392,7 +392,13 @@ function lockdownForInterview(url, tokens = null, roleSelection = null, rulesAck
   interviewWin = _createInterviewWindow(display);
 
   lockdownGuard?.stop();
-  lockdownGuard = createLockdownGuard(interviewWin, { onViolation: reportViolation, log: logger });
+  lockdownGuard = createLockdownGuard(interviewWin, {
+    onViolation: reportViolation,
+    log: logger,
+    // Looked up each time: a resolution or scaling change moves the target.
+    getDisplayBounds: () =>
+      screen.getAllDisplays().find((d) => d.id === display.id)?.bounds ?? null,
+  });
   lockdownGuard.start();
 
   const statements = [

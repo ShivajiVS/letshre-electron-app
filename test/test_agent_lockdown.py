@@ -164,6 +164,16 @@ class FakeTaskbars:
         self.visible[hwnd] = True
         self.shown_calls.append(hwnd)
 
+    # Stacking for taskbar_above: window 1 is the interview, full screen.
+    above = ()
+    rects = {1: (0, 0, 1920, 1080), 101: (0, 1032, 1920, 1080), 102: (1920, 1032, 3840, 1080)}
+
+    def windows_above(self, hwnd):
+        return list(self.above)
+
+    def rect(self, hwnd):
+        return self.rects.get(hwnd)
+
 
 class TaskbarTest(unittest.TestCase):
     def setUp(self):
@@ -207,6 +217,25 @@ class TaskbarTest(unittest.TestCase):
         bars = FakeTaskbars(visible=(False, True))  # e.g. hidden by something else
         self.assertFalse(agent.taskbar_restore(bars))
         self.assertEqual(bars.shown_calls, [])
+
+    def test_a_visible_taskbar_stacked_above_the_interview_is_reported(self):
+        bars = FakeTaskbars(visible=(True, False))
+        bars.above = (101,)
+        self.assertTrue(agent.taskbar_above(1, bars))
+
+    def test_a_taskbar_below_the_interview_is_not(self):
+        bars = FakeTaskbars(visible=(True, False))
+        bars.above = ()
+        self.assertFalse(agent.taskbar_above(1, bars))
+
+    def test_a_hidden_taskbar_or_one_on_another_display_is_not(self):
+        hidden = FakeTaskbars(visible=(False, False))
+        hidden.above = (101, 102)
+        self.assertFalse(agent.taskbar_above(1, hidden))
+
+        elsewhere = FakeTaskbars(visible=(False, True))
+        elsewhere.above = (102,)
+        self.assertFalse(agent.taskbar_above(1, elsewhere), "102 sits on the second display")
 
     def test_hiding_nothing_writes_no_file(self):
         self.assertEqual(agent.taskbar_hide(FakeTaskbars(visible=(False, False))), 0)

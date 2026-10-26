@@ -7,6 +7,8 @@ const WATCHDOG_MS = 1000;
 const SETTLE_MS = 300;
 // A fullscreen transition takes about this long; asking again mid-way restarts it.
 const REAPPLY_MIN_MS = 1500;
+// The shell lifts the Windows taskbar a moment after the foreground changes.
+const RAISE_AFTER_BLUR_MS = 200;
 
 // macOS simple fullscreen doesn't report as fullscreen.
 const isFullScreen = (win) => win.isFullScreen() || Boolean(win.isSimpleFullScreen?.());
@@ -84,6 +86,7 @@ function createLockdownGuard(
 ) {
   let watchdog = null;
   let settleTimer = null;
+  let raiseTimer = null;
   let lastLost = "";
   let appliedAt = 0;
 
@@ -125,6 +128,17 @@ function createLockdownGuard(
     return lost;
   };
 
+  // Windows puts its taskbar back on top of any window that isn't in front,
+  // always-on-top or not, and refuses focus() to an app in the background.
+  // Raising the window still works, so it is raised whenever it isn't focused.
+  const raise = () => {
+    if (win.isDestroyed()) {
+      return;
+    }
+    win.setAlwaysOnTop(true, ALWAYS_ON_TOP_LEVEL);
+    win.moveTop();
+  };
+
   const start = () => {
     const afterEvent = () => check(true);
     on("minimize", (e) => {
@@ -154,17 +168,25 @@ function createLockdownGuard(
     on("blur", () => {
       log.info?.("[lockdown] window lost focus");
       check();
-      win.moveTop();
+      raise();
       win.focus();
+      clearTimeout(raiseTimer);
+      raiseTimer = setTimeout(raise, RAISE_AFTER_BLUR_MS);
     });
     on("closed", stop);
 
     apply();
-    watchdog = setInterval(() => check(), watchdogMs);
+    watchdog = setInterval(() => {
+      check();
+      if (!win.isDestroyed() && !win.isFocused()) {
+        raise();
+      }
+    }, watchdogMs);
   };
 
   function stop() {
     clearTimeout(settleTimer);
+    clearTimeout(raiseTimer);
     if (watchdog) {
       clearInterval(watchdog);
       watchdog = null;

@@ -7,7 +7,9 @@
 
 const { app, globalShortcut, desktopCapturer, session, dialog } = require("electron");
 const logger = require("./logger");
-const { killAgent } = require("./agentManager");
+const { killAgent, whenAgentReady } = require("./agentManager");
+const { recoverHiddenTaskbar } = require("./taskbarRecovery");
+const flowGuard = require("./flowGuard");
 const { createWindow, getWindow } = require("./windowManager");
 const { registerIpcHandlers } = require("./ipcHandlers");
 const { applyArgvDeepLink } = require("./protocolHandler");
@@ -131,7 +133,14 @@ async function onReady() {
   // 7. Violation reports a previous run could not send; they go out once a token exists.
   startDetection.restorePendingReports();
 
-  // 8. Finish any recording upload interrupted by a previous quit/crash.
+  // 8. A taskbar an earlier run's agent died before showing again. Not awaited.
+  recoverHiddenTaskbar({
+    whenAgentReady,
+    killAgent,
+    agentStillWanted: () => flowGuard.isRunning() || startDetection.isSessionActive(),
+  }).catch((err) => logger.warn("[app] taskbar recovery failed:", err.message));
+
+  // 9. Finish any recording upload interrupted by a previous quit/crash.
   //    Deliberately not awaited: draining a backlog can take minutes and must
   //    not hold up the window. Requires a valid session — the chunk/complete
   //    calls are all authenticated, so an expired login defers this to the

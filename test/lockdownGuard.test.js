@@ -24,6 +24,11 @@ class FakeWindow extends EventEmitter {
       destroyed: false,
     };
     this.focused = 0;
+    this.raised = 0;
+    this.hasFocus = true;
+  }
+  isFocused() {
+    return this.hasFocus;
   }
   isMinimized() {
     return this.state.minimized;
@@ -55,7 +60,9 @@ class FakeWindow extends EventEmitter {
   focus() {
     this.focused++;
   }
-  moveTop() {}
+  moveTop() {
+    this.raised++;
+  }
   setMinimizable(v) {
     this.state.minimizable = v;
   }
@@ -171,6 +178,39 @@ test("losing focus pulls the window back in front", () => {
   try {
     win.emit("blur");
     assert.ok(win.focused > 0);
+  } finally {
+    guard.stop();
+  }
+});
+
+test("losing focus raises the window at once and again once the shell has moved", async () => {
+  const { win, guard } = setup();
+  guard.start();
+  try {
+    win.hasFocus = false;
+    win.state.alwaysOnTop = false;
+    const before = win.raised;
+    win.emit("blur");
+    assert.strictEqual(win.raised, before + 1);
+    assert.strictEqual(win.state.alwaysOnTop, true);
+
+    await new Promise((r) => setTimeout(r, 250));
+    assert.ok(win.raised >= before + 2, "raised again after the shell lifts the taskbar");
+  } finally {
+    guard.stop();
+  }
+});
+
+test("the watchdog keeps raising a window that isn't in front, and leaves a focused one", async () => {
+  const { win, guard } = setup();
+  guard.start();
+  try {
+    await new Promise((r) => setTimeout(r, 30));
+    assert.strictEqual(win.raised, 0, "a focused window is left alone");
+
+    win.hasFocus = false;
+    await new Promise((r) => setTimeout(r, 30));
+    assert.ok(win.raised > 1);
   } finally {
     guard.stop();
   }

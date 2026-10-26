@@ -141,5 +141,77 @@ class CommandTest(unittest.TestCase):
         self.assertEqual(lockdown.poll()["events"], [])
 
 
+
+class FakeTaskbars:
+    """Two taskbars (main and an extra display) that can be hidden and shown."""
+
+    def __init__(self, visible=(True, True)):
+        self.visible = dict(zip((101, 102), visible))
+        self.hidden_calls = []
+        self.shown_calls = []
+
+    def find_all(self):
+        return list(self.visible)
+
+    def is_visible(self, hwnd):
+        return self.visible[hwnd]
+
+    def hide(self, hwnd):
+        self.visible[hwnd] = False
+        self.hidden_calls.append(hwnd)
+
+    def show(self, hwnd):
+        self.visible[hwnd] = True
+        self.shown_calls.append(hwnd)
+
+
+class TaskbarTest(unittest.TestCase):
+    def setUp(self):
+        folder = tempfile.mkdtemp()
+        patcher = mock.patch.object(agent, "TASKBAR_RESTORE_FILE", os.path.join(folder, "tb.json"))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_every_taskbar_is_hidden_and_shown_again(self):
+        bars = FakeTaskbars()
+        self.assertEqual(agent.taskbar_hide(bars), 2)
+        self.assertEqual(bars.visible, {101: False, 102: False})
+
+        self.assertTrue(agent.taskbar_restore(bars))
+        self.assertEqual(bars.visible, {101: True, 102: True})
+        self.assertFalse(os.path.exists(agent.TASKBAR_RESTORE_FILE))
+
+    def test_the_restore_file_is_written_before_anything_is_hidden(self):
+        bars = FakeTaskbars()
+        seen = []
+        bars.hide = lambda hwnd: seen.append(os.path.exists(agent.TASKBAR_RESTORE_FILE))
+        agent.taskbar_hide(bars)
+        self.assertEqual(seen, [True, True])
+
+    def test_a_taskbar_that_comes_back_is_hidden_again(self):
+        bars = FakeTaskbars()
+        agent.taskbar_hide(bars)
+        bars.visible[101] = True  # Explorer restarted
+        self.assertEqual(agent.taskbar_hide(bars), 1)
+        self.assertEqual(bars.visible[101], False)
+        self.assertEqual(agent.taskbar_hide(bars), 0, "nothing visible, nothing to do")
+
+    def test_after_a_crash_the_next_start_shows_them_again(self):
+        agent.taskbar_hide(FakeTaskbars())
+        # The agent died; a fresh one finds the file and hidden taskbars.
+        after_crash = FakeTaskbars(visible=(False, False))
+        self.assertTrue(agent.taskbar_restore(after_crash))
+        self.assertEqual(after_crash.shown_calls, [101, 102])
+
+    def test_without_the_file_restore_leaves_the_taskbars_alone(self):
+        bars = FakeTaskbars(visible=(False, True))  # e.g. hidden by something else
+        self.assertFalse(agent.taskbar_restore(bars))
+        self.assertEqual(bars.shown_calls, [])
+
+    def test_hiding_nothing_writes_no_file(self):
+        self.assertEqual(agent.taskbar_hide(FakeTaskbars(visible=(False, False))), 0)
+        self.assertFalse(os.path.exists(agent.TASKBAR_RESTORE_FILE))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -61,7 +61,7 @@ async function tick(state) {
     if (res?.active) {
       state.agentOn = true;
       logger.info(
-        `[lockdown] agent lockdown on (keys hooked: ${res.keys_hooked}, touchpad locked: ${res.touchpad_locked})`
+        `[lockdown] agent lockdown on (keys hooked: ${res.keys_hooked}, touchpad locked: ${res.touchpad_locked}, taskbars hidden: ${res.taskbars_hidden ?? "n/a"})`
       );
     }
     return;
@@ -112,7 +112,7 @@ function start(win, onViolation) {
   }
 }
 
-/** Resolves once the agent has let go, so the touchpad is restored before the agent is killed. */
+/** Resolves once the agent has let go, so the touchpad and taskbar are restored before the agent is killed. */
 function stop() {
   const state = current;
   current = null;

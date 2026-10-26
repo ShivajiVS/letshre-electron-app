@@ -16,8 +16,8 @@ The version is in `package.json`.
  Renderer windows               Python agent (agent.py)        LetsHyre API
  · setup pages (assets/*.html,  · deep scans: overlays, DLLs,  · login, profile,
    src/renderer/*.js)             virtual cameras/audio, VMs     identity, role
- · interview window (locked,    · Windows keyboard/touchpad    · violations,
-   loads the interview site)      and focus lockdown             heartbeat, video
+ · interview window (locked,    · Windows keyboard/touchpad    · proctoring log,
+   loads the interview site)      and focus lockdown             video
  · hidden recorder window
 ```
 

@@ -228,8 +228,11 @@ const EXPECTED_INTERVIEW_SCOPE_CHANNELS = [
   "DEV_SIMULATE_VIOLATION", // devSimulateViolation(code) — refused unless DEVTOOLS is on
   "GET_SUPPORT_CONTACT", // getSupportContact() — read-only support link and email
   "INTERVIEW_COMPLETE", // interviewComplete(reason) — contract step 3
+  "PROCTORING_LOG_SUBMIT", // submitProctoringLog(batch) — the app delivers the log
   "PROCTORING_START", // interview.letshyre.com → start recording
   "PROCTORING_STOP", // interview.letshyre.com → stop recording
+  "SUBMIT_PENDING", // submitPending(submit) — app holds a copy of the auto-submit
+  "SUBMIT_SETTLED", // submitSettled(sessionId) — the site's auto-submit succeeded
   "VIEW_DASHBOARD", // viewDashboard() — scorecard "View Dashboard" button
 ];
 

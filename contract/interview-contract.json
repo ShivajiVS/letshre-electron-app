@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "description": "What the desktop app and the interview site promise each other. Source of truth is the app repo; the site keeps a copy in src/contract/. See docs/web-contract.md.",
   "violationCodes": [
     {
@@ -213,6 +213,35 @@
         "kind": "send"
       },
       {
+        "name": "submitProctoringLog",
+        "args": [
+          "batch",
+          "token?"
+        ],
+        "channelKey": "PROCTORING_LOG_SUBMIT",
+        "channel": "proctoring-log-submit",
+        "kind": "invoke"
+      },
+      {
+        "name": "submitPending",
+        "args": [
+          "submit",
+          "token?"
+        ],
+        "channelKey": "SUBMIT_PENDING",
+        "channel": "submit-pending",
+        "kind": "send"
+      },
+      {
+        "name": "submitSettled",
+        "args": [
+          "sessionId"
+        ],
+        "channelKey": "SUBMIT_SETTLED",
+        "channel": "submit-settled",
+        "kind": "send"
+      },
+      {
         "name": "getSupportContact",
         "args": [],
         "channelKey": "GET_SUPPORT_CONTACT",
@@ -246,7 +275,8 @@
         "channelKey": "PUSH_PROCTORING_ERROR",
         "channel": "push-proctoring-error"
       }
-    ]
+    ],
+    "backendHandover": "Since v5 the app delivers what must reach the backend even if the page dies. submitProctoringLog(batch) takes the one proctoring log batch exactly as it would be POSTed to proctoring/log/; on { ok: true } the site must not send it itself (the backend keeps one batch per interview). submitPending({ interviewId, sessionId, reason, answer }) is called when an auto-submit starts and submitSettled(sessionId) when it succeeds; the app sends the held auto_submit/force/ only if the interview window closes or the app restarts first."
   },
   "sessionStorage": {
     "set": [

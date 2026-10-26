@@ -2,10 +2,8 @@ const {
   IPC,
   VIOLATION_COOLDOWN_MS,
   DETECTION_INTERVAL_MS,
-  HEARTBEAT_INTERVAL_MS,
   INDETERMINATE_ESCALATION_THRESHOLD,
   HARD_BLOCK_GRACE_MS,
-  API_BASE_URL,
   PREFLIGHT_HDMI_DEADLINE_MS,
   PREFLIGHT_PROCESS_DEADLINE_MS,
   PREFLIGHT_AGENT_DEADLINE_MS,
@@ -25,9 +23,7 @@ const {
   isStrikeCode,
   threatEvent,
 } = require("../shared/violationCodes");
-const { getCurrentAccessToken } = require("../main/protocolHandler");
 const crypto = require("crypto");
-const axios = require("axios");
 const { detectHDMIWindows } = require("./hdmiDetector");
 const detectMirroring = require("./mirrorDetector");
 const { checkProcesses, invalidateProcessCache } = require("./mirrorDetector");
@@ -53,7 +49,6 @@ const {
 } = require("../main/agentManager");
 const logger = require("../main/logger");
 const preflightTelemetry = require("../main/preflightTelemetry");
-const reportStore = require("../main/reportStore");
 
 const violationCache = new Map(); // event key → last-fired timestamp
 const violationEscalation = new Map(); // event key → total fire count
@@ -61,7 +56,6 @@ const violationEscalation = new Map(); // event key → total fire count
 let isSessionActive = false;
 
 let detectionInterval = null;
-let heartbeatInterval = null;
 let stopWatchingStarts = null;
 let startedTick = null;
 let startedAgain = false;
@@ -133,7 +127,7 @@ const auditLog = [];
 /**
  * Appends an event to the in-memory audit log.
  * Keeps the last 500 entries to cap memory usage.
- * @param {"scan"|"violation"|"heartbeat"|"agent"} type
+ * @param {"scan"|"violation"|"agent"} type
  * @param {object} data
  */
 function appendAuditEvent(type, data) {
@@ -154,19 +148,7 @@ function getAuditLog() {
   return [...auditLog];
 }
 
-// ─── Backend violation reporting ──────────────────────────────────────────────
-// Every violation is also POSTed to the backend, not just pushed to the renderer:
-// the page can be reloading or down when it's pushed, so the backend POST is what
-// makes the server the authority that can actually terminate/flag the session.
-// Unsent reports queue (bounded, FIFO, kept on disk) and retry with backoff, so
-// a network blip or a quit isn't a silent bypass.
-const MAX_PENDING_REPORTS = 100;
-const REPORT_RETRY_BASE_MS = 2000;
-const REPORT_RETRY_MAX_MS = 60000;
-const pendingReports = [];
-let isFlushingReports = false;
-let reportRetryTimer = null;
-let reportRetryDelayMs = REPORT_RETRY_BASE_MS;
+// ─── Violation payload context ────────────────────────────────────────────────
 
 let _cachedAppVersion;
 function _appVersion() {
@@ -188,134 +170,6 @@ function _recordingOffsetMs() {
   }
 }
 
-// After a relaunch the interview token isn't set until the next interview
-// starts, but the restored login carries the same token.
-function _accessToken() {
-  const token = getCurrentAccessToken();
-  if (token) {
-    return token;
-  }
-  try {
-    return require("../main/authManager").getTokens()?.accessToken ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function _persistReports() {
-  reportStore.save(pendingReports);
-}
-
-/**
- * Attempts a single authenticated POST of one violation to the backend.
- * A 401 is kept: the token is refreshed elsewhere and a later attempt uses it.
- * @returns {Promise<"sent"|"retry"|"drop">}
- */
-async function postViolation(payload) {
-  const token = _accessToken();
-  if (!token) {
-    return "retry";
-  }
-  try {
-    await axios.post(`${API_BASE_URL}/interview/violation`, payload, {
-      headers: { Authorization: `Bearer ${token}` },
-      timeout: 5000,
-    });
-    return "sent";
-  } catch (err) {
-    const status = err.response?.status;
-    if (status >= 400 && status < 500 && ![401, 408, 429].includes(status)) {
-      logger.warn(
-        `[violation-report] backend refused a ${payload.code} report (${status}), dropping it`
-      );
-      return "drop";
-    }
-    logger.warn(`[violation-report] post failed (will retry): ${err.message}`);
-    return "retry";
-  }
-}
-
-function _scheduleReportRetry() {
-  if (reportRetryTimer) {
-    return;
-  }
-  const delay = reportRetryDelayMs;
-  reportRetryDelayMs = Math.min(delay * 2, REPORT_RETRY_MAX_MS);
-  reportRetryTimer = setTimeout(() => {
-    reportRetryTimer = null;
-    flushReports().catch((e) => logger.warn(`[violation-report] flush error: ${e.message}`));
-  }, delay);
-  reportRetryTimer.unref?.();
-}
-
-function _clearReportRetry() {
-  clearTimeout(reportRetryTimer);
-  reportRetryTimer = null;
-  reportRetryDelayMs = REPORT_RETRY_BASE_MS;
-}
-
-/**
- * Drains the pending-report queue in FIFO order. A report worth retrying stops
- * the drain, keeping the order, and schedules a backed-off retry. The next
- * violation or heartbeat also flushes. Re-entrancy guarded.
- */
-async function flushReports() {
-  if (isFlushingReports) {
-    return;
-  }
-  isFlushingReports = true;
-  try {
-    while (pendingReports.length > 0) {
-      const report = pendingReports[0];
-      if ((await postViolation(report)) === "retry") {
-        _scheduleReportRetry();
-        return;
-      }
-      // The queue can be trimmed while the post is in flight.
-      const index = pendingReports.indexOf(report);
-      if (index !== -1) {
-        pendingReports.splice(index, 1);
-        _persistReports();
-      }
-    }
-    _clearReportRetry();
-  } finally {
-    isFlushingReports = false;
-  }
-}
-
-function _trimReports() {
-  if (pendingReports.length > MAX_PENDING_REPORTS) {
-    pendingReports.splice(0, pendingReports.length - MAX_PENDING_REPORTS);
-  }
-}
-
-/** Enqueues a violation for backend delivery and kicks off a flush. */
-function reportViolationToBackend(payload) {
-  pendingReports.push(payload);
-  _trimReports();
-  _persistReports();
-  flushReports().catch((e) => logger.warn(`[violation-report] flush error: ${e.message}`));
-}
-
-/**
- * Queues the reports a previous run could not send, ahead of anything new, and
- * starts delivering them. Call once the report store is open.
- * @returns {number} how many were restored
- */
-function restorePendingReports() {
-  const saved = reportStore.load();
-  if (saved.length === 0) {
-    return 0;
-  }
-  pendingReports.unshift(...saved);
-  _trimReports();
-  _persistReports();
-  logger.info(`[violation-report] ${saved.length} unsent report(s) from a previous run queued`);
-  flushReports().catch((e) => logger.warn(`[violation-report] flush error: ${e.message}`));
-  return saved.length;
-}
-
 /**
  * Records the ids the interview site started proctoring with. Violations raised
  * before it did (between the lockdown and the site loading) get them too.
@@ -329,40 +183,12 @@ function setSessionContext({ sessionId = null, interviewId = null } = {}) {
     payload.interviewId = interviewId;
   }
   awaitingSessionIds.clear();
-  _persistReports();
 }
 
 function _clearSessionContext() {
   sessionContext = { sessionId: null, interviewId: null };
   awaitingSessionIds.clear();
   logger.setSessionId(null);
-}
-
-function startHeartbeat() {
-  if (heartbeatInterval) {
-    return;
-  }
-  heartbeatInterval = setInterval(async () => {
-    try {
-      const token = getCurrentAccessToken();
-      if (!token) {
-        return;
-      }
-      await axios.post(
-        `${API_BASE_URL}/interview/heartbeat`,
-        {
-          timestamp: new Date().toISOString(),
-          sessionId: sessionContext.sessionId,
-          interviewId: sessionContext.interviewId,
-          appVersion: _appVersion(),
-        },
-        { headers: { Authorization: `Bearer ${token}` }, timeout: 5000 }
-      );
-      flushReports().catch(() => {});
-    } catch (err) {
-      logger.warn(`[heartbeat] failed: ${err.message}`);
-    }
-  }, HEARTBEAT_INTERVAL_MS);
 }
 
 /**
@@ -516,9 +342,6 @@ function start(win) {
       tickNow(tick);
     }
   });
-
-  startHeartbeat();
-  flushReports().catch((e) => logger.warn(`[violation-report] flush error: ${e.message}`));
 }
 
 /** A blocked app just started: tick now instead of waiting. Bursts share one extra tick. */
@@ -582,8 +405,9 @@ function _appNames(apps) {
 }
 
 /**
- * The single path for every interview violation: pushed to the site, posted to
- * the backend and held until the site acknowledges it.
+ * The single path for every interview violation: pushed to the site and held
+ * until the site acknowledges it. The site records it in the proctoring log,
+ * which is how it reaches the backend.
  * Cooldown and escalation are keyed by `event`.
  * @param {Electron.BrowserWindow} win
  * @param {string} event
@@ -637,7 +461,6 @@ function sendViolation(win, event, severity, meta = {}) {
 
   holdUntilAcked(win, payload);
   _pushViolationToRenderer(win, payload);
-  reportViolationToBackend(payload);
 }
 
 /**
@@ -1110,8 +933,6 @@ function _endSession() {
   stopWatchingStarts?.();
   stopWatchingStarts = null;
   startedAgain = false;
-  clearInterval(heartbeatInterval);
-  heartbeatInterval = null;
   _watchDisplays(false, _onSessionDisplayChange);
   clearTimeout(displayTickTimer);
   displayTickTimer = null;
@@ -1122,9 +943,6 @@ function _endSession() {
 /** Ends the interview's detection. Called when the site reports the interview is over. */
 function stop() {
   _endSession();
-  // The token is still valid right after the session, so try once more to post
-  // anything still queued.
-  flushReports().catch(() => {});
   logger.info("[systemChecks] detection stopped — session ended");
 }
 
@@ -1135,8 +953,6 @@ function resetState() {
   _threatProcesses = new Map();
   violationCache.clear();
   violationEscalation.clear();
-  // Unsent reports belong to an earlier interview and are still owed to the backend.
-  _clearReportRetry();
 }
 
 // ─── Pre-proceed monitor ─────────────────────────────────────────────────────
@@ -1279,7 +1095,6 @@ module.exports = {
   stop,
   sendViolation,
   setSessionContext,
-  restorePendingReports,
   resetState,
   runChecksOnce,
   /** True while an interview is live; refuses actions that show system UI mid-session. */
@@ -1298,7 +1113,5 @@ module.exports = {
     runDetectionTick,
     monitorTick: _monitorTick,
     agentFailStreak: () => _agentFailStreak,
-    pendingReports: () => [...pendingReports],
-    flushReports,
   },
 };

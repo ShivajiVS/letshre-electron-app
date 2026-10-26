@@ -60,9 +60,7 @@ beforeEach(() => {
   mock.timers.enable({ apis: ["setTimeout", "setInterval"] });
   posts = [];
   mock.method(axios, "post", async (url, payload) => {
-    if (url.endsWith("/interview/violation")) {
-      posts.push(payload);
-    }
+    posts.push({ url, payload });
     return { data: {} };
   });
   h = loadSystemChecks();
@@ -94,7 +92,7 @@ const agentWith = (extra) => ({ ...CLEAN_AGENT(), ...extra });
 
 // ─── Payload ─────────────────────────────────────────────────────────────────
 
-test("a violation is pushed and posted with the structured payload", async () => {
+test("a violation is pushed to the site with the structured payload", async () => {
   await startSession();
   h.checks.sendViolation(win, "Attempt to close interview window", "high", {
     code: CODE.CLOSE_ATTEMPT,
@@ -114,7 +112,7 @@ test("a violation is pushed and posted with the structured payload", async () =>
   assert.strictEqual(pushed.source, "electron");
   assert.ok(!Number.isNaN(Date.parse(pushed.timestamp)));
 
-  assert.deepStrictEqual(posts, [pushed], "the backend gets the same payload, same id");
+  assert.deepStrictEqual(posts, [], "the site logs it; nothing goes to the backend directly");
 });
 
 test("an unknown or missing code falls back to suspicious_activity", async () => {
@@ -456,7 +454,6 @@ test("a page load resends every unacknowledged violation in order, with the same
     redelivered(),
     sent.map((v) => ({ ...v, redelivered: true }))
   );
-  assert.strictEqual(posts.length, 2, "redelivery is not posted to the backend again");
 });
 
 test("the unacknowledged store keeps only the newest MAX_UNACKED_VIOLATIONS", async () => {

@@ -66,8 +66,7 @@ Live detection starts as soon as Start Interview hands off to the interview page
 - external display and duplicate-mirror,
 - blocked processes launched mid-interview,
 - agent deep-scan threats (every threat code in a scan is sent, not only the first; threats sharing a code are one violation, with all their apps),
-- agent reachability (anti-tamper),
-- and a heartbeat to the backend every 30s.
+- and agent reachability (anti-tamper).
 
 Window and OS events (minimize, fullscreen exit, close attempt, focus loss, virtual desktop) come from the [lockdown](lockdown.md) and go through the same `sendViolation`.
 
@@ -79,12 +78,13 @@ Window and OS events (minimize, fullscreen exit, close attempt, focus loss, virt
 - **De‑duplicates** with a per‑event cooldown (`VIOLATION_COOLDOWN_MS`, 15s);
 - **Escalates** repeat offences (`isHardBlock = severity === "high" || count >= 2`), except the codes in `STRIKE_CODES` (extra displays, focus loss, virtual desktop), which are never hard blocks: the site decides;
 - **Pushes** to the web app: `webContents.send("push-violation", payload)`;
-- **Reports** to the backend (`POST /interview/violation`) via a bounded FIFO queue: network errors, 5xx, 408, 429 and 401 are retried with backoff (2s doubling to 60s); any other 4xx drops that report with a warning. Unsent reports are kept encrypted in `userData/pending-violations.bin` and sent after the next launch;
 - **Holds** every violation until the web app acknowledges its `id`, re‑sending it if not (see [web-contract.md](web-contract.md#acknowledgement-and-redelivery)).
+
+The web app records each violation in its proctoring log; that log is how violations reach the backend (see [web-contract.md](web-contract.md#proctoring-log-and-auto-submit-hand-over)).
 
 For agent threats, `event` is built from the code and the app names ("AI tool detected: parakeetai-desktop"). The agent's own detail can hold file paths, window titles and IP addresses, so it only goes to the local audit log.
 
-Payload delivered to the renderer and the backend, and the full code table: [web-contract.md](web-contract.md#violation-payload).
+Payload delivered to the renderer, and the full code table: [web-contract.md](web-contract.md#violation-payload).
 
 ## Reliability rules
 

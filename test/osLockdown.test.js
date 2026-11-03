@@ -55,6 +55,10 @@ function fakeWin() {
     getNativeWindowHandle: () => handle,
     show: () => win.shown++,
     focus: () => win.focused++,
+    raised: 0,
+    onTop: [],
+    moveTop: () => win.raised++,
+    setAlwaysOnTop: (on, level) => win.onTop.push({ on, level }),
     setVisibleOnAllWorkspaces: (on, opts) => win.workspaces.push({ on, opts }),
   });
   return win;
@@ -121,6 +125,34 @@ test("Windows: focus and desktop events become violations the site decides on", 
       meta: { code: CODE.VIRTUAL_DESKTOP },
     },
   ]);
+});
+
+test("Windows: a taskbar over the window raises it and is audited, not a violation", async () => {
+  h = load();
+  const audited = [];
+  const SYSTEM_CHECKS = require.resolve("../src/detector/systemChecks");
+  stub(SYSTEM_CHECKS, { recordAuditEvent: (type, data) => audited.push({ type, data }) });
+  try {
+    h.agent.replies.lockdown_start = { active: true };
+    h.agent.replies.lockdown_poll = { active: true, events: [{ type: "taskbar_above" }] };
+    const win = fakeWin();
+    const violations = [];
+    h.lockdown.start(win, (...args) => violations.push(args));
+    await flush();
+    await h.lockdown._internal.report(
+      { win, onViolation: (...a) => violations.push(a) },
+      {
+        type: "taskbar_above",
+      }
+    );
+
+    assert.deepStrictEqual(violations, []);
+    assert.ok(win.raised >= 1);
+    assert.deepStrictEqual(win.onTop.at(-1), { on: true, level: "screen-saver" });
+    assert.deepStrictEqual(audited.at(-1), { type: "lockdown", data: { event: "taskbar_above" } });
+  } finally {
+    delete require.cache[SYSTEM_CHECKS];
+  }
 });
 
 test("Windows: a restarted agent gets the lockdown again", async () => {

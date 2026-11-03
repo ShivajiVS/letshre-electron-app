@@ -7,12 +7,33 @@ const WATCHDOG_MS = 1000;
 const SETTLE_MS = 300;
 // A fullscreen transition takes about this long; asking again mid-way restarts it.
 const REAPPLY_MIN_MS = 1500;
+// The shell lifts the Windows taskbar a moment after the foreground changes.
+const RAISE_AFTER_BLUR_MS = 200;
 
 // macOS simple fullscreen doesn't report as fullscreen.
 const isFullScreen = (win) => win.isFullScreen() || Boolean(win.isSimpleFullScreen?.());
 
+// Display scaling rounds window sizes, so a pixel short is still covering.
+const COVER_SLACK_PX = 1;
+
+/**
+ * Whether the window covers the whole display. Windows only keeps its taskbar
+ * below a fullscreen window that does.
+ */
+function coversDisplay(bounds, display) {
+  if (!bounds || !display) {
+    return true;
+  }
+  return (
+    bounds.x <= display.x + COVER_SLACK_PX &&
+    bounds.y <= display.y + COVER_SLACK_PX &&
+    bounds.x + bounds.width >= display.x + display.width - COVER_SLACK_PX &&
+    bounds.y + bounds.height >= display.y + display.height - COVER_SLACK_PX
+  );
+}
+
 /** Everything about the window that must hold while an interview is live. */
-function _lostProperties(win) {
+function _lostProperties(win, displayBounds) {
   const lost = [];
   if (win.isMinimized()) {
     lost.push("minimized");
@@ -35,8 +56,14 @@ function _lostProperties(win) {
   if (win.isResizable()) {
     lost.push("resizable");
   }
+  if (displayBounds && !win.isMinimized() && !coversDisplay(win.getBounds(), displayBounds)) {
+    lost.push("covers-display");
+  }
   return lost;
 }
+
+// Settle on their own as a fullscreen transition finishes.
+const TRANSITION_PROPERTIES = new Set(["fullscreen", "kiosk", "covers-display"]);
 
 function applyLock(win) {
   if (win.isMinimized()) {
@@ -76,19 +103,33 @@ function releaseLock(win) {
  * @param {{
  *   onViolation: (event: string, severity: string, meta: { code: string }) => void,
  *   log: { warn: Function },
+ *   getDisplayBounds?: () => Electron.Rectangle | null,
  * }} deps
  */
 function createLockdownGuard(
   win,
-  { onViolation, log, watchdogMs = WATCHDOG_MS, reapplyMs = REAPPLY_MIN_MS }
+  {
+    onViolation,
+    log,
+    getDisplayBounds = () => null,
+    watchdogMs = WATCHDOG_MS,
+    reapplyMs = REAPPLY_MIN_MS,
+  }
 ) {
   let watchdog = null;
   let settleTimer = null;
+  let raiseTimer = null;
   let lastLost = "";
   let appliedAt = 0;
 
-  const apply = () => {
+  const apply = (lost = []) => {
     appliedAt = Date.now();
+    if (lost.includes("covers-display")) {
+      const display = getDisplayBounds();
+      if (display) {
+        win.setBounds(display);
+      }
+    }
     applyLock(win);
   };
   const listeners = [];
@@ -107,7 +148,7 @@ function createLockdownGuard(
       stop();
       return [];
     }
-    const lost = _lostProperties(win);
+    const lost = _lostProperties(win, getDisplayBounds());
     const signature = lost.join(",");
     if (lost.length > 0) {
       if (signature !== lastLost) {
@@ -115,14 +156,25 @@ function createLockdownGuard(
       }
       const transitioning =
         !fromEvent &&
-        lost.every((p) => p === "fullscreen" || p === "kiosk") &&
+        lost.every((p) => TRANSITION_PROPERTIES.has(p)) &&
         Date.now() - appliedAt < reapplyMs;
       if (!transitioning) {
-        apply();
+        apply(lost);
       }
     }
     lastLost = signature;
     return lost;
+  };
+
+  // Windows puts its taskbar back on top of any window that isn't in front,
+  // always-on-top or not, and refuses focus() to an app in the background.
+  // Raising the window still works, so it is raised whenever it isn't focused.
+  const raise = () => {
+    if (win.isDestroyed()) {
+      return;
+    }
+    win.setAlwaysOnTop(true, ALWAYS_ON_TOP_LEVEL);
+    win.moveTop();
   };
 
   const start = () => {
@@ -154,17 +206,25 @@ function createLockdownGuard(
     on("blur", () => {
       log.info?.("[lockdown] window lost focus");
       check();
-      win.moveTop();
+      raise();
       win.focus();
+      clearTimeout(raiseTimer);
+      raiseTimer = setTimeout(raise, RAISE_AFTER_BLUR_MS);
     });
     on("closed", stop);
 
     apply();
-    watchdog = setInterval(() => check(), watchdogMs);
+    watchdog = setInterval(() => {
+      check();
+      if (!win.isDestroyed() && !win.isFocused()) {
+        raise();
+      }
+    }, watchdogMs);
   };
 
   function stop() {
     clearTimeout(settleTimer);
+    clearTimeout(raiseTimer);
     if (watchdog) {
       clearInterval(watchdog);
       watchdog = null;
@@ -180,4 +240,10 @@ function createLockdownGuard(
   return { start, stop, check };
 }
 
-module.exports = { ALWAYS_ON_TOP_LEVEL, applyLock, releaseLock, createLockdownGuard };
+module.exports = {
+  ALWAYS_ON_TOP_LEVEL,
+  applyLock,
+  releaseLock,
+  coversDisplay,
+  createLockdownGuard,
+};

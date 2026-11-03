@@ -127,7 +127,7 @@ const auditLog = [];
 /**
  * Appends an event to the in-memory audit log.
  * Keeps the last 500 entries to cap memory usage.
- * @param {"scan"|"violation"|"agent"} type
+ * @param {"scan"|"violation"|"agent"|"guard"|"lockdown"} type
  * @param {object} data
  */
 function appendAuditEvent(type, data) {

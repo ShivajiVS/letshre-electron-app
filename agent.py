@@ -1750,6 +1750,14 @@ TOUCHPAD_RESTORE_FILE = os.path.join(
     "touchpad-restore.json",
 )
 
+# Windows keeps its taskbar below a fullscreen window only while that window is
+# in front; the moment anything else is, the taskbar goes back on top of it,
+# always-on-top or not. So the taskbars are hidden for the interview.
+TASKBAR_CLASSES = ("Shell_TrayWnd", "Shell_SecondaryTrayWnd")
+TASKBAR_RESTORE_FILE = os.path.join(os.path.dirname(TOUCHPAD_RESTORE_FILE), "taskbar-restore.json")
+SW_HIDE, SW_SHOWNA = 0, 8
+GW_HWNDPREV = 3
+
 
 def should_block_key(vk, alt_down, ctrl_down):
     """The Windows key alone opens every Win+ shortcut, so blocking it covers them all."""
@@ -1945,6 +1953,115 @@ def touchpad_disable(reg=None):
     return True
 
 
+class _TaskbarWindows:
+    """The shell's taskbar windows: the main one and one per extra display."""
+
+    def __init__(self):
+        import ctypes
+        from ctypes import wintypes
+
+        u = ctypes.WinDLL("user32", use_last_error=True)
+        u.FindWindowExW.argtypes = [wintypes.HWND, wintypes.HWND, wintypes.LPCWSTR, wintypes.LPCWSTR]
+        u.FindWindowExW.restype = wintypes.HWND
+        u.IsWindowVisible.argtypes = [wintypes.HWND]
+        u.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+        u.GetWindow.argtypes = [wintypes.HWND, wintypes.UINT]
+        u.GetWindow.restype = wintypes.HWND
+        u.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+        self._u = u
+        self._wintypes = wintypes
+        self._ctypes = ctypes
+
+    def find_all(self):
+        found = []
+        for cls in TASKBAR_CLASSES:
+            hwnd = self._u.FindWindowExW(None, None, cls, None)
+            while hwnd and len(found) < 32:
+                found.append(hwnd)
+                hwnd = self._u.FindWindowExW(None, hwnd, cls, None)
+        return found
+
+    def is_visible(self, hwnd):
+        return bool(self._u.IsWindowVisible(hwnd))
+
+    def hide(self, hwnd):
+        self._u.ShowWindow(hwnd, SW_HIDE)
+
+    def show(self, hwnd):
+        self._u.ShowWindow(hwnd, SW_SHOWNA)
+
+    def windows_above(self, hwnd, limit=1000):
+        """Every top-level window stacked above `hwnd`, nearest first."""
+        above = []
+        current = self._u.GetWindow(hwnd, GW_HWNDPREV)
+        while current and len(above) < limit:
+            above.append(current)
+            current = self._u.GetWindow(current, GW_HWNDPREV)
+        return above
+
+    def rect(self, hwnd):
+        r = self._wintypes.RECT()
+        if not self._u.GetWindowRect(hwnd, self._ctypes.byref(r)):
+            return None
+        return (r.left, r.top, r.right, r.bottom)
+
+
+def taskbar_hide(api=None):
+    """
+    Hides every visible taskbar, including one Explorer just brought back. The
+    restore file is written first, so a crash can't leave the candidate without
+    a taskbar. Returns how many were hidden by this call.
+    """
+    api = api or _TaskbarWindows()
+    visible = [hwnd for hwnd in api.find_all() if api.is_visible(hwnd)]
+    if not visible:
+        return 0
+    if not os.path.exists(TASKBAR_RESTORE_FILE):
+        os.makedirs(os.path.dirname(TASKBAR_RESTORE_FILE), exist_ok=True)
+        with open(TASKBAR_RESTORE_FILE, "w", encoding="utf-8") as f:
+            json.dump({"hidden_at": datetime.now().isoformat()}, f)
+    for hwnd in visible:
+        api.hide(hwnd)
+    return len(visible)
+
+
+def _overlaps(a, b):
+    return bool(a and b and a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3])
+
+
+def taskbar_above(own_hwnd, api):
+    """
+    Whether a visible taskbar is stacked above the interview window where they
+    overlap: what the candidate sees when hiding it didn't hold.
+    """
+    visible = [hwnd for hwnd in api.find_all() if api.is_visible(hwnd)]
+    if not visible or not own_hwnd:
+        return False
+    above = set(api.windows_above(own_hwnd))
+    own_rect = api.rect(own_hwnd)
+    return any(hwnd in above and _overlaps(api.rect(hwnd), own_rect) for hwnd in visible)
+
+
+def taskbar_restore(api=None):
+    """Shows the taskbars taskbar_hide() hid, including after a crash. Returns whether it did."""
+    if not os.path.exists(TASKBAR_RESTORE_FILE):
+        return False
+    try:
+        api = api or _TaskbarWindows()
+        for hwnd in api.find_all():
+            if not api.is_visible(hwnd):
+                api.show(hwnd)
+    except Exception as e:
+        logger.warning(f"[lockdown] taskbar restore failed: {e}")
+        return False
+    try:
+        os.remove(TASKBAR_RESTORE_FILE)
+    except OSError:
+        pass
+    logger.info("[lockdown] taskbar restored")
+    return True
+
+
 def touchpad_restore(reg=None):
     """Puts back whatever touchpad_disable() changed, including after a crash."""
     try:
@@ -1981,6 +2098,7 @@ class InterviewLockdown:
         self._watcher = None
         self._keys = _KeyHook()
         self.touchpad = False
+        self.taskbars = 0
 
     def start(self, hwnd, pid):
         if OS_NAME != "Windows":
@@ -1997,6 +2115,12 @@ class InterviewLockdown:
         except Exception as e:
             logger.warning(f"[lockdown] touchpad gestures unchanged: {e}")
             self.touchpad = False
+        try:
+            self.taskbars = taskbar_hide()
+            logger.info(f"[lockdown] {self.taskbars} taskbar(s) hidden")
+        except Exception as e:
+            logger.warning(f"[lockdown] taskbar left visible: {e}")
+            self.taskbars = 0
         self._watcher = threading.Thread(target=self._watch, name="lockdown-focus", daemon=True)
         self._watcher.start()
         logger.info(f"[lockdown] on for window {self.hwnd} (pid {self.pid})")
@@ -2012,7 +2136,9 @@ class InterviewLockdown:
             self._watcher = None
         if OS_NAME == "Windows":
             touchpad_restore()
+            taskbar_restore()
         self.touchpad = False
+        self.taskbars = 0
         if was_active:
             logger.info("[lockdown] off")
         return {"active": False, "supported": OS_NAME == "Windows"}
@@ -2029,6 +2155,7 @@ class InterviewLockdown:
             "keys_hooked": self._keys.alive(),
             "keys_blocked": self._keys.blocked,
             "touchpad_locked": self.touchpad,
+            "taskbars_hidden": self.taskbars,
             "events": events,
         }
 
@@ -2057,12 +2184,18 @@ class InterviewLockdown:
 
         u = _user32()
         try:
+            taskbars = _TaskbarWindows()
+        except Exception as e:
+            logger.warning(f"[lockdown] taskbar watch unavailable: {e}")
+            taskbars = None
+        try:
             on_current_desktop = _virtual_desktop_check()
         except Exception as e:
             logger.warning(f"[lockdown] virtual desktop check unavailable: {e}")
             on_current_desktop = lambda hwnd: None  # noqa: E731
         lost = False
         away = False
+        covered = False
         while self.active:
             try:
                 fg = u.GetForegroundWindow()
@@ -2078,6 +2211,14 @@ class InterviewLockdown:
                     self._bring_back(u, fg)
                 else:
                     lost = False
+                # Explorer restarting, or the shell itself, can bring one back.
+                if taskbars and self.active and taskbar_hide(taskbars):
+                    logger.warning("[lockdown] a taskbar came back — hidden again")
+                over = bool(taskbars) and taskbar_above(self.hwnd, taskbars)
+                if over and not covered:
+                    self._record({"type": "taskbar_above"})
+                    logger.warning("[lockdown] a taskbar is above the interview window")
+                covered = over
                 on_desktop = on_current_desktop(self.hwnd)
                 if on_desktop is False and not away:
                     self._record({"type": "virtual_desktop"})
@@ -2235,6 +2376,7 @@ def main():
 
     if OS_NAME == "Windows":
         touchpad_restore()
+        taskbar_restore()
 
     scanner_thread = threading.Thread(target=background_scanner, daemon=True)
     scanner_thread.start()

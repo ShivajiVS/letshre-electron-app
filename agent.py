@@ -46,6 +46,13 @@ SCAN_INTERVAL = 3  # seconds between background scans
 # Electron gives a whole scan AGENT_SCAN_TIMEOUT_MS (12s); stay well inside it.
 SCAN_BUDGET_S = 9.5
 
+# A check that fails on a busy machine reports its last good result as "stale"
+# for this long instead of degrading the scan.
+LAST_GOOD_MAX_AGE_S = 120
+# A failed check with a usable last good result isn't re-run for this long, so
+# a slow PowerShell query doesn't pile up on an already loaded machine.
+FAILED_CHECK_BACKOFF_S = 15
+
 AGENT_VERSION = os.environ.get("APP_VERSION", "1.0.0")
 
 # Version of the scan result shape, separate from AGENT_VERSION. Bump only when
@@ -241,6 +248,8 @@ RENAMED_APP_BLOCKLIST = frozenset({
 
 # Audio endpoints rarely change and the PowerShell query behind them is the slowest check.
 VIRTUAL_AUDIO_CACHE_S = 180
+# `tasklist /M` lists every module of every process, too heavy to run every 3s.
+MEMORY_PATTERNS_CACHE_S = 20
 
 # An IPv4 address with no reverse DNS takes ~4.5s to fail on Windows.
 RDNS_WORKERS = 8
@@ -248,6 +257,12 @@ RDNS_WAIT_S = 5
 RDNS_CACHE_MAX = 1024
 
 OS_NAME = platform.system()  # 'Windows', 'Darwin', 'Linux'
+
+# Heavy queries run below normal priority and without a console, so the scan
+# doesn't take CPU from the interview's camera and recording.
+QUIET_SUBPROCESS = (
+    {"creationflags": 0x00004000 | 0x08000000} if OS_NAME == "Windows" else {}
+)
 
 # ─────────────────────────────────────────────
 #  LOGGING SETUP
@@ -291,6 +306,8 @@ SCAN_WAIT_TIMEOUT = 60           # seconds a coalesced waiter waits before givin
 
 # Check name -> the thread that last ran it, so a check stuck from an earlier scan isn't doubled up.
 _check_threads = {}
+_last_good = {}  # check name -> (monotonic time, threats) from its last completed run
+_retry_at = {}   # check name -> monotonic time a failed check may run again
 
 event_log = []
 
@@ -580,21 +597,35 @@ def detect_suspicious_network_activity():
 # ─────────────────────────────────────────────
 #  BEHAVIORAL DETECTION 3: LOADED MODULES
 # ─────────────────────────────────────────────
+_memory_patterns_cache = None  # (monotonic time, threats) from the last successful run
+
+
 def detect_suspicious_memory_patterns():
     """
     Catches renamed AI tools by the DLLs loaded into each process. Windows only,
     one batched `tasklist /M` call. Only the module column is matched, so the
     host app's own name ('LetsHyre Secure Interview.exe') can't hit 'interview'.
+    Successful results are reused for MEMORY_PATTERNS_CACHE_S.
     """
-    threats = []
-
+    global _memory_patterns_cache
     if OS_NAME != "Windows":
-        return threats
+        return []
 
+    cached = _memory_patterns_cache
+    if cached is not None and time.monotonic() - cached[0] < MEMORY_PATTERNS_CACHE_S:
+        return [dict(t) for t in cached[1]]
+
+    threats = _query_loaded_modules()
+    _memory_patterns_cache = (time.monotonic(), threats)
+    return [dict(t) for t in threats]
+
+
+def _query_loaded_modules():
+    threats = []
     try:
         result = subprocess.run(
             ["tasklist", "/M", "/FO", "CSV"],
-            capture_output=True, text=True, timeout=8
+            capture_output=True, text=True, timeout=8, **QUIET_SUBPROCESS
         )
 
         # Blocked by policy/AV means empty stdout, not "nothing loaded".
@@ -943,7 +974,7 @@ def _query_virtual_audio():
         result = subprocess.run(
             ["powershell", "-NoProfile", "-NonInteractive", "-Command",
              "Get-PnpDevice -Class AudioEndpoint -Status OK | Select-Object FriendlyName | Format-List"],
-            capture_output=True, text=True, timeout=8
+            capture_output=True, text=True, timeout=8, **QUIET_SUBPROCESS
         )
         # Blocked by execution policy / AV means empty stdout, not "no devices".
         if result.returncode != 0:
@@ -1080,7 +1111,7 @@ def _camera_names_windows():
         ["powershell", "-NoProfile", "-NonInteractive", "-Command",
          "Get-CimInstance Win32_PnPEntity -Filter \"PNPClass='Camera' OR PNPClass='Image'\" "
          "| ForEach-Object { $_.Name }"],
-        capture_output=True, text=True, timeout=8
+        capture_output=True, text=True, timeout=8, **QUIET_SUBPROCESS
     )
     if result.returncode != 0:
         raise RuntimeError(
@@ -1482,43 +1513,72 @@ def _launch(name, target, *args):
     return thread
 
 
+def _usable_last_good(name, now):
+    entry = _last_good.get(name)
+    return entry if entry is not None and now - entry[0] <= LAST_GOOD_MAX_AGE_S else None
+
+
+def _settle_check(name, outcome, found, now, ran):
+    """
+    Record a check's outcome. A failed one falls back to its last good result,
+    "stale", while that is recent enough; otherwise it stays "error".
+    """
+    if outcome == "ok":
+        _last_good[name] = (now, [dict(t) for t in found])
+        _retry_at.pop(name, None)
+        return outcome, found
+    if ran:
+        _retry_at[name] = now + FAILED_CHECK_BACKOFF_S
+    last = _usable_last_good(name, now)
+    if last is None:
+        return "error", found
+    seen = {t.get("detail") for t in found}
+    return "stale", found + [dict(t) for t in last[1] if t.get("detail") not in seen]
+
+
 def _execute_full_scan():
     """
     Run every check in parallel within SCAN_BUDGET_S and compile the result.
     A check that errors, overruns the budget or is still stuck from an earlier
-    scan is "error", which makes the scan degraded and not safe_to_proceed.
+    scan is "error", unless its last good result is recent enough to report as
+    "stale". Any "error" makes the scan degraded and not safe_to_proceed.
     """
     global scan_results, event_log
 
     with scan_run_lock:
-        deadline = time.monotonic() + SCAN_BUDGET_S
+        started = time.monotonic()
+        deadline = started + SCAN_BUDGET_S
 
         # Each run writes to its own dict and list, so a check abandoned past the
         # deadline can't touch a later scan's result.
         runs = []
         for name, fn in _CHECKS:
             outcome, found = {}, []
-            runs.append((name, _launch(name, _run_check, name, fn, outcome, found), outcome, found))
+            backing_off = started < _retry_at.get(name, 0) and _usable_last_good(name, started)
+            thread = "skipped" if backing_off else _launch(name, _run_check, name, fn, outcome, found)
+            runs.append((name, thread, outcome, found))
         monitor_box = []
         monitor_thread = _launch(
             "physical_monitors", lambda: monitor_box.append(count_physical_monitors())
         )
 
         for thread in [run[1] for run in runs] + [monitor_thread]:
-            if thread is not None:
+            if isinstance(thread, threading.Thread):
                 thread.join(max(0.0, deadline - time.monotonic()))
 
+        now = time.monotonic()
         threats = []
         checks = {}
         for name, thread, outcome, found in runs:
-            if thread is None:
-                checks[name] = "error"
+            if thread is None or thread == "skipped":
+                result, found = "error", []
             elif thread.is_alive():
                 logger.warning(f"[CHECK FAILED] {name}: over the {SCAN_BUDGET_S}s scan budget")
-                checks[name] = "error"
+                result, found = "error", []
             else:
-                checks[name] = outcome.get(name, "error")
-                threats.extend(found)
+                result = outcome.get(name, "error")
+            checks[name], found = _settle_check(name, result, found, now, ran=thread != "skipped")
+            threats.extend(found)
 
         notices, kept = [], []
         for t in threats:
@@ -1535,7 +1595,8 @@ def _execute_full_scan():
         monitors = monitor_box[0] if monitor_box else None
         checks["physical_monitors"] = "error" if monitors is None else "ok"
 
-    failed    = sorted(n for n, outcome in checks.items() if outcome != "ok")
+    failed    = sorted(n for n, outcome in checks.items() if outcome not in ("ok", "stale"))
+    stale     = sorted(n for n, outcome in checks.items() if outcome == "stale")
     degraded  = len(failed) > 0
     # status only says whether anything was found; "couldn't look" is degraded.
     status    = "CLEAR" if len(threats) == 0 else "THREAT_DETECTED"
@@ -1573,6 +1634,7 @@ def _execute_full_scan():
         "safe": safe,
         "degraded": degraded,
         "failed_checks": failed,
+        "stale_checks": stale,
         "threats": [t["detail"] for t in threats]
     }
     event_log.append(log_entry)
@@ -1589,6 +1651,10 @@ def _execute_full_scan():
         logger.info(
             f"[SCAN #{result['scan_count']}] CLEAR — all {len(checks)} checks ran, "
             f"no behavioral threats detected."
+        )
+    if stale:
+        logger.warning(
+            f"[SCAN #{result['scan_count']}] using the last good result for: {', '.join(stale)}"
         )
 
     with scan_lock:

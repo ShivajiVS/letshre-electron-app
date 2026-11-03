@@ -27,7 +27,9 @@ class ScanBudgetTest(unittest.TestCase):
     def setUp(self):
         self.release = threading.Event()
         self.addCleanup(self.release.set)
-        agent._check_threads.clear()
+        for state in (agent._check_threads, agent._last_good, agent._retry_at):
+            state.clear()
+            self.addCleanup(state.clear)
         log = tempfile.NamedTemporaryFile(delete=False)
         log.close()
         self.addCleanup(os.remove, log.name)
@@ -151,6 +153,76 @@ class ScanBudgetTest(unittest.TestCase):
         self.assertEqual(result["checks"]["physical_monitors"], "error")
         self.assertTrue(result["degraded"])
 
+    def flaky(self, outcomes):
+        """A check that raises CheckError where `outcomes` says False; counts its runs."""
+        calls = []
+
+        def check():
+            calls.append(1)
+            if not outcomes[min(len(calls), len(outcomes)) - 1]:
+                raise agent.CheckError("slow query")
+            return [threat("seen")]
+        return check, calls
+
+    def test_a_failed_check_reports_its_last_good_result_as_stale(self):
+        check, _ = self.flaky([True, False])
+        self.use_checks([("cam", check)])
+        self.scan()
+        with mock.patch.object(agent, "FAILED_CHECK_BACKOFF_S", 0):
+            result, _ = self.scan()
+        self.assertEqual(result["checks"]["cam"], "stale")
+        self.assertFalse(result["degraded"])
+        self.assertEqual([t["detail"] for t in result["threats"]], ["seen"])
+        self.assertFalse(result["safe_to_proceed"], "a stale threat still blocks")
+
+    def test_a_stale_result_that_is_too_old_is_an_error(self):
+        check, _ = self.flaky([True, False])
+        self.use_checks([("cam", check)])
+        self.scan()
+        stamp, found = agent._last_good["cam"]
+        agent._last_good["cam"] = (stamp - agent.LAST_GOOD_MAX_AGE_S - 1, found)
+        result, _ = self.scan()
+        self.assertEqual(result["checks"]["cam"], "error")
+        self.assertTrue(result["degraded"])
+
+    def test_a_failed_check_backs_off_while_its_last_good_result_is_usable(self):
+        check, calls = self.flaky([True, False])
+        self.use_checks([("cam", check)])
+        self.scan()
+        self.scan()
+        third, _ = self.scan()
+        self.assertEqual(len(calls), 2, "not re-run during the backoff")
+        self.assertEqual(third["checks"]["cam"], "stale")
+
+        agent._retry_at["cam"] = 0
+        self.scan()
+        self.assertEqual(len(calls), 3)
+
+    def test_a_check_that_never_passed_is_retried_every_scan(self):
+        check, calls = self.flaky([False])
+        self.use_checks([("cam", check)])
+        first, _ = self.scan()
+        second, _ = self.scan()
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(second["checks"]["cam"], "error")
+        self.assertTrue(second["degraded"])
+
+    def test_a_check_over_budget_falls_back_to_stale(self):
+        state = {"hang": False}
+
+        def check():
+            if state["hang"]:
+                self.release.wait(10)
+            return []
+
+        self.use_checks([("slow", check)])
+        self.scan()
+        state["hang"] = True
+        result, elapsed = self.scan()
+        self.assertLess(elapsed, BUDGET + 0.5)
+        self.assertEqual(result["checks"]["slow"], "stale")
+        self.assertFalse(result["degraded"])
+
     def test_concurrent_callers_share_one_real_scan(self):
         calls = []
 
@@ -216,6 +288,32 @@ class VirtualAudioCacheTest(unittest.TestCase):
             agent._virtual_audio_cache = (stamp - agent.VIRTUAL_AUDIO_CACHE_S - 1, found)
             agent.detect_virtual_audio_devices()
         self.assertEqual(run.call_count, 2)
+
+
+class MemoryPatternsCacheTest(unittest.TestCase):
+    def setUp(self):
+        agent._memory_patterns_cache = None
+        self.addCleanup(setattr, agent, "_memory_patterns_cache", None)
+        patcher = mock.patch.object(agent, "OS_NAME", "Windows")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_success_is_cached_and_errors_are_not(self):
+        with mock.patch.object(agent.subprocess, "run", return_value=completed(1)) as run:
+            with self.assertRaises(agent.CheckError):
+                agent.detect_suspicious_memory_patterns()
+        self.assertIsNone(agent._memory_patterns_cache)
+
+        with mock.patch.object(agent.subprocess, "run", return_value=completed(0, "")) as run:
+            agent.detect_suspicious_memory_patterns()
+            agent.detect_suspicious_memory_patterns()
+        self.assertEqual(run.call_count, 1)
+
+    def test_tasklist_runs_below_normal_priority(self):
+        with mock.patch.object(agent.subprocess, "run", return_value=completed(0, "")) as run:
+            agent.detect_suspicious_memory_patterns()
+        self.assertEqual(run.call_args.kwargs.get("creationflags"),
+                         agent.QUIET_SUBPROCESS.get("creationflags"))
 
 
 class ReverseDnsTest(unittest.TestCase):

@@ -303,7 +303,10 @@ Most knobs live in `src/shared/constants.js`:
 | `DEVTOOLS_ENABLED`                       | off (`DEVTOOLS` in `.env`)                  | Dock DevTools, allow F12 / Ctrl+Shift+I              |
 | `DETECTION_INTERVAL_MS`                  | `5000`                                      | Live detection tick cadence                          |
 | `VIOLATION_COOLDOWN_MS`                  | `15000`                                     | Min gap between repeats of the same violation        |
-| `INDETERMINATE_ESCALATION_THRESHOLD`     | `3`                                         | Consecutive unverifiable scans before escalating     |
+| `INDETERMINATE_ESCALATION_THRESHOLD`     | `3`                                         | Unverifiable display/process ticks before escalating |
+| `AGENT_UNREACHABLE_GRACE_MS`             | `30000`                                     | Agent silence, restart included, before tampering    |
+| `AGENT_CHECK_GRACE_MS`                   | `60000`                                     | One agent check failing every scan before escalating |
+| `AGENT_SCAN_STALE_MS`                    | `45000`                                     | No new agent scan before it counts as stalled        |
 | `HARD_BLOCK_GRACE_MS`                    | `8000`                                      | Wait for an ack before re‑sending a hard block       |
 | `MAX_UNACKED_VIOLATIONS`                 | `20`                                        | Unacknowledged violations kept for redelivery        |
 | `GUARD_INTERVAL_MS`                      | `2000`                                      | Flow guard re-check cadence after the security check |

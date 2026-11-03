@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "description": "What the desktop app and the interview site promise each other. Source of truth is the app repo; the site keeps a copy in src/contract/. See docs/web-contract.md.",
   "violationCodes": [
     {
@@ -66,13 +66,13 @@
       "code": "agent_unreachable",
       "treatAs": "hard",
       "neverHardBlock": false,
-      "meaning": "The security agent didn't answer, or couldn't finish its checks, 3 times in a row."
+      "meaning": "The security agent didn't answer for 30s, a restart included: it may have been killed. `details.reason` is \"unreachable\"."
     },
     {
       "code": "check_unverified",
       "treatAs": "hard",
       "neverHardBlock": false,
-      "meaning": "The display (category \"hdmi\") or process (null) check couldn't answer 3 times in a row."
+      "meaning": "The display (category \"hdmi\") or process (null) check couldn't answer 3 times in a row, or (category \"agent\") one agent check failed every scan for a minute or the agent stopped scanning. `details` says which."
     },
     {
       "code": "window_minimize",
@@ -130,9 +130,7 @@
       "virtual camera",
       "virtual webcam"
     ],
-    "allowed": [
-      "nvidia broadcast"
-    ],
+    "allowed": ["nvidia broadcast"],
     "meaning": "Lowercase substrings of a camera's name. A camera matching a keyword and no allowed entry is virtual: the site never picks it, and the agent flags it while it feeds video. agent.py must hold the same lists."
   },
   "interviewRules": {
@@ -158,33 +156,28 @@
     "isHardBlock": "boolean: severity high or count >= 2; always false when neverHardBlock",
     "source": "electron",
     "timestamp": "ISO 8601 UTC",
+    "details": "agent escalations only: { reason: unreachable | check_failed | scan_stalled, checks?, downMs?, failingMs?, stalledMs?, scans?, scanCount?, restarted? }. Log it with the violation; never key handling on it",
     "redelivered": "true only on a re-send"
   },
   "electronAPI": {
     "methods": [
       {
         "name": "acknowledgeViolation",
-        "args": [
-          "id?"
-        ],
+        "args": ["id?"],
         "channelKey": "ACK_VIOLATION",
         "channel": "ack-violation",
         "kind": "send"
       },
       {
         "name": "interviewComplete",
-        "args": [
-          "reason"
-        ],
+        "args": ["reason"],
         "channelKey": "INTERVIEW_COMPLETE",
         "channel": "interview-complete",
         "kind": "send"
       },
       {
         "name": "abortInterview",
-        "args": [
-          "reason"
-        ],
+        "args": ["reason"],
         "channelKey": "ABORT_INTERVIEW",
         "channel": "abort-interview",
         "kind": "send"
@@ -198,9 +191,7 @@
       },
       {
         "name": "startProctoring",
-        "args": [
-          "meta?"
-        ],
+        "args": ["meta?"],
         "channelKey": "PROCTORING_START",
         "channel": "proctoring-start",
         "kind": "invoke"
@@ -214,29 +205,21 @@
       },
       {
         "name": "submitProctoringLog",
-        "args": [
-          "batch",
-          "token?"
-        ],
+        "args": ["batch", "token?"],
         "channelKey": "PROCTORING_LOG_SUBMIT",
         "channel": "proctoring-log-submit",
         "kind": "invoke"
       },
       {
         "name": "submitPending",
-        "args": [
-          "submit",
-          "token?"
-        ],
+        "args": ["submit", "token?"],
         "channelKey": "SUBMIT_PENDING",
         "channel": "submit-pending",
         "kind": "send"
       },
       {
         "name": "submitSettled",
-        "args": [
-          "sessionId"
-        ],
+        "args": ["sessionId"],
         "channelKey": "SUBMIT_SETTLED",
         "channel": "submit-settled",
         "kind": "send"
@@ -250,9 +233,7 @@
       },
       {
         "name": "devSimulateViolation",
-        "args": [
-          "code"
-        ],
+        "args": ["code"],
         "channelKey": "DEV_SIMULATE_VIOLATION",
         "channel": "dev-simulate-violation",
         "kind": "invoke"
@@ -305,11 +286,7 @@
         "meaning": "JSON: the interview-rules.json the candidate accepted on the app's rules step, plus `at` (ISO time). Missing when the app couldn't read the site's rules. When version and every limit match the site's own, the site starts without its rules and camera screens."
       }
     ],
-    "cleared": [
-      "interview_session",
-      "face_registered",
-      "face_registered_for"
-    ]
+    "cleared": ["interview_session", "face_registered", "face_registered_for"]
   },
   "reasons": {
     "format": "^[\\w:-]{1,40}$; anything else is stripped by the app, and an empty result becomes \"unknown\"",

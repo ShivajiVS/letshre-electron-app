@@ -347,12 +347,9 @@ test("threats on a scan the agent still calls safe raise nothing", async () => {
   assert.deepStrictEqual(violations(), []);
 });
 
-test("checks that keep failing escalate: agent_unreachable for the agent, check_unverified otherwise", async () => {
+test("display and process checks that keep failing escalate as check_unverified", async () => {
   h.fake.hdmi = async () => ({ detected: false, status: "indeterminate" });
   h.fake.processes = async () => ({ found: [], status: "indeterminate" });
-  h.fake.status = async () => {
-    throw new Error("agent down");
-  };
   await startSession();
   await tickTimes(2);
 
@@ -361,9 +358,150 @@ test("checks that keep failing escalate: agent_unreachable for the agent, check_
     [
       { code: CODE.CHECK_UNVERIFIED, category: "hdmi" },
       { code: CODE.CHECK_UNVERIFIED, category: null },
-      { code: CODE.AGENT_UNREACHABLE, category: "agent" },
     ]
   );
+});
+
+// ─── Agent health ────────────────────────────────────────────────────────────
+
+function useClock() {
+  mock.timers.reset();
+  mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"], now: 1_000_000 });
+}
+
+/** Runs ticks `stepMs` apart, the way the session interval would. */
+async function tickEvery(stepMs, n) {
+  for (let i = 0; i < n; i++) {
+    mock.timers.tick(stepMs);
+    await h.checks._internal.runDetectionTick(win);
+  }
+}
+
+const agentCodes = () =>
+  violations()
+    .filter((v) => v.category === "agent")
+    .map((v) => v.code);
+
+function scanSequence(make) {
+  let count = 0;
+  return () => make(++count);
+}
+
+test("an agent that stops answering is restarted, then reported after the grace", async () => {
+  useClock();
+  h.fake.status = async () => null;
+  await startSession();
+
+  await tickEvery(5000, 2);
+  assert.strictEqual(h.fake.restarts, 1, "restarted once it has been down 10s");
+  await tickEvery(5000, 3);
+  assert.deepStrictEqual(agentCodes(), [], "still inside the 30s grace");
+
+  await tickEvery(5000, 1);
+  const [pushed] = violations();
+  assert.strictEqual(pushed.code, CODE.AGENT_UNREACHABLE);
+  assert.strictEqual(pushed.isHardBlock, true);
+  assert.deepStrictEqual(pushed.details, { reason: "unreachable", downMs: 30000, restarted: true });
+});
+
+test("an agent that comes back after its restart is never reported", async () => {
+  useClock();
+  let down = true;
+  const next = scanSequence((n) => agentWith({ scan_count: n }));
+  h.fake.status = async () => (down ? null : next());
+  await startSession();
+
+  await tickEvery(5000, 3);
+  down = false;
+  await tickEvery(5000, 10);
+
+  assert.strictEqual(h.fake.restarts, 1);
+  assert.deepStrictEqual(violations(), []);
+});
+
+test("one degraded scan read on several ticks is not tampering", async () => {
+  useClock();
+  h.fake.status = async () =>
+    agentWith({ scan_count: 7, degraded: true, checks: { virtual_camera: "error" } });
+  await startSession();
+  await tickEvery(5000, 6);
+
+  assert.deepStrictEqual(violations(), []);
+});
+
+test("a check that fails briefly and recovers is not reported", async () => {
+  useClock();
+  const next = scanSequence((n) =>
+    n <= 4
+      ? agentWith({ scan_count: n, degraded: true, checks: { memory_patterns: "error" } })
+      : agentWith({ scan_count: n, checks: { memory_patterns: "ok" } })
+  );
+  h.fake.status = async () => next();
+  await startSession();
+  await tickEvery(12000, 12);
+
+  assert.deepStrictEqual(violations(), []);
+});
+
+test("a stale check result counts as done", async () => {
+  useClock();
+  const next = scanSequence((n) =>
+    agentWith({ scan_count: n, checks: { virtual_audio: "stale" } })
+  );
+  h.fake.status = async () => next();
+  await startSession();
+  await tickEvery(12000, 10);
+
+  assert.deepStrictEqual(violations(), []);
+});
+
+test("a check that keeps failing across scans is reported as check_unverified with its name", async () => {
+  useClock();
+  const next = scanSequence((n) =>
+    agentWith({ scan_count: n, degraded: true, checks: { virtual_camera: "error", network: "ok" } })
+  );
+  h.fake.status = async () => next();
+  await startSession();
+  await tickEvery(12000, 4);
+  assert.deepStrictEqual(violations(), [], "three scans, but not yet a minute");
+
+  await tickEvery(12000, 1);
+  const [pushed] = violations();
+  assert.strictEqual(pushed.code, CODE.CHECK_UNVERIFIED);
+  assert.strictEqual(pushed.category, "agent");
+  assert.match(pushed.event, /virtual_camera/);
+  assert.deepStrictEqual(pushed.details.checks, ["virtual_camera"]);
+  assert.strictEqual(pushed.details.reason, "check_failed");
+  assert.strictEqual(pushed.details.failingMs, 60000);
+  assert.strictEqual(h.fake.restarts, 0, "an answering agent is not restarted");
+});
+
+test("an agent whose scans stop moving is reported as stalled", async () => {
+  useClock();
+  h.fake.status = async () => agentWith({ scan_count: 3 });
+  await startSession();
+  await tickEvery(5000, 8);
+  assert.deepStrictEqual(violations(), []);
+
+  await tickEvery(5000, 1);
+  const [pushed] = violations();
+  assert.strictEqual(pushed.code, CODE.CHECK_UNVERIFIED);
+  assert.strictEqual(pushed.details.reason, "scan_stalled");
+});
+
+test("a restarted agent's empty first status is not judged as a failed scan", async () => {
+  useClock();
+  h.fake.status = async () => agentWith({ scan_count: 0, degraded: true, checks: {} });
+  await startSession();
+  await tickEvery(5000, 4);
+
+  assert.deepStrictEqual(violations(), []);
+});
+
+test("violations without details keep the plain payload", async () => {
+  await startSession();
+  h.checks.sendViolation(win, "Fullscreen exit attempt", "medium", { code: CODE.FULLSCREEN_EXIT });
+  assert.ok(!("details" in violations()[0]));
 });
 
 test("an unknown physical monitor count escalates as check_unverified on hdmi", async () => {

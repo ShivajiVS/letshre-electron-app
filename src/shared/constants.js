@@ -116,11 +116,27 @@ const UPDATE_RETRY_MS = 5 * 60 * 1000; // 5 minutes
 const UPDATE_MAX_RETRIES = 3;
 
 /**
- * Fail-closed: consecutive "indeterminate" checks (errored/timed out) tolerated
- * during an active interview before escalating to a violation. At
- * DETECTION_INTERVAL_MS = 5s, 3 ≈ 15s blind spot.
+ * Fail-closed: consecutive "indeterminate" display/process checks tolerated
+ * during an interview before escalating. At 5s ticks, 3 ≈ 15s blind spot.
  */
 const INDETERMINATE_ESCALATION_THRESHOLD = 3;
+
+/** An agent that stops answering mid-interview is restarted after this long. */
+const AGENT_RESTART_AFTER_MS = 10000;
+
+/** How long the agent may stay unreachable, restart included, before it counts as tampering. */
+const AGENT_UNREACHABLE_GRACE_MS = 30000;
+
+/**
+ * A check the agent can't complete escalates once it has failed this many
+ * distinct scans in a row over at least AGENT_CHECK_GRACE_MS. A slow check on
+ * a busy machine is not tampering.
+ */
+const AGENT_CHECK_FAILED_SCANS = 3;
+const AGENT_CHECK_GRACE_MS = 60000;
+
+/** An agent that answers but hasn't finished a new scan for this long has stalled. */
+const AGENT_SCAN_STALE_MS = 45000;
 
 /** How long the site has to acknowledge a hard block before it is sent again. */
 const HARD_BLOCK_GRACE_MS = 8000;
@@ -455,6 +471,11 @@ module.exports = {
   UPDATE_RETRY_MS,
   UPDATE_MAX_RETRIES,
   INDETERMINATE_ESCALATION_THRESHOLD,
+  AGENT_RESTART_AFTER_MS,
+  AGENT_UNREACHABLE_GRACE_MS,
+  AGENT_CHECK_FAILED_SCANS,
+  AGENT_CHECK_GRACE_MS,
+  AGENT_SCAN_STALE_MS,
   HARD_BLOCK_GRACE_MS,
   PREFLIGHT_HDMI_DEADLINE_MS,
   PREFLIGHT_PROCESS_DEADLINE_MS,

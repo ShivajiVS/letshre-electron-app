@@ -88,7 +88,7 @@ Payload delivered to the renderer, and the full code table: [web-contract.md](we
 
 ## Reliability rules
 
-- **Fail‑closed, never fail‑open.** A check that errors or times out returns `indeterminate`, not "clean". During a live interview, several consecutive `indeterminate` results (`INDETERMINATE_ESCALATION_THRESHOLD`, 3) escalate to `check_unverified` or `agent_unreachable`. A transient probe failure can never be a silent bypass. See [decisions/fail-closed.md](decisions/fail-closed.md).
+- **Fail‑closed, never fail‑open.** A check that errors or times out returns `indeterminate`, not "clean". During a live interview, 3 consecutive `indeterminate` display or process results escalate to `check_unverified`. The agent is judged per scan with its own grace periods (`AGENT_UNREACHABLE_GRACE_MS`, `AGENT_CHECK_GRACE_MS`, `AGENT_SCAN_STALE_MS`), so one slow check on a busy machine isn't tampering. A transient probe failure can never be a silent bypass. See [decisions/fail-closed.md](decisions/fail-closed.md).
 - **One verdict path.** All live checks run in a single `runDetectionTick` and route through one `sendViolation`, so there is no duplicate timer, race, or double‑fire.
 - **Pipe‑first agent.** Electron talks to the agent over a stdin/stdout JSON pipe (no TCP port, so no AV/firewall/port conflicts). HTTP `:9999` remains only as a best‑effort fallback, and a failed bind is non‑fatal.
 - **No local violation page.** Enforcement is the web app's job. See [decisions/site-owns-enforcement.md](decisions/site-owns-enforcement.md).

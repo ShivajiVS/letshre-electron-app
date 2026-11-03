@@ -95,6 +95,7 @@ The real site keys everything on `KEY_BY_CODE` in `src/lib/electronViolations.js
   "interviewId": "int_456",
   "appVersion": "1.4.4",
   "recordingOffsetMs": 61250, // position in the screen recording, or null
+  "details": { "reason": "check_failed", "checks": ["virtual_camera"] }, // agent escalations only
   "redelivered": true, // only on a re-send, which keeps the original id
 }
 ```
@@ -104,30 +105,31 @@ The real site keys everything on `KEY_BY_CODE` in `src/lib/electronViolations.js
 - For agent threats `event` is built from the code and the app names ("AI tool detected: parakeetai-desktop"). The agent's own detail can hold file paths, window titles and IP addresses, so it only goes to the local audit log.
 - The 15s cooldown and the escalation (`count`, `isHardBlock`) are per `event` text.
 - A site may treat a code as harder than `isHardBlock` says, never softer.
+- `details` comes only with `agent_unreachable` and agent `check_unverified`. It says why (`reason`: `unreachable`, `check_failed` or `scan_stalled`) and which agent checks failed. Put it in the proctoring log with the violation, so a termination can be explained later.
 
 ## Codes
 
 From `src/shared/violationCodes.js`. "Never hard" codes are `STRIKE_CODES` there, and `neverHardBlock: true` in the contract.
 
-| Code                  | Meaning                                                                                                                                                | Treat as                  |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------- |
-| `blocked_app`         | A blocklisted meeting, screen‑share, casting/remote or browser app is running. One violation per category, apps in `apps`                              | Hard                      |
-| `ai_tool`             | An AI assistant is running: on the blocklist (`category: "ai"`) or found by the agent (`"agent"`)                                                      | Hard                      |
-| `overlay`             | Agent: a transparent overlay window is over the screen                                                                                                 | Soft; hard if it persists |
-| `renamed_app`         | Agent: a blocked app is running under another name                                                                                                     | Hard                      |
-| `external_display`    | A second display is connected (HDMI, DisplayPort, USB‑C, wireless). Re‑sent every 15s while it stays connected                                         | Strike (never hard)       |
-| `mirrored_display`    | One display, but more physical monitors behind it ("Duplicate these displays"). Re‑sent every 15s while it stays                                       | Strike (never hard)       |
-| `remote_session`      | Agent: the computer is being used through remote desktop                                                                                               | Hard                      |
-| `virtual_machine`     | Agent: the computer is a virtual machine                                                                                                               | Hard                      |
-| `virtual_camera`      | Agent: a virtual camera (OBS Virtual Camera, ManyCam, …) is feeding video; installed alone doesn't count                                               | Soft; hard on repeat      |
-| `suspicious_activity` | Any other agent finding (window titles, modules, network, automation, virtual audio), or an event without its own code (deep‑link swap)                | Follow `isHardBlock`      |
-| `agent_unreachable`   | The security agent didn't answer, or couldn't finish its checks, 3 times in a row: it may have been killed                                             | Hard                      |
-| `check_unverified`    | The display (`hdmi`) or process (`null`) check couldn't answer 3 times in a row                                                                        | Hard                      |
-| `window_minimize`     | The candidate tried to minimize the window (undone)                                                                                                    | Hard                      |
-| `fullscreen_exit`     | The candidate left fullscreen (undone)                                                                                                                 | Soft; hard on repeat      |
-| `close_attempt`       | The candidate opened the exit dialog and cancelled it                                                                                                  | Hard                      |
-| `focus_lost`          | Another app came to the front (Windows: its name is in `apps`). Electron brings the interview back; the site's own focus tracking already strikes this | Site decides (never hard) |
-| `virtual_desktop`     | Windows: the interview window is no longer on the current virtual desktop                                                                              | Site decides (never hard) |
+| Code                  | Meaning                                                                                                                                                                    | Treat as                  |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| `blocked_app`         | A blocklisted meeting, screen‑share, casting/remote or browser app is running. One violation per category, apps in `apps`                                                  | Hard                      |
+| `ai_tool`             | An AI assistant is running: on the blocklist (`category: "ai"`) or found by the agent (`"agent"`)                                                                          | Hard                      |
+| `overlay`             | Agent: a transparent overlay window is over the screen                                                                                                                     | Soft; hard if it persists |
+| `renamed_app`         | Agent: a blocked app is running under another name                                                                                                                         | Hard                      |
+| `external_display`    | A second display is connected (HDMI, DisplayPort, USB‑C, wireless). Re‑sent every 15s while it stays connected                                                             | Strike (never hard)       |
+| `mirrored_display`    | One display, but more physical monitors behind it ("Duplicate these displays"). Re‑sent every 15s while it stays                                                           | Strike (never hard)       |
+| `remote_session`      | Agent: the computer is being used through remote desktop                                                                                                                   | Hard                      |
+| `virtual_machine`     | Agent: the computer is a virtual machine                                                                                                                                   | Hard                      |
+| `virtual_camera`      | Agent: a virtual camera (OBS Virtual Camera, ManyCam, …) is feeding video; installed alone doesn't count                                                                   | Soft; hard on repeat      |
+| `suspicious_activity` | Any other agent finding (window titles, modules, network, automation, virtual audio), or an event without its own code (deep‑link swap)                                    | Follow `isHardBlock`      |
+| `agent_unreachable`   | The security agent didn't answer for 30s, a restart included: it may have been killed                                                                                      | Hard                      |
+| `check_unverified`    | The display (`hdmi`) or process (`null`) check couldn't answer 3 times in a row, or (`agent`) one agent check failed every scan for a minute or the agent stopped scanning | Hard                      |
+| `window_minimize`     | The candidate tried to minimize the window (undone)                                                                                                                        | Hard                      |
+| `fullscreen_exit`     | The candidate left fullscreen (undone)                                                                                                                                     | Soft; hard on repeat      |
+| `close_attempt`       | The candidate opened the exit dialog and cancelled it                                                                                                                      | Hard                      |
+| `focus_lost`          | Another app came to the front (Windows: its name is in `apps`). Electron brings the interview back; the site's own focus tracking already strikes this                     | Site decides (never hard) |
+| `virtual_desktop`     | Windows: the interview window is no longer on the current virtual desktop                                                                                                  | Site decides (never hard) |
 
 Every agent threat code in a scan is sent, not only the first. Threats sharing a code are one violation, with all their apps.
 

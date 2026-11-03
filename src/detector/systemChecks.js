@@ -13,6 +13,11 @@ const {
   PREFLIGHT_REVERIFY_DEADLINE_MS,
   PRE_PROCEED_INTERVAL_MS,
   AGENT_RESTART_AFTER_FAILURES,
+  AGENT_RESTART_AFTER_MS,
+  AGENT_UNREACHABLE_GRACE_MS,
+  AGENT_CHECK_FAILED_SCANS,
+  AGENT_CHECK_GRACE_MS,
+  AGENT_SCAN_STALE_MS,
   MAX_UNACKED_VIOLATIONS,
 } = require("../shared/constants");
 const {
@@ -74,7 +79,6 @@ const unacked = new Map();
 let hardBlockTimer = null;
 let hardBlockId = null;
 
-// Pre-proceed monitor state (see the monitor section below).
 let preProceedInterval = null;
 let _preProceedWin = null;
 let _preProceedDesired = false;
@@ -89,11 +93,11 @@ let _live = null;
 const indeterminateStreak = new Map(); // check key → consecutive indeterminate count
 
 /** Check id reported with each escalation; the process check spans several. */
-const ESCALATION_CATEGORY = { hdmi: "hdmi", mirror: "hdmi", agent: "agent", process: null };
+const ESCALATION_CATEGORY = { hdmi: "hdmi", mirror: "hdmi", process: null };
 
 /**
  * @param {Electron.BrowserWindow} win
- * @param {"hdmi"|"process"|"agent"|"mirror"} key
+ * @param {"hdmi"|"process"|"mirror"} key
  * @param {string} label - human-readable check name for the violation message
  * @param {string} status - "clear" | "violation" | "indeterminate"
  */
@@ -112,12 +116,132 @@ function trackIndeterminate(win, key, label, status) {
       win,
       `${label} could not be verified for ${streak} consecutive scans — possible tampering`,
       "high",
-      {
-        code: key === "agent" ? CODE.AGENT_UNREACHABLE : CODE.CHECK_UNVERIFIED,
-        category: ESCALATION_CATEGORY[key] ?? null,
-      }
+      { code: CODE.CHECK_UNVERIFIED, category: ESCALATION_CATEGORY[key] ?? null }
     );
     indeterminateStreak.set(key, 0); // reset so cooldown governs re-fire cadence
+  }
+}
+
+// The agent's status is read every tick but only changes when it finishes a
+// scan, so a failing check is judged once per scan, never once per read.
+let agentDownSince = null;
+let agentRestarted = false;
+let lastScanCount;
+let lastScanChangedAt = null;
+const failingChecks = new Map(); // check name → { since, scans }
+
+function _resetAgentHealth() {
+  agentDownSince = null;
+  agentRestarted = false;
+  lastScanCount = undefined;
+  lastScanChangedAt = null;
+  failingChecks.clear();
+}
+
+/** Checks the agent couldn't complete. physical_monitors is judged by the mirror check. */
+function failedAgentChecks(status) {
+  if (status.degraded !== true) {
+    return [];
+  }
+  const checks = Object.entries(status.checks || {});
+  if (checks.length === 0) {
+    return ["scan"];
+  }
+  return checks
+    .filter(
+      ([name, outcome]) => outcome !== "ok" && outcome !== "stale" && name !== "physical_monitors"
+    )
+    .map(([name]) => name);
+}
+
+/**
+ * @param {Electron.BrowserWindow} win
+ * @param {object|null} status - null when the agent didn't answer
+ * @returns {boolean} whether `status` is a scan not judged before
+ */
+function trackAgentHealth(win, status, now = Date.now()) {
+  if (!status) {
+    trackAgentDown(win, now);
+    return false;
+  }
+  if (agentDownSince !== null) {
+    logger.info(`[systemChecks] security agent answering again after ${now - agentDownSince}ms`);
+  }
+  agentDownSince = null;
+  agentRestarted = false;
+
+  const scanCount = Number.isInteger(status.scan_count) ? status.scan_count : null;
+  if (scanCount !== null && scanCount === lastScanCount) {
+    if (now - lastScanChangedAt >= AGENT_SCAN_STALE_MS) {
+      sendViolation(win, "Security agent stopped scanning — possible tampering", "high", {
+        code: CODE.CHECK_UNVERIFIED,
+        category: "agent",
+        details: { reason: "scan_stalled", stalledMs: now - lastScanChangedAt, scanCount },
+      });
+      lastScanChangedAt = now;
+    }
+    return false;
+  }
+  lastScanCount = scanCount;
+  lastScanChangedAt = now;
+  // A restarted agent answers with scan 0 until its first scan lands.
+  if (scanCount === 0) {
+    return false;
+  }
+  trackFailingChecks(win, failedAgentChecks(status), now, scanCount);
+  return true;
+}
+
+function trackAgentDown(win, now) {
+  agentDownSince ??= now;
+  const downMs = now - agentDownSince;
+  logger.warn(`[systemChecks] security agent not answering (${downMs}ms)`);
+  if (!agentRestarted && downMs >= AGENT_RESTART_AFTER_MS) {
+    agentRestarted = true;
+    restartAgent().catch((e) => logger.warn("[systemChecks] agent restart failed:", e.message));
+  }
+  if (downMs >= AGENT_UNREACHABLE_GRACE_MS) {
+    sendViolation(win, "Security agent stopped responding — possible tampering", "high", {
+      code: CODE.AGENT_UNREACHABLE,
+      category: "agent",
+      details: { reason: "unreachable", downMs, restarted: agentRestarted },
+    });
+    agentDownSince = now;
+    agentRestarted = false;
+  }
+}
+
+function trackFailingChecks(win, failed, now, scanCount) {
+  for (const name of failingChecks.keys()) {
+    if (!failed.includes(name)) {
+      failingChecks.delete(name);
+    }
+  }
+  for (const name of failed) {
+    const entry = failingChecks.get(name) ?? { since: now, scans: 0 };
+    entry.scans += 1;
+    failingChecks.set(name, entry);
+    const failingMs = now - entry.since;
+    logger.warn(`[systemChecks] agent check ${name} failed (${entry.scans} scans, ${failingMs}ms)`);
+    if (entry.scans >= AGENT_CHECK_FAILED_SCANS && failingMs >= AGENT_CHECK_GRACE_MS) {
+      sendViolation(
+        win,
+        `Security agent check ${name} could not complete — possible tampering`,
+        "high",
+        {
+          code: CODE.CHECK_UNVERIFIED,
+          category: "agent",
+          details: {
+            reason: "check_failed",
+            checks: [name],
+            failingMs,
+            scans: entry.scans,
+            scanCount,
+          },
+        }
+      );
+      failingChecks.set(name, { since: now, scans: 0 });
+    }
   }
 }
 
@@ -215,23 +339,19 @@ async function runDetectionTick(win) {
     processStatus: proc.status,
     blockedApps: found,
     agentReachable,
+    agentScanCount: agentStatus?.scan_count ?? null,
     agentThreatCount: agentStatus?.threats?.length ?? 0,
     agentDegraded: agentStatus?.degraded ?? null,
+    agentFailedChecks: agentReachable ? failedAgentChecks(agentStatus) : null,
     physicalMonitors: agentStatus?.physical_monitors ?? null,
   });
 
   trackIndeterminate(win, "hdmi", "External display check", hdmi.status);
   trackIndeterminate(win, "process", "Blocked-process check", proc.status);
-  // A degraded agent ran but some of its own checks errored, so it can't vouch either.
-  trackIndeterminate(
-    win,
-    "agent",
-    "Security agent deep scan (possible tamper)",
-    !agentReachable || agentStatus.degraded === true ? "indeterminate" : "clear"
-  );
+  const newScan = trackAgentHealth(win, agentStatus);
 
   // A null monitor count means "unknown", never "no mirrored display".
-  if (agentReachable) {
+  if (newScan) {
     const physicalCount = agentStatus.physical_monitors;
     trackIndeterminate(
       win,
@@ -322,6 +442,7 @@ function start(win) {
   }
   clearInterval(detectionInterval);
   detachSessionWin();
+  _resetAgentHealth();
   isSessionActive = true;
   sessionWin = win;
   win?.webContents?.on("did-finish-load", redeliverUnacked);
@@ -379,6 +500,7 @@ function tickNow(tick) {
  * @property {string|null} interviewId
  * @property {string|null} appVersion
  * @property {number|null} recordingOffsetMs - position in the screen recording, null when not recording
+ * @property {object} [details] - why an agent escalation fired, for the proctoring log
  * @property {boolean} [redelivered] - a re-send of an unacknowledged violation
  */
 
@@ -412,7 +534,7 @@ function _appNames(apps) {
  * @param {Electron.BrowserWindow} win
  * @param {string} event
  * @param {"high"|"medium"} severity
- * @param {{code?: string, category?: string|null, apps?: string[]}} [meta]
+ * @param {{code?: string, category?: string|null, apps?: string[], details?: object}} [meta]
  */
 function sendViolation(win, event, severity, meta = {}) {
   if (!isSessionActive) {
@@ -448,6 +570,9 @@ function sendViolation(win, event, severity, meta = {}) {
     appVersion: _appVersion(),
     recordingOffsetMs: _recordingOffsetMs(),
   };
+  if (meta?.details && typeof meta.details === "object") {
+    payload.details = { ...meta.details };
+  }
   if (!sessionContext.sessionId && !sessionContext.interviewId) {
     awaitingSessionIds.add(payload);
   }
@@ -926,6 +1051,7 @@ function detachSessionWin() {
 function _endSession() {
   isSessionActive = false;
   indeterminateStreak.clear();
+  _resetAgentHealth();
   clearUnacked();
   detachSessionWin();
   clearInterval(detectionInterval);

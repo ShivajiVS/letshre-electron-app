@@ -70,3 +70,10 @@ test("before init nothing is read or written", () => {
   fresh.save(reports);
   assert.deepStrictEqual(fresh.load(), []);
 });
+
+test("the old unsent-violation queue is removed on init", () => {
+  const legacy = path.join(dir, store.LEGACY_FILE_NAME);
+  fs.writeFileSync(legacy, "old");
+  store.init(dir, key);
+  assert.ok(!fs.existsSync(legacy));
+});

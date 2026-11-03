@@ -102,9 +102,6 @@ const VIOLATION_COOLDOWN_MS = 15000;
 /** How often (ms) to run hardware + agent deep-scan polls during interview. */
 const DETECTION_INTERVAL_MS = 5000;
 
-/** How often (ms) the Electron app sends a heartbeat to the backend during interview. */
-const HEARTBEAT_INTERVAL_MS = 30000;
-
 /**
  * How often (ms) to re-check GitHub for app updates. Suppressed during an
  * active interview — a proctor client must never restart mid-session.
@@ -356,6 +353,12 @@ const IPC = {
   PROCTORING_START: "proctoring-start", // renderer invoke → main
   PROCTORING_STOP: "proctoring-stop", // renderer send → main
 
+  // Backend hand-over (backendOutbox.js): the site's finished proctoring log,
+  // and the auto-submit it is sending, so both survive the page.
+  PROCTORING_LOG_SUBMIT: "proctoring-log-submit", // renderer invoke → main
+  SUBMIT_PENDING: "submit-pending", // renderer send → main
+  SUBMIT_SETTLED: "submit-settled", // renderer send → main
+
   // Push to interview site (main → renderer)
   PUSH_PROCTORING_STARTED: "push-proctoring-started",
   PUSH_PROCTORING_ERROR: "push-proctoring-error",
@@ -448,7 +451,6 @@ module.exports = {
   VIDEO_UPLOAD_STATUS_PATH,
   VIOLATION_COOLDOWN_MS,
   DETECTION_INTERVAL_MS,
-  HEARTBEAT_INTERVAL_MS,
   UPDATE_CHECK_INTERVAL_MS,
   UPDATE_RETRY_MS,
   UPDATE_MAX_RETRIES,

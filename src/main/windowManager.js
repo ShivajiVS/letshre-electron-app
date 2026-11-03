@@ -21,6 +21,7 @@ const localeManager = require("./localeManager");
 const { createLockdownGuard, releaseLock } = require("./lockdownGuard");
 const { INTERVIEW_BASE_URL, DEVTOOLS_ENABLED } = require("../shared/constants");
 const { CODE } = require("../shared/violationCodes");
+const backendOutbox = require("./backendOutbox");
 
 /**
  * Text for the native "Exit Interview?" dialog. It is drawn by the main process,
@@ -325,6 +326,8 @@ function _createInterviewWindow(display) {
   _forwardInterviewConsole(target);
 
   target.on("closed", () => {
+    // The page can no longer finish an auto-submit it started.
+    backendOutbox.releaseHeld("interview window closed");
     if (interviewWin !== target) {
       return;
     }

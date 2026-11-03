@@ -17,6 +17,7 @@ const authManager = require("./authManager");
 const pendingUploads = require("./pendingUploads");
 const { loadSpillKey } = require("./spillKey");
 const reportStore = require("./reportStore");
+const backendOutbox = require("./backendOutbox");
 const screenRecorder = require("./screenRecorder");
 const { isMediaFrameAllowed, isPermissionAllowed } = require("./ipcScope");
 
@@ -48,7 +49,7 @@ async function onReady() {
   // 0b. Restore persisted auth session (safeStorage is ready after app.whenReady)
   authManager.init();
 
-  // 0c. Open the recording spill store and the unsent-violation store before
+  // 0c. Open the recording spill store and the backend outbox store before
   //     anything can write to them.
   try {
     const userData = app.getPath("userData");
@@ -128,8 +129,8 @@ async function onReady() {
   //    Interview-safe: checks/installs are gated on interview state internally.
   updater.init();
 
-  // 7. Violation reports a previous run could not send; they go out once a token exists.
-  startDetection.restorePendingReports();
+  // 7. Proctoring logs and auto-submits a previous run could not deliver.
+  backendOutbox.restore();
 
   // 8. Finish any recording upload interrupted by a previous quit/crash.
   //    Deliberately not awaited: draining a backlog can take minutes and must

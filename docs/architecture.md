@@ -217,8 +217,7 @@ launch ─▶ onReady (src/main/app.js)
    ├─ blocked processes launched mid-interview (also checked the moment the agent sees one start)
    ├─ agent deep-scan threats
    ├─ agent reachability (anti-tamper)
-   ├─ display added/removed → immediate tick (debounced 300ms)
-   └─ heartbeat to backend (every 30s)
+   └─ display added/removed → immediate tick (debounced 300ms)
    RECORDING (web app calls startProctoring; chunks upload while recording)
             │  web app signals interviewComplete
             ▼
@@ -239,7 +238,6 @@ flowchart TD
         L1["lockdownGuard · osLockdown<br/>(minimize, fullscreen exit, focus)"] --> S
         T --> S["sendViolation(win, event, severity, {code, category, apps})"]
         S --> H["holdUntilAcked<br/>re-sent on page load, hard block after 8s"]
-        S --> B["POST /interview/violation<br/>retry queue"]
         S --> P["webContents.send('push-violation')"]
     end
     subgraph Site["Interview site"]
@@ -274,21 +272,23 @@ Recording failures never block the interview; they are reported to the web app v
 
 The client calls these on `API_BASE_URL` (from `.env`, no default) with `Authorization: Bearer <accessToken>` (except login/refresh):
 
-| Endpoint                                                                          | When                                                                                                                                                  |
-| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /user/v1/login/` · `POST /user/v1/login_refresh/` · `POST /user/v1/logout/` | Sign‑in, token refresh, sign‑out                                                                                                                      |
-| `GET /user/v1/candidate_profile/`                                                 | Dashboard; also verifies the saved session at launch                                                                                                  |
-| `POST /user/v1/candidate/interview/face_verification/`                            | Identity verification photo                                                                                                                           |
-| `POST /user/v1/candidate/interview/voice_sample/`                                 | Identity verification voice sample                                                                                                                    |
-| `POST /user/v1/candidate_resume_ai/skills_for_role/`                              | Role selection                                                                                                                                        |
-| `POST /user/v1/candidate_interview/video_upload/start/`                           | Register a recording upload                                                                                                                           |
-| `POST /user/v1/candidate_interview/video_upload/chunk/`                           | Each recording chunk, during the interview                                                                                                            |
-| `POST /user/v1/candidate_interview/video_upload/complete/`                        | After the last chunk is confirmed                                                                                                                     |
-| `GET /user/v1/candidate_interview/video_upload/status/<uploadId>/`                | Poll until the backend has merged the video                                                                                                           |
-| `POST /interview/heartbeat`                                                       | Every 30s during the interview — `{ timestamp, sessionId, interviewId, appVersion }`                                                                  |
-| `POST /interview/violation`                                                       | On every violation (retried, also after a restart) — the [violation payload](#violation-model); dedupe on `id`; a 4xx other than 401/408/429 drops it |
+| Endpoint                                                                          | When                                                                                                     |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `POST /user/v1/login/` · `POST /user/v1/login_refresh/` · `POST /user/v1/logout/` | Sign‑in, token refresh, sign‑out                                                                         |
+| `GET /user/v1/candidate_profile/`                                                 | Dashboard; also verifies the saved session at launch                                                     |
+| `POST /user/v1/candidate/interview/face_verification/`                            | Identity verification photo                                                                              |
+| `POST /user/v1/candidate/interview/voice_sample/`                                 | Identity verification voice sample                                                                       |
+| `POST /user/v1/candidate_resume_ai/skills_for_role/`                              | Role selection                                                                                           |
+| `POST /user/v1/candidate_interview/video_upload/start/`                           | Register a recording upload                                                                              |
+| `POST /user/v1/candidate_interview/video_upload/chunk/`                           | Each recording chunk, during the interview                                                               |
+| `POST /user/v1/candidate_interview/video_upload/complete/`                        | After the last chunk is confirmed                                                                        |
+| `GET /user/v1/candidate_interview/video_upload/status/<uploadId>/`                | Poll until the backend has merged the video                                                              |
+| `POST /user/v1/candidate/interview/proctoring/log/`                               | The site's finished proctoring log, handed over with `submitProctoringLog` (see below)                   |
+| `POST /user/v1/candidate/interview/ai/auto_submit/force/`                         | Only if the site started an auto-submit and its window closed, or the app restarted, before it succeeded |
 
-> **Required for enforcement:** `POST /interview/violation` must be implemented server‑side to record/flag/terminate sessions. Until it exists, violation reports are queued and retried client‑side.
+The last two go through `src/main/backendOutbox.js`: main-process requests that survive the interview window closing, kept sealed in `userData/pending-outbox.bin` until the backend answers, and retried with backoff (2s doubling to 60s) including after a relaunch. Network errors, 5xx, 408, 429 and 401 are retried; any other 4xx drops the item (for the auto-submit that is usually "already submitted"). Items older than 7 days are dropped on launch.
+
+Violations are not posted by the app: the site records every one in its proctoring log, which is how they reach the backend. (An earlier `POST /interview/violation` and `POST /interview/heartbeat` were never built on the backend and have been removed.)
 
 Two optional security-check endpoints (blocklist policy and scan telemetry) are described in [detection.md](detection.md#optional-security-check-endpoints).
 
@@ -303,7 +303,6 @@ Most knobs live in `src/shared/constants.js`:
 | `DEVTOOLS_ENABLED`                       | off (`DEVTOOLS` in `.env`)                  | Dock DevTools, allow F12 / Ctrl+Shift+I              |
 | `DETECTION_INTERVAL_MS`                  | `5000`                                      | Live detection tick cadence                          |
 | `VIOLATION_COOLDOWN_MS`                  | `15000`                                     | Min gap between repeats of the same violation        |
-| `HEARTBEAT_INTERVAL_MS`                  | `30000`                                     | Backend heartbeat cadence                            |
 | `INDETERMINATE_ESCALATION_THRESHOLD`     | `3`                                         | Consecutive unverifiable scans before escalating     |
 | `HARD_BLOCK_GRACE_MS`                    | `8000`                                      | Wait for an ack before re‑sending a hard block       |
 | `MAX_UNACKED_VIOLATIONS`                 | `20`                                        | Unacknowledged violations kept for redelivery        |

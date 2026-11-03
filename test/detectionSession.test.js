@@ -1,31 +1,17 @@
 "use strict";
 
-// What the live session attaches to its reports, how unsent reports are
-// retried and kept across a restart, and display changes mid-interview.
+// What the live session attaches to the violations it pushes, and display
+// changes mid-interview.
 
-const { test, mock, beforeEach, afterEach, after } = require("node:test");
+const { test, mock, beforeEach, afterEach } = require("node:test");
 const assert = require("node:assert");
-const crypto = require("node:crypto");
-const fs = require("node:fs");
-const os = require("node:os");
-const path = require("node:path");
 const { EventEmitter } = require("node:events");
 const axios = require("axios");
 
 const { loadSystemChecks } = require("./_preflightHarness");
-const { HEARTBEAT_INTERVAL_MS } = require("../src/shared/constants");
+const { IPC } = require("../src/shared/constants");
 const { CODE } = require("../src/shared/violationCodes");
 const logger = require("../src/main/logger");
-
-const PROTOCOL_HANDLER = require.resolve("../src/main/protocolHandler");
-const REPORT_STORE = require.resolve("../src/main/reportStore");
-require.cache[PROTOCOL_HANDLER] = {
-  id: PROTOCOL_HANDLER,
-  filename: PROTOCOL_HANDLER,
-  loaded: true,
-  exports: { getCurrentAccessToken: () => "token" },
-};
-after(() => delete require.cache[PROTOCOL_HANDLER]);
 
 const settle = async () => {
   for (let i = 0; i < 10; i++) {
@@ -35,34 +21,21 @@ const settle = async () => {
 
 function fakeWin() {
   const webContents = new EventEmitter();
-  webContents.send = () => {};
-  return { webContents, isDestroyed: () => false };
-}
-
-function httpError(status) {
-  return Object.assign(new Error(`Request failed with status code ${status}`), {
-    response: { status },
-  });
+  const sent = [];
+  webContents.send = (channel, payload) => sent.push({ channel, payload });
+  return { webContents, sent, isDestroyed: () => false };
 }
 
 let h;
 let win;
-let posts;
-let heartbeats;
-let respond;
+let backendPosts;
 
 beforeEach(() => {
   mock.timers.enable({ apis: ["setTimeout", "setInterval"] });
-  posts = [];
-  heartbeats = [];
-  respond = async () => ({ data: {} });
-  mock.method(axios, "post", async (url, body) => {
-    if (url.endsWith("/interview/heartbeat")) {
-      heartbeats.push(body);
-      return { data: {} };
-    }
-    posts.push(body);
-    return respond(body);
+  backendPosts = [];
+  mock.method(axios, "post", async (url) => {
+    backendPosts.push(url);
+    return { data: {} };
   });
   h = loadSystemChecks();
   win = fakeWin();
@@ -73,6 +46,8 @@ afterEach(() => {
   mock.restoreAll();
   mock.timers.reset();
 });
+
+const pushed = () => win.sent.filter((m) => m.channel === IPC.PUSH_VIOLATION).map((m) => m.payload);
 
 async function startSession() {
   h.checks.start(win);
@@ -92,44 +67,27 @@ test("a violation carries the session ids, app version and recording offset", as
   raise();
   await settle();
 
-  const [posted] = posts;
-  assert.strictEqual(posted.sessionId, "sess-1");
-  assert.strictEqual(posted.interviewId, "int-9");
-  assert.strictEqual(posted.recordingOffsetMs, 61250);
-  assert.ok("appVersion" in posted);
+  const [violation] = pushed();
+  assert.strictEqual(violation.sessionId, "sess-1");
+  assert.strictEqual(violation.interviewId, "int-9");
+  assert.strictEqual(violation.recordingOffsetMs, 61250);
+  assert.ok("appVersion" in violation);
 });
 
-test("a violation raised before the site sent its ids gets them while still queued", async () => {
-  respond = async () => {
-    throw new Error("socket hang up");
-  };
+test("a violation raised before the site sent its ids gets them on redelivery", async () => {
   await startSession();
   raise();
   await settle();
-  assert.strictEqual(posts[0].sessionId, null);
-  assert.strictEqual(posts[0].recordingOffsetMs, null);
+  assert.strictEqual(pushed()[0].sessionId, null);
+  assert.strictEqual(pushed()[0].recordingOffsetMs, null);
 
-  respond = async () => ({ data: {} });
   h.checks.setSessionContext({ sessionId: "sess-1", interviewId: "int-9" });
-  await h.checks._internal.flushReports();
+  win.webContents.emit("did-finish-load");
 
-  const delivered = posts.at(-1);
-  assert.strictEqual(delivered.sessionId, "sess-1");
-  assert.strictEqual(delivered.interviewId, "int-9");
-  assert.deepStrictEqual(h.checks._internal.pendingReports(), []);
-});
-
-test("the heartbeat carries the session ids and app version", async () => {
-  await startSession();
-  h.checks.setSessionContext({ sessionId: "sess-1", interviewId: "int-9" });
-  mock.timers.tick(HEARTBEAT_INTERVAL_MS);
-  await settle();
-
-  assert.strictEqual(heartbeats.length, 1);
-  assert.strictEqual(heartbeats[0].sessionId, "sess-1");
-  assert.strictEqual(heartbeats[0].interviewId, "int-9");
-  assert.ok("appVersion" in heartbeats[0]);
-  assert.ok(!Number.isNaN(Date.parse(heartbeats[0].timestamp)));
+  const redelivered = pushed().at(-1);
+  assert.strictEqual(redelivered.redelivered, true);
+  assert.strictEqual(redelivered.sessionId, "sess-1");
+  assert.strictEqual(redelivered.interviewId, "int-9");
 });
 
 test("the session ids are forgotten when the session ends", async () => {
@@ -142,7 +100,7 @@ test("the session ids are forgotten when the session ends", async () => {
   await startSession();
   raise("Fullscreen exit attempt");
   await settle();
-  assert.strictEqual(posts.at(-1).sessionId, null);
+  assert.strictEqual(pushed().at(-1).sessionId, null);
 });
 
 test("audit events carry the run id and session id", async () => {
@@ -155,102 +113,15 @@ test("audit events carry the run id and session id", async () => {
   assert.strictEqual(entry.sessionId, "sess-1");
 });
 
-// ─── Retry ───────────────────────────────────────────────────────────────────
-
-test("a network error keeps the report and retries with growing backoff", async () => {
-  respond = async () => {
-    throw new Error("ECONNRESET");
-  };
-  await startSession();
-  raise();
-  await settle();
-  assert.strictEqual(posts.length, 1);
-
-  mock.timers.tick(2000);
-  await settle();
-  assert.strictEqual(posts.length, 2, "first retry after 2s");
-
-  mock.timers.tick(2000);
-  await settle();
-  assert.strictEqual(posts.length, 2, "the second wait is longer");
-
-  respond = async () => ({ data: {} });
-  mock.timers.tick(2000);
-  await settle();
-  assert.strictEqual(posts.length, 3);
-  assert.deepStrictEqual(h.checks._internal.pendingReports(), []);
-});
-
-for (const status of [500, 503, 408, 429, 401]) {
-  test(`a ${status} keeps the report queued`, async () => {
-    respond = async () => {
-      throw httpError(status);
-    };
-    await startSession();
-    raise();
-    await settle();
-    assert.strictEqual(h.checks._internal.pendingReports().length, 1);
-  });
-}
-
-for (const status of [400, 403, 404, 422]) {
-  test(`a ${status} drops that report and lets the next one through`, async () => {
-    const warn = mock.method(logger, "warn");
-    await startSession();
-    respond = async (body) => {
-      if (body.event === "Attempt to close interview window") {
-        throw httpError(status);
-      }
-      return { data: {} };
-    };
-    // Queue both before the first post settles.
-    raise();
-    raise("Fullscreen exit attempt");
-    await settle();
-
-    assert.deepStrictEqual(
-      posts.map((p) => p.event),
-      ["Attempt to close interview window", "Fullscreen exit attempt"]
-    );
-    assert.deepStrictEqual(h.checks._internal.pendingReports(), []);
-    assert.ok(warn.mock.calls.some((c) => String(c.arguments[0]).includes(`(${status})`)));
-  });
-}
-
-// ─── Persistence ─────────────────────────────────────────────────────────────
-
-test("unsent reports survive a restart and are sent after the next launch", async (t) => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "reports-"));
-  const key = crypto.randomBytes(32);
-  const reportStore = require(REPORT_STORE);
-  reportStore.init(dir, key);
-  t.after(() => {
-    delete require.cache[REPORT_STORE];
-    fs.rmSync(dir, { recursive: true, force: true });
-  });
-
-  respond = async () => {
-    throw new Error("offline");
-  };
+test("a session posts nothing to the backend: no heartbeat, no violation reports", async () => {
   await startSession();
   h.checks.setSessionContext({ sessionId: "sess-1", interviewId: "int-9" });
   raise();
+  mock.timers.tick(60_000);
   await settle();
-  const unsent = h.checks._internal.pendingReports()[0];
-  assert.deepStrictEqual(reportStore.load(), [unsent]);
-
-  // Quit and relaunch.
-  h.unload();
-  h = loadSystemChecks();
-  posts = [];
-  respond = async () => ({ data: {} });
-
-  assert.strictEqual(h.checks.restorePendingReports(), 1);
+  h.checks.stop();
   await settle();
-
-  assert.deepStrictEqual(posts, [unsent]);
-  assert.deepStrictEqual(reportStore.load(), []);
-  assert.ok(!fs.existsSync(path.join(dir, reportStore.FILE_NAME)));
+  assert.deepStrictEqual(backendPosts, []);
 });
 
 // ─── Display changes during the interview ───────────────────────────────────
@@ -289,7 +160,7 @@ test("a display plugged in mid-interview is reported within a second", async () 
   mock.timers.tick(300);
   await settle();
 
-  assert.ok(posts.some((p) => p.code === CODE.EXTERNAL_DISPLAY));
+  assert.ok(pushed().some((p) => p.code === CODE.EXTERNAL_DISPLAY));
 });
 
 test("stopping the session removes its display listeners", async () => {

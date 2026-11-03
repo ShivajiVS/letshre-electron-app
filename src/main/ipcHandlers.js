@@ -56,6 +56,7 @@ const startDetection = require("../detector/systemChecks");
 const flowGuard = require("./flowGuard");
 const { languageStepShown } = require("../shared/flowSteps");
 const screenRecorder = require("./screenRecorder");
+const backendOutbox = require("./backendOutbox");
 const blocklistPolicy = require("./blocklistPolicy");
 const interviewRules = require("./interviewRules");
 const { getLists, getDisplayNames } = require("../shared/blocklist");
@@ -971,6 +972,19 @@ function registerIpcHandlers() {
   registerHandler(IPC.DEV_SIMULATE_VIOLATION, SCOPE.INTERVIEW, (_event, code) =>
     simulateViolation(code)
   );
+
+  // The site hands over what has to reach the backend even if the page dies.
+  registerHandler(IPC.PROCTORING_LOG_SUBMIT, SCOPE.INTERVIEW, (_event, arg) =>
+    backendOutbox.queueProctoringLog(arg?.batch, arg?.token)
+  );
+
+  registerSend(IPC.SUBMIT_PENDING, SCOPE.INTERVIEW, (_event, arg) => {
+    backendOutbox.holdSubmit(arg?.submit, arg?.token);
+  });
+
+  registerSend(IPC.SUBMIT_SETTLED, SCOPE.INTERVIEW, (_event, arg) => {
+    backendOutbox.settleSubmit(arg?.sessionId);
+  });
 
   registerSend(IPC.PROCTORING_STOP, SCOPE.INTERVIEW, () => {
     logger.info("[ipc] proctoring-stop");

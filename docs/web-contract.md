@@ -77,7 +77,7 @@ The real site keys everything on `KEY_BY_CODE` in `src/lib/electronViolations.js
 
 ## Violation payload
 
-`onViolation` and `POST /interview/violation` get the same object:
+`onViolation` gets this object:
 
 ```jsonc
 {
@@ -167,6 +167,28 @@ window.electronAPI.viewDashboard?.();
 
 It is ignored until the lockdown has been released.
 
+## Proctoring log and auto-submit hand-over
+
+The backend keeps one proctoring log batch per interview, and a page can die before it sends it (crash, reload, closed window, stuck network). Since contract v5 the app delivers it:
+
+```js
+// Once the session has ended and the submission has answered (or a short cap passed):
+const { ok } = await window.electronAPI.submitProctoringLog(batch, sessionStorage.getItem("ac"));
+// ok: the app has it on disk and will deliver it, retrying across restarts.
+// Do not POST it yourself as well; that would be a second batch.
+```
+
+`batch` is exactly the body the site would POST to `proctoring/log/` (`interview_id`, `session_id`, `payload.records`, …). Handing the same session's batch over again replaces the queued one.
+
+An auto-submit is sent by the site, but the app keeps a copy in case the page can't finish:
+
+```js
+window.electronAPI.submitPending({ interviewId, sessionId, reason, answer }, token); // before the request
+window.electronAPI.submitSettled(sessionId); // after it succeeds
+```
+
+The app sends its copy to `auto_submit/force/` only if the interview window closes, or the app restarts, before `submitSettled`. While the page is open it never races the site's own request.
+
 ## Recording failures
 
 Screen/mic recording runs independently of the violation pipeline. It can fail (no screen source, blocked getUserMedia, upload session never established) without the interview itself being blocked. Electron does not stop the session on a recording failure; that is the web app's call, which is why listening for it is required:
@@ -225,30 +247,32 @@ Packaged builds only ever emit a certified (`reviewed: true`) locale, so `lang` 
 
 Exposed by `preload.js` via `contextBridge` (only whitelisted channels). Safe to call in a plain browser: methods no‑op if `electronAPI` is absent. The same API is exposed to the local pages and the interview site, but main enforces who may call what (`ipcScope.js`). The interview site can only use the methods in `electronAPI.methods` of the contract; the rest are for the local pages.
 
-| Method                                                                                              | Purpose                                                                                                          | Site may call |
-| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------- |
-| `onViolation(cb)` / `removeViolationListener()`                                                     | Receive violations during the interview                                                                          | yes           |
-| `acknowledgeViolation(id)`                                                                          | Confirm receipt of that violation so it isn't sent again; without an `id`, acknowledges everything pending       | yes           |
-| `interviewComplete(reason)`                                                                         | End the session; lifts the lockdown                                                                              | yes           |
-| `abortInterview(reason)`                                                                            | The interview couldn't start; releases the lockdown and goes back to the dashboard (refused once it has started) | yes           |
-| `viewDashboard()`                                                                                   | Scorecard "View Dashboard" button; leaves for the dashboard once the lockdown is released                        | yes           |
-| `startProctoring(meta)` / `stopProctoring()` / `onProctoringStarted(cb)`                            | Start/stop the screen recording                                                                                  | yes           |
-| `onProctoringError(cb)`                                                                             | Recording failed (see [Recording failures](#recording-failures))                                                 | yes           |
-| `runPreflight()`                                                                                    | Run all preflight scans; resolves with `{ hdmi, mirror, agent }`                                                 | no            |
-| `onPreflightProgress(cb)` / `removePreflightProgressListener()`                                     | Per‑step streaming progress                                                                                      | no            |
-| `onPreProceedStatus(cb)` / `removePreProceedStatusListener()`                                       | Live blocked‑app status on the success screen                                                                    | no            |
-| `loadInterviewRules(roleSelection)` / `getInterviewRules()`                                         | Role selection → the rules step; the site's published limits                                                     | no            |
-| `proceedToInterview({ rulesAccepted })`                                                             | From the rules step: enter lockdown and load the interview                                                       | no            |
-| `killProcess(name)` / `killAllProcesses(names)`                                                     | Force‑close a blocked app (whitelisted); see [detection.md](detection.md#closing-blocked-apps)                   | no            |
-| `canElevate()` / `killProcessElevated(name)`                                                        | Whether the user is an admin; one‑shot elevated retry (refused during an interview)                              | no            |
-| `recheckSystem()` / `minimizeWindow()` / `quitApp()`                                                | Preflight UX controls                                                                                            | no            |
-| `getSupportContact()`                                                                               | Interview site: `{ url, email }` for its help screens (read-only)                                                |
-| `getSupportInfo()` / `openSupport()`                                                                | Local pages: whether a support link is set; open the link                                                        |
-| `startPracticeCheck()`                                                                              | Dashboard "Check my computer": the security check alone; Continue is refused and nothing is locked down          |
-| `retryInterview()`                                                                                  | Reload the interview from the "Can't reach your interview" page                                                  | no            |
-| `getAppList()` / `getAuditLog()`                                                                    | Blocked‑app lists; in‑memory audit log                                                                           | no            |
-| `onUpdateAvailable` / `onUpdateProgress` / `onUpdateDownloaded` / `onUpdateError` / `onUpdateState` | Auto‑updater events (used by `updateCard.js`)                                                                    | no            |
-| `getUpdateState()` / `installUpdate()` / `getAppVersion()`                                          | Current updater snapshot; quit and install; running version                                                      | no            |
-| `login` / `logout` / `getAuthUser` / `getCandidateProfile`                                          | Sign‑in and dashboard                                                                                            | no            |
-| `startInterview` / `load…Page` / `submitRole` / `submitFaceVerification` / `submitVoiceSample`      | Local page flow from the dashboard to the interview                                                              | no            |
-| `getLocale` / `setLocale` / `getTranslations` / `onLocaleChanged`                                   | UI language                                                                                                      | no            |
+| Method                                                                                              | Purpose                                                                                                             | Site may call |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `onViolation(cb)` / `removeViolationListener()`                                                     | Receive violations during the interview                                                                             | yes           |
+| `acknowledgeViolation(id)`                                                                          | Confirm receipt of that violation so it isn't sent again; without an `id`, acknowledges everything pending          | yes           |
+| `interviewComplete(reason)`                                                                         | End the session; lifts the lockdown                                                                                 | yes           |
+| `abortInterview(reason)`                                                                            | The interview couldn't start; releases the lockdown and goes back to the dashboard (refused once it has started)    | yes           |
+| `viewDashboard()`                                                                                   | Scorecard "View Dashboard" button; leaves for the dashboard once the lockdown is released                           | yes           |
+| `startProctoring(meta)` / `stopProctoring()` / `onProctoringStarted(cb)`                            | Start/stop the screen recording                                                                                     | yes           |
+| `onProctoringError(cb)`                                                                             | Recording failed (see [Recording failures](#recording-failures))                                                    | yes           |
+| `submitProctoringLog(batch, token?)`                                                                | Hand the finished proctoring log to the app to deliver (see [hand-over](#proctoring-log-and-auto-submit-hand-over)) | yes           |
+| `submitPending(submit, token?)` / `submitSettled(sessionId)`                                        | An auto-submit started / succeeded; the app sends a held copy only if the page dies first                           | yes           |
+| `runPreflight()`                                                                                    | Run all preflight scans; resolves with `{ hdmi, mirror, agent }`                                                    | no            |
+| `onPreflightProgress(cb)` / `removePreflightProgressListener()`                                     | Per‑step streaming progress                                                                                         | no            |
+| `onPreProceedStatus(cb)` / `removePreProceedStatusListener()`                                       | Live blocked‑app status on the success screen                                                                       | no            |
+| `loadInterviewRules(roleSelection)` / `getInterviewRules()`                                         | Role selection → the rules step; the site's published limits                                                        | no            |
+| `proceedToInterview({ rulesAccepted })`                                                             | From the rules step: enter lockdown and load the interview                                                          | no            |
+| `killProcess(name)` / `killAllProcesses(names)`                                                     | Force‑close a blocked app (whitelisted); see [detection.md](detection.md#closing-blocked-apps)                      | no            |
+| `canElevate()` / `killProcessElevated(name)`                                                        | Whether the user is an admin; one‑shot elevated retry (refused during an interview)                                 | no            |
+| `recheckSystem()` / `minimizeWindow()` / `quitApp()`                                                | Preflight UX controls                                                                                               | no            |
+| `getSupportContact()`                                                                               | Interview site: `{ url, email }` for its help screens (read-only)                                                   |
+| `getSupportInfo()` / `openSupport()`                                                                | Local pages: whether a support link is set; open the link                                                           |
+| `startPracticeCheck()`                                                                              | Dashboard "Check my computer": the security check alone; Continue is refused and nothing is locked down             |
+| `retryInterview()`                                                                                  | Reload the interview from the "Can't reach your interview" page                                                     | no            |
+| `getAppList()` / `getAuditLog()`                                                                    | Blocked‑app lists; in‑memory audit log                                                                              | no            |
+| `onUpdateAvailable` / `onUpdateProgress` / `onUpdateDownloaded` / `onUpdateError` / `onUpdateState` | Auto‑updater events (used by `updateCard.js`)                                                                       | no            |
+| `getUpdateState()` / `installUpdate()` / `getAppVersion()`                                          | Current updater snapshot; quit and install; running version                                                         | no            |
+| `login` / `logout` / `getAuthUser` / `getCandidateProfile`                                          | Sign‑in and dashboard                                                                                               | no            |
+| `startInterview` / `load…Page` / `submitRole` / `submitFaceVerification` / `submitVoiceSample`      | Local page flow from the dashboard to the interview                                                                 | no            |
+| `getLocale` / `setLocale` / `getTranslations` / `onLocaleChanged`                                   | UI language                                                                                                         | no            |

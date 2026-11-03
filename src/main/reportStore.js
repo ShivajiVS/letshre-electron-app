@@ -1,8 +1,8 @@
 /**
- * Violation reports the backend has not confirmed yet, kept in one sealed file
- * so a quit or crash does not lose them:
+ * Outbox items the backend has not confirmed yet (backendOutbox.js), kept in
+ * one sealed file so a quit or crash does not lose them:
  *
- *   <userData>/pending-violations.bin
+ *   <userData>/pending-outbox.bin
  *
  * Sealed with AES-256-GCM under the recording spill key (spillKey.js), the same
  * way pendingUploads.js seals chunks. No Electron imports.
@@ -15,9 +15,11 @@ const fs = require("fs");
 const path = require("path");
 const logger = require("./logger");
 
-const FILE_NAME = "pending-violations.bin";
-const MAGIC = Buffer.from("LHV1");
-const LABEL = Buffer.from("pending-violations");
+const FILE_NAME = "pending-outbox.bin";
+// Violation reports for a backend endpoint that never existed. Removed unread.
+const LEGACY_FILE_NAME = "pending-violations.bin";
+const MAGIC = Buffer.from("LHO1");
+const LABEL = Buffer.from("pending-outbox");
 const IV_BYTES = 12;
 const TAG_BYTES = 16;
 const HEADER_BYTES = MAGIC.length + IV_BYTES + TAG_BYTES;
@@ -27,11 +29,16 @@ let key = null;
 
 /**
  * @param {string} baseDir Typically app.getPath("userData").
- * @param {Buffer} storeKey 32-byte key; reports sealed under another key cannot be read back.
+ * @param {Buffer} storeKey 32-byte key; items sealed under another key cannot be read back.
  */
 function init(baseDir, storeKey) {
   filePath = path.join(baseDir, FILE_NAME);
   key = storeKey;
+  try {
+    fs.rmSync(path.join(baseDir, LEGACY_FILE_NAME), { force: true });
+  } catch (err) {
+    logger.warn("[report-store] could not remove the old violation queue:", err.message);
+  }
 }
 
 function _seal(json) {
@@ -91,4 +98,4 @@ function load() {
   }
 }
 
-module.exports = { FILE_NAME, init, save, load };
+module.exports = { FILE_NAME, LEGACY_FILE_NAME, init, save, load };

@@ -125,6 +125,9 @@ const IPC = {
   // Screen recording / proctoring
   PROCTORING_START: "proctoring-start",
   PROCTORING_STOP: "proctoring-stop",
+  PROCTORING_LOG_SUBMIT: "proctoring-log-submit",
+  SUBMIT_PENDING: "submit-pending",
+  SUBMIT_SETTLED: "submit-settled",
   PUSH_PROCTORING_STARTED: "push-proctoring-started",
   PUSH_PROCTORING_ERROR: "push-proctoring-error",
 
@@ -157,6 +160,8 @@ const ALLOWED_SEND_CHANNELS = [
   IPC.LOAD_HOW_IT_WORKS,
   IPC.RETRY_INTERVIEW,
   IPC.PROCTORING_STOP,
+  IPC.SUBMIT_PENDING,
+  IPC.SUBMIT_SETTLED,
   IPC.OPEN_SUPPORT,
 ];
 
@@ -191,6 +196,7 @@ const ALLOWED_INVOKE_CHANNELS = [
   IPC.SUBMIT_ROLE,
   IPC.STORE_CANDIDATE_PHOTO,
   IPC.PROCTORING_START,
+  IPC.PROCTORING_LOG_SUBMIT,
   IPC.DEV_SIMULATE_VIOLATION,
   IPC.GET_LOCALE,
   IPC.SET_LOCALE,
@@ -646,6 +652,30 @@ contextBridge.exposeInMainWorld("electronAPI", {
    * recorder window closes.
    */
   stopProctoring: () => safeSend(IPC.PROCTORING_STOP),
+
+  /**
+   * Hand the finished proctoring log batch to the app, exactly as it would be
+   * POSTed. The app keeps it on disk and delivers it, retrying across restarts,
+   * so the site must not send it itself once this resolves `{ ok: true }`.
+   * @param {object} batch
+   * @param {string} [token] - the page's current access token
+   * @returns {Promise<{ ok: boolean, error?: string }>}
+   */
+  submitProctoringLog: (batch, token) => safeInvoke(IPC.PROCTORING_LOG_SUBMIT, { batch, token }),
+
+  /**
+   * An auto-submit has started. The app holds a copy and sends it only if the
+   * window closes, or the app restarts, before submitSettled.
+   * @param {{ interviewId: string, sessionId: string, reason?: string, answer?: string }} submit
+   * @param {string} [token]
+   */
+  submitPending: (submit, token) => safeSend(IPC.SUBMIT_PENDING, { submit, token }),
+
+  /**
+   * The auto-submit succeeded; the app drops its held copy.
+   * @param {string} sessionId
+   */
+  submitSettled: (sessionId) => safeSend(IPC.SUBMIT_SETTLED, { sessionId }),
 
   /**
    * Dev builds with DEVTOOLS on only: raise a violation as if it had been
